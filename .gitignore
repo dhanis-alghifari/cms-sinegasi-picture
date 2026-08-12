@@ -22,3 +22,8 @@ build/
 .gemini/
 .ngodingpakeai/
 .mcp.json
+
+# Keep README documentation; keep planning/agent markdown local
+*.md
+!README.md
+!**/README.md
