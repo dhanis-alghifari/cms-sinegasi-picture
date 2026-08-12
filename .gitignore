@@ -27,3 +27,6 @@ build/
 *.md
 !README.md
 !**/README.md
+
+# Private UX/design planning docs
+/frontend/docs/
