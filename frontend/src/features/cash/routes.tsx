@@ -1,0 +1,21 @@
+// src/features/cash/routes.tsx
+// Cash feature routes
+
+import { lazy, Suspense } from 'react';
+import type { RouteObject } from 'react-router-dom';
+import { PageLoader } from '@/components/common/LoadingSpinner';
+import { CapabilityRoute } from '@/app/router/CapabilityRoute';
+
+const CashPage = lazy(() =>
+  import('./pages/CashPage').then((m) => ({ default: m.CashPage })),
+);
+
+export const cashRoutes: RouteObject[] = [
+  {
+    element: <CapabilityRoute capabilities={['cash.read']} />,
+    children: [{
+      path: 'cash',
+      element: <Suspense fallback={<PageLoader />}><CashPage /></Suspense>,
+    }],
+  },
+];

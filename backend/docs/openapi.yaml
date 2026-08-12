@@ -1,0 +1,2017 @@
+openapi: 3.1.0
+info:
+  title: Sinegasi CMS API
+  version: 1.0.0
+  description: Initial contract for the hardened routes. Expand per vertical slice.
+servers:
+  - url: http://localhost:5001
+security:
+  - bearerAuth: []
+paths:
+  /api/health:
+    get:
+      security: []
+      summary: Health check
+      responses:
+        '200':
+          description: Service is running
+  /api/auth/login:
+    post:
+      security: []
+      summary: Create a session token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200': { description: Authenticated }
+        '401': { description: Invalid credentials }
+        '429': { description: Login rate limit exceeded }
+        '503': { description: Authentication service unavailable }
+  /api/auth/me:
+    get:
+      summary: Return canonical session state
+      responses:
+        '200': { description: Current authenticated user }
+        '401': { description: Unauthenticated or inactive account }
+  /api/auth/logout:
+    post:
+      summary: End the current session
+      responses:
+        '200': { description: Session ended }
+        '401': { description: Unauthenticated }
+  /api/auth/change-password:
+    post:
+      summary: Change the authenticated user's password (legacy method)
+      description: Kept for clients that use the original POST contract; PATCH is the preferred method for new clients.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+      responses:
+        '200': { description: Password changed and rotated token returned }
+        '400': { description: Password policy or current password failure }
+        '401': { description: Invalid or revoked session }
+        '503': { description: Migration or database unavailable }
+    patch:
+      summary: Change the authenticated user's password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+      responses:
+        '200': { description: Password changed and rotated token returned }
+        '400': { description: Password policy or current password failure }
+        '401': { description: Invalid or revoked session }
+        '503': { description: Migration or database unavailable }
+  /api/dashboard/summary:
+    get:
+      summary: Return a role-scoped dashboard summary
+      description: Teacher accounts receive operational aggregates; every other role receives only its own personal summary.
+      responses:
+        '200': { description: Dashboard summary returned }
+        '401': { description: Unauthenticated }
+        '403': { description: Dashboard capability missing }
+        '503': { description: Dashboard data source unavailable }
+  /api/access-control/matrix:
+    get:
+      summary: Read the role and capability matrix
+      description: Teacher-only policy administration read endpoint. The backend remains authoritative even when the frontend hides a menu.
+      responses:
+        '200': { description: Role capability matrix }
+        '401': { description: Unauthenticated }
+        '403': { description: Access-control read capability missing }
+        '503': { description: Access-control migration unavailable }
+  /api/access-control/audit-logs:
+    get:
+      summary: Read access-policy change history
+      description: Returns immutable RBAC policy changes with actor name, username, and role snapshots.
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 100, default: 100 }
+      responses:
+        '200': { description: Access-control audit records with actor snapshots }
+        '401': { description: Unauthenticated }
+        '403': { description: Access-control read capability missing }
+        '503': { description: Access-control audit migration unavailable }
+  /api/access-control/roles/{role}/capabilities:
+    put:
+      summary: Replace one role's capabilities
+      description: Teacher-only, audited, deny-by-default policy update. The teacher role cannot remove its own access-control management capability.
+      parameters:
+        - name: role
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [teacher, leader, vice_leader, treasurer, secretary, equipment_team, contest_team, member]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [capabilities, change_reason]
+              properties:
+                capabilities:
+                  type: array
+                  uniqueItems: true
+                  items: { type: string }
+                change_reason: { type: string, minLength: 5, maxLength: 500 }
+      responses:
+        '200': { description: Capability policy replaced and audit recorded }
+        '401': { description: Unauthenticated }
+        '403': { description: Teacher-only access-control management }
+        '422': { description: Invalid role, capability list, reason, or teacher lockout }
+        '503': { description: Access-control migration unavailable }
+  /api/audit-logs:
+    get:
+      summary: List immutable audit trail entries
+      description: Teacher-only, bounded audit history with deterministic pagination and optional actor/table/date filters.
+      parameters:
+        - { name: page, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 10000, default: 1 } }
+        - { name: pageSize, in: query, required: false, schema: { type: integer, minimum: 10, maximum: 100, default: 20 } }
+        - { name: table_name, in: query, required: false, schema: { type: string, maxLength: 128 } }
+        - { name: action, in: query, required: false, schema: { type: string, enum: [INSERT, UPDATE, UPSERT, DELETE, SYSTEM_CHECK] } }
+        - { name: actor_id, in: query, required: false, schema: { type: string, format: uuid } }
+        - { name: record_id, in: query, required: false, schema: { type: string, maxLength: 128 } }
+        - { name: date_from, in: query, required: false, schema: { type: string, format: date } }
+        - { name: date_to, in: query, required: false, schema: { type: string, format: date } }
+        - { name: search, in: query, required: false, schema: { type: string, maxLength: 100 } }
+      responses:
+        '200':
+          description: Deterministically ordered audit entries
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - $ref: '#/components/schemas/AuditLogPage'
+        '401': { description: Unauthenticated }
+        '403': { description: Teacher role required }
+        '422': { description: Invalid audit filters }
+        '503': { description: Audit schema or database is unavailable }
+  /api/audit-logs/entry/{id}:
+    get:
+      summary: Read one audit entry
+      description: Teacher-only lookup of one immutable audit entry by UUID.
+      parameters:
+        - $ref: '#/components/parameters/AuditEntryId'
+      responses:
+        '200':
+          description: Audit entry detail
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    required: [data]
+                    properties:
+                      data: { $ref: '#/components/schemas/AuditLog' }
+        '401': { description: Unauthenticated }
+        '403': { description: Teacher role required }
+        '404': { description: Audit entry not found }
+        '422': { description: Invalid audit entry ID }
+        '503': { description: Audit schema or database is unavailable }
+  /api/audit-logs/{tableName}/{recordId}:
+    get:
+      summary: List audit history for a record
+      description: Teacher-only, bounded history for one allowlisted table and record identifier.
+      parameters:
+        - name: tableName
+          in: path
+          required: true
+          schema: { type: string, pattern: '^[a-zA-Z][a-zA-Z0-9_]{0,127}$' }
+        - name: recordId
+          in: path
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 128 }
+        - { name: page, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 10000, default: 1 } }
+        - { name: pageSize, in: query, required: false, schema: { type: integer, minimum: 10, maximum: 100, default: 20 } }
+        - { name: action, in: query, required: false, schema: { type: string, enum: [INSERT, UPDATE, UPSERT, DELETE, SYSTEM_CHECK] } }
+        - { name: date_from, in: query, required: false, schema: { type: string, format: date } }
+        - { name: date_to, in: query, required: false, schema: { type: string, format: date } }
+      responses:
+        '200':
+          description: Deterministically ordered record history
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - $ref: '#/components/schemas/AuditLogPage'
+        '401': { description: Unauthenticated }
+        '403': { description: Teacher role required }
+        '422': { description: Invalid record identifiers or filters }
+        '503': { description: Audit schema or database is unavailable }
+  /api/admin/overdue-check:
+    post:
+      summary: Run the overdue borrowing check manually
+      description: Leader-only trigger that reuses the scheduled worker and returns a bounded diagnostic log preview.
+      responses:
+        '200':
+          description: Overdue check completed
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, message, result, logs]
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, maxLength: 300 }
+                  result: { $ref: '#/components/schemas/OverdueCheckResult' }
+                  logs:
+                    type: array
+                    maxItems: 10
+                    items: { $ref: '#/components/schemas/OverdueNotificationLog' }
+        '401': { description: Unauthenticated }
+        '403': { description: Leader role required }
+        '500': { description: Overdue check failed }
+  /api/notifications/unread-count:
+    get:
+      summary: Count unread notifications for the authenticated user
+      responses:
+        '200':
+          description: Unread notification count
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [unread_count]
+                properties:
+                  unread_count: { type: integer, minimum: 0 }
+        '401': { description: Unauthenticated }
+        '503': { description: Notification schema or database identity is unavailable }
+  /api/notifications:
+    get:
+      summary: List notifications for the authenticated user
+      parameters:
+        - { name: page, in: query, required: false, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: pageSize, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+        - { name: is_read, in: query, required: false, schema: { type: boolean } }
+        - { name: unread_only, in: query, required: false, schema: { type: boolean } }
+      responses:
+        '200': { description: Deterministically ordered paginated notifications and unread count }
+        '401': { description: Unauthenticated }
+        '503': { description: Notification schema or database identity is unavailable }
+  /api/notifications/{id}/read:
+    patch:
+      summary: Mark one owned notification as read
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, maxLength: 128 } }
+      responses:
+        '200': { description: Notification marked as read }
+        '401': { description: Unauthenticated }
+        '404': { description: Notification not found for the authenticated user }
+        '503': { description: Notification schema or database identity is unavailable }
+  /api/notifications/read-all:
+    post:
+      summary: Mark all notifications as read (legacy-compatible method)
+      responses:
+        '200': { description: Number of notifications marked as read is included in the message }
+        '401': { description: Unauthenticated }
+        '503': { description: Notification schema or database identity is unavailable }
+    patch:
+      summary: Mark all notifications as read
+      responses:
+        '200': { description: Number of notifications marked as read is included in the message }
+        '401': { description: Unauthenticated }
+        '503': { description: Notification schema or database identity is unavailable }
+  /api/users:
+    get:
+      summary: List operational and member accounts
+      description: Teacher-only account management list with bounded pagination and server-side search/filtering.
+      parameters:
+        - { name: search, in: query, required: false, schema: { type: string, maxLength: 100 } }
+        - { name: role, in: query, required: false, schema: { type: string, enum: [all, teacher, leader, vice_leader, treasurer, secretary, equipment_team, contest_team, member] } }
+        - { name: is_active, in: query, required: false, schema: { type: string, enum: [all, 'true', 'false'] } }
+        - { name: page, in: query, required: false, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: pageSize, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+      responses:
+        '200':
+          description: Paginated user accounts without password hashes
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - $ref: '#/components/schemas/UserPage'
+        '401': { description: Unauthenticated }
+        '403': { description: Teacher role required }
+        '503': { description: Users schema (including migration 041) or database identity is unavailable }
+    post:
+      summary: Create an operational user account
+      description: Teacher-only account creation. The temporary password is returned once and is never stored in audit logs.
+      parameters:
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreateRequest'
+      responses:
+        '201': { description: Account created with a one-time temporary password }
+        '401': { description: Unauthenticated }
+        '403': { description: Teacher role required }
+        '409': { description: Username already exists }
+        '422': { description: Invalid role, username, or password policy }
+        '503': { description: Users schema or database identity is unavailable }
+  /api/users/{id}:
+    get:
+      summary: Read one user account
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200': { description: User account without password hash }
+        '401': { description: Unauthenticated }
+        '403': { description: Teacher role required }
+        '404': { description: User not found }
+        '503': { description: Users schema or database identity is unavailable }
+    put:
+      summary: Update a user account
+      description: Username, role, name, and active status changes require an auditable reason. Username is the mutable login identifier; stable feature relationships continue to use users.id. Linked student accounts keep member role and student-owned name/status invariants. The backend commits the update and one redacted audit event through update_user_account_atomic; an effective no-op is safe to retry.
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdateRequest'
+      responses:
+        '200': { description: Updated user account }
+        '401': { description: Unauthenticated }
+        '403': { description: Teacher role required }
+        '404': { description: User not found }
+        '409': { description: Username already exists, or a linked-student/lifecycle invariant prevents the change }
+        '422': { description: Invalid update or missing change reason }
+        '503': { description: Users schema (including migration 041) or database identity is unavailable }
+    delete:
+      summary: Delete an unlinked user account
+      description: Deletion is blocked for the current account and any account linked to a student; use inactive/alumni lifecycle changes for linked accounts.
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+        - $ref: '#/components/parameters/ChangeReason'
+      responses:
+        '200': { description: User account deleted }
+        '401': { description: Unauthenticated }
+        '403': { description: Teacher role required }
+        '404': { description: User not found }
+        '409': { description: Self-delete or linked-student invariant prevents deletion }
+        '422': { description: Missing change reason }
+        '503': { description: Users schema or database identity is unavailable }
+  /api/users/{id}/reset-password:
+    post:
+      summary: Reset a user password
+      description: Teacher-only atomic reset. The password is generated once per idempotency key, auth_version is rotated, the account is marked for first login, and the plaintext temporary password is returned only in this response. The reset endpoint deliberately bypasses the generic response cache.
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+        - $ref: '#/components/parameters/ChangeReason'
+        - name: X-Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string, minLength: 8, maxLength: 128 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserResetPasswordRequest'
+      responses:
+        '200':
+          description: Password reset with a one-time temporary password
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResetPasswordResponse'
+        '400': { description: Missing or malformed idempotency key }
+        '401': { description: Unauthenticated }
+        '403': { description: Teacher role required }
+        '404': { description: User not found }
+        '409': { description: Self-reset is forbidden or the idempotency key was already consumed }
+        '422': { description: Missing change reason }
+        '503': { description: Users schema or database identity is unavailable }
+  /api/options/kelas:
+    get:
+      security: []
+      summary: List active class options
+      description: Public read-only class options used by student and attendance forms. Only active classes are returned.
+      responses:
+        '200':
+          description: Active classes ordered by name
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, example: true }
+                  data: { type: array, items: { $ref: '#/components/schemas/ClassOption' } }
+        '503': { description: Classes schema is unavailable }
+  /api/admin/classes:
+    get:
+      summary: List classes for teacher management
+      parameters:
+        - { name: search, in: query, required: false, schema: { type: string, maxLength: 100 } }
+        - { name: tingkat, in: query, required: false, schema: { type: string, enum: [all, X, XI, XII] } }
+        - { name: is_active, in: query, required: false, schema: { type: string, enum: [all, 'true', 'false'] } }
+        - { name: page, in: query, required: false, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: pageSize, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+      responses:
+        '200':
+          description: Bounded, deterministically ordered class page
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - $ref: '#/components/schemas/ClassPage'
+        '401': { description: Unauthenticated }
+        '403': { description: Teacher role required }
+        '503': { description: Classes schema or database identity is unavailable }
+    post:
+      summary: Create a class master record
+      parameters:
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClassCreateRequest'
+      responses:
+        '201': { description: Class created }
+        '401': { description: Unauthenticated }
+        '403': { description: Teacher role required }
+        '409': { description: Class name already exists }
+        '422': { description: Invalid class name or level }
+        '503': { description: Classes schema or database identity is unavailable }
+  /api/admin/classes/{id}:
+    put:
+      summary: Update a class master record
+      parameters:
+        - $ref: '#/components/parameters/ClassId'
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClassUpdateRequest'
+      responses:
+        '200': { description: Class updated }
+        '401': { description: Unauthenticated }
+        '403': { description: Teacher role required }
+        '404': { description: Class not found }
+        '409': { description: Class name already exists }
+        '422': { description: Invalid update or missing change reason }
+        '503': { description: Classes schema or database identity is unavailable }
+    delete:
+      summary: Deactivate a class master record
+      description: Soft-deletes the class by setting is_active=false so existing student history remains intact.
+      parameters:
+        - $ref: '#/components/parameters/ClassId'
+        - $ref: '#/components/parameters/ChangeReason'
+      responses:
+        '200': { description: Class deactivated }
+        '401': { description: Unauthenticated }
+        '403': { description: Teacher role required }
+        '404': { description: Class not found }
+        '422': { description: Missing change reason }
+        '503': { description: Classes schema or database identity is unavailable }
+  /api/students/options:
+    get:
+      summary: List bounded active-student options
+      description: Teacher and treasurer searchable picker endpoint. The response never loads the complete student table into the browser.
+      parameters:
+        - { name: q, in: query, required: false, schema: { type: string, maxLength: 100 } }
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 20, default: 20 } }
+        - { name: active, in: query, required: false, schema: { type: string, enum: ['true', 'false'], default: 'true' } }
+      responses:
+        '200': { description: Bounded student options ordered by name }
+        '401': { description: Unauthenticated }
+        '403': { description: Teacher or treasurer role required }
+        '503': { description: Students schema is unavailable }
+  /api/students:
+    get:
+      summary: List students with server-side filters and pagination
+      description: Secretary-only management list. Search and filters are evaluated in the database and pages are capped at 100 records.
+      parameters:
+        - { name: search, in: query, required: false, schema: { type: string, maxLength: 100 } }
+        - { name: kelas, in: query, required: false, schema: { type: string, enum: [all, X, XI, XII] } }
+        - { name: peminatan, in: query, required: false, schema: { type: string, enum: [all, kamera, editing, naskah] } }
+        - { name: is_active, in: query, required: false, schema: { type: string, enum: [all, 'true', 'false'] } }
+        - { name: page, in: query, required: false, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: pageSize, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+      responses:
+        '200': { description: Paginated student records without password hashes }
+        '401': { description: Unauthenticated }
+        '403': { description: Secretary role required }
+        '503': { description: Students schema or database identity is unavailable }
+    post:
+      summary: Create a student and linked member account atomically
+      description: Secretary-only operation. A one-time temporary password is returned in the immediate response and is never stored in audit values.
+      parameters:
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StudentCreateRequest'
+      responses:
+        '201': { description: Student and member account created }
+        '401': { description: Unauthenticated }
+        '403': { description: Secretary role required }
+        '409': { description: Duplicate NIS or generated username }
+        '422': { description: Invalid student profile }
+        '503': { description: Students schema, provisioning function, or database identity is unavailable }
+  /api/students/{id}:
+    get:
+      summary: Read one student by UUID or NIS
+      parameters:
+        - $ref: '#/components/parameters/StudentId'
+      responses:
+        '200': { description: Student record }
+        '401': { description: Unauthenticated }
+        '403': { description: Ownership/capability denied }
+        '404': { description: Student not found }
+    put:
+      summary: Update a student profile or active/alumni status
+      description: Profile and lifecycle changes are intentionally separate. Status changes require the teacher capability and both operations require an auditable reason.
+      parameters:
+        - $ref: '#/components/parameters/StudentId'
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StudentUpdateRequest'
+      responses:
+        '200': { description: Updated student record }
+        '401': { description: Unauthenticated }
+        '403': { description: Secretary access or teacher lifecycle capability required }
+        '404': { description: Student not found }
+        '422': { description: Invalid update, mixed lifecycle/profile fields, or missing change reason }
+        '503': { description: Students schema or database identity is unavailable }
+    delete:
+      summary: Reject permanent student deletion
+      description: Permanent deletion is disabled to preserve financial, attendance, and borrowing history. Use the lifecycle update with is_active=false.
+      parameters:
+        - $ref: '#/components/parameters/StudentId'
+        - $ref: '#/components/parameters/ChangeReason'
+      responses:
+        '409': { description: Permanent deletion is disabled }
+        '401': { description: Unauthenticated }
+        '403': { description: Teacher role required }
+  /api/students/{id}/provision-account:
+    post:
+      summary: Provision a member account for a legacy student
+      description: Secretary-only repair operation. The client never supplies a password; the generated temporary password is returned once.
+      parameters:
+        - $ref: '#/components/parameters/StudentId'
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StudentProvisionRequest'
+      responses:
+        '201': { description: Member account provisioned }
+        '401': { description: Unauthenticated }
+        '403': { description: Secretary role required }
+        '404': { description: Student not found }
+        '409': { description: Student already has an account or generated username conflicts }
+        '422': { description: Invalid student ID or change reason }
+        '503': { description: Database, provisioning function, or database identity is unavailable }
+  /api/students/{id}/dashboard-summary:
+    get:
+      summary: Read the legacy student dashboard summary
+      description: The student may read only their own summary; teacher/leader capabilities may read another student. The current implementation uses a development fixture until a cross-domain dashboard read model is approved.
+      parameters:
+        - $ref: '#/components/parameters/StudentId'
+      responses:
+        '200':
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentDashboardSummaryEnvelope'
+        '401': { description: Unauthenticated }
+        '403': { description: First-login or ownership/capability guard denied }
+        '422': { description: Invalid student ID }
+        '503': { description: Dashboard read model unavailable }
+  /api/attendance:
+    get:
+      summary: List attendance with server-side filters and pagination
+      parameters:
+        - { name: search, in: query, required: false, schema: { type: string, maxLength: 100 } }
+        - { name: kelas, in: query, required: false, schema: { type: string, maxLength: 64 } }
+        - { name: status, in: query, required: false, schema: { type: string, maxLength: 32 } }
+        - { name: tanggal, in: query, required: false, schema: { type: string, format: date } }
+        - { name: page, in: query, required: false, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: pageSize, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+      responses:
+        '200': { description: Paginated attendance records }
+        '401': { description: Unauthenticated }
+    post:
+      summary: Record attendance
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '201': { description: Attendance recorded }
+        '403': { description: Capability denied }
+  /api/attendance/summary:
+    get:
+      summary: Summarize attendance for one date
+      parameters:
+        - { name: tanggal, in: query, required: false, schema: { type: string, format: date } }
+      responses:
+        '200': { description: Aggregated attendance counters }
+        '401': { description: Unauthenticated }
+  /api/attendance/{attendance_id}/correct:
+    patch:
+      summary: Correct an attendance record
+      parameters:
+        - { name: attendance_id, in: path, required: true, schema: { type: string, maxLength: 64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AttendanceCorrectionRequest'
+      responses:
+        '200': { description: Attendance corrected }
+        '403': { description: Teacher role required }
+  /api/cash/summary:
+    get:
+      summary: Read the authenticated user's cash summary
+      description: Teachers and leaders receive the class summary. Member accounts are scoped to their own student record from the JWT.
+      responses:
+        '200':
+          description: Cash balance, income, expense, and outstanding student debt totals
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - $ref: '#/components/schemas/CashSummary'
+        '401': { description: Unauthenticated }
+        '503': { description: Cash schema is not available }
+  /api/cash/transactions:
+    get:
+      summary: List cash transactions with server-side filtering and pagination
+      parameters:
+        - { name: tipe, in: query, required: false, schema: { type: string, enum: [masuk, keluar] } }
+        - { name: search, in: query, required: false, schema: { type: string, maxLength: 100 } }
+        - { name: tanggal_mulai, in: query, required: false, schema: { type: string, format: date } }
+        - { name: tanggal_selesai, in: query, required: false, schema: { type: string, format: date } }
+        - { name: metode_pembayaran, in: query, required: false, schema: { type: string, pattern: '^[a-z0-9]+(?:_[a-z0-9]+)*$', maxLength: 40 } }
+        - { name: page, in: query, required: false, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: pageSize, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+      responses:
+        '200':
+          description: Paginated cash transactions ordered by transaction date and creation time
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - $ref: '#/components/schemas/CashTransactionPage'
+        '401': { description: Unauthenticated }
+        '422': { description: Invalid date or payment-method filter }
+        '503': { description: Cash schema is not available }
+  /api/cash/payment-methods:
+    get:
+      summary: List active cash payment methods
+      parameters:
+        - { name: include_inactive, in: query, required: false, schema: { type: boolean, default: false } }
+      responses:
+        '200': { description: Payment-method master data }
+        '401': { description: Unauthenticated }
+        '403': { description: Manager role required for inactive methods }
+        '503': { description: Cash schema is not available }
+    post:
+      summary: Create a cash payment method
+      parameters:
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CashPaymentMethodCreateRequest'
+      responses:
+        '201': { description: Payment method created }
+        '403': { description: Teacher or treasurer role required }
+        '409': { description: Payment method code already exists }
+        '422': { description: Invalid payment method or missing change reason }
+  /api/cash/payment-methods/{id}:
+    patch:
+      summary: Update a cash payment method without changing its immutable code
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, maxLength: 64 } }
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CashPaymentMethodUpdateRequest'
+      responses:
+        '200': { description: Payment method updated }
+        '403': { description: Teacher or treasurer role required }
+        '404': { description: Payment method not found }
+        '422': { description: Invalid update or attempt to disable the fallback method }
+  /api/cash/transactions/in:
+    post:
+      summary: Record an incoming cash transaction through the atomic ledger RPC
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CashInRequest'
+      responses:
+        '201': { description: Cash income recorded or idempotent replay returned }
+        '403': { description: Teacher or treasurer role required }
+        '422': { description: Invalid amount, date, student, or payment method }
+        '503': { description: Cash schema or database identity is not available }
+  /api/cash/transactions/out:
+    post:
+      summary: Record an outgoing cash transaction through the atomic ledger RPC
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CashOutRequest'
+      responses:
+        '201': { description: Cash expense recorded or idempotent replay returned }
+        '400': { description: Insufficient cash balance }
+        '403': { description: Teacher or treasurer role required }
+        '422': { description: Invalid amount, description, or payment method }
+        '503': { description: Cash schema or database identity is not available }
+  /api/cash/report:
+    get:
+      summary: Read an aggregate cash report for a bounded date range
+      description: Restricted to teacher and treasurer roles. The date range is limited to 90 days and aggregation is performed by a database RPC in production.
+      parameters:
+        - { name: start_date, in: query, required: false, schema: { type: string, format: date } }
+        - { name: end_date, in: query, required: false, schema: { type: string, format: date } }
+        - { name: metode_pembayaran, in: query, required: false, schema: { type: string, pattern: '^[a-z0-9]+(?:_[a-z0-9]+)*$', maxLength: 40 } }
+      responses:
+        '200': { description: Cash report with control totals, breakdowns, daily flow, and outstanding debts }
+        '401': { description: Unauthenticated }
+        '403': { description: Teacher or treasurer role required }
+        '422': { description: Invalid date range or payment-method filter }
+        '503': { description: Cash schema is not available }
+  /api/cash/debts:
+    get:
+      summary: List unpaid cash debts with bounded pagination
+      description: Member accounts are automatically scoped to their own student ID from the JWT.
+      parameters:
+        - { name: search, in: query, required: false, schema: { type: string, maxLength: 100 } }
+        - { name: page, in: query, required: false, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: pageSize, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+      responses:
+        '200': { description: Paginated unpaid cash debts }
+        '401': { description: Unauthenticated }
+        '503': { description: Cash schema is not available }
+  /api/cash/billing-rules:
+    get:
+      summary: Read global billing rules
+      responses:
+        '200': { description: Current mandatory billing configuration }
+        '401': { description: Unauthenticated }
+        '503': { description: Cash schema is not available }
+    put:
+      summary: Update global billing rules
+      parameters:
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CashBillingRulesUpdateRequest'
+      responses:
+        '200': { description: Billing rules updated }
+        '403': { description: Teacher or treasurer role required }
+        '422': { description: Invalid amount, date range, or missing change reason }
+        '503': { description: Cash schema or database identity is not available }
+  /api/cash/disputes:
+    post:
+      summary: Submit a dispute for an incoming cash transaction
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CashDisputeCreateRequest'
+      responses:
+        '201': { description: Dispute submitted }
+        '401': { description: Unauthenticated }
+        '403': { description: Member attempted to dispute another student's transaction }
+        '409': { description: Transaction already has a dispute }
+        '422': { description: Missing proof or reason shorter than 10 characters }
+        '503': { description: Cash schema or database identity is not available }
+  /api/cash/disputes/{id}:
+    patch:
+      summary: Approve or reject a cash dispute
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, maxLength: 64 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CashDisputeUpdateRequest'
+      responses:
+        '200': { description: Dispute status updated }
+        '403': { description: Teacher or treasurer role required }
+        '404': { description: Dispute not found }
+        '422': { description: Invalid dispute status }
+        '503': { description: Cash schema or database identity is not available }
+  /api/borrowing:
+    get:
+      summary: List borrowing records with server-side scope and pagination
+      parameters:
+        - { name: status, in: query, required: false, schema: { type: string, enum: [menunggu_persetujuan, disetujui, ditolak, dipinjam, dikembalikan, terlambat] } }
+        - { name: borrower_id, in: query, required: false, schema: { type: string, maxLength: 64 } }
+        - { name: search, in: query, required: false, schema: { type: string, maxLength: 100 } }
+        - { name: page, in: query, required: false, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: pageSize, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+      responses:
+        '200': { description: Paginated borrowing records }
+        '401': { description: Unauthenticated }
+        '503': { description: Borrowing schema is not available }
+    post:
+      summary: Create a borrowing request using the atomic equipment reservation function
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BorrowingCreateRequest'
+      responses:
+        '201': { description: Borrowing request created or replayed idempotently }
+        '403': { description: Member attempted to borrow for another student }
+        '409': { description: Equipment is unavailable or already reserved }
+        '422': { description: Invalid dates, purpose, or equipment list }
+        '503': { description: Borrowing schema or database identity is not available }
+  /api/borrowing/summary:
+    get:
+      summary: Read borrowing counters for the authenticated scope
+      responses:
+        '200': { description: Active, pending, overdue, and returned-today counters }
+        '401': { description: Unauthenticated }
+        '503': { description: Borrowing schema is not available }
+  /api/borrowing/{borrowing_id}/approve-reject:
+    post:
+      summary: Approve or reject a pending borrowing request
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: borrowing_id, in: path, required: true, schema: { type: string, maxLength: 128 } }
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BorrowingApprovalRequest'
+      responses:
+        '200': { description: Borrowing request status updated }
+        '403': { description: Teacher role required }
+        '404': { description: Borrowing request not found }
+        '409': { description: Request has already been processed or equipment changed }
+        '422': { description: Invalid action or missing change reason }
+        '503': { description: Borrowing schema or database identity is not available }
+  /api/borrowing/{id}/handover:
+    post:
+      summary: Hand approved equipment over to the student
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, maxLength: 128 } }
+        - $ref: '#/components/parameters/ChangeReason'
+      responses:
+        '200': { description: Borrowing status changed to borrowed }
+        '403': { description: Teacher or equipment team role required }
+        '404': { description: Borrowing not found }
+        '409': { description: Borrowing is not ready for handover }
+        '422': { description: Missing change reason }
+        '503': { description: Borrowing schema or database identity is not available }
+  /api/borrowing/{borrowing_id}/return:
+    post:
+      summary: Return all outstanding equipment in a borrowing request
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: borrowing_id, in: path, required: true, schema: { type: string, maxLength: 128 } }
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BorrowingReturnRequest'
+      responses:
+        '200': { description: Borrowing status changed to returned }
+        '403': { description: Teacher or equipment team role required }
+        '404': { description: Borrowing not found }
+        '409': { description: Borrowing is not ready for return }
+        '422': { description: Invalid item conditions or missing change reason }
+        '503': { description: Borrowing schema or database identity is not available }
+  /api/grades:
+    get:
+      summary: List grades with bounded pagination and optional assignment/student filters
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: assignment_id, in: query, schema: { type: string, maxLength: 128 } }
+        - { name: student_id, in: query, schema: { type: string, maxLength: 128 } }
+        - { name: category, in: query, schema: { type: string, maxLength: 40 } }
+        - { name: kelas, in: query, schema: { type: string, maxLength: 80 } }
+        - { name: search, in: query, schema: { type: string, maxLength: 100 } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+      responses:
+        '200': { description: Paginated grade records }
+        '401': { description: Unauthenticated }
+        '422': { description: Invalid assignment category }
+        '503': { description: Grade schema is not available }
+  /api/grades/assignments:
+    get:
+      summary: List assignments for grade entry
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Paginated assignments }
+        '401': { description: Unauthenticated }
+    post:
+      summary: Create an assignment
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignmentCreateRequest'
+      responses:
+        '201': { description: Assignment created }
+        '403': { description: Teacher role required }
+        '422': { description: Invalid assignment fields }
+        '503': { description: Grade schema is not available }
+  /api/grades/bulk:
+    post:
+      summary: Record multiple student grades through the atomic RPC
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BulkGradeRequest'
+      responses:
+        '200': { description: Grades recorded }
+        '403': { description: Teacher role required }
+        '422': { description: Invalid grade payload or missing change reason }
+        '503': { description: Grade schema is not available }
+  /api/grades/distribution:
+    get:
+      summary: Read grade distribution for secretary reporting
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Distribution by assignment and class }
+        '403': { description: Secretary role required }
+  /api/grades/student-summary:
+    get:
+      summary: Read per-student grade summary for secretary reporting
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Grade summary by student }
+        '403': { description: Secretary role required }
+  /api/contests:
+    get:
+      summary: List contest achievements with bounded pagination
+      parameters:
+        - { name: status, in: query, required: false, schema: { type: string, maxLength: 32 } }
+        - { name: tingkat, in: query, required: false, schema: { type: string, maxLength: 32 } }
+        - { name: search, in: query, required: false, schema: { type: string, maxLength: 100 } }
+        - { name: page, in: query, required: false, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: pageSize, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+      responses:
+        '200': { description: Paginated contest records }
+        '401': { description: Unauthenticated }
+    post:
+      summary: Create a contest achievement record
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ChangeReason'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContestCreateRequest'
+      responses:
+        '201': { description: Contest created }
+        '403': { description: Leader role required }
+        '422': { description: Invalid contest fields }
+  /api/contests/summary:
+    get:
+      summary: Read aggregate contest counters
+      responses:
+        '200': { description: Contest totals, active contests, submitted works, and win rate }
+        '401': { description: Unauthenticated }
+  /api/contests/win-rate:
+    get:
+      summary: Read contest win rate by year and level
+      parameters:
+        - { name: tahun, in: query, required: false, schema: { type: integer, minimum: 1900, maximum: 2200 } }
+      responses:
+        '200': { description: Win-rate rows and overall totals }
+        '401': { description: Unauthenticated }
+  /api/contests/{id}:
+    put:
+      summary: Update a contest achievement record
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, minLength: 1, maxLength: 64 } }
+        - $ref: '#/components/parameters/ChangeReason'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContestUpdateRequest'
+      responses:
+        '200': { description: Contest updated }
+        '403': { description: Leader role required }
+        '404': { description: Contest not found }
+        '422': { description: Invalid contest fields }
+  /api/contests/submissions:
+    post:
+      summary: Submit an existing film or a new film-work payload to a contest
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContestSubmissionRequest'
+      responses:
+        '201': { description: Submission created }
+        '403': { description: Capability denied }
+        '409': { description: Duplicate contest-film submission }
+        '422': { description: Invalid legacy or frontend submission payload }
+  /api/equipment:
+    get:
+      summary: List equipment with bounded filters and pagination
+      parameters:
+        - { name: search, in: query, required: false, schema: { type: string, maxLength: 100 } }
+        - { name: kategori, in: query, required: false, schema: { type: string, enum: [Kamera, Lensa, Audio, Lighting, Aksesoris, Lainnya] } }
+        - { name: kondisi, in: query, required: false, schema: { type: string, enum: [bagus, sedikit_kerusakan, rusak, rusak_besar, sedang_diperbaiki, hilang] } }
+        - { name: status, in: query, required: false, schema: { type: string, enum: [tersedia, dipinjam, maintenance] } }
+        - { name: page, in: query, required: false, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: pageSize, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+      responses:
+        '200': { description: Paginated equipment records with reservation status }
+        '401': { description: Unauthenticated }
+    post:
+      summary: Create an equipment catalog record
+      parameters:
+        - $ref: '#/components/parameters/ChangeReason'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EquipmentCreateRequest'
+      responses:
+        '201': { description: Equipment created }
+        '403': { description: Equipment team role required }
+        '409': { description: Duplicate equipment code }
+        '422': { description: Invalid equipment fields or photos }
+  /api/equipment/summary:
+    get:
+      summary: Read count-only equipment status summary
+      responses:
+        '200': { description: Equipment totals by availability and condition }
+        '401': { description: Unauthenticated }
+  /api/equipment/{id}:
+    get:
+      summary: Read one equipment record
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, minLength: 1, maxLength: 64 } }
+      responses:
+        '200': { description: Equipment record }
+        '401': { description: Unauthenticated }
+        '404': { description: Equipment not found }
+    put:
+      summary: Update equipment catalog fields
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, minLength: 1, maxLength: 64 } }
+        - $ref: '#/components/parameters/ChangeReason'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EquipmentUpdateRequest'
+      responses:
+        '200': { description: Equipment updated }
+        '403': { description: Equipment team role required }
+        '404': { description: Equipment not found }
+        '409': { description: Duplicate equipment code or borrowing conflict }
+        '422': { description: Invalid equipment fields or photos }
+    delete:
+      summary: Delete an equipment record that is not referenced by a borrowing
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, minLength: 1, maxLength: 64 } }
+        - $ref: '#/components/parameters/ChangeReason'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200': { description: Equipment deleted }
+        '403': { description: Equipment team role required }
+        '404': { description: Equipment not found }
+        '409': { description: Equipment is still referenced by borrowing data }
+  /api/equipment/{id}/condition:
+    patch:
+      summary: Update equipment condition and optional damage note
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, minLength: 1, maxLength: 64 } }
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EquipmentConditionRequest'
+      responses:
+        '200': { description: Equipment condition updated }
+        '403': { description: Equipment team role required }
+        '404': { description: Equipment not found }
+        '422': { description: Invalid condition or status }
+  /api/film-works:
+    get:
+      summary: List student film works
+      parameters:
+        - { name: status, in: query, required: false, schema: { type: string, maxLength: 32 } }
+      responses:
+        '200': { description: Film catalog records with crew members }
+        '401': { description: Unauthenticated }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    StudentId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 128 }
+    AuditEntryId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    UserId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 128 }
+    ClassId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 128 }
+    IdempotencyKey:
+      name: X-Idempotency-Key
+      in: header
+      required: false
+      schema: { type: string, minLength: 8, maxLength: 128 }
+    ChangeReason:
+      name: X-Change-Reason
+      in: header
+      required: false
+      schema: { type: string, minLength: 5, maxLength: 500 }
+  schemas:
+    SuccessEnvelope:
+      type: object
+      required: [success]
+      properties:
+        success: { type: boolean, example: true }
+    AuditActor:
+      type: object
+      required: [nama]
+      properties:
+        id: { type: string, format: uuid }
+        nama: { type: string, maxLength: 200 }
+        username: { type: string, maxLength: 100 }
+        role: { type: string, maxLength: 40 }
+    AuditLog:
+      type: object
+      required: [id, action, table_name, created_at, source, changed_fields, metadata, actor]
+      properties:
+        id: { type: string, format: uuid }
+        user_id: { type: string, format: uuid }
+        action: { type: string, enum: [INSERT, UPDATE, UPSERT, DELETE, SYSTEM_CHECK] }
+        table_name: { type: string, minLength: 1, maxLength: 128 }
+        record_id: { type: string, maxLength: 128 }
+        reason: { type: string, maxLength: 500 }
+        created_at: { type: string, format: date-time }
+        ip_address: { type: string, maxLength: 128 }
+        user_agent: { type: string, maxLength: 1000 }
+        source: { type: string, maxLength: 40 }
+        request_id: { type: string, maxLength: 128 }
+        operation_id: { type: string, maxLength: 128 }
+        changed_fields:
+          type: array
+          maxItems: 100
+          items: { type: string, maxLength: 128 }
+        old_values: { type: object, additionalProperties: true }
+        new_values: { type: object, additionalProperties: true }
+        metadata: { type: object, additionalProperties: true }
+        actor: { $ref: '#/components/schemas/AuditActor' }
+    AuditLogPage:
+      type: object
+      required: [data, total, page, pageSize, totalPages]
+      properties:
+        data:
+          type: array
+          maxItems: 100
+          items: { $ref: '#/components/schemas/AuditLog' }
+        total: { type: integer, minimum: 0 }
+        page: { type: integer, minimum: 1, maximum: 10000 }
+        pageSize: { type: integer, minimum: 10, maximum: 100 }
+        totalPages: { type: integer, minimum: 1 }
+    OverdueCheckResult:
+      type: object
+      required: [checkedCount, overdueCount, notifiedCount]
+      properties:
+        checkedCount: { type: integer, minimum: 0 }
+        overdueCount: { type: integer, minimum: 0 }
+        notifiedCount: { type: integer, minimum: 0 }
+    OverdueNotificationLog:
+      type: object
+      required: [id, borrowingId, studentName, namaAlat, dueAt, checkedAt, reason]
+      properties:
+        id: { type: string, maxLength: 200 }
+        borrowingId: { type: string, maxLength: 128 }
+        studentName: { type: string, maxLength: 200 }
+        namaAlat: { type: string, maxLength: 1000 }
+        dueAt: { type: string, format: date-time }
+        checkedAt: { type: string, format: date-time }
+        reason: { type: string, maxLength: 2000 }
+    UserAccount:
+      type: object
+      required: [id, username, nama, role, is_first_login, is_active, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        username: { type: string, minLength: 3, maxLength: 30 }
+        nama: { type: string, minLength: 2, maxLength: 200 }
+        role: { type: string, enum: [teacher, leader, vice_leader, treasurer, secretary, equipment_team, contest_team, member] }
+        is_first_login: { type: boolean }
+        is_active: { type: boolean }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, nullable: true, format: date-time }
+        created_by: { type: string, nullable: true, format: uuid }
+        updated_by: { type: string, nullable: true, format: uuid }
+        created_actor: { $ref: '#/components/schemas/ActorSummary' }
+        updated_actor: { $ref: '#/components/schemas/ActorSummary' }
+    UserPage:
+      type: object
+      required: [data, total, page, pageSize, totalPages]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/UserAccount' }
+        total: { type: integer, minimum: 0 }
+        page: { type: integer, minimum: 1 }
+        pageSize: { type: integer, minimum: 1, maximum: 100 }
+        totalPages: { type: integer, minimum: 1 }
+    UserCreateRequest:
+      type: object
+      additionalProperties: false
+      required: [username, nama, role, password]
+      properties:
+        username: { type: string, minLength: 3, maxLength: 30, pattern: '^[a-zA-Z0-9._-]+$' }
+        nama: { type: string, minLength: 2, maxLength: 200 }
+        role: { type: string, enum: [teacher, leader, vice_leader, treasurer, secretary, equipment_team, contest_team] }
+        password: { type: string, minLength: 1, maxLength: 128 }
+        change_reason: { type: string, maxLength: 500 }
+    UserUpdateRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        username: { type: string, minLength: 3, maxLength: 30, pattern: '^[a-zA-Z0-9._-]+$' }
+        nama: { type: string, minLength: 2, maxLength: 200 }
+        role: { type: string, enum: [teacher, leader, vice_leader, treasurer, secretary, equipment_team, contest_team, member] }
+        is_active: { type: boolean }
+        change_reason: { type: string, minLength: 5, maxLength: 500 }
+    UserResetPasswordRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        change_reason: { type: string, minLength: 5, maxLength: 500 }
+        changeReason: { type: string, minLength: 5, maxLength: 500 }
+    UserResetPasswordResponse:
+      type: object
+      required: [success, userId, temporary_password, message]
+      properties:
+        success: { type: boolean, example: true }
+        userId: { type: string, maxLength: 128 }
+        temporary_password: { type: string, minLength: 8, maxLength: 128 }
+        message: { type: string, maxLength: 500 }
+    ClassOption:
+      type: object
+      required: [id, nama_kelas, tingkat]
+      properties:
+        id: { type: string, format: uuid }
+        nama_kelas: { type: string, minLength: 1, maxLength: 120 }
+        tingkat: { type: string, enum: [X, XI, XII] }
+    ClassRecord:
+      type: object
+      required: [id, nama_kelas, tingkat, is_active]
+      properties:
+        id: { type: string, format: uuid }
+        nama_kelas: { type: string, minLength: 1, maxLength: 120 }
+        tingkat: { type: string, enum: [X, XI, XII] }
+        is_active: { type: boolean }
+        created_at: { type: string, nullable: true, format: date-time }
+        created_by: { type: string, nullable: true, format: uuid }
+        updated_at: { type: string, nullable: true, format: date-time }
+        updated_by: { type: string, nullable: true, format: uuid }
+        created_actor: { $ref: '#/components/schemas/ActorSummary' }
+        updated_actor: { $ref: '#/components/schemas/ActorSummary' }
+    ActorSummary:
+      type: object
+      required: [id]
+      properties:
+        id: { type: string, format: uuid }
+        nama: { type: string, maxLength: 200 }
+        username: { type: string, maxLength: 100 }
+        role: { type: string, maxLength: 40 }
+        is_active: { type: boolean }
+    ClassPage:
+      type: object
+      required: [data, total, page, pageSize, totalPages]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/ClassRecord' }
+        total: { type: integer, minimum: 0 }
+        page: { type: integer, minimum: 1 }
+        pageSize: { type: integer, minimum: 1, maximum: 100 }
+        totalPages: { type: integer, minimum: 1 }
+    ClassCreateRequest:
+      type: object
+      additionalProperties: false
+      required: [nama_kelas, tingkat]
+      properties:
+        nama_kelas: { type: string, minLength: 1, maxLength: 120 }
+        tingkat: { type: string, enum: [X, XI, XII] }
+    ClassUpdateRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        nama_kelas: { type: string, minLength: 1, maxLength: 120 }
+        tingkat: { type: string, enum: [X, XI, XII] }
+        is_active: { type: boolean }
+        change_reason: { type: string, minLength: 5, maxLength: 500 }
+    StudentRecord:
+      type: object
+      required: [id, nis, nama, kelas, is_active, created_at]
+      properties:
+        id: { type: string, maxLength: 128 }
+        user_id: { type: string, nullable: true, format: uuid }
+        nis: { type: string, minLength: 1, maxLength: 40 }
+        nama: { type: string, minLength: 2, maxLength: 120 }
+        kelas: { type: string, minLength: 1, maxLength: 80 }
+        peminatan: { type: string, nullable: true, enum: [kamera, editing, naskah] }
+        no_telepon: { type: string, nullable: true, maxLength: 40 }
+        foto_url: { type: string, nullable: true, maxLength: 2000000 }
+        is_active: { type: boolean }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, nullable: true, format: date-time }
+        created_by: { type: string, nullable: true, format: uuid }
+        updated_by: { type: string, nullable: true, format: uuid }
+        created_actor: { $ref: '#/components/schemas/ActorSummary' }
+        updated_actor: { $ref: '#/components/schemas/ActorSummary' }
+    StudentOption:
+      type: object
+      required: [id, nis, nama, kelas, label, secondaryLabel]
+      properties:
+        id: { type: string, maxLength: 128 }
+        nis: { type: string, maxLength: 40 }
+        nama: { type: string, maxLength: 120 }
+        kelas: { type: string, maxLength: 80 }
+        label: { type: string, maxLength: 120 }
+        secondaryLabel: { type: string, maxLength: 128 }
+    StudentPage:
+      type: object
+      required: [data, total, page, pageSize, totalPages]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/StudentRecord' }
+        total: { type: integer, minimum: 0 }
+        page: { type: integer, minimum: 1 }
+        pageSize: { type: integer, minimum: 1, maximum: 100 }
+        totalPages: { type: integer, minimum: 1 }
+    StudentCreateRequest:
+      type: object
+      additionalProperties: false
+      required: [nis, nama, kelas]
+      properties:
+        nis: { type: string, minLength: 1, maxLength: 40 }
+        nama: { type: string, minLength: 2, maxLength: 120 }
+        kelas: { type: string, minLength: 1, maxLength: 80 }
+        peminatan: { type: string, enum: [kamera, editing, naskah] }
+        no_telepon: { type: string, maxLength: 40 }
+        foto_url: { type: string, maxLength: 2000000 }
+        change_reason: { type: string, maxLength: 500 }
+    StudentUpdateRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        nama: { type: string, minLength: 2, maxLength: 120 }
+        kelas: { type: string, minLength: 1, maxLength: 80 }
+        peminatan: { type: string, enum: [kamera, editing, naskah] }
+        no_telepon: { type: string, maxLength: 40 }
+        foto_url: { type: string, maxLength: 2000000 }
+        is_active: { type: boolean }
+        change_reason: { type: string, minLength: 5, maxLength: 500 }
+    StudentProvisionRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        change_reason: { type: string, minLength: 5, maxLength: 500 }
+    StudentDashboardSummaryEnvelope:
+      type: object
+      required: [success, studentId, profile, attendance, cash, grades, activeBorrowings, contestTasks]
+      properties:
+        success: { type: boolean, example: true }
+        studentId: { type: string, maxLength: 128 }
+        profile:
+          type: object
+          required: [nama, nisn, kelas, jurusan, fotoUrl, waliKelas]
+          properties:
+            nama: { type: string, maxLength: 200 }
+            nisn: { type: string, maxLength: 40 }
+            kelas: { type: string, maxLength: 80 }
+            jurusan: { type: string, maxLength: 160 }
+            fotoUrl: { type: string, maxLength: 2048, format: uri }
+            waliKelas: { type: string, maxLength: 200 }
+        attendance:
+          type: object
+          required: [persentase, hadir, sakit, izin, alpha]
+          properties:
+            persentase: { type: number, minimum: 0, maximum: 100 }
+            hadir: { type: integer, minimum: 0 }
+            sakit: { type: integer, minimum: 0 }
+            izin: { type: integer, minimum: 0 }
+            alpha: { type: integer, minimum: 0 }
+        cash:
+          type: object
+          required: [totalTunggakan, statusPembayaranTerakhir, riwayat]
+          properties:
+            totalTunggakan: { type: number, minimum: 0 }
+            statusPembayaranTerakhir: { type: string, maxLength: 200 }
+            riwayat:
+              type: array
+              maxItems: 100
+              items:
+                type: object
+                required: [nominal, date, status, keterangan]
+                properties:
+                  nominal: { type: number, minimum: 0 }
+                  date: { type: string, format: date }
+                  status: { type: string, maxLength: 40 }
+                  keterangan: { type: string, maxLength: 500 }
+        grades:
+          type: object
+          required: [rataRata, predikat, terakhir]
+          properties:
+            rataRata: { type: number, minimum: 0, maximum: 100 }
+            predikat: { type: string, maxLength: 10 }
+            terakhir:
+              type: array
+              maxItems: 100
+              items:
+                type: object
+                required: [taskTitle, grade, category, date]
+                properties:
+                  taskTitle: { type: string, maxLength: 200 }
+                  grade: { type: string, maxLength: 10 }
+                  category: { type: string, maxLength: 40 }
+                  date: { type: string, format: date }
+        activeBorrowings:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            required: [namaAlat, dueAt, isOverdue]
+            properties:
+              namaAlat: { type: string, maxLength: 200 }
+              dueAt: { type: string, format: date }
+              isOverdue: { type: boolean }
+        contestTasks:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            required: [namaContest, role, status]
+            properties:
+              namaContest: { type: string, maxLength: 200 }
+              role: { type: string, maxLength: 120 }
+              status: { type: string, maxLength: 40 }
+    CashSummary:
+      type: object
+      required: [saldoUtama, totalPemasukan, totalPengeluaran, totalTunggakanSiswa]
+      properties:
+        saldoUtama: { type: number, format: double, example: 1250000 }
+        totalPemasukan: { type: number, format: double, example: 1800000 }
+        totalPengeluaran: { type: number, format: double, example: 550000 }
+        totalTunggakanSiswa: { type: number, format: double, example: 250000 }
+    CashTransactionPage:
+      type: object
+      required: [data, total, page, pageSize, totalPages]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/CashTransaction' }
+        total: { type: integer, minimum: 0 }
+        page: { type: integer, minimum: 1 }
+        pageSize: { type: integer, minimum: 1, maximum: 100 }
+        totalPages: { type: integer, minimum: 1 }
+    CashReport:
+      type: object
+      required: [period, summary, flow_breakdown, income_breakdown, expense_breakdown, daily, debts]
+      properties:
+        period:
+          type: object
+          required: [start_date, end_date, days]
+          properties:
+            start_date: { type: string, format: date }
+            end_date: { type: string, format: date }
+            days: { type: integer, minimum: 1, maximum: 90 }
+        summary: { type: object, additionalProperties: true }
+        control: { type: object, nullable: true, additionalProperties: true }
+        flow_breakdown: { type: array, items: { $ref: '#/components/schemas/CashReportBreakdown' } }
+        income_breakdown: { type: array, items: { $ref: '#/components/schemas/CashReportBreakdown' } }
+        expense_breakdown: { type: array, items: { $ref: '#/components/schemas/CashReportBreakdown' } }
+        payment_method_breakdown: { type: array, items: { $ref: '#/components/schemas/CashReportBreakdown' } }
+        daily:
+          type: array
+          items:
+            type: object
+            required: [date, income, expense]
+            properties:
+              date: { type: string, format: date }
+              income: { type: number }
+              expense: { type: number }
+        debts: { type: array, items: { $ref: '#/components/schemas/CashReportDebt' } }
+        income_details: { type: array, items: { type: object, additionalProperties: true } }
+        expense_details: { type: array, items: { type: object, additionalProperties: true } }
+    CashReportBreakdown:
+      type: object
+      required: [key, label, total]
+      properties:
+        key: { type: string }
+        label: { type: string }
+        total: { type: number }
+        count: { type: integer, minimum: 0 }
+    CashReportDebt:
+      type: object
+      required: [student_id, student_nama, total_debt, debt_record_count]
+      properties:
+        student_id: { type: string }
+        student_nama: { type: string }
+        nis: { type: string, nullable: true }
+        kelas: { type: string, nullable: true }
+        total_debt: { type: number }
+        debt_record_count: { type: integer, minimum: 1 }
+        oldest_debt_date: { type: string, format: date }
+    CashBillingRulesUpdateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        nominal_iuran_wajib: { type: number, minimum: 500, maximum: 9999999999.99 }
+        holiday_start_date: { type: string, nullable: true, format: date }
+        holiday_end_date: { type: string, nullable: true, format: date }
+        skip_week: { type: boolean }
+        change_reason: { type: string, minLength: 5, maxLength: 500 }
+    CashDisputeCreateRequest:
+      type: object
+      additionalProperties: false
+      required: [transaction_id, bukti_sanggahan_url]
+      properties:
+        transaction_id: { type: string, minLength: 1, maxLength: 64 }
+        student_id: { type: string, maxLength: 64 }
+        reason: { type: string, maxLength: 2000 }
+        alasan_sanggahan: { type: string, maxLength: 2000 }
+        bukti_sanggahan_url: { type: string, minLength: 1, maxLength: 2000 }
+    CashDisputeUpdateRequest:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status: { type: string, enum: [approved, rejected, resolved] }
+    CashTransaction:
+      type: object
+      required: [id, tipe, jumlah, tanggal, idempotency_key, created_at]
+      properties:
+        id: { type: string, maxLength: 64 }
+        student_id: { type: string, nullable: true, maxLength: 64 }
+        student_nama: { type: string, nullable: true, maxLength: 200 }
+        tipe: { type: string, enum: [masuk, keluar] }
+        jumlah: { type: number, format: double, minimum: 0 }
+        keterangan: { type: string, nullable: true, maxLength: 500 }
+        foto_bukti_url: { type: string, nullable: true, format: uri }
+        tanggal: { type: string, format: date-time }
+        idempotency_key: { type: string, maxLength: 128 }
+        created_by: { type: string, nullable: true, maxLength: 64 }
+        created_actor: { $ref: '#/components/schemas/ActorSummary' }
+        created_at: { type: string, format: date-time }
+        updated_by: { type: string, nullable: true, maxLength: 64 }
+        updated_actor: { $ref: '#/components/schemas/ActorSummary' }
+        updated_at: { type: string, nullable: true, format: date-time }
+        is_billing: { type: boolean }
+        metode_pembayaran: { type: string, nullable: true, maxLength: 40 }
+        metode_pembayaran_label: { type: string, nullable: true, maxLength: 100 }
+        dispute: { type: object, nullable: true, additionalProperties: true }
+    CashPaymentMethod:
+      type: object
+      required: [id, code, label, is_active, sort_order]
+      properties:
+        id: { type: string, maxLength: 64 }
+        code: { type: string, pattern: '^[a-z0-9]+(?:_[a-z0-9]+)*$', maxLength: 40 }
+        label: { type: string, minLength: 1, maxLength: 80 }
+        is_active: { type: boolean }
+        sort_order: { type: integer, minimum: 0, maximum: 9999 }
+        created_by: { type: string, nullable: true, maxLength: 64 }
+        created_actor: { $ref: '#/components/schemas/ActorSummary' }
+        updated_by: { type: string, nullable: true, maxLength: 64 }
+        updated_actor: { $ref: '#/components/schemas/ActorSummary' }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    CashPaymentMethodCreateRequest:
+      type: object
+      additionalProperties: false
+      required: [code, label]
+      properties:
+        code: { type: string, pattern: '^[a-z0-9]+(?:_[a-z0-9]+)*$', minLength: 1, maxLength: 40 }
+        label: { type: string, minLength: 1, maxLength: 80 }
+        sort_order: { type: integer, minimum: 0, maximum: 9999 }
+        change_reason: { type: string, minLength: 5, maxLength: 500 }
+    CashPaymentMethodUpdateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        label: { type: string, minLength: 1, maxLength: 80 }
+        sort_order: { type: integer, minimum: 0, maximum: 9999 }
+        is_active: { type: boolean }
+        change_reason: { type: string, minLength: 5, maxLength: 500 }
+    CashInRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        nominal: { type: number, minimum: 0, maximum: 9999999999.99 }
+        jumlah: { type: number, minimum: 0, maximum: 9999999999.99 }
+        tanggal: { type: string, format: date }
+        keterangan: { type: string, maxLength: 500 }
+        type: { type: string, enum: [iuran_wajib, pemasukan] }
+        student_id: { type: string, maxLength: 64 }
+        foto_bukti_url: { type: string, maxLength: 2000 }
+        idempotency_key: { type: string, minLength: 8, maxLength: 128 }
+        metode_pembayaran: { type: string, nullable: true, maxLength: 40 }
+    CashOutRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        nominal: { type: number, exclusiveMinimum: 0, maximum: 9999999999.99 }
+        jumlah: { type: number, exclusiveMinimum: 0, maximum: 9999999999.99 }
+        keterangan: { type: string, minLength: 1, maxLength: 500 }
+        foto_bukti_url: { type: string, maxLength: 2000 }
+        idempotency_key: { type: string, minLength: 8, maxLength: 128 }
+        metode_pembayaran: { type: string, maxLength: 40 }
+    BorrowingCreateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        student_id: { type: string, minLength: 1, maxLength: 128 }
+        borrower_id: { type: string, minLength: 1, maxLength: 128 }
+        equipment_ids:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items: { type: string, minLength: 1, maxLength: 128 }
+        tanggal_pinjam: { type: string, format: date }
+        rencana_kembali: { type: string, format: date }
+        due_at: { type: string, format: date-time }
+        keperluan: { type: string, maxLength: 500 }
+        keterangan: { type: string, maxLength: 500 }
+        idempotency_key: { type: string, minLength: 8, maxLength: 128 }
+    BorrowingApprovalRequest:
+      type: object
+      additionalProperties: false
+      required: [action]
+      properties:
+        action: { type: string, enum: [approve, reject] }
+        borrowing_id: { type: string, minLength: 1, maxLength: 128 }
+        catatan: { type: string, maxLength: 500 }
+        alasan: { type: string, maxLength: 500 }
+        change_reason: { type: string, minLength: 5, maxLength: 500 }
+    BorrowingReturnRequest:
+      type: object
+      additionalProperties: false
+      required: [item_conditions]
+      properties:
+        tanggal_dikembalikan: { type: string, format: date }
+        item_conditions:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items:
+            type: object
+            additionalProperties: false
+            required: [equipment_id, kondisi_kembali]
+            properties:
+              equipment_id: { type: string, minLength: 1, maxLength: 128 }
+              kondisi_kembali: { type: string, enum: [bagus, sedikit_kerusakan, rusak, rusak_besar, sedang_diperbaiki, hilang] }
+              catatan: { type: string, maxLength: 500 }
+              denda: { type: number, minimum: 0, maximum: 9999999999.99 }
+        catatan_pengembalian: { type: string, maxLength: 500 }
+        total_denda: { type: number, minimum: 0, maximum: 9999999999.99 }
+        change_reason: { type: string, minLength: 5, maxLength: 500 }
+    AssignmentCreateRequest:
+      type: object
+      additionalProperties: false
+      required: [title, category]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 200 }
+        category: { type: string, maxLength: 40 }
+        description: { type: string, maxLength: 1000 }
+        keterangan_kategori: { type: string, maxLength: 1000 }
+        kelas: { type: string, maxLength: 80 }
+        date: { type: string, format: date }
+        due_date: { type: string, format: date }
+        change_reason: { type: string, maxLength: 500 }
+    BulkGradeRequest:
+      type: object
+      additionalProperties: false
+      required: [assignment_id, grades]
+      properties:
+        assignment_id: { type: string, minLength: 1, maxLength: 128 }
+        change_reason: { type: string, minLength: 5, maxLength: 500 }
+        grades:
+          type: array
+          minItems: 1
+          maxItems: 500
+          items:
+            type: object
+            additionalProperties: false
+            required: [student_id, nilai]
+            properties:
+              student_id: { type: string, minLength: 1, maxLength: 128 }
+              nilai: { type: string, enum: [A, B, C, D, E] }
+              keterangan: { type: string, maxLength: 500 }
+    Equipment:
+      type: object
+      required: [id, kode_alat, nama_alat, kategori, kondisi, status, created_at]
+      properties:
+        id: { type: string, maxLength: 64 }
+        kode_alat: { type: string, minLength: 1, maxLength: 100 }
+        nama_alat: { type: string, minLength: 1, maxLength: 200 }
+        kategori: { type: string, enum: [Kamera, Lensa, Audio, Lighting, Aksesoris, Lainnya] }
+        kondisi: { type: string, enum: [bagus, sedikit_kerusakan, rusak, rusak_besar, sedang_diperbaiki, hilang] }
+        status: { type: string, enum: [tersedia, dipinjam, maintenance] }
+        reservation_status: { type: string, enum: [tersedia, dipesan] }
+        lokasi_penyimpanan: { type: string, nullable: true, maxLength: 200 }
+        serial_number: { type: string, nullable: true, maxLength: 120 }
+        foto_urls: { type: array, items: { type: string, maxLength: 1500000 } }
+        foto_url: { type: string, nullable: true, maxLength: 2048 }
+        deskripsi: { type: string, nullable: true, maxLength: 2000 }
+        catatan_kerusakan: { type: string, nullable: true, maxLength: 2000 }
+        created_by: { type: string, nullable: true, maxLength: 64 }
+        created_actor: { $ref: '#/components/schemas/ActorSummary' }
+        created_at: { type: string, format: date-time }
+        updated_by: { type: string, nullable: true, maxLength: 64 }
+        updated_actor: { $ref: '#/components/schemas/ActorSummary' }
+        updated_at: { type: string, nullable: true, format: date-time }
+    EquipmentCreateRequest:
+      type: object
+      additionalProperties: false
+      required: [kode_alat, nama_alat, foto_urls]
+      properties:
+        kode_alat: { type: string, minLength: 1, maxLength: 100 }
+        nama_alat: { type: string, minLength: 1, maxLength: 200 }
+        kategori: { type: string, enum: [Kamera, Lensa, Audio, Lighting, Aksesoris, Lainnya] }
+        kondisi: { type: string, enum: [bagus, sedikit_kerusakan, rusak, rusak_besar, sedang_diperbaiki, hilang] }
+        status: { type: string, enum: [tersedia, dipinjam, maintenance] }
+        lokasi_penyimpanan: { type: string, maxLength: 200 }
+        serial_number: { type: string, maxLength: 120 }
+        foto_urls:
+          type: array
+          minItems: 3
+          maxItems: 12
+          items: { type: string, minLength: 1, maxLength: 1500000 }
+        foto_url: { type: string, maxLength: 2048 }
+        deskripsi: { type: string, maxLength: 2000 }
+        change_reason: { type: string, minLength: 5, maxLength: 500 }
+    EquipmentUpdateRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        kode_alat: { type: string, minLength: 1, maxLength: 100 }
+        nama_alat: { type: string, minLength: 1, maxLength: 200 }
+        kategori: { type: string, enum: [Kamera, Lensa, Audio, Lighting, Aksesoris, Lainnya] }
+        kondisi: { type: string, enum: [bagus, sedikit_kerusakan, rusak, rusak_besar, sedang_diperbaiki, hilang] }
+        status: { type: string, enum: [tersedia, dipinjam, maintenance] }
+        lokasi_penyimpanan: { type: string, maxLength: 200 }
+        serial_number: { type: string, maxLength: 120 }
+        foto_urls:
+          type: array
+          minItems: 3
+          maxItems: 12
+          items: { type: string, minLength: 1, maxLength: 1500000 }
+        foto_url: { type: string, maxLength: 2048 }
+        deskripsi: { type: string, maxLength: 2000 }
+        change_reason: { type: string, minLength: 5, maxLength: 500 }
+    EquipmentConditionRequest:
+      type: object
+      additionalProperties: false
+      required: [kondisi]
+      properties:
+        kondisi: { type: string, enum: [bagus, sedikit_kerusakan, rusak, rusak_besar, sedang_diperbaiki, hilang] }
+        status: { type: string, enum: [tersedia, dipinjam, maintenance] }
+        catatan_kerusakan: { type: string, maxLength: 2000 }
+        change_reason: { type: string, minLength: 5, maxLength: 500 }
+    Notification:
+      type: object
+      required: [id, user_id, type, title, message, is_read, created_at]
+      properties:
+        id: { type: string, maxLength: 128 }
+        user_id: { type: string, maxLength: 128 }
+        type: { type: string, maxLength: 64 }
+        title: { type: string, maxLength: 500 }
+        message: { type: string, maxLength: 5000 }
+        link_url: { type: string, nullable: true, format: uri }
+        is_read: { type: boolean }
+        created_at: { type: string, format: date-time }
+    Contest:
+      type: object
+      required: [id, nama, jenis, level, tanggal, status]
+      properties:
+        id: { type: string, maxLength: 64 }
+        nama: { type: string, minLength: 1, maxLength: 200 }
+        jenis: { type: string, minLength: 1, maxLength: 120 }
+        level: { type: string, maxLength: 32 }
+        tanggal: { type: string, format: date }
+        status: { type: string, maxLength: 32 }
+        status_public: { type: string, enum: [buka, proses_penjurian, selesai] }
+        nama_lomba: { type: string, minLength: 1, maxLength: 200 }
+        penyelenggara: { type: string, minLength: 1, maxLength: 120 }
+        tingkat: { type: string, maxLength: 32 }
+        deadline: { type: string, format: date }
+        website_url: { type: string, nullable: true, format: uri }
+        deskripsi: { type: string, nullable: true, maxLength: 2000 }
+        submissions: { type: array, items: { $ref: '#/components/schemas/ContestSubmission' } }
+        submission_count: { type: integer, minimum: 0 }
+        hasil: { type: string, nullable: true, maxLength: 500 }
+        piala_url: { type: string, nullable: true, format: uri }
+        juara: { type: string, nullable: true, maxLength: 80 }
+        kategori_penghargaan: { type: string, nullable: true, maxLength: 160 }
+        catatan: { type: string, nullable: true, maxLength: 1000 }
+        created_by: { type: string, nullable: true, maxLength: 64 }
+        created_actor: { $ref: '#/components/schemas/ActorSummary' }
+        created_at: { type: string, nullable: true, format: date-time }
+        updated_by: { type: string, nullable: true, maxLength: 64 }
+        updated_actor: { $ref: '#/components/schemas/ActorSummary' }
+        updated_at: { type: string, nullable: true, format: date-time }
+    ContestCreateRequest:
+      type: object
+      additionalProperties: false
+      anyOf:
+        - required: [nama, jenis, level, tanggal]
+        - required: [nama_lomba, penyelenggara, tingkat, deadline]
+      properties:
+        nama: { type: string, minLength: 1, maxLength: 200 }
+        jenis: { type: string, minLength: 1, maxLength: 120 }
+        level: { type: string, minLength: 1, maxLength: 32 }
+        tanggal: { type: string, format: date }
+        status: { type: string, maxLength: 32 }
+        hasil: { type: string, nullable: true, maxLength: 500 }
+        nama_lomba: { type: string, minLength: 1, maxLength: 200 }
+        penyelenggara: { type: string, minLength: 1, maxLength: 120 }
+        tingkat: { type: string, minLength: 1, maxLength: 32 }
+        deadline: { type: string, format: date }
+        website_url: { type: string, nullable: true, format: uri }
+        deskripsi: { type: string, nullable: true, maxLength: 2000 }
+        change_reason: { type: string, maxLength: 500 }
+    ContestUpdateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        nama: { type: string, minLength: 1, maxLength: 200 }
+        jenis: { type: string, minLength: 1, maxLength: 120 }
+        level: { type: string, minLength: 1, maxLength: 32 }
+        tanggal: { type: string, format: date }
+        status: { type: string, maxLength: 32 }
+        hasil: { type: string, nullable: true, maxLength: 500 }
+        nama_lomba: { type: string, minLength: 1, maxLength: 200 }
+        penyelenggara: { type: string, minLength: 1, maxLength: 120 }
+        tingkat: { type: string, minLength: 1, maxLength: 32 }
+        deadline: { type: string, format: date }
+        website_url: { type: string, nullable: true, format: uri }
+        deskripsi: { type: string, nullable: true, maxLength: 2000 }
+        change_reason: { type: string, maxLength: 500 }
+    ContestSubmission:
+      type: object
+      required: [id, contest_id]
+      properties:
+        id: { type: string, maxLength: 64 }
+        contest_id: { type: string, maxLength: 64 }
+        film_id: { type: string, nullable: true, maxLength: 64 }
+        judul_film: { type: string, maxLength: 200 }
+        sutradara_id: { type: string, nullable: true, maxLength: 64 }
+        crew_members: { type: array, items: { type: string, maxLength: 120 } }
+        link_video: { type: string, nullable: true, format: uri }
+        award_status: { type: string, nullable: true, maxLength: 32 }
+        sertifikat_url: { type: string, nullable: true, format: uri }
+        created_by: { type: string, nullable: true, maxLength: 64 }
+        created_actor: { $ref: '#/components/schemas/ActorSummary' }
+        created_at: { type: string, nullable: true, format: date-time }
+    ContestSubmissionRequest:
+      type: object
+      additionalProperties: false
+      anyOf:
+        - required: [contest_id, film_id]
+        - required: [contest_id, judul_film, link_video, award_status]
+      properties:
+        contest_id: { type: string, minLength: 1, maxLength: 64 }
+        film_id: { type: string, minLength: 1, maxLength: 64 }
+        judul_film: { type: string, minLength: 1, maxLength: 200 }
+        sutradara_id: { type: string, minLength: 1, maxLength: 64 }
+        crew_members: { type: array, maxItems: 100, items: { type: string, minLength: 1, maxLength: 120 } }
+        link_video: { type: string, minLength: 1, maxLength: 2048, format: uri }
+        award_status: { type: string, minLength: 1, maxLength: 32 }
+        sertifikat_url: { type: string, nullable: true, maxLength: 2048, format: uri }
+        change_reason: { type: string, maxLength: 500 }
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [username, password]
+      properties:
+        username: { type: string, minLength: 1, maxLength: 64 }
+        password: { type: string, minLength: 1, maxLength: 128 }
+    ChangePasswordRequest:
+      type: object
+      additionalProperties: false
+      required: [current_password, new_password, confirm_password]
+      properties:
+        current_password: { type: string, minLength: 1, maxLength: 128 }
+        new_password: { type: string, minLength: 1, maxLength: 128 }
+        confirm_password: { type: string, minLength: 1, maxLength: 128 }
+    AttendanceCorrectionRequest:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status: { type: string, minLength: 1, maxLength: 32 }
+        keterangan: { type: string, maxLength: 500 }

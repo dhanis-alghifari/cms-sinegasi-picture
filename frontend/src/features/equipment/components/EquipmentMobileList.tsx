@@ -1,0 +1,115 @@
+import { Edit2, MoreVertical, QrCode, Wrench } from 'lucide-react';
+
+import { AuditHistoryButton } from '@/features/audit/components/AuditTable';
+import { EmptyState } from '@/components/common/EmptyState';
+import { StatusBadge } from '@/components/feedback/StatusBadge';
+import { Button } from '@/components/ui/button';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { formatStatusLabel } from '@/shared/utils/formatLabels';
+
+import type { Equipment, EquipmentAvailability, EquipmentCondition } from '../types/equipment.types';
+
+interface EquipmentMobileListProps {
+  equipment: Equipment[];
+  onEdit: (equipment: Equipment) => void;
+  onUpdateCondition: (equipment: Equipment) => void;
+  canManage?: boolean;
+}
+
+const conditionBadgeMap: Record<EquipmentCondition, { label: string; variant: 'success' | 'warning' | 'danger' }> = {
+  bagus: { label: 'Bagus', variant: 'success' },
+  sedikit_kerusakan: { label: 'Sedikit rusak', variant: 'warning' },
+  rusak: { label: 'Rusak', variant: 'danger' },
+  rusak_besar: { label: 'Rusak berat', variant: 'danger' },
+  sedang_diperbaiki: { label: 'Maintenance', variant: 'warning' },
+  hilang: { label: 'Hilang', variant: 'danger' },
+};
+
+const availabilityBadgeMap: Record<EquipmentAvailability, { label: string; variant: 'success' | 'warning' | 'neutral' }> = {
+  tersedia: { label: 'Tersedia', variant: 'success' },
+  dipinjam: { label: 'Dipinjam', variant: 'warning' },
+  maintenance: { label: 'Maintenance', variant: 'neutral' },
+};
+
+function EquipmentImage({ src, alt }: { src?: string; alt: string }) {
+  return src ? (
+    <img src={src} alt={alt} className="h-14 w-14 shrink-0 rounded-xl border border-hairline bg-surface-2 object-cover" />
+  ) : (
+    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-hairline bg-surface-2 text-ink-tertiary">
+      <QrCode size={22} aria-hidden="true" />
+    </div>
+  );
+}
+
+export function EquipmentMobileList({
+  equipment,
+  onEdit,
+  onUpdateCondition,
+  canManage = true,
+}: EquipmentMobileListProps) {
+  if (equipment.length === 0) {
+    return (
+      <EmptyState
+        title="Tidak ada alat ditemukan"
+        description="Belum ada data unit alat sinematografi terdaftar untuk kriteria pencarian ini."
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-3" aria-label="Daftar alat versi ponsel">
+      {equipment.map((item) => {
+        const condition = conditionBadgeMap[item.kondisi] ?? { label: formatStatusLabel(item.kondisi), variant: 'neutral' as const };
+        const availability = availabilityBadgeMap[item.status] ?? { label: formatStatusLabel(item.status), variant: 'neutral' as const };
+
+        return (
+          <article key={item.id} className="rounded-xl border border-hairline bg-surface-1 p-3 shadow-sm">
+            <div className="flex items-start gap-3">
+              <EquipmentImage src={item.foto_urls?.[0] ?? item.foto_url} alt={item.nama_alat} />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-ink">{item.nama_alat}</p>
+                    <p className="mt-1 truncate font-mono text-xs text-primary">{item.kode_alat}</p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <AuditHistoryButton tableName="equipment" recordId={item.id} />
+                    {canManage && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger render={<Button variant="ghost" size="icon" className="text-ink-subtle" aria-label={`Aksi untuk ${item.nama_alat}`} />}>
+                          <MoreVertical size={18} aria-hidden="true" />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="border-hairline bg-surface-3 text-ink">
+                          <DropdownMenuItem onClick={() => onEdit(item)} className="min-h-11 cursor-pointer text-sm">
+                            <Edit2 size={16} className="mr-2 text-ink-subtle" aria-hidden="true" />
+                            Edit data alat
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => onUpdateCondition(item)} className="min-h-11 cursor-pointer text-sm">
+                            <Wrench size={16} className="mr-2 text-ink-subtle" aria-hidden="true" />
+                            Update kondisi/status
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
+                  </div>
+                </div>
+                <p className="mt-1 truncate text-xs text-ink-tertiary">{item.kategori}{item.serial_number ? ` · SN ${item.serial_number}` : ''}</p>
+              </div>
+            </div>
+
+            <div className="mt-3 grid grid-cols-2 gap-2 rounded-lg bg-surface-2 p-3">
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-ink-tertiary">Kondisi</p>
+                <div className="mt-1"><StatusBadge label={condition.label} variant={condition.variant} /></div>
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] uppercase tracking-wide text-ink-tertiary">Ketersediaan</p>
+                <div className="mt-1"><StatusBadge label={availability.label} variant={availability.variant} /></div>
+              </div>
+            </div>
+          </article>
+        );
+      })}
+    </div>
+  );
+}

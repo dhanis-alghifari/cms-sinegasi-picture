@@ -1,0 +1,46 @@
+// src/shared/types/common.ts
+// Shared domain types used across features
+
+export interface ApiResponse<T> {
+  data: T;
+  message?: string;
+}
+
+export interface PaginatedResponse<T> {
+  data: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export interface PaginationParams {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+}
+
+export type UserRole =
+  | 'teacher'
+  | 'leader'
+  | 'vice_leader'
+  | 'treasurer'
+  | 'secretary'
+  | 'equipment_team'
+  | 'contest_team'
+  | 'member';
+
+export interface ApiError {
+  message: string;
+  statusCode: number;
+  errors?: Record<string, string[]>;
+}
+
+/** Additive identity projection for created/updated/approved actor fields. */
+export interface ActorSummary {
+  id: string;
+  nama?: string;
+  username?: string;
+  role?: UserRole | string;
+  is_active?: boolean;
+}

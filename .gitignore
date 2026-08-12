@@ -1,0 +1,24 @@
+# Environment files
+.env
+.env.local
+backend/.env
+frontend/.env
+
+# Node modules & build
+node_modules/
+dist/
+build/
+.DS_Store
+
+# IDE & OS files
+.idea/
+.vscode/
+
+# Local AI/tooling metadata
+.claude/
+.codegraph/
+.codex/
+.cursor/
+.gemini/
+.ngodingpakeai/
+.mcp.json

@@ -1,0 +1,104 @@
+import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
+import { authenticate, type JwtPayload } from '../../middleware/authMiddleware.js';
+import { requireCapability } from '../../middleware/capabilities.js';
+import { resolveDatabaseUserId } from '../auth/auth.identity.js';
+import {
+  contestCreateRouteSchema,
+  contestListRouteSchema,
+  contestSubmissionRouteSchema,
+  contestUpdateRouteSchema,
+  contestWinRateRouteSchema,
+} from '../../shared/http/schemas/contests.schema.js';
+import { authenticatedRouteSchema } from '../../shared/http/schemas/core.schema.js';
+import { sendServiceError } from '../../shared/http/sendServiceError.js';
+import { ContestsService } from './contests.service.js';
+import type { ContestCreateInput, ContestListQuery, ContestSubmissionInput, ContestUpdateInput } from './contests.types.js';
+
+type AuditInput = { action: string; tableName: string; recordId?: string | null; newValues?: Record<string, unknown> | null; changeReason: string };
+export interface ContestsRoutesOptions { contestsService: ContestsService; persistAuditLog: (request: FastifyRequest, input: AuditInput) => Promise<void>; }
+
+const contestsRoutes: FastifyPluginAsync<ContestsRoutesOptions> = async (fastify, options) => {
+  fastify.get('/api/contests', { schema: contestListRouteSchema, preHandler: [authenticate, requireCapability('contests.read')] }, async (request, reply) => {
+    try {
+      return reply.send({ success: true, ...(await options.contestsService.list((request.query || {}) as ContestListQuery)) });
+    } catch (error) {
+      return sendServiceError(error, reply);
+    }
+  });
+
+  fastify.get('/api/contests/summary', { schema: authenticatedRouteSchema, preHandler: [authenticate, requireCapability('contests.read')] }, async (_request, reply) => {
+    try {
+      return reply.send({ success: true, ...(await options.contestsService.summary()) });
+    } catch (error) {
+      return sendServiceError(error, reply);
+    }
+  });
+
+  fastify.get('/api/contests/win-rate', { schema: contestWinRateRouteSchema, preHandler: [authenticate, requireCapability('contests.read')] }, async (request, reply) => {
+    try {
+      const { tahun } = request.query as { tahun?: string };
+      return reply.send({ success: true, ...(await options.contestsService.winRate(tahun)) });
+    } catch (error) {
+      return sendServiceError(error, reply);
+    }
+  });
+
+  fastify.post('/api/contests', { schema: contestCreateRouteSchema, preHandler: [authenticate, requireCapability('contests.manage')] }, async (request, reply) => {
+    const body = request.body as ContestCreateInput;
+    try {
+      const user = request.user as JwtPayload;
+      const actorId = options.contestsService.repositoryIsConfigured()
+        ? await resolveDatabaseUserId(user)
+        : user.userId;
+      const data = await options.contestsService.create(body, actorId);
+      await options.persistAuditLog(request, {
+        action: 'INSERT', tableName: 'contests', recordId: data.id,
+        newValues: data as unknown as Record<string, unknown>,
+        changeReason: String(request.headers['x-change-reason'] || body.change_reason || 'Menambahkan data lomba baru'),
+      });
+      return reply.status(201).send({ success: true, data });
+    } catch (error) {
+      return sendServiceError(error, reply);
+    }
+  });
+
+  fastify.put('/api/contests/:id', { schema: contestUpdateRouteSchema, preHandler: [authenticate, requireCapability('contests.manage')] }, async (request, reply) => {
+    const body = request.body as ContestUpdateInput;
+    try {
+      const user = request.user as JwtPayload;
+      const actorId = options.contestsService.repositoryIsConfigured()
+        ? await resolveDatabaseUserId(user)
+        : user.userId;
+      const data = await options.contestsService.update((request.params as { id: string }).id, body, actorId);
+      await options.persistAuditLog(request, {
+        action: 'UPDATE', tableName: 'contests', recordId: data.id,
+        newValues: data as unknown as Record<string, unknown>,
+        changeReason: String(request.headers['x-change-reason'] || body.change_reason || 'Memperbarui data lomba'),
+      });
+      return reply.send({ success: true, data });
+    } catch (error) {
+      return sendServiceError(error, reply);
+    }
+  });
+
+  fastify.post('/api/contests/submissions', { schema: contestSubmissionRouteSchema, preHandler: [authenticate, requireCapability('contests.submit')] }, async (request, reply) => {
+    const body = request.body as ContestSubmissionInput;
+    try {
+      const user = request.user as JwtPayload;
+      const actorId = options.contestsService.repositoryIsConfigured()
+        ? await resolveDatabaseUserId(user)
+        : user.userId;
+      const data = await options.contestsService.submit(body, actorId);
+      await options.persistAuditLog(request, {
+        action: 'INSERT', tableName: body.judul_film ? 'contest_submissions' : 'contest_films', recordId: data.id,
+        newValues: data as unknown as Record<string, unknown>,
+        changeReason: String(request.headers['x-change-reason'] || body.change_reason || 'Mendaftarkan film ke lomba'),
+      });
+      return reply.status(201).send({ success: true, data });
+    } catch (error) {
+      return sendServiceError(error, reply);
+    }
+  });
+};
+
+export default contestsRoutes;

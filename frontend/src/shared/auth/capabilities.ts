@@ -1,0 +1,63 @@
+import type { UserRole } from '@/shared/types/common';
+
+export const CAPABILITY_VALUES = [
+  'dashboard.read.operational', 'dashboard.read.own',
+  'students.read', 'students.read.own', 'students.manage',
+  'classes.read', 'classes.manage', 'attendance.read', 'attendance.record', 'attendance.correct',
+  'cash.read', 'cash.manage', 'grades.read', 'grades.read.own', 'grades.manage',
+  'equipment.read', 'equipment.manage', 'borrowing.read', 'borrowing.manage',
+  'contests.read', 'contests.submit', 'contests.manage', 'overdue.manage', 'notifications.read',
+  'audit.read', 'users.manage', 'access_control.read', 'access_control.manage',
+] as const;
+
+export type Capability = typeof CAPABILITY_VALUES[number];
+
+export const ROLE_CAPABILITIES: Readonly<Record<UserRole, readonly Capability[]>> = {
+  teacher: [...CAPABILITY_VALUES],
+  leader: [
+    'dashboard.read.own', 'students.read', 'students.manage', 'classes.read', 'classes.manage',
+    'attendance.read', 'attendance.record', 'attendance.correct', 'equipment.read', 'equipment.manage',
+    'borrowing.read', 'borrowing.manage', 'contests.read', 'contests.submit', 'contests.manage',
+    'grades.read.own', 'notifications.read',
+  ],
+  vice_leader: [
+    'dashboard.read.own', 'attendance.read', 'attendance.record', 'attendance.correct',
+    'borrowing.read', 'borrowing.manage', 'contests.read', 'contests.submit', 'contests.manage',
+    'grades.read.own', 'notifications.read',
+  ],
+  treasurer: ['dashboard.read.own', 'cash.read', 'cash.manage', 'grades.read.own', 'notifications.read'],
+  secretary: [
+    'dashboard.read.own', 'students.read', 'students.manage', 'classes.read', 'classes.manage',
+    'attendance.read', 'attendance.record', 'attendance.correct', 'grades.read.own', 'notifications.read',
+  ],
+  equipment_team: [
+    'dashboard.read.own', 'equipment.read', 'equipment.manage', 'borrowing.read', 'borrowing.manage',
+    'grades.read.own', 'notifications.read',
+  ],
+  contest_team: [
+    'dashboard.read.own', 'contests.read', 'contests.submit', 'contests.manage',
+    'grades.read.own', 'notifications.read',
+  ],
+  member: ['dashboard.read.own', 'grades.read.own', 'notifications.read'],
+};
+
+export type CapabilitySubject = {
+  role: UserRole;
+  capabilities?: readonly Capability[];
+};
+
+export function getCapabilities(subject: CapabilitySubject | UserRole | null | undefined): readonly Capability[] {
+  if (!subject) return [];
+  if (typeof subject === 'string') return ROLE_CAPABILITIES[subject] ?? [];
+  return subject.capabilities && subject.capabilities.length > 0
+    ? subject.capabilities
+    : ROLE_CAPABILITIES[subject.role] ?? [];
+}
+
+export function hasCapability(subject: CapabilitySubject | UserRole | null | undefined, capability: Capability): boolean {
+  return getCapabilities(subject).includes(capability);
+}
+
+export function hasAnyCapability(subject: CapabilitySubject | UserRole | null | undefined, capabilities: readonly Capability[]): boolean {
+  return capabilities.some((capability) => hasCapability(subject, capability));
+}

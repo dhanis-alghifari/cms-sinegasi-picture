@@ -1,0 +1,209 @@
+// src/features/attendance/pages/AttendancePage.tsx
+// Thin orchestration page for Attendance Management
+
+import { useState } from 'react';
+import { CalendarCheck } from 'lucide-react';
+
+import { PageHeader } from '@/components/common/PageHeader';
+import { ResponsivePageActions } from '@/components/common/ResponsivePageActions';
+import { PageLoader } from '@/components/common/LoadingSpinner';
+import { Pagination } from '@/components/common/Pagination';
+
+import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
+import { useStudentsQuery } from '@/features/students/queries/useStudentsQuery';
+import { useDebouncedValue } from '@/shared/hooks/useDebouncedValue';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { hasCapability } from '@/shared/auth/capabilities';
+
+import { useAttendanceQuery, useAttendanceSummaryQuery } from '../queries/useAttendanceQuery';
+import { useRecordAttendanceMutation } from '../mutations/useRecordAttendanceMutation';
+import { useCorrectAttendanceMutation } from '../mutations/useCorrectAttendanceMutation';
+
+import { AttendanceSummaryCards } from '../components/AttendanceSummaryCards';
+import { AttendanceFilter } from '../components/AttendanceFilter';
+import { AttendanceTable } from '../components/AttendanceTable';
+import { AttendanceMobileList } from '../components/AttendanceMobileList';
+import { RecordAttendanceModal } from '../components/RecordAttendanceModal';
+import { CorrectAttendanceModal } from '../components/CorrectAttendanceModal';
+
+import type { AttendanceRecord, AttendanceStatus, RecordAttendanceItem } from '../types/attendance.types';
+import type { CorrectAttendanceFormValues } from '../schemas/attendanceSchema';
+
+export function AttendancePage() {
+  const { user } = useAuthStore();
+  const isMobile = useIsMobile();
+  const canCorrect = hasCapability(user, 'attendance.correct');
+  const canRecord = hasCapability(user, 'attendance.record');
+
+  // Filters
+  const [tanggal, setTanggal] = useState(new Date().toISOString().split('T')[0]);
+  const [kelas, setKelas] = useState('all');
+  const [status, setStatus] = useState('all');
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
+
+  const debouncedSearch = useDebouncedValue(search, 300);
+
+  const handleTanggalChange = (val: string) => {
+    setTanggal(val);
+    setPage(1);
+  };
+
+  const handleKelasChange = (val: string) => {
+    setKelas(val);
+    setPage(1);
+  };
+
+  const handleStatusChange = (val: string) => {
+    setStatus(val);
+    setPage(1);
+  };
+
+  const handleSearchChange = (val: string) => {
+    setSearch(val);
+    setPage(1);
+  };
+
+  const handleResetFilter = () => {
+    setTanggal(new Date().toISOString().split('T')[0]);
+    setKelas('all');
+    setStatus('all');
+    setSearch('');
+    setPage(1);
+  };
+
+  // Modals
+  const [recordOpen, setRecordOpen] = useState(false);
+  const [correctOpen, setCorrectOpen] = useState(false);
+  const [correctRecord, setCorrectRecord] = useState<AttendanceRecord | null>(null);
+
+  // Queries
+  const { data: summaryData, isLoading: isSummaryLoading } = useAttendanceSummaryQuery(tanggal);
+  const { data: attendanceData, isLoading: isAttendanceLoading } = useAttendanceQuery({
+    page,
+    pageSize,
+    tanggal,
+    kelas: kelas !== 'all' ? kelas : undefined,
+    status: status !== 'all' ? (status as AttendanceStatus) : undefined,
+    search: debouncedSearch || undefined,
+  });
+  const { data: studentsData } = useStudentsQuery({ is_active: true });
+
+  // Mutations
+  const recordMutation = useRecordAttendanceMutation();
+  const correctMutation = useCorrectAttendanceMutation();
+
+  // Handlers
+  const handleOpenCorrect = (rec: AttendanceRecord) => {
+    setCorrectRecord(rec);
+    setCorrectOpen(true);
+  };
+
+  const handleRecordSubmit = async (values: {
+    tanggal: string;
+    kelas: string;
+    records: RecordAttendanceItem[];
+  }) => {
+    await recordMutation.mutateAsync({
+      payload: {
+        tanggal: values.tanggal,
+        kelas: values.kelas,
+        records: values.records,
+      },
+    });
+  };
+
+  const handleCorrectSubmit = async (values: CorrectAttendanceFormValues) => {
+    if (!correctRecord) return;
+    await correctMutation.mutateAsync({
+      payload: {
+        attendance_id: correctRecord.id,
+        status: values.status,
+        keterangan: values.keterangan || undefined,
+      },
+      changeReason: values.change_reason,
+    });
+  };
+
+  return (
+    <div className="mx-auto max-w-7xl space-y-5 px-4 py-5 sm:space-y-6 sm:p-6">
+      <PageHeader
+        title="Absensi Siswa Sinematografi"
+        subtitle="Pencatatan harian kehadiran siswa, ringkasan metrics, dan koreksi otomatis kunci 48 jam."
+        actions={
+          canRecord ? (
+            <ResponsivePageActions
+              actions={[{
+                id: 'record-attendance',
+                label: 'Input Absensi Massal',
+                icon: CalendarCheck,
+                onSelect: () => setRecordOpen(true),
+                className: 'bg-semantic-success text-white hover:bg-semantic-success/80',
+              }]}
+            />
+          ) : undefined
+        }
+      />
+
+      {/* Summary Cards */}
+      {isSummaryLoading ? <PageLoader /> : <AttendanceSummaryCards summary={summaryData} />}
+
+      {/* Filter */}
+      <AttendanceFilter
+        tanggal={tanggal}
+        onTanggalChange={handleTanggalChange}
+        kelas={kelas}
+        onKelasChange={handleKelasChange}
+        status={status}
+        onStatusChange={handleStatusChange}
+        search={search}
+        onSearchChange={handleSearchChange}
+        onReset={handleResetFilter}
+      />
+
+      {/* Table */}
+      {isAttendanceLoading ? (
+        <PageLoader />
+      ) : (
+        <div className="space-y-4">
+          {isMobile ? (
+            <AttendanceMobileList records={attendanceData?.data ?? []} onCorrect={handleOpenCorrect} isTeacher={canCorrect} />
+          ) : (
+            <AttendanceTable records={attendanceData?.data ?? []} onCorrect={handleOpenCorrect} isTeacher={canCorrect} />
+          )}
+          <Pagination
+            page={attendanceData?.page ?? page}
+            totalPages={attendanceData?.totalPages ?? 1}
+            total={attendanceData?.total ?? 0}
+            pageSize={attendanceData?.pageSize ?? pageSize}
+            onPageChange={setPage}
+          />
+        </div>
+      )}
+
+      {/* Modals */}
+      {canRecord && (
+        <RecordAttendanceModal
+          open={recordOpen}
+          onOpenChange={setRecordOpen}
+          students={studentsData?.data ?? []}
+          onSubmit={handleRecordSubmit}
+          isLoading={recordMutation.isPending}
+          error={recordMutation.error}
+        />
+      )}
+
+      {canCorrect && correctRecord && (
+        <CorrectAttendanceModal
+          open={correctOpen}
+          onOpenChange={setCorrectOpen}
+          record={correctRecord}
+          onSubmit={handleCorrectSubmit}
+          isLoading={correctMutation.isPending}
+          error={correctMutation.error}
+        />
+      )}
+    </div>
+  );
+}
