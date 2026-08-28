@@ -4,7 +4,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { QUERY_KEYS } from '@/shared/constants/queryKeys';
 import { cashService } from '../services/cash.service';
-import type { CashReportFilters, CashTransactionFilters } from '../types/cash.types';
+import type { CashReportFilters, CashTransactionFilters, DisputeStatus } from '../types/cash.types';
 
 export function useCashSummaryQuery() {
   return useQuery({
@@ -53,6 +53,23 @@ export function useBillingRulesQuery(enabled = true) {
   return useQuery({
     queryKey: QUERY_KEYS.BILLING_RULES,
     queryFn: () => cashService.getBillingRules(),
+    enabled,
+  });
+}
+
+export function useCashDisputesQuery(params?: { page?: number; pageSize?: number; status?: DisputeStatus }, enabled = true) {
+  return useQuery({
+    queryKey: [...QUERY_KEYS.CASH_DISPUTES, params],
+    queryFn: () => cashService.getDisputes(params),
+    enabled,
+  });
+}
+
+export function useCashDisputeQuotaQuery(enabled = true) {
+  return useQuery({
+    queryKey: QUERY_KEYS.CASH_DISPUTE_QUOTA,
+    queryFn: () => cashService.getDisputeQuota(),
+    staleTime: 30_000,
     enabled,
   });
 }

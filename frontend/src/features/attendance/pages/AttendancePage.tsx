@@ -10,7 +10,7 @@ import { PageLoader } from '@/components/common/LoadingSpinner';
 import { Pagination } from '@/components/common/Pagination';
 
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
-import { useStudentsQuery } from '@/features/students/queries/useStudentsQuery';
+import { useClassOptionsQuery } from '@/features/classes/queries/useClassOptionsQuery';
 import { useDebouncedValue } from '@/shared/hooks/useDebouncedValue';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { hasCapability } from '@/shared/auth/capabilities';
@@ -34,9 +34,10 @@ export function AttendancePage() {
   const isMobile = useIsMobile();
   const canCorrect = hasCapability(user, 'attendance.correct');
   const canRecord = hasCapability(user, 'attendance.record');
+  const isOwn = hasCapability(user, 'attendance.read.own') && !hasCapability(user, 'attendance.read');
 
   // Filters
-  const [tanggal, setTanggal] = useState(new Date().toISOString().split('T')[0]);
+  const [tanggal, setTanggal] = useState(isOwn ? '' : new Date().toISOString().split('T')[0]);
   const [kelas, setKelas] = useState('all');
   const [status, setStatus] = useState('all');
   const [search, setSearch] = useState('');
@@ -66,7 +67,7 @@ export function AttendancePage() {
   };
 
   const handleResetFilter = () => {
-    setTanggal(new Date().toISOString().split('T')[0]);
+    setTanggal(isOwn ? '' : new Date().toISOString().split('T')[0]);
     setKelas('all');
     setStatus('all');
     setSearch('');
@@ -79,7 +80,7 @@ export function AttendancePage() {
   const [correctRecord, setCorrectRecord] = useState<AttendanceRecord | null>(null);
 
   // Queries
-  const { data: summaryData, isLoading: isSummaryLoading } = useAttendanceSummaryQuery(tanggal);
+  const { data: summaryData, isLoading: isSummaryLoading } = useAttendanceSummaryQuery(tanggal || undefined, isOwn ? 'own' : undefined);
   const { data: attendanceData, isLoading: isAttendanceLoading } = useAttendanceQuery({
     page,
     pageSize,
@@ -87,8 +88,9 @@ export function AttendancePage() {
     kelas: kelas !== 'all' ? kelas : undefined,
     status: status !== 'all' ? (status as AttendanceStatus) : undefined,
     search: debouncedSearch || undefined,
+    scope: isOwn ? 'own' : undefined,
   });
-  const { data: studentsData } = useStudentsQuery({ is_active: true });
+  const { data: classOptions = [] } = useClassOptionsQuery(canRecord);
 
   // Mutations
   const recordMutation = useRecordAttendanceMutation();
@@ -129,8 +131,8 @@ export function AttendancePage() {
   return (
     <div className="mx-auto max-w-7xl space-y-5 px-4 py-5 sm:space-y-6 sm:p-6">
       <PageHeader
-        title="Absensi Siswa Sinematografi"
-        subtitle="Pencatatan harian kehadiran siswa, ringkasan metrics, dan koreksi otomatis kunci 48 jam."
+        title={isOwn ? 'Absensi Saya' : 'Absensi Siswa Sinematografi'}
+        subtitle={isOwn ? 'Riwayat kehadiran pribadi Anda.' : 'Pencatatan harian kehadiran siswa, ringkasan metrics, dan koreksi otomatis kunci 48 jam.'}
         actions={
           canRecord ? (
             <ResponsivePageActions
@@ -147,7 +149,7 @@ export function AttendancePage() {
       />
 
       {/* Summary Cards */}
-      {isSummaryLoading ? <PageLoader /> : <AttendanceSummaryCards summary={summaryData} />}
+      {isSummaryLoading ? <PageLoader /> : <AttendanceSummaryCards summary={summaryData} isOwn={isOwn} />}
 
       {/* Filter */}
       <AttendanceFilter
@@ -160,6 +162,7 @@ export function AttendancePage() {
         search={search}
         onSearchChange={handleSearchChange}
         onReset={handleResetFilter}
+        isOwn={isOwn}
       />
 
       {/* Table */}
@@ -187,7 +190,7 @@ export function AttendancePage() {
         <RecordAttendanceModal
           open={recordOpen}
           onOpenChange={setRecordOpen}
-          students={studentsData?.data ?? []}
+          classes={classOptions}
           onSubmit={handleRecordSubmit}
           isLoading={recordMutation.isPending}
           error={recordMutation.error}

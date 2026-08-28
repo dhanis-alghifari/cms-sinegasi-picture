@@ -1,13 +1,13 @@
 export const gradeListRouteSchema = {
   querystring: { type: 'object', additionalProperties: false, properties: {
     assignment_id: { type: 'string', maxLength: 128 }, category: { type: 'string', maxLength: 40 }, kelas: { type: 'string', maxLength: 80 },
-    search: { type: 'string', maxLength: 100 }, student_id: { type: 'string', maxLength: 128 }, page: { type: 'string', pattern: '^[0-9]+$' }, pageSize: { type: 'string', pattern: '^[0-9]+$' },
+    search: { type: 'string', maxLength: 100 }, student_id: { type: 'string', maxLength: 128 }, scope: { type: 'string', enum: ['own', 'operational'] }, page: { type: 'string', pattern: '^[0-9]+$' }, pageSize: { type: 'string', pattern: '^[0-9]+$' },
   } },
 } as const;
 
 export const assignmentListRouteSchema = {
   querystring: { type: 'object', additionalProperties: false, properties: {
-    category: { type: 'string', maxLength: 40 }, kelas: { type: 'string', maxLength: 80 }, search: { type: 'string', maxLength: 100 }, page: { type: 'string', pattern: '^[0-9]+$' }, pageSize: { type: 'string', pattern: '^[0-9]+$' },
+    category: { type: 'string', maxLength: 40 }, kelas: { type: 'string', maxLength: 80 }, search: { type: 'string', maxLength: 100 }, scope: { type: 'string', enum: ['own', 'operational'] }, page: { type: 'string', pattern: '^[0-9]+$' }, pageSize: { type: 'string', pattern: '^[0-9]+$' },
   } },
 } as const;
 

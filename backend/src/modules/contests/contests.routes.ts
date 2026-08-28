@@ -11,11 +11,19 @@ import {
 } from '../../shared/http/schemas/contests.schema.js';
 import { authenticatedRouteSchema } from '../../shared/http/schemas/core.schema.js';
 import { sendServiceError } from '../../shared/http/sendServiceError.js';
+import { getAuditRequestContext } from '../../middleware/auditMiddleware.js';
 import { ContestsService } from './contests.service.js';
 import type { ContestCreateInput, ContestListQuery, ContestSubmissionInput, ContestUpdateInput } from './contests.types.js';
 
 type AuditInput = { action: string; tableName: string; recordId?: string | null; newValues?: Record<string, unknown> | null; changeReason: string };
 export interface ContestsRoutesOptions { contestsService: ContestsService; persistAuditLog: (request: FastifyRequest, input: AuditInput) => Promise<void>; }
+
+function mutationReason(request: FastifyRequest, body: Record<string, unknown>): string {
+  const header = request.headers['x-change-reason'];
+  if (typeof header === 'string' && header.trim()) return header.trim();
+  const bodyReason = body.change_reason ?? body.changeReason;
+  return typeof bodyReason === 'string' ? bodyReason.trim() : '';
+}
 
 const contestsRoutes: FastifyPluginAsync<ContestsRoutesOptions> = async (fastify, options) => {
   fastify.get('/api/contests', { schema: contestListRouteSchema, preHandler: [authenticate, requireCapability('contests.read')] }, async (request, reply) => {
@@ -69,12 +77,13 @@ const contestsRoutes: FastifyPluginAsync<ContestsRoutesOptions> = async (fastify
       const actorId = options.contestsService.repositoryIsConfigured()
         ? await resolveDatabaseUserId(user)
         : user.userId;
-      const data = await options.contestsService.update((request.params as { id: string }).id, body, actorId);
-      await options.persistAuditLog(request, {
-        action: 'UPDATE', tableName: 'contests', recordId: data.id,
-        newValues: data as unknown as Record<string, unknown>,
-        changeReason: String(request.headers['x-change-reason'] || body.change_reason || 'Memperbarui data lomba'),
-      });
+      const data = await options.contestsService.update(
+        (request.params as { id: string }).id,
+        body,
+        actorId,
+        mutationReason(request, body as unknown as Record<string, unknown>),
+        getAuditRequestContext(request),
+      );
       return reply.send({ success: true, data });
     } catch (error) {
       return sendServiceError(error, reply);

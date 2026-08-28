@@ -12,7 +12,7 @@ const AttendancePage = lazy(() =>
 
 export const attendanceRoutes: RouteObject[] = [
   {
-    element: <CapabilityRoute capabilities={['attendance.read']} />,
+    element: <CapabilityRoute capabilities={['attendance.read', 'attendance.read.own']} />,
     children: [{
       path: 'attendance',
       element: <Suspense fallback={<PageLoader />}><AttendancePage /></Suspense>,

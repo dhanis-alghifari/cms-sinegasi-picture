@@ -16,19 +16,22 @@ import { EmptyState } from '@/components/common/EmptyState';
 import { formatCurrency } from '@/shared/utils/formatCurrency';
 import { formatDateShort } from '@/shared/utils/formatDate';
 import { formatPaymentMethodLabel } from '@/shared/utils/formatLabels';
-import type { CashTransaction } from '../types/cash.types';
+import type { CashDisputeQuota, CashTransaction } from '../types/cash.types';
+import { getDisputeAction } from '../utils/disputeState';
 import { AuditHistoryButton } from '@/features/audit/components/AuditTable';
 
 interface CashTransactionTableProps {
   transactions: CashTransaction[];
   onDispute?: (transaction: CashTransaction) => void;
   isStudent?: boolean;
+  disputeQuota?: CashDisputeQuota;
 }
 
 export function CashTransactionTable({
   transactions,
   onDispute,
   isStudent = false,
+  disputeQuota,
 }: CashTransactionTableProps) {
   if (transactions.length === 0) {
     return (
@@ -59,6 +62,7 @@ export function CashTransactionTable({
           {transactions.map((tx) => {
             const hasDispute = Boolean(tx.dispute);
             const disputeStatus = tx.dispute?.status;
+            const disputeAction = getDisputeAction(tx.dispute, disputeQuota);
 
             return (
               <TableRow key={tx.id} className="border-hairline hover:bg-surface-2/40">
@@ -99,14 +103,14 @@ export function CashTransactionTable({
                       label={
                         disputeStatus === 'pending'
                           ? 'Sanggahan Pending'
-                          : disputeStatus === 'resolved'
+                          : disputeStatus === 'resolved' || disputeStatus === 'approved'
                           ? 'Disetujui'
                           : 'Ditolak'
                       }
                       variant={
                         disputeStatus === 'pending'
                           ? 'warning'
-                          : disputeStatus === 'resolved'
+                          : disputeStatus === 'resolved' || disputeStatus === 'approved'
                           ? 'success'
                           : 'danger'
                       }
@@ -120,15 +124,17 @@ export function CashTransactionTable({
 
                 {isStudent && (
                   <TableCell className="text-right">
-                    {tx.tipe === 'masuk' && !hasDispute && onDispute && (
+                    {tx.tipe === 'masuk' && onDispute && (
                       <Button
+                        type="button"
                         size="sm"
-                        variant="outline"
+                        disabled={!disputeAction.canSubmit}
+                        title={disputeAction.reason}
                         onClick={() => onDispute(tx)}
-                        className="bg-surface-2 border-hairline text-semantic-warning hover:bg-semantic-warning/15 text-xs h-7 px-2"
+                        className="min-h-9 border-primary bg-primary px-3 text-xs text-primary-foreground hover:bg-primary-hover focus-visible:ring-primary/30"
                       >
                         <AlertCircle size={12} className="mr-1" />
-                        Sanggah
+                        {disputeAction.label}
                       </Button>
                     )}
                   </TableCell>

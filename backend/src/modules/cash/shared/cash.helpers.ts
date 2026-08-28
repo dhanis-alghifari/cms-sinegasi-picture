@@ -1,6 +1,12 @@
 import type { CashTransactionRecord } from './cash.types.js';
 
 export const CASH_SCHEMA_MIGRATION_MESSAGE = 'Skema kas belum terpasang. Jalankan "npm run db:migrate:cash" di folder backend, lalu restart backend.';
+export const CASH_SCHEMA_COMPATIBILITY_MESSAGE = 'Skema kas belum selaras dengan fitur sanggahan tunggakan. Jalankan "npm run db:migrate:cash" di folder backend, lalu restart backend.';
+
+// The frontend compresses proof images to at most 600 KiB before converting
+// them to a data URL. Base64 adds roughly 33% overhead, so 900k leaves a
+// bounded margin while keeping the request below the application body limit.
+export const MAX_CASH_PROOF_URL_LENGTH = 900_000;
 
 export function isMissingCashSchemaError(error: { code?: string; message?: string } | null | undefined): boolean {
   return Boolean(error && (
@@ -14,6 +20,9 @@ export function isMissingCashSchemaError(error: { code?: string; message?: strin
     || error.message?.includes('record_cash_in_on_date_with_method_atomic')
     || error.message?.includes('record_cash_in_with_status_atomic')
     || error.message?.includes('record_cash_out_with_method_atomic')
+    || error.message?.includes('get_cash_dispute_quota')
+    || error.message?.includes('create_cash_dispute_atomic')
+    || error.message?.includes('review_cash_dispute_atomic')
     || error.message?.includes('get_cash_summary')
     || error.message?.includes('get_cash_report')
     || error.message?.includes('get_cash_report_with_method')
@@ -69,7 +78,9 @@ export function mapCashTransaction(row: CashTransactionRecord): Record<string, u
   const legacyCash = !paymentMethod && row.payment_method_id == null;
   const paymentMethodCode = paymentMethod?.code || row.payment_method_code || (legacyCash ? 'cash' : undefined);
   const disputeRows = row.cash_disputes;
-  const dispute = row.dispute || (Array.isArray(disputeRows) ? disputeRows[0] : undefined);
+  const dispute = row.dispute || (Array.isArray(disputeRows)
+    ? [...disputeRows].sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')) || String(b.id || '').localeCompare(String(a.id || '')))[0]
+    : undefined);
 
   return {
     id: row.id,
@@ -93,7 +104,9 @@ export function mapCashTransaction(row: CashTransactionRecord): Record<string, u
           id: dispute.id,
           transaction_id: dispute.transaction_id,
           reason: dispute.reason || dispute.alasan_sanggahan,
-          bukti_sanggahan_url: dispute.bukti_sanggahan_url,
+          has_evidence: dispute.has_evidence === true || Boolean(dispute.id),
+          attempt_number: Number(dispute.attempt_number || 1),
+          review_note: dispute.review_note,
           status: dispute.status === 'approved' ? 'resolved' : dispute.status,
           created_at: dispute.created_at,
         }

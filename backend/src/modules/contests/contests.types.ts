@@ -4,6 +4,8 @@ export type ContestStatus = 'progres' | 'selesai' | string;
 
 export type ContestPublicStatus = 'buka' | 'proses_penjurian' | 'selesai' | string;
 
+export type ContestScope = 'bekasi' | 'jabodetabek' | 'jawa_barat' | 'nasional' | 'umum';
+
 export interface ContestRecord {
   id: string;
   nama: string;
@@ -15,12 +17,17 @@ export interface ContestRecord {
   hasil: string | null;
   nama_lomba?: string;
   penyelenggara?: string;
+  kota?: string | null;
   tingkat?: string;
   deadline?: string;
+  tahun_event?: number | null;
   website_url?: string | null;
   deskripsi?: string | null;
+  planned_work_count?: number | null;
+  academic_year?: string | null;
   submissions?: ContestSubmissionRecord[];
   submission_count?: number;
+  entry_count?: number;
   piala_url?: string | null;
   juara?: string | null;
   kategori_penghargaan?: string | null;
@@ -52,6 +59,7 @@ export interface ContestSubmissionRecord {
 export interface ContestListQuery {
   status?: string;
   tingkat?: string;
+  tahun_event?: string;
   search?: string;
   page?: string;
   pageSize?: string;
@@ -66,10 +74,14 @@ export interface ContestCreateInput {
   hasil?: string | null;
   nama_lomba?: string;
   penyelenggara?: string;
+  kota?: string;
   tingkat?: string;
   deadline?: string;
+  tahun_event?: number;
   website_url?: string | null;
   deskripsi?: string | null;
+  planned_work_count?: number | null;
+  academic_year?: string | null;
   change_reason?: string;
   idempotencyKey?: string;
   idempotency_key?: string;
@@ -84,13 +96,23 @@ export interface ContestUpdateInput {
   hasil?: string | null;
   nama_lomba?: string;
   penyelenggara?: string;
+  kota?: string;
   tingkat?: string;
   deadline?: string;
+  tahun_event?: number;
   website_url?: string | null;
   deskripsi?: string | null;
+  planned_work_count?: number | null;
+  academic_year?: string | null;
   change_reason?: string;
   idempotencyKey?: string;
   idempotency_key?: string;
+}
+
+export interface ContestUpdateAuditContext {
+  requestId?: string | null;
+  operationId?: string | null;
+  userAgent?: string | null;
 }
 
 export interface ContestSubmissionInput {
@@ -153,16 +175,22 @@ export interface ContestRepository {
     hasil: string | null;
     namaLomba?: string | null;
     penyelenggara?: string | null;
+    kota?: string | null;
     tingkat?: string | null;
     deadline?: string | null;
+    tahunEvent?: number | null;
     statusPublic?: string | null;
     websiteUrl?: string | null;
     deskripsi?: string | null;
+    plannedWorkCount?: number | null;
+    academicYear?: string | null;
     actorId: string | null;
   }): Promise<{ data: ContestRecord } | { error: unknown }>;
   update(id: string, input: {
     changes: Partial<ContestRecord>;
     actorId: string | null;
+    changeReason?: string;
+    auditContext?: ContestUpdateAuditContext;
   }): Promise<{ data: ContestRecord | null } | { error: unknown }>;
   submit(input: {
     contestId: string;

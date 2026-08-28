@@ -18,6 +18,10 @@ import type {
   CashReportFilters,
   CashPaymentMethod,
   CashInApiResponse,
+  CashDispute,
+  CashDisputeListResponse,
+  CashDisputeQuota,
+  CreateDisputeResponse,
 } from '../types/cash.types';
 
 export const cashService = {
@@ -87,13 +91,35 @@ export const cashService = {
   },
 
   // Student Dispute with Mandatory Proof Photo
-  createDispute(payload: CreateDisputePayload): Promise<void> {
-    return apiClient.post<void>('/api/cash/disputes', payload);
+  createDispute(payload: CreateDisputePayload, idempotencyKey: string): Promise<CreateDisputeResponse> {
+    return apiClient.post<CreateDisputeResponse>('/api/cash/disputes', payload, {
+      idempotencyKey,
+      changeReason: 'Pengajuan sanggahan kas',
+    });
+  },
+
+  getDisputeQuota(): Promise<{ success: boolean; data: CashDisputeQuota }> {
+    return apiClient.get<{ success: boolean; data: CashDisputeQuota }>('/api/cash/disputes/quota');
+  },
+
+  getDisputeEvidence(disputeId: string): Promise<{ success: boolean; data: { url: string } }> {
+    return apiClient.get<{ success: boolean; data: { url: string } }>(`/api/cash/disputes/${disputeId}/evidence`);
+  },
+
+  getDisputes(params?: { page?: number; pageSize?: number; status?: DisputeStatus; cursor?: string; limit?: number }): Promise<{ success: boolean } & CashDisputeListResponse> {
+    const query = new URLSearchParams();
+    if (params?.page) query.set('page', String(params.page));
+    if (params?.pageSize) query.set('pageSize', String(params.pageSize));
+    if (params?.status) query.set('status', params.status === 'resolved' ? 'approved' : params.status);
+    if (params?.cursor) query.set('cursor', params.cursor);
+    if (params?.limit) query.set('limit', String(params.limit));
+    const suffix = query.toString() ? `?${query.toString()}` : '';
+    return apiClient.get<{ success: boolean } & CashDisputeListResponse>(`/api/cash/disputes${suffix}`);
   },
 
   // Resolve/Reject Dispute (Treasurer/Teacher)
-  resolveDispute(disputeId: string, status: DisputeStatus, changeReason: string): Promise<void> {
-    return apiClient.patch<void>(`/api/cash/disputes/${disputeId}`, { status }, {
+  resolveDispute(disputeId: string, input: { status: DisputeStatus; review_note: string; resolution_date?: string; resolution_amount?: number; payment_method_code?: string }, changeReason: string): Promise<{ success: boolean; data: { dispute: CashDispute; resolutionTransactionId?: string; idempotentReplay: boolean } }> {
+    return apiClient.patch(`/api/cash/disputes/${disputeId}`, { ...input, status: input.status === 'resolved' ? 'approved' : input.status }, {
       changeReason,
     });
   },

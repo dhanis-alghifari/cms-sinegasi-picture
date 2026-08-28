@@ -5,6 +5,8 @@ import { apiClient } from '@/shared/api/client';
 import type { PaginatedResponse } from '@/shared/types/common';
 import type {
   AttendanceRecord,
+  AttendanceRosterParams,
+  AttendanceRosterRecord,
   AttendanceSummaryMetrics,
   AttendanceFilterParams,
   RecordAttendancePayload,
@@ -20,18 +22,37 @@ export const attendanceService = {
     if (params?.kelas) query.append('kelas', params.kelas);
     if (params?.status) query.append('status', params.status);
     if (params?.search) query.append('search', params.search);
+    if (params?.scope) query.append('scope', params.scope);
 
     const endpoint = `/api/attendance${query.toString() ? `?${query.toString()}` : ''}`;
     return apiClient.get<PaginatedResponse<AttendanceRecord>>(endpoint);
   },
 
-  getSummary(tanggal?: string): Promise<AttendanceSummaryMetrics> {
-    const endpoint = `/api/attendance/summary${tanggal ? `?tanggal=${tanggal}` : ''}`;
-    return apiClient.get<AttendanceSummaryMetrics>(endpoint);
+  async getSummary(tanggal?: string, scope?: 'own'): Promise<AttendanceSummaryMetrics> {
+    const query = new URLSearchParams();
+    if (tanggal) query.set('tanggal', tanggal);
+    if (scope) query.set('scope', scope);
+    const endpoint = `/api/attendance/summary${query.toString() ? `?${query.toString()}` : ''}`;
+    const response = await apiClient.get<AttendanceSummaryMetrics & {
+      total?: number;
+      persentaseKehadiran?: number;
+    }>(endpoint);
+    return {
+      ...response,
+      totalSiswa: response.totalSiswa ?? response.total ?? 0,
+      persentaseHadir: response.persentaseHadir ?? response.persentaseKehadiran ?? 0,
+    };
   },
 
-  recordAttendance(payload: RecordAttendancePayload): Promise<void> {
-    return apiClient.post<void>('/api/attendance', payload);
+  getRoster(params: AttendanceRosterParams): Promise<PaginatedResponse<AttendanceRosterRecord>> {
+    const query = new URLSearchParams({ tanggal: params.tanggal, kelas: params.kelas });
+    if (params.page) query.set('page', String(params.page));
+    if (params.pageSize) query.set('pageSize', String(params.pageSize));
+    return apiClient.get<PaginatedResponse<AttendanceRosterRecord>>(`/api/attendance/roster?${query.toString()}`);
+  },
+
+  recordAttendance(payload: RecordAttendancePayload): Promise<{ data: AttendanceRecord[]; total: number }> {
+    return apiClient.post<{ data: AttendanceRecord[]; total: number }>('/api/attendance/batch', payload);
   },
 
   // Teacher Correction for 48h Locked Records

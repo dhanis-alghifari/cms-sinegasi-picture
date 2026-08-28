@@ -16,6 +16,7 @@ interface AttendanceFilterProps {
   search: string;
   onSearchChange: (value: string) => void;
   onReset: () => void;
+  isOwn?: boolean;
 }
 
 export function AttendanceFilter({
@@ -28,6 +29,7 @@ export function AttendanceFilter({
   search,
   onSearchChange,
   onReset,
+  isOwn = false,
 }: AttendanceFilterProps) {
   const hasActiveFilters = Boolean(tanggal || kelas !== 'all' || status !== 'all' || search);
 
@@ -45,7 +47,7 @@ export function AttendanceFilter({
       </div>
 
       {/* Search Input */}
-      <div className="relative flex-1">
+      {!isOwn && <div className="relative flex-1">
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-tertiary" />
         <Input
           type="text"
@@ -54,10 +56,10 @@ export function AttendanceFilter({
           onChange={(e) => onSearchChange(e.target.value)}
           className="pl-9 bg-surface-1 border-hairline text-ink placeholder:text-ink-tertiary text-xs h-9"
         />
-      </div>
+      </div>}
 
       {/* Kelas Select */}
-      <Select value={kelas} onValueChange={(val) => val !== null && onKelasChange(val)}>
+      {!isOwn && <Select value={kelas} onValueChange={(val) => val !== null && onKelasChange(val)}>
         <SelectTrigger className="w-full sm:w-36 bg-surface-1 border-hairline text-ink text-xs h-9">
           <SelectValue placeholder="Pilih Kelas" />
         </SelectTrigger>
@@ -67,7 +69,7 @@ export function AttendanceFilter({
           <SelectItem value="XI">Kelas XI</SelectItem>
           <SelectItem value="XII">Kelas XII</SelectItem>
         </SelectContent>
-      </Select>
+      </Select>}
 
       {/* Status Select */}
       <Select value={status} onValueChange={(val) => val !== null && onStatusChange(val)}>

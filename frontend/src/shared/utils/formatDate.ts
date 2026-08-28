@@ -49,6 +49,13 @@ export function getLocalDateInputValue(date = new Date()): string {
   return `${year}-${month}-${day}`;
 }
 
+/** Returns a future date for date inputs (used for deadlines that cannot be backdated). */
+export function getFutureDateInputValue(days = 1, date = new Date()): string {
+  const target = new Date(date);
+  target.setDate(target.getDate() + days);
+  return getLocalDateInputValue(target);
+}
+
 export function formatRelativeTime(date: string | Date): string {
   const now = new Date();
   const target = toValidDate(date);

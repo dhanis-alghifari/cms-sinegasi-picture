@@ -36,6 +36,8 @@ export function createAppDependencies(fastify: FastifyInstance): AppDependencies
     equipmentService: catalog.equipmentService,
     gradesService: catalog.gradesService,
     contestsService: catalog.contestsService,
+    contestEntriesService: catalog.contestEntriesService,
+    contestAchievementsService: catalog.contestAchievementsService,
     filmWorksService: catalog.filmWorksService,
     accessControlService: catalog.accessControlService,
     ...cash,

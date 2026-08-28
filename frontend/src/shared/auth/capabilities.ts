@@ -3,8 +3,8 @@ import type { UserRole } from '@/shared/types/common';
 export const CAPABILITY_VALUES = [
   'dashboard.read.operational', 'dashboard.read.own',
   'students.read', 'students.read.own', 'students.manage',
-  'classes.read', 'classes.manage', 'attendance.read', 'attendance.record', 'attendance.correct',
-  'cash.read', 'cash.manage', 'grades.read', 'grades.read.own', 'grades.manage',
+  'classes.read', 'classes.manage', 'attendance.read', 'attendance.read.own', 'attendance.record', 'attendance.correct',
+  'cash.read', 'cash.read.own', 'cash.dispute.create', 'cash.dispute.read.own', 'cash.dispute.review', 'cash.manage', 'grades.read', 'grades.read.own', 'grades.manage',
   'equipment.read', 'equipment.manage', 'borrowing.read', 'borrowing.manage',
   'contests.read', 'contests.submit', 'contests.manage', 'overdue.manage', 'notifications.read',
   'audit.read', 'users.manage', 'access_control.read', 'access_control.manage',
@@ -25,7 +25,7 @@ export const ROLE_CAPABILITIES: Readonly<Record<UserRole, readonly Capability[]>
     'borrowing.read', 'borrowing.manage', 'contests.read', 'contests.submit', 'contests.manage',
     'grades.read.own', 'notifications.read',
   ],
-  treasurer: ['dashboard.read.own', 'cash.read', 'cash.manage', 'grades.read.own', 'notifications.read'],
+  treasurer: ['dashboard.read.own', 'cash.read', 'cash.read.own', 'cash.manage', 'cash.dispute.create', 'cash.dispute.review', 'grades.read.own', 'notifications.read'],
   secretary: [
     'dashboard.read.own', 'students.read', 'students.manage', 'classes.read', 'classes.manage',
     'attendance.read', 'attendance.record', 'attendance.correct', 'grades.read.own', 'notifications.read',
@@ -38,7 +38,7 @@ export const ROLE_CAPABILITIES: Readonly<Record<UserRole, readonly Capability[]>
     'dashboard.read.own', 'contests.read', 'contests.submit', 'contests.manage',
     'grades.read.own', 'notifications.read',
   ],
-  member: ['dashboard.read.own', 'grades.read.own', 'notifications.read'],
+  member: ['dashboard.read.own', 'attendance.read.own', 'cash.read.own', 'cash.dispute.create', 'cash.dispute.read.own', 'grades.read.own', 'notifications.read'],
 };
 
 export type CapabilitySubject = {

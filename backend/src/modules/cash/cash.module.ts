@@ -64,6 +64,7 @@ export function createCashModule(
     ),
     disputesService: new CashDisputesService(createCashDisputesRepository(client, {
       transactions: memory.transactions,
+      debts: memory.debts,
     })),
   };
 }

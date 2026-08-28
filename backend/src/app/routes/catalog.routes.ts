@@ -10,6 +10,8 @@ import contestsRoutes from '../../modules/contests/contests.routes.js';
 import filmWorksRoutes from '../../modules/film-works/film-works.routes.js';
 import accessControlRoutes from '../../modules/access-control/access-control.routes.js';
 import type { AppDependencies } from '../app.dependencies.js';
+import contestEntriesRoutes from '../../modules/contest-entries/contest-entries.routes.js';
+import contestAchievementsRoutes from '../../modules/contest-achievements/contest-achievements.routes.js';
 
 export async function registerCatalogRoutes(
   fastify: FastifyInstance,
@@ -42,6 +44,13 @@ export async function registerCatalogRoutes(
   await fastify.register(contestsRoutes, {
     contestsService: dependencies.contestsService,
     persistAuditLog: dependencies.persistAuditLog,
+  });
+  await fastify.register(contestEntriesRoutes, {
+    contestEntriesService: dependencies.contestEntriesService,
+    persistAuditLog: dependencies.persistAuditLog,
+  });
+  await fastify.register(contestAchievementsRoutes, {
+    contestAchievementsService: dependencies.contestAchievementsService,
   });
   await fastify.register(filmWorksRoutes, { filmWorksService: dependencies.filmWorksService });
   await fastify.register(accessControlRoutes, { accessControlService: dependencies.accessControlService });

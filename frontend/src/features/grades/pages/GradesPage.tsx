@@ -16,7 +16,7 @@ import { useDebouncedValue } from '@/shared/hooks/useDebouncedValue';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { hasCapability } from '@/shared/auth/capabilities';
 
-import { useGradesQuery, useAssignmentsQuery } from '../queries/useGradesQuery';
+import { useGradesQuery, useAssignmentsQuery, useGradeSummaryQuery } from '../queries/useGradesQuery';
 import { useCreateAssignmentMutation } from '../mutations/useCreateAssignmentMutation';
 import { useBulkGradingMutation } from '../mutations/useBulkGradingMutation';
 
@@ -36,6 +36,8 @@ export function GradesPage() {
   const { user } = useAuthStore();
   const isMobile = useIsMobile();
   const canManageGrades = hasCapability(user, 'grades.manage');
+  const isPersonalView = !hasCapability(user, 'grades.read');
+  const gradeScope = isPersonalView ? 'own' : 'operational';
 
   // Filters
   const [search, setSearch] = useState('');
@@ -108,7 +110,11 @@ export function GradesPage() {
     search: debouncedSearch || undefined,
     category: category !== 'all' ? (category as AssignmentCategory) : undefined,
     kelas: kelas !== 'all' ? kelas : undefined,
-    student_id: canManageGrades ? undefined : user?.studentId,
+    scope: gradeScope,
+  });
+  const { data: gradeSummary } = useGradeSummaryQuery({
+    scope: gradeScope,
+    category: category !== 'all' ? (category as AssignmentCategory) : undefined,
   });
 
   const {
@@ -121,8 +127,9 @@ export function GradesPage() {
     search: debouncedAssignmentSearch || undefined,
     category: assignmentCategory !== 'all' ? (assignmentCategory as AssignmentCategory) : undefined,
     kelas: assignmentKelas !== 'all' ? assignmentKelas : undefined,
+    scope: gradeScope,
   });
-  const { data: assignmentOptionsData } = useAssignmentsQuery({ page: 1, pageSize: 1000 }, canManageGrades);
+  const { data: assignmentOptionsData } = useAssignmentsQuery({ page: 1, pageSize: 1000, scope: 'operational' }, canManageGrades);
   const { data: studentsData } = useStudentsQuery({ is_active: true }, canManageGrades);
 
   // Mutations
@@ -159,8 +166,8 @@ export function GradesPage() {
   return (
     <div className="mx-auto max-w-7xl space-y-5 px-4 py-5 sm:space-y-6 sm:p-6">
       <PageHeader
-        title="Evaluasi & Nilai Universal (A–E)"
-        subtitle="Sistem penilaian Universal Grading A-E untuk tugas kelas, karya crew film, dan kegiatan eksternal."
+        title={isPersonalView ? 'Nilai & Tugas Saya' : 'Evaluasi & Nilai Universal (A–E)'}
+        subtitle={isPersonalView ? 'Pantau hasil penilaian dan tugas yang ditujukan untuk kelas Anda.' : 'Sistem penilaian Universal Grading A-E untuk tugas kelas, karya crew film, dan kegiatan eksternal.'}
         actions={
           canManageGrades ? (
             <ResponsivePageActions
@@ -194,17 +201,15 @@ export function GradesPage() {
           <TabsTrigger value="grades" className="min-h-12 min-w-0 flex-1 gap-1.5 px-2 text-xs leading-tight md:min-h-9 md:min-w-44 md:flex-none md:whitespace-nowrap md:px-3">
             <GraduationCap size={14} />
             <span className="md:hidden">Nilai</span>
-            <span className="hidden md:inline">Rekap Nilai Siswa</span>
+            <span className="hidden md:inline">{isPersonalView ? 'Riwayat Nilai Saya' : 'Rekap Nilai Siswa'}</span>
           </TabsTrigger>
           <TabsTrigger value="assignments" className="min-h-12 min-w-0 flex-1 gap-1.5 px-2 text-xs leading-tight md:min-h-9 md:min-w-44 md:flex-none md:whitespace-nowrap md:px-3">
-            <ClipboardList size={14} />
-            <span className="md:hidden">Tugas</span>
-            <span className="hidden md:inline">Daftar Tugas</span>
+            <ClipboardList size={14} /><span className="md:hidden">Tugas</span><span className="hidden md:inline">{isPersonalView ? 'Tugas Saya' : 'Daftar Tugas'}</span>
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="grades" className="space-y-6 pt-2">
-          <GradeDistributionStats grades={gradesData?.data ?? []} />
+          <GradeDistributionStats grades={gradesData?.data ?? []} summary={gradeSummary} isPersonal={isPersonalView} />
 
           <GradeFilter
             search={search}
@@ -214,13 +219,14 @@ export function GradesPage() {
             kelas={kelas}
             onKelasChange={handleKelasChange}
             onReset={handleResetFilter}
+            isOwn={isPersonalView}
           />
 
           {isGradesLoading ? (
             <PageLoader />
           ) : (
             <div className="space-y-4">
-              {isMobile ? <GradeMobileList grades={gradesData?.data ?? []} /> : <GradeTable grades={gradesData?.data ?? []} />}
+              {isMobile ? <GradeMobileList grades={gradesData?.data ?? []} isPersonal={isPersonalView} /> : <GradeTable grades={gradesData?.data ?? []} isPersonal={isPersonalView} />}
               <Pagination
                 page={gradesData?.page ?? page}
                 totalPages={gradesData?.totalPages ?? 1}
@@ -241,6 +247,7 @@ export function GradesPage() {
             kelas={assignmentKelas}
             onKelasChange={handleAssignmentKelasChange}
             onReset={handleAssignmentFilterReset}
+            isOwn={isPersonalView}
           />
           <AssignmentList
             assignments={assignmentsData?.data ?? []}
@@ -251,6 +258,7 @@ export function GradesPage() {
             total={assignmentsData?.total ?? 0}
             pageSize={assignmentsData?.pageSize ?? assignmentPageSize}
             onPageChange={setAssignmentPage}
+            isOwn={isPersonalView}
           />
         </TabsContent>
       </Tabs>

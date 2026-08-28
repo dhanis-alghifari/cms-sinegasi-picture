@@ -1,7 +1,7 @@
 // src/features/cash/components/StudentDisputeModal.tsx
 // Student Dispute Form Modal — PRD Requirement: MANDATORY Photo Proof URL Attachment
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { AlertCircle, UploadCloud, Loader2 } from 'lucide-react';
@@ -23,41 +23,51 @@ import { formatCurrency } from '@/shared/utils/formatCurrency';
 import { ImageUploadField } from '@/shared/components/ImageUploadField';
 
 import { disputeSchema, type DisputeFormValues } from '../schemas/cashSchema';
-import type { CashTransaction } from '../types/cash.types';
+import type { CashDisputeQuota, CashTransaction, DebtRecord } from '../types/cash.types';
 
 interface StudentDisputeModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   transaction?: CashTransaction | null;
+  debt?: DebtRecord | null;
   onSubmit: (values: DisputeFormValues) => Promise<void>;
   isLoading?: boolean;
   error?: unknown;
+  quota?: CashDisputeQuota;
 }
 
 export function StudentDisputeModal({
   open,
   onOpenChange,
   transaction,
+  debt,
   onSubmit,
   isLoading,
   error,
+  quota,
 }: StudentDisputeModalProps) {
   const [isImageProcessing, setIsImageProcessing] = useState(false);
   const form = useForm<DisputeFormValues>({
     resolver: zodResolver(disputeSchema),
     defaultValues: {
-      transaction_id: transaction?.id ?? '',
+      transaction_id: transaction?.id,
+      debt_record_id: debt?.id,
       reason: '',
       bukti_sanggahan_url: '',
     },
   });
   const proofImage = useWatch({ control: form.control, name: 'bukti_sanggahan_url' });
 
+  useEffect(() => {
+    form.reset({ transaction_id: transaction?.id, debt_record_id: debt?.id, reason: '', bukti_sanggahan_url: '' });
+  }, [debt?.id, form, transaction?.id]);
+
   const handleSubmit = form.handleSubmit(async (data) => {
-    if (!transaction) return;
+    if (!transaction && !debt) return;
     await onSubmit({
       ...data,
-      transaction_id: transaction.id,
+      transaction_id: transaction?.id,
+      debt_record_id: debt?.id,
     });
     form.reset();
     onOpenChange(false);
@@ -72,7 +82,7 @@ export function StudentDisputeModal({
             <DialogTitle className="text-ink text-base font-semibold">Formulir Sanggahan Kas (Dispute)</DialogTitle>
           </div>
           <DialogDescription className="text-ink-subtle text-xs">
-            Sanggah transaksi kas masuk sebesar <strong className="text-ink">{formatCurrency(transaction?.jumlah ?? 0)}</strong>.
+              Sanggah catatan kas sebesar <strong className="text-ink">{formatCurrency(transaction?.jumlah ?? debt?.amount ?? 0)}</strong>. Kuota bulan {quota?.period ?? 'ini'}: <strong className="text-ink">{quota?.used ?? 0}/{quota?.limit ?? 2}</strong>.
           </DialogDescription>
         </DialogHeader>
 
@@ -90,7 +100,7 @@ export function StudentDisputeModal({
               Syarat Wajib Upload Bukti Sanggahan
             </p>
             <p className="mt-1 text-[11px]">
-              Sesuai aturan PRD & proteksi database, sanggahan <strong>WAJIB</strong> menyertakan foto bukti pembayaran (screenshot transfer atau foto bukti fisik). Tanpa bukti, sanggahan tidak dapat diproses. Sanggahan dibatasi 1x per transaksi.
+              Sanggahan <strong>WAJIB</strong> menyertakan foto bukti pembayaran. Setiap pengajuan memakai satu kuota; maksimal <strong>2 kali per bulan</strong> dan kuota tidak rollover. Jika ditolak, Anda dapat mengajukan ulang selama kuota masih tersedia.
             </p>
           </div>
 
@@ -121,10 +131,10 @@ export function StudentDisputeModal({
           />
 
           <DialogFooter className="pt-2">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="bg-surface-2 border-hairline text-ink text-xs h-9">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="min-h-11 bg-surface-2 border-hairline text-ink text-xs">
               Batal
             </Button>
-            <Button type="submit" disabled={isLoading || isImageProcessing} className="bg-semantic-warning hover:bg-semantic-warning/80 text-black font-semibold text-xs h-9">
+            <Button type="submit" disabled={isLoading || isImageProcessing || quota?.remaining === 0} className="min-h-11 border-primary bg-primary px-3 text-xs font-semibold text-primary-foreground hover:bg-primary-hover focus-visible:ring-primary/30">
               {isLoading ? (
                 <>
                   <Loader2 size={14} className="animate-spin mr-1.5" />

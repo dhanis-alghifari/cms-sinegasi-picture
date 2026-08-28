@@ -1,7 +1,7 @@
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { authenticate, type JwtPayload } from '../../middleware/authMiddleware.js';
 import { hasCapability, requireAnyCapability, requireCapability } from '../../middleware/capabilities.js';
-import { resolveDatabaseUserId } from '../auth/auth.identity.js';
+import { resolveDatabaseStudentId, resolveDatabaseUserId } from '../auth/auth.identity.js';
 import { assignmentCreateRouteSchema, assignmentListRouteSchema, bulkGradeRouteSchema, gradeDistributionRouteSchema, gradeListRouteSchema } from '../../shared/http/schemas/grades.schema.js';
 import { authenticatedRouteSchema } from '../../shared/http/schemas/core.schema.js';
 import { sendServiceError } from '../../shared/http/sendServiceError.js';
@@ -15,15 +15,43 @@ const gradesRoutes: FastifyPluginAsync<GradesRoutesOptions> = async (fastify, op
     try {
       const user = request.user as JwtPayload;
       const query = { ...(request.query as GradeListQuery) };
-      if (!hasCapability(user.role, 'grades.read')) {
-        if (!user.studentId) return reply.status(403).send({ success: false, error: 'Forbidden', message: 'Akun belum terhubung ke profil siswa.' });
-        query.student_id = user.studentId;
+      const requestedOwn = query.scope === 'own';
+      if (requestedOwn || !hasCapability(user.role, 'grades.read')) {
+        const studentId = await resolveDatabaseStudentId(user);
+        if (!studentId) return reply.status(403).send({ success: false, error_code: 'STUDENT_SCOPE_UNAVAILABLE', message: 'Akun belum terhubung ke profil siswa.' });
+        query.scope = 'own';
+        query.student_id = studentId;
+        delete query.kelas;
       }
       return reply.send({ success: true, ...(await options.gradesService.listGrades(query)) });
     } catch (error) { return sendServiceError(error, reply); }
   });
   fastify.get('/api/grades/assignments', { schema: assignmentListRouteSchema, preHandler: [authenticate, requireAnyCapability('grades.read', 'grades.read.own')] }, async (request, reply) => {
-    try { return reply.send({ success: true, ...(await options.gradesService.listAssignments(request.query as AssignmentListQuery)) }); } catch (error) { return sendServiceError(error, reply); }
+    try {
+      const user = request.user as JwtPayload;
+      const query = { ...(request.query as AssignmentListQuery) };
+      if (query.scope === 'own' || !hasCapability(user.role, 'grades.read')) {
+        const studentId = await resolveDatabaseStudentId(user);
+        if (!studentId) return reply.status(403).send({ success: false, error_code: 'STUDENT_SCOPE_UNAVAILABLE', message: 'Akun belum terhubung ke profil siswa.' });
+        query.scope = 'own';
+        query.student_id = studentId;
+        delete query.kelas;
+      }
+      return reply.send({ success: true, ...(await options.gradesService.listAssignments(query)) });
+    } catch (error) { return sendServiceError(error, reply); }
+  });
+  fastify.get('/api/grades/summary', { schema: gradeListRouteSchema, preHandler: [authenticate, requireAnyCapability('grades.read', 'grades.read.own')] }, async (request, reply) => {
+    try {
+      const user = request.user as JwtPayload;
+      const query = { ...(request.query as GradeListQuery) };
+      if (query.scope === 'own' || !hasCapability(user.role, 'grades.read')) {
+        const studentId = await resolveDatabaseStudentId(user);
+        if (!studentId) return reply.status(403).send({ success: false, error_code: 'STUDENT_SCOPE_UNAVAILABLE', message: 'Akun belum terhubung ke profil siswa.' });
+        query.scope = 'own';
+        query.student_id = studentId;
+      }
+      return reply.send({ success: true, data: await options.gradesService.summary(query) });
+    } catch (error) { return sendServiceError(error, reply); }
   });
   fastify.post('/api/grades/assignments', { schema: assignmentCreateRouteSchema, preHandler: [authenticate, requireCapability('grades.manage')] }, async (request, reply) => {
     const user = request.user as JwtPayload;

@@ -25,11 +25,15 @@ export const QUERY_KEYS = {
   CASH_DEBTS: ['cash', 'debts'] as const,
   CASH_REPORT: ['cash', 'report'] as const,
   CASH_DISPUTES: ['cash', 'disputes'] as const,
+  CASH_DISPUTE_QUOTA: ['cash', 'disputes', 'quota'] as const,
   BILLING_RULES: ['cash', 'billing-rules'] as const,
 
   // Attendance
   ATTENDANCE: ['attendance'] as const,
   ATTENDANCE_SUMMARY: ['attendance', 'summary'] as const,
+
+  // Classes
+  CLASS_OPTIONS: ['classes', 'options'] as const,
 
   // Grades
   GRADES: ['grades'] as const,
@@ -49,6 +53,9 @@ export const QUERY_KEYS = {
   // Contests
   CONTESTS: ['contests'] as const,
   CONTEST_DETAIL: (id: string) => ['contests', id] as const,
+  CONTEST_ENTRIES: (id: string) => ['contests', id, 'entries'] as const,
+  CONTEST_WORK_TYPES: ['contests', 'work-types'] as const,
+  CONTEST_ACHIEVEMENTS: ['contest-achievements'] as const,
 
   // Notifications
   NOTIFICATIONS: ['notifications'] as const,

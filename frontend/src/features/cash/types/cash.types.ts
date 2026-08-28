@@ -1,10 +1,28 @@
 // src/features/cash/types/cash.types.ts
 // Cash & Debt domain types according to PRD schema
-import type { ActorSummary } from '@/shared/types/common';
+import type { ActorSummary, PaginatedResponse } from '@/shared/types/common';
 
 export type TransactionType = 'masuk' | 'keluar';
-export type DisputeStatus = 'pending' | 'resolved' | 'rejected';
+export type DisputeStatus = 'pending' | 'approved' | 'resolved' | 'rejected';
 export type DebtStatus = 'unpaid' | 'paid';
+
+export interface CashDisputeQuota {
+  period: string;
+  period_start: string;
+  limit: number;
+  used: number;
+  remaining: number;
+  resets_at: string;
+}
+
+export interface CashDisputeSummary {
+  id: string;
+  status: DisputeStatus;
+  reason?: string;
+  has_evidence?: boolean;
+  attempt_number?: number;
+  review_note?: string;
+}
 
 export interface CashPaymentMethod {
   id: string;
@@ -18,6 +36,7 @@ export interface CashPaymentMethod {
   updated_at: string;
   created_actor?: ActorSummary;
   updated_actor?: ActorSummary;
+  dispute?: CashDisputeSummary;
 }
 
 export interface CashTransaction {
@@ -39,16 +58,29 @@ export interface CashTransaction {
   is_billing?: boolean;
   metode_pembayaran?: string;
   metode_pembayaran_label?: string;
-  dispute?: CashDispute;
+  dispute?: CashDisputeSummary;
 }
 
 export interface CashDispute {
   id: string;
-  transaction_id: string;
+  transaction_id?: string;
+  debt_record_id?: string;
+  student_id?: string;
+  student_nama?: string;
   reason: string;
-  bukti_sanggahan_url: string;
+  bukti_sanggahan_url?: string;
+  has_evidence: boolean;
   status: DisputeStatus;
+  quota_period_start?: string;
+  attempt_number: number;
+  previous_dispute_id?: string;
+  review_note?: string;
+  resolution_transaction_id?: string;
   created_at: string;
+  resolved_at?: string;
+  transaction_nominal?: number;
+  transaction_tanggal?: string;
+  transaction_keterangan?: string;
 }
 
 export interface DebtRecord {
@@ -64,6 +96,7 @@ export interface DebtRecord {
   created_at: string;
   created_actor?: ActorSummary;
   updated_actor?: ActorSummary;
+  dispute?: CashDisputeSummary;
 }
 
 export interface BillingRule {
@@ -121,10 +154,24 @@ export interface CreateCashOutPayload {
 }
 
 export interface CreateDisputePayload {
-  transaction_id: string;
-  student_id?: string;
+  transaction_id?: string;
+  debt_record_id?: string;
   reason: string;
   bukti_sanggahan_url: string; // WAJIB untuk sanggahan
+}
+
+export interface CreateDisputeResponse {
+  success: boolean;
+  data: {
+    dispute: CashDispute;
+    quota: CashDisputeQuota;
+    idempotentReplay: boolean;
+  };
+}
+
+export interface CashDisputeListResponse extends PaginatedResponse<CashDispute> {
+  nextCursor?: string | null;
+  hasMore?: boolean;
 }
 
 export interface UpdateBillingRulePayload {

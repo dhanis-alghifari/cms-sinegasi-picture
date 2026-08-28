@@ -2,6 +2,7 @@ import {
   contestErrorMessage,
   cleanText,
   normalizeContestLevel,
+  normalizeContestScope,
   normalizeContestStatus,
   toPublicContestStatus,
 } from './contests.helpers.js';
@@ -22,7 +23,7 @@ function serviceError(error: unknown, fallback: string): never {
 }
 
 function isMissingSchemaError(error: unknown): boolean {
-  return ['42P01', '42703', 'PGRST205'].includes(databaseErrorCode(error) || '');
+  return ['42P01', '42703', 'PGRST204', 'PGRST205'].includes(databaseErrorCode(error) || '');
 }
 
 function requiredText(value: unknown, field: string, maxLength: number): string {
@@ -31,11 +32,35 @@ function requiredText(value: unknown, field: string, maxLength: number): string 
   return text;
 }
 
-function validDate(value: string): string {
+function getBusinessTodayDate(): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(new Date());
+  const values: Record<string, string> = {};
+  for (const part of parts) values[part.type] = part.value;
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+function validDate(value: string, mustBeFuture = false): string {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     throw new ContestsServiceError(422, 'INVALID_DATE', 'tanggal harus berupa tanggal YYYY-MM-DD.');
   }
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== value) {
+    throw new ContestsServiceError(422, 'INVALID_DATE', 'tanggal harus berupa tanggal kalender yang valid.');
+  }
+  if (mustBeFuture && value <= getBusinessTodayDate()) {
+    throw new ContestsServiceError(422, 'INVALID_DEADLINE', 'Deadline pendaftaran harus besok atau tanggal setelahnya.');
+  }
   return value;
+}
+
+function requiredYear(value: unknown, field = 'tahun_event'): number {
+  const year = typeof value === 'number' ? value : Number(value);
+  if (!Number.isInteger(year) || year < 1900 || year > 2200) {
+    throw new ContestsServiceError(422, 'INVALID_EVENT_YEAR', `${field} harus berada di antara 1900 dan 2200.`);
+  }
+  return year;
 }
 
 function optionalUrl(value: unknown, field: string): string | null {
@@ -50,10 +75,29 @@ function optionalUrl(value: unknown, field: string): string | null {
   return text;
 }
 
+function optionalPlannedWorkCount(value: unknown): number | null {
+  if (value === undefined || value === null || value === '') return null;
+  const count = Number(value);
+  if (!Number.isInteger(count) || count < 1 || count > 1000) {
+    throw new ContestsServiceError(422, 'INVALID_PLANNED_WORK_COUNT', 'planned_work_count harus berupa bilangan bulat 1 sampai 1000.');
+  }
+  return count;
+}
+
+function optionalAcademicYear(value: unknown): string | null {
+  if (value === undefined || value === null || value === '') return new Date().getFullYear().toString();
+  const year = cleanText(value, 4);
+  if (!year || !/^\d{4}$/.test(year) || Number(year) < 1900 || Number(year) > 2200) {
+    throw new ContestsServiceError(422, 'INVALID_ACADEMIC_YEAR', 'academic_year harus berupa tahun 4 digit yang valid.');
+  }
+  return year;
+}
+
 function publicContract(input: ContestCreateInput | ContestUpdateInput): boolean {
   return input.nama_lomba !== undefined
-    || input.penyelenggara !== undefined
+    || input.kota !== undefined
     || input.tingkat !== undefined
+    || input.tahun_event !== undefined
     || input.deadline !== undefined
     || input.status === 'buka'
     || input.status === 'proses_penjurian';
@@ -63,6 +107,10 @@ export class ContestsService {
   constructor(private readonly repository: ContestRepository) {}
   repositoryIsConfigured(): boolean { return this.repository.isConfigured(); }
   async list(query: ContestListQuery) {
+    if (query.tahun_event !== undefined) requiredYear(query.tahun_event, 'tahun_event');
+    if (query.tingkat && query.tingkat !== 'all' && !normalizeContestScope(query.tingkat)) {
+      throw new ContestsServiceError(422, 'INVALID_CONTEST_SCOPE', 'tingkat lomba tidak valid.');
+    }
     const result = await this.repository.list({ ...query, search: cleanText(query.search, 100) || undefined });
     if ('error' in result) serviceError(result.error, 'Gagal memuat daftar lomba.');
     return result;
@@ -90,12 +138,22 @@ export class ContestsService {
   async create(input: ContestCreateInput, actorId: string | null) {
     const isPublicContract = publicContract(input);
     const nama = requiredText(input.nama ?? input.nama_lomba, isPublicContract ? 'nama_lomba' : 'nama', 200);
-    const jenis = requiredText(input.jenis ?? (isPublicContract ? 'Sinematografi' : undefined), 'jenis', 120);
+    const jenis = requiredText(input.jenis ?? (isPublicContract ? 'Festival / Perlombaan' : undefined), 'jenis', 120);
     const level = requiredText(normalizeContestLevel(input.level ?? input.tingkat), isPublicContract ? 'tingkat' : 'level', 32);
-    const tanggal = validDate(requiredText(input.tanggal ?? input.deadline, isPublicContract ? 'deadline' : 'tanggal', 10));
+    const scope = isPublicContract ? normalizeContestScope(input.tingkat) : undefined;
+    if (isPublicContract && !scope) {
+      throw new ContestsServiceError(422, 'INVALID_CONTEST_SCOPE', 'tingkat lomba tidak valid.');
+    }
+    const tanggal = validDate(requiredText(input.tanggal ?? input.deadline, isPublicContract ? 'deadline' : 'tanggal', 10), isPublicContract);
     const status = normalizeContestStatus(input.status) || 'progres';
     const hasil = cleanText(input.hasil, 500);
     const statusPublic = isPublicContract ? toPublicContestStatus(input.status) : null;
+    const kota = isPublicContract
+      ? requiredText(input.kota, 'kota', 120)
+      : cleanText(input.kota, 120);
+    const tahunEvent = isPublicContract
+      ? requiredYear(input.tahun_event)
+      : input.tahun_event == null ? Number(optionalAcademicYear(input.academic_year)) : requiredYear(input.tahun_event);
     if (!actorId && this.repositoryIsConfigured()) {
       throw new ContestsServiceError(503, 'DATABASE_IDENTITY_UNAVAILABLE', 'Akun login belum terhubung ke users.id database yang valid.');
     }
@@ -107,28 +165,36 @@ export class ContestsService {
       status,
       hasil,
       namaLomba: cleanText(input.nama_lomba, 200),
-      penyelenggara: cleanText(input.penyelenggara, 120),
-      tingkat: cleanText(input.tingkat, 32),
+      penyelenggara: isPublicContract ? null : cleanText(input.penyelenggara, 120),
+      kota,
+      tingkat: scope ?? cleanText(input.tingkat, 32),
       deadline: cleanText(input.deadline, 10),
+      tahunEvent,
       statusPublic,
       websiteUrl: optionalUrl(input.website_url, 'website_url'),
       deskripsi: cleanText(input.deskripsi, 2000),
+      plannedWorkCount: optionalPlannedWorkCount(input.planned_work_count),
+      academicYear: optionalAcademicYear(input.academic_year),
       actorId,
     });
     if ('error' in result) {
       throw new ContestsServiceError(
-        databaseErrorCode(result.error) === '23505' ? 409 : isMissingSchemaError(result.error) ? 503 : 400,
-        'CONTEST_CREATE_FAILED',
+        databaseErrorCode(result.error) === '23505' ? 409 : databaseErrorCode(result.error) === '22023' ? 422 : isMissingSchemaError(result.error) ? 503 : 400,
+        isMissingSchemaError(result.error) ? 'CONTEST_SCHEMA_UNAVAILABLE' : databaseErrorCode(result.error) === '22023' ? 'INVALID_DEADLINE' : 'CONTEST_CREATE_FAILED',
         contestErrorMessage(result.error, 'Gagal menambahkan lomba baru.'),
       );
     }
     return result.data;
   }
 
-  async update(id: string, input: ContestUpdateInput, actorId: string | null) {
+  async update(id: string, input: ContestUpdateInput, actorId: string | null, changeReason = '', auditContext?: { requestId?: string | null; operationId?: string | null; userAgent?: string | null }) {
     const contestId = requiredText(id, 'id', 64);
     if (!actorId && this.repositoryIsConfigured()) {
       throw new ContestsServiceError(503, 'DATABASE_IDENTITY_UNAVAILABLE', 'Akun login belum terhubung ke users.id database yang valid.');
+    }
+    const normalizedChangeReason = cleanText(changeReason, 500);
+    if (!normalizedChangeReason || normalizedChangeReason.length < 5) {
+      throw new ContestsServiceError(422, 'CONTEST_UPDATE_REASON_REQUIRED', 'Alasan perubahan wajib diisi minimal 5 karakter.');
     }
     const changes: Partial<ContestRecord> = {};
     const isPublicContract = publicContract(input);
@@ -142,13 +208,19 @@ export class ContestsService {
     if (input.level !== undefined || input.tingkat !== undefined) {
       const value = requiredText(normalizeContestLevel(input.level ?? input.tingkat), input.tingkat !== undefined ? 'tingkat' : 'level', 32);
       changes.level = value;
-      if (input.tingkat !== undefined) changes.tingkat = requiredText(input.tingkat, 'tingkat', 32);
+      if (input.tingkat !== undefined) {
+        const scope = normalizeContestScope(input.tingkat);
+        if (!scope) throw new ContestsServiceError(422, 'INVALID_CONTEST_SCOPE', 'tingkat lomba tidak valid.');
+        changes.tingkat = scope;
+      }
     }
     if (input.tanggal !== undefined || input.deadline !== undefined) {
-      const value = validDate(requiredText(input.tanggal ?? input.deadline, input.deadline !== undefined ? 'deadline' : 'tanggal', 10));
+      const value = validDate(requiredText(input.tanggal ?? input.deadline, input.deadline !== undefined ? 'deadline' : 'tanggal', 10), input.deadline !== undefined);
       changes.tanggal = value;
       if (input.deadline !== undefined) changes.deadline = value;
     }
+    if (input.kota !== undefined) changes.kota = requiredText(input.kota, 'kota', 120);
+    if (input.tahun_event !== undefined) changes.tahun_event = requiredYear(input.tahun_event);
     if (input.status !== undefined) {
       changes.status = normalizeContestStatus(input.status) || requiredText(input.status, 'status', 32);
       if (isPublicContract) changes.status_public = toPublicContestStatus(input.status);
@@ -156,12 +228,41 @@ export class ContestsService {
     if (input.hasil !== undefined) changes.hasil = cleanText(input.hasil, 500);
     if (input.website_url !== undefined) changes.website_url = optionalUrl(input.website_url, 'website_url');
     if (input.deskripsi !== undefined) changes.deskripsi = cleanText(input.deskripsi, 2000);
+    if (input.planned_work_count !== undefined) changes.planned_work_count = optionalPlannedWorkCount(input.planned_work_count);
+    if (input.academic_year !== undefined) changes.academic_year = optionalAcademicYear(input.academic_year);
     if (Object.keys(changes).length === 0) {
       throw new ContestsServiceError(422, 'EMPTY_UPDATE', 'Setidaknya satu field lomba harus diubah.');
     }
-    const result = await this.repository.update(contestId, { changes, actorId });
+    const result = await this.repository.update(contestId, {
+      changes,
+      actorId,
+      changeReason: normalizedChangeReason || 'Memperbarui data lomba',
+      auditContext,
+    });
     if ('error' in result) {
-      throw new ContestsServiceError(isMissingSchemaError(result.error) ? 503 : 400, 'CONTEST_UPDATE_FAILED', contestErrorMessage(result.error, 'Gagal memperbarui data lomba.'));
+      const errorCode = databaseErrorCode(result.error);
+      const errorMessage = String((result.error as { message?: unknown })?.message || '');
+      const rpcErrorCode = [
+        'CONTEST_UPDATE_ACTOR_INVALID',
+        'CONTEST_UPDATE_ACTOR_FORBIDDEN',
+        'CONTEST_UPDATE_EMPTY',
+        'CONTEST_UPDATE_FIELD_INVALID',
+        'CONTEST_UPDATE_NOT_FOUND',
+        'CONTEST_UPDATE_REASON_INVALID',
+      ].find((code) => errorMessage.includes(code));
+      const rpcErrorMessage: Record<string, string> = {
+        CONTEST_UPDATE_ACTOR_INVALID: 'Aktor perubahan lomba tidak valid.',
+        CONTEST_UPDATE_ACTOR_FORBIDDEN: 'Akun Anda tidak berwenang memperbarui data lomba.',
+        CONTEST_UPDATE_EMPTY: 'Setidaknya satu field lomba harus diubah.',
+        CONTEST_UPDATE_FIELD_INVALID: 'Field perubahan lomba tidak diizinkan.',
+        CONTEST_UPDATE_NOT_FOUND: 'Lomba tidak ditemukan.',
+        CONTEST_UPDATE_REASON_INVALID: 'Alasan perubahan wajib diisi minimal 5 karakter.',
+      };
+      throw new ContestsServiceError(
+        errorCode === '22023' || errorCode === '22P02' || errorCode === '22007' || rpcErrorCode === 'CONTEST_UPDATE_REASON_INVALID' || rpcErrorCode === 'CONTEST_UPDATE_EMPTY' || rpcErrorCode === 'CONTEST_UPDATE_FIELD_INVALID' ? 422 : rpcErrorCode === 'CONTEST_UPDATE_ACTOR_FORBIDDEN' ? 403 : rpcErrorCode === 'CONTEST_UPDATE_NOT_FOUND' ? 404 : isMissingSchemaError(result.error) ? 503 : 400,
+        isMissingSchemaError(result.error) ? 'CONTEST_SCHEMA_UNAVAILABLE' : rpcErrorCode || (errorCode === '22023' ? 'INVALID_DEADLINE' : 'CONTEST_UPDATE_FAILED'),
+        (rpcErrorCode && rpcErrorMessage[rpcErrorCode]) || contestErrorMessage(result.error, 'Gagal memperbarui data lomba.'),
+      );
     }
     if (!result.data) throw new ContestsServiceError(404, 'CONTEST_NOT_FOUND', 'Lomba tidak ditemukan.');
     return result.data;
@@ -194,7 +295,7 @@ export class ContestsService {
     if ('error' in result) {
       throw new ContestsServiceError(
         databaseErrorCode(result.error) === '23505' ? 409 : isMissingSchemaError(result.error) ? 503 : 400,
-        'CONTEST_SUBMISSION_FAILED',
+        isMissingSchemaError(result.error) ? 'CONTEST_SCHEMA_UNAVAILABLE' : 'CONTEST_SUBMISSION_FAILED',
         contestErrorMessage(result.error, 'Gagal mendaftarkan film ke lomba.'),
       );
     }

@@ -26,6 +26,12 @@ import { FilmWorksService } from '../../modules/film-works/film-works.service.js
 import { createFilmWorksRepository } from '../../modules/film-works/film-works.repository.js';
 import { AccessControlService } from '../../modules/access-control/access-control.service.js';
 import { createAccessControlMemoryState, createAccessControlRepository } from '../../modules/access-control/access-control.repository.js';
+import { ContestEntriesService } from '../../modules/contest-entries/contest-entries.service.js';
+import { createContestEntriesRepository } from '../../modules/contest-entries/contest-entries.repository.js';
+import type { ContestEntriesMemoryState } from '../../modules/contest-entries/contest-entries.types.js';
+import { ContestAchievementsService } from '../../modules/contest-achievements/contest-achievements.service.js';
+import { createContestAchievementsRepository } from '../../modules/contest-achievements/contest-achievements.repository.js';
+import type { ContestAchievementsMemoryState } from '../../modules/contest-achievements/contest-achievements.types.js';
 
 export interface CatalogDependencies {
   studentsService: StudentService;
@@ -36,6 +42,8 @@ export interface CatalogDependencies {
   equipmentService: EquipmentService;
   gradesService: GradesService;
   contestsService: ContestsService;
+  contestEntriesService: ContestEntriesService;
+  contestAchievementsService: ContestAchievementsService;
   filmWorksService: FilmWorksService;
   accessControlService: AccessControlService;
   studentsMemoryState: ReturnType<typeof createStudentsMemoryState>;
@@ -52,6 +60,8 @@ export function createCatalogDependencies(): CatalogDependencies {
   const equipmentMemoryState = createEquipmentMemoryState();
   const gradesState: GradesMemoryState = { grades: [], assignments: [] };
   const contestsState: ContestMemoryState = { contests: [], submissions: [] };
+  const contestEntriesState: ContestEntriesMemoryState = { works: [], entries: [], statusHistory: [] };
+  const contestAchievementsState: ContestAchievementsMemoryState = { achievements: [] };
   const filmWorksState = { films: [] };
   const accessControlState = createAccessControlMemoryState();
 
@@ -60,7 +70,7 @@ export function createCatalogDependencies(): CatalogDependencies {
       createStudentRepository(supabase, studentsMemoryState),
       () => studentsMemoryState.students,
     ),
-    dashboardService: new DashboardService(createDashboardRepository(dashboardMemoryState)),
+    dashboardService: new DashboardService(createDashboardRepository(dashboardMemoryState, supabase)),
     classesService: new ClassesService(createClassesRepository(supabase, classesMemoryState)),
     usersService: new UsersService(createUsersRepository(supabase, usersMemoryState)),
     notificationsService: new NotificationsService(
@@ -69,6 +79,8 @@ export function createCatalogDependencies(): CatalogDependencies {
     equipmentService: new EquipmentService(createEquipmentRepository(supabase, equipmentMemoryState)),
     gradesService: new GradesService(createGradesRepository(supabase, gradesState)),
     contestsService: new ContestsService(createContestsRepository(supabase, contestsState)),
+    contestEntriesService: new ContestEntriesService(createContestEntriesRepository(supabase, contestEntriesState)),
+    contestAchievementsService: new ContestAchievementsService(createContestAchievementsRepository(supabase, contestAchievementsState)),
     filmWorksService: new FilmWorksService(createFilmWorksRepository(supabase, filmWorksState)),
     accessControlService: new AccessControlService(createAccessControlRepository(supabase, accessControlState)),
     studentsMemoryState,

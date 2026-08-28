@@ -5,6 +5,7 @@ import { Search, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
+import { CONTEST_SCOPE_OPTIONS, CONTEST_STATUS_OPTIONS } from '../utils/contestLabels';
 
 interface ContestFilterProps {
   search: string;
@@ -34,7 +35,7 @@ export function ContestFilter({
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-tertiary" />
         <Input
           type="text"
-          placeholder="Cari Nama Lomba atau Penyelenggara..."
+          placeholder="Cari nama lomba atau kota..."
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
           className="pl-9 bg-surface-1 border-hairline text-ink placeholder:text-ink-tertiary text-xs h-9"
@@ -42,29 +43,36 @@ export function ContestFilter({
       </div>
 
       {/* Tingkat Select */}
-      <Select value={tingkat} onValueChange={(val) => val !== null && onTingkatChange(val)}>
+      <Select
+        items={[{ value: 'all', label: 'Semua Tingkat' }, ...CONTEST_SCOPE_OPTIONS]}
+        value={tingkat}
+        onValueChange={(val) => val !== null && onTingkatChange(val)}
+      >
         <SelectTrigger className="w-full sm:w-40 bg-surface-1 border-hairline text-ink text-xs h-9">
           <SelectValue placeholder="Tingkat Lomba" />
         </SelectTrigger>
         <SelectContent className="bg-surface-3 border-hairline text-ink">
           <SelectItem value="all">Semua Tingkat</SelectItem>
-          <SelectItem value="Lokal">Lokal</SelectItem>
-          <SelectItem value="Regional">Regional</SelectItem>
-          <SelectItem value="Nasional">Nasional</SelectItem>
-          <SelectItem value="Internasional">Internasional</SelectItem>
+          {CONTEST_SCOPE_OPTIONS.map((option) => (
+            <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+          ))}
         </SelectContent>
       </Select>
 
       {/* Status Select */}
-      <Select value={status} onValueChange={(val) => val !== null && onStatusChange(val)}>
+      <Select
+        items={[{ value: 'all', label: 'Semua Status' }, ...CONTEST_STATUS_OPTIONS]}
+        value={status}
+        onValueChange={(val) => val !== null && onStatusChange(val)}
+      >
         <SelectTrigger className="w-full sm:w-40 bg-surface-1 border-hairline text-ink text-xs h-9">
           <SelectValue placeholder="Status Lomba" />
         </SelectTrigger>
         <SelectContent className="bg-surface-3 border-hairline text-ink">
           <SelectItem value="all">Semua Status</SelectItem>
-          <SelectItem value="buka">Buka Pendaftaran</SelectItem>
-          <SelectItem value="proses_penjurian">Proses Penjurian</SelectItem>
-          <SelectItem value="selesai">Selesai</SelectItem>
+          {CONTEST_STATUS_OPTIONS.map((option) => (
+            <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+          ))}
         </SelectContent>
       </Select>
 

@@ -22,8 +22,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { cn } from '@/lib/utils';
 import { getErrorMessage } from '@/shared/api/errors';
 
-import { contestSchema, type ContestFormValues } from '../schemas/contestSchema';
-import type { Contest, ContestLevel, ContestStatus } from '../types/contests.types';
+import { contestEditSchema, contestSchema, type ContestFormValues } from '../schemas/contestSchema';
+import type { Contest, ContestScope, ContestStatus } from '../types/contests.types';
+import { getFutureDateInputValue } from '@/shared/utils/formatDate';
+import {
+  CONTEST_SCOPE_OPTIONS,
+  CONTEST_STATUS_OPTIONS,
+  normalizeContestScope,
+} from '../utils/contestLabels';
 
 interface CreateContestModalProps {
   open: boolean;
@@ -45,13 +51,14 @@ export function CreateContestModal({
   const isEditing = Boolean(contest);
 
   const form = useForm<ContestFormValues>({
-    resolver: zodResolver(contestSchema),
+    resolver: zodResolver(isEditing ? contestEditSchema : contestSchema),
     defaultValues: {
       nama_lomba: '',
-      penyelenggara: '',
-      tingkat: 'Nasional',
-      deadline: new Date().toISOString().split('T')[0],
+      kota: '',
+      tingkat: 'nasional',
+      deadline: getFutureDateInputValue(1),
       status: 'buka',
+      tahun_event: new Date().getFullYear(),
       website_url: '',
       deskripsi: '',
       change_reason: '',
@@ -65,10 +72,11 @@ export function CreateContestModal({
     if (contest) {
       form.reset({
         nama_lomba: contest.nama_lomba,
-        penyelenggara: contest.penyelenggara,
-        tingkat: contest.tingkat,
+        kota: contest.kota ?? '',
+        tingkat: normalizeContestScope(contest.tingkat) ?? 'nasional',
         deadline: contest.deadline,
-        status: contest.status,
+        status: contest.status_public ?? (contest.status === 'selesai' ? 'selesai' : 'proses_penjurian'),
+        tahun_event: contest.tahun_event ?? new Date().getFullYear(),
         website_url: contest.website_url ?? '',
         deskripsi: contest.deskripsi ?? '',
         change_reason: '',
@@ -76,10 +84,11 @@ export function CreateContestModal({
     } else {
       form.reset({
         nama_lomba: '',
-        penyelenggara: '',
-        tingkat: 'Nasional',
-        deadline: new Date().toISOString().split('T')[0],
+        kota: '',
+        tingkat: 'nasional',
+        deadline: getFutureDateInputValue(1),
         status: 'buka',
+        tahun_event: new Date().getFullYear(),
         website_url: '',
         deskripsi: '',
         change_reason: '',
@@ -98,152 +107,169 @@ export function CreateContestModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-surface-1 border-hairline text-ink max-w-lg">
-        <DialogHeader>
-          <div className="flex items-center gap-2 mb-1">
+      <DialogContent className="flex max-h-[min(92dvh,760px)] w-[calc(100%-1rem)] max-w-2xl flex-col gap-3 overflow-hidden border-hairline bg-surface-1 p-3 text-ink sm:w-[calc(100%-2rem)] sm:gap-4 sm:p-4">
+        <DialogHeader className="shrink-0 pr-8">
+          <div className="mb-1 flex min-w-0 items-start gap-2">
             <Trophy size={18} className="text-semantic-warning" />
-            <DialogTitle className="text-ink text-base font-semibold">
-              {isEditing ? 'Edit Event Lomba Film' : 'Tambah Event Festival / Lomba Film'}
+            <DialogTitle className="min-w-0 text-ink text-base font-semibold leading-snug">
+              {isEditing ? 'Edit Event Perlombaan' : 'Tambah Event Festival / Perlombaan'}
             </DialogTitle>
           </div>
+
           <DialogDescription className="text-ink-subtle text-xs">
             {isEditing
               ? 'Perbarui informasi festival film atau status penjurian.'
-              : 'Daftarkan perlombaan atau festival film pendek baru.'}
+              : 'Daftarkan event yang dapat menerima karya film, foto, animasi, atau media lain.'}
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4 pt-2">
+        <form onSubmit={handleSubmit} className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-hidden overflow-y-auto overscroll-contain px-0.5 pb-1 pt-1 pr-1 sm:gap-5">
           {Boolean(error) && (
-            <div role="alert" className="px-3 py-2 rounded bg-semantic-danger/10 border border-semantic-danger/30 text-semantic-danger text-xs">
+            <div role="alert" className="shrink-0 rounded border border-semantic-danger/30 bg-semantic-danger/10 px-3 py-2 text-xs text-semantic-danger">
               {getErrorMessage(error)}
             </div>
           )}
 
-          {/* Nama Lomba */}
-          <div className="space-y-1">
-            <Label htmlFor="nama_lomba" className="text-ink-muted text-xs">Nama Festival / Lomba *</Label>
+          <section className="w-full min-w-0 shrink-0 space-y-3 rounded-lg border border-hairline bg-surface-2/40 p-3 sm:p-4">
+            <div>
+              <p className="text-xs font-semibold text-ink">Informasi event</p>
+              <p className="mt-0.5 text-[11px] text-ink-tertiary">Data utama festival atau perlombaan yang akan ditampilkan di direktori.</p>
+            </div>
+            {/* Nama Lomba */}
+            <div className="space-y-1">
+            <Label htmlFor="nama_lomba" className="text-xs text-ink-muted">Nama Festival / Lomba <span className="text-semantic-danger" aria-hidden="true">*</span></Label>
             <Input
               id="nama_lomba"
               placeholder="cth. Festival Film Pelajar Indonesia 2026 / FLS2N Film Pendek"
-              className={cn('bg-surface-2 border-hairline text-ink text-xs h-9', form.formState.errors.nama_lomba && 'border-semantic-danger')}
+              className={cn('h-11 bg-surface-2 border-hairline text-ink text-xs sm:h-9', form.formState.errors.nama_lomba && 'border-semantic-danger')}
               {...form.register('nama_lomba')}
             />
             {form.formState.errors.nama_lomba && (
               <p className="text-semantic-danger text-[10px]">{form.formState.errors.nama_lomba.message}</p>
             )}
-          </div>
+            </div>
 
-          {/* Penyelenggara */}
-          <div className="space-y-1">
-            <Label htmlFor="penyelenggara" className="text-ink-muted text-xs">Instansi Penyelenggara *</Label>
-            <Input
-              id="penyelenggara"
-              placeholder="cth. Kemendikbudristek / ISI Yogyakarta / XXI Short Film Festival"
-              className={cn('bg-surface-2 border-hairline text-ink text-xs h-9', form.formState.errors.penyelenggara && 'border-semantic-danger')}
-              {...form.register('penyelenggara')}
-            />
-            {form.formState.errors.penyelenggara && (
-              <p className="text-semantic-danger text-[10px]">{form.formState.errors.penyelenggara.message}</p>
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {/* Tingkat */}
+            {/* Kota */}
             <div className="space-y-1">
-              <Label className="text-ink-muted text-xs">Tingkat Lomba *</Label>
+              <Label htmlFor="kota" className="text-xs text-ink-muted">Kota <span className="text-semantic-danger" aria-hidden="true">*</span></Label>
+              <Input id="kota" placeholder="cth. Bekasi" className={cn('h-11 bg-surface-2 border-hairline text-ink text-xs sm:h-9', form.formState.errors.kota && 'border-semantic-danger')} {...form.register('kota')} />
+              {form.formState.errors.kota && <p className="text-semantic-danger text-[10px]">{form.formState.errors.kota.message}</p>}
+            </div>
+
+            {/* Tingkat dan status — dua kolom desktop, satu kolom mobile */}
+          <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="space-y-1">
+              <Label htmlFor="tingkat" className="text-xs text-ink-muted">Tingkat Lomba <span className="text-semantic-danger" aria-hidden="true">*</span></Label>
               <Select
+                items={CONTEST_SCOPE_OPTIONS}
                 value={selectedLevel}
-                onValueChange={(val) => val && form.setValue('tingkat', val as ContestLevel)}
+                onValueChange={(val) => val && form.setValue('tingkat', val as ContestScope, { shouldDirty: true, shouldValidate: true })}
               >
-                <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs h-9">
+                <SelectTrigger id="tingkat" className="w-full bg-surface-2 border-hairline text-ink text-xs h-11 sm:h-9">
                   <SelectValue placeholder="Pilih tingkat lomba" />
                 </SelectTrigger>
                 <SelectContent className="bg-surface-3 border-hairline text-ink">
-                  <SelectItem value="Lokal">Lokal</SelectItem>
-                  <SelectItem value="Regional">Regional</SelectItem>
-                  <SelectItem value="Nasional">Nasional</SelectItem>
-                  <SelectItem value="Internasional">Internasional</SelectItem>
+                  {CONTEST_SCOPE_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
 
-            {/* Status Event */}
             <div className="space-y-1">
-              <Label className="text-ink-muted text-xs">Status Event *</Label>
+              <Label htmlFor="status" className="text-xs text-ink-muted">Status Event <span className="text-semantic-danger" aria-hidden="true">*</span></Label>
               <Select
+                items={CONTEST_STATUS_OPTIONS}
                 value={selectedStatus}
-                onValueChange={(val) => val && form.setValue('status', val as ContestStatus)}
+                onValueChange={(val) => val && form.setValue('status', val as ContestStatus, { shouldDirty: true, shouldValidate: true })}
               >
-                <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs h-9">
+              <SelectTrigger id="status" className="w-full bg-surface-2 border-hairline text-ink text-xs h-11 sm:h-9">
                   <SelectValue placeholder="Pilih status event" />
                 </SelectTrigger>
                 <SelectContent className="bg-surface-3 border-hairline text-ink">
-                  <SelectItem value="buka">Buka Pendaftaran</SelectItem>
-                  <SelectItem value="proses_penjurian">Proses Penjurian</SelectItem>
-                  <SelectItem value="selesai">Selesai</SelectItem>
+                  {CONTEST_STATUS_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
           </div>
 
-          {/* Deadline & Website */}
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="space-y-1">
+              <Label htmlFor="tahun_event" className="text-xs text-ink-muted">Tahun Event <span className="text-semantic-danger" aria-hidden="true">*</span></Label>
+              <Input id="tahun_event" type="number" inputMode="numeric" min={1900} max={2200} className={cn('h-11 w-full bg-surface-2 border-hairline text-ink text-xs sm:h-9', form.formState.errors.tahun_event && 'border-semantic-danger')} {...form.register('tahun_event', { setValueAs: (value) => value === '' ? undefined : Number(value) })} />
+              {form.formState.errors.tahun_event && <p className="text-semantic-danger text-[10px]">{form.formState.errors.tahun_event.message}</p>}
+          </div>
+          </section>
+
+          <section className="w-full min-w-0 shrink-0 space-y-3 rounded-lg border border-hairline bg-surface-2/40 p-3 sm:p-4">
+            <div>
+              <p className="text-xs font-semibold text-ink">Pendaftaran</p>
+              <p className="mt-0.5 text-[11px] text-ink-tertiary">Deadline tidak boleh hari ini atau tanggal yang sudah lewat.</p>
+            </div>
+            <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1">
-              <Label htmlFor="deadline" className="text-ink-muted text-xs">Deadline Pendaftaran *</Label>
+              <Label htmlFor="deadline" className="text-xs text-ink-muted">Deadline Pendaftaran <span className="text-semantic-danger" aria-hidden="true">*</span></Label>
               <Input
                 id="deadline"
                 type="date"
-                className="bg-surface-2 border-hairline text-ink text-xs h-9"
+                min={getFutureDateInputValue(1)}
+                className="h-11 bg-surface-2 border-hairline text-ink text-xs sm:h-9"
                 {...form.register('deadline')}
               />
+              {form.formState.errors.deadline && <p className="text-semantic-danger text-[10px]">{form.formState.errors.deadline.message}</p>}
             </div>
 
             <div className="space-y-1">
-              <Label htmlFor="website_url" className="text-ink-muted text-xs">Link Website / Panduan</Label>
+              <Label htmlFor="website_url" className="text-ink-muted text-xs">Link Website / Form Pendaftaran (Opsional)</Label>
               <Input
                 id="website_url"
                 placeholder="https://..."
-                className="bg-surface-2 border-hairline text-ink text-xs h-9"
+                className="h-11 bg-surface-2 border-hairline text-ink text-xs sm:h-9"
                 {...form.register('website_url')}
               />
             </div>
           </div>
 
           <div className="space-y-1">
-            <Label htmlFor="deskripsi" className="text-ink-muted text-xs">Syarat &amp; Ketentuan (Opsional)</Label>
+            <Label htmlFor="deskripsi" className="text-xs text-ink-muted">Syarat &amp; Ketentuan <span className="font-normal text-ink-tertiary">(Opsional)</span></Label>
             <Textarea
               id="deskripsi"
-              rows={2}
+              rows={3}
               placeholder="Tema film, durasi maksimal, resolusi video..."
               className="bg-surface-2 border-hairline text-ink text-xs"
               {...form.register('deskripsi')}
             />
           </div>
+          </section>
 
           {/* Change Reason (Zero Silent Edits Requirement — Wajib hanya saat Edit/Ubah Data) */}
           {isEditing && (
-            <div className="space-y-1 pt-2 border-t border-hairline">
-              <Label htmlFor="change_reason" className="text-ink-muted text-xs font-semibold">
-                Alasan Perubahan (Audit Header) *
-              </Label>
+            <section className="space-y-2 rounded-lg border border-semantic-warning/40 bg-semantic-warning/5 p-3 sm:p-4">
+              <div>
+                <Label htmlFor="change_reason" className="text-xs font-semibold text-ink">
+                  Alasan Perubahan <span className="text-semantic-danger" aria-hidden="true">*</span>
+                </Label>
+                <p className="mt-1 text-[11px] text-ink-subtle">Wajib untuk mencatat audit perubahan event. Minimal 5 karakter.</p>
+              </div>
               <Input
                 id="change_reason"
-                placeholder="cth. Perubahan deadline pendaftaran / update status event"
-                className={cn('bg-surface-2 border-hairline text-ink text-xs h-9', form.formState.errors.change_reason && 'border-semantic-danger')}
+                aria-required="true"
+                placeholder="Contoh: Memperbarui deadline pendaftaran"
+                className={cn('h-11 bg-surface-1 text-xs sm:h-10', form.formState.errors.change_reason && 'border-semantic-danger')}
                 {...form.register('change_reason')}
               />
               {form.formState.errors.change_reason && (
-                <p className="text-semantic-danger text-[10px]">{form.formState.errors.change_reason.message}</p>
+                <p className="text-[10px] text-semantic-danger">{form.formState.errors.change_reason.message}</p>
               )}
-            </div>
+            </section>
           )}
 
-          <DialogFooter className="pt-2">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="bg-surface-2 border-hairline text-ink text-xs h-9">
+          <DialogFooter className="sticky bottom-0 -mx-0.5 shrink-0 flex-col-reverse gap-2 border-t border-hairline bg-surface-1/95 pt-3 backdrop-blur sm:flex-row sm:justify-end">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="h-10 w-full border-hairline bg-surface-2 text-xs text-ink sm:w-auto">
               Batal
             </Button>
-            <Button type="submit" disabled={isLoading} className="bg-primary hover:bg-primary-hover text-primary-foreground text-xs h-9 font-medium">
+            <Button type="submit" disabled={isLoading} className="h-10 w-full bg-primary text-xs font-medium text-primary-foreground hover:bg-primary-hover sm:w-auto">
               {isLoading ? (
                 <>
                   <Loader2 size={14} className="animate-spin mr-1.5" />

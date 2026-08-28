@@ -1,9 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { DatabaseError } from '../../shared/database/database.types.js';
-import { mapAssignmentRow, mapGradeRow } from './grades.helpers.js';
+import { mapAssignmentRow, mapGradeRow, matchesClassFilter } from './grades.helpers.js';
 import type {
   AssignmentListQuery, AssignmentRecord, BulkGradeItem, CreateAssignmentInput, GradeDistribution, GradeListQuery,
-  GradeRecord, StudentGradeSummary,
+  GradeRecord, GradeSummary, StudentGradeSummary,
 } from './grades.types.js';
 
 type SupabaseLike = SupabaseClient | null;
@@ -12,6 +12,7 @@ export interface GradesRepository {
   isConfigured(): boolean;
   listGrades(query: GradeListQuery): Promise<{ data: { data: GradeRecord[]; total: number; page: number; pageSize: number; totalPages: number } | null; error: DatabaseError | null }>;
   listAssignments(query: AssignmentListQuery): Promise<{ data: { data: AssignmentRecord[]; total: number; page: number; pageSize: number; totalPages: number } | null; error: DatabaseError | null }>;
+  summary(query: GradeListQuery): Promise<{ data: GradeSummary | null; error: DatabaseError | null }>;
   createAssignment(input: { title: string; category: string; description: string | null; categoryDescription: string | null; kelas: string | null; dueDate: string; actorId: string | null }): Promise<{ data: AssignmentRecord | null; error: DatabaseError | null }>;
   bulkGrade(input: { assignmentId: string; grades: BulkGradeItem[]; actorId: string; changeReason: string }): Promise<{ data: unknown; error: DatabaseError | null }>;
   distribution(query: { category?: string; kelas?: string; periode?: string }): Promise<{ data: { filters: Record<string, string>; totalAssignments: number; data: GradeDistribution[] } | null; error: DatabaseError | null }>;
@@ -36,6 +37,25 @@ function pageValues(query: { page?: string; pageSize?: string }, defaultPageSize
   return { page, pageSize, from: (page - 1) * pageSize, to: page * pageSize - 1 };
 }
 
+function emptyPage(page: number, pageSize: number) {
+  return { data: [], total: 0, page, pageSize, totalPages: 1 };
+}
+
+function normalizeSearch(value: string | undefined): string | undefined {
+  const search = value?.trim().replace(/[^a-zA-Z0-9À-ÿ -]/g, ' ').replace(/\s+/g, ' ').slice(0, 100);
+  return search || undefined;
+}
+
+function uniqueIds(values: unknown[]): string[] {
+  return [...new Set(values.filter((value): value is string => typeof value === 'string' && value.length > 0))];
+}
+
+function assignmentTargets(studentClass: string): string[] {
+  const normalized = studentClass.trim();
+  const level = normalized.split(/\s+/)[0];
+  return uniqueIds([normalized, level, 'Semua']);
+}
+
 export function createGradesRepository(client: SupabaseLike, state: GradesMemoryState): GradesRepository {
   return {
     isConfigured: () => client !== null,
@@ -45,20 +65,72 @@ export function createGradesRepository(client: SupabaseLike, state: GradesMemory
         let rows = [...state.grades];
         if (query.assignment_id) rows = rows.filter((row) => row.assignment_id === query.assignment_id);
         if (query.student_id) rows = rows.filter((row) => row.student_id === query.student_id);
+        if (query.category && query.category !== 'all') rows = rows.filter((row) => row.assignment_category === query.category);
+        if (query.kelas && query.kelas !== 'all' && query.scope !== 'own') rows = rows.filter((row) => matchesClassFilter(row.kelas, query.kelas!));
+        const search = normalizeSearch(query.search)?.toLowerCase();
+        if (search) {
+          rows = rows.filter((row) => {
+            const fields = query.scope === 'own'
+              ? [row.assignment_title]
+              : [row.student_nama, row.student_nis, row.assignment_title];
+            return fields.some((value) => String(value || '').toLowerCase().includes(search));
+          });
+        }
+        rows.sort((a, b) => String(b.updated_at || b.created_at).localeCompare(String(a.updated_at || a.created_at)) || b.id.localeCompare(a.id));
         const total = rows.length;
         return { data: { data: rows.slice(from, to + 1), total, page, pageSize, totalPages: Math.ceil(total / pageSize) || 1 }, error: null };
       }
+      const search = normalizeSearch(query.search);
+      let categoryAssignmentIds: string[] | undefined;
+      if (query.category && query.category !== 'all') {
+        const assignmentQuery = client.from('assignments').select('id').eq('category', query.category);
+        const assignmentResult = await assignmentQuery;
+        if (assignmentResult.error) return { data: null, error: assignmentResult.error };
+        categoryAssignmentIds = uniqueIds((assignmentResult.data || []).map((row) => row.id));
+        if (categoryAssignmentIds.length === 0) return { data: emptyPage(page, pageSize), error: null };
+      }
+
+      let searchAssignmentIds: string[] | undefined;
+      if (search) {
+        const assignmentResult = await client.from('assignments').select('id').or(`title.ilike.%${search}%,deskripsi.ilike.%${search}%`);
+        if (assignmentResult.error) return { data: null, error: assignmentResult.error };
+        searchAssignmentIds = uniqueIds((assignmentResult.data || []).map((row) => row.id));
+      }
+
+      let classStudentIds: string[] | undefined;
+      if (query.kelas && query.kelas !== 'all' && query.scope !== 'own') {
+        const studentResult = await client.from('students').select('id').eq('is_active', true).or(`kelas.eq.${query.kelas},kelas.ilike.${query.kelas} %`);
+        if (studentResult.error) return { data: null, error: studentResult.error };
+        classStudentIds = uniqueIds((studentResult.data || []).map((row) => row.id));
+        if (classStudentIds.length === 0) return { data: emptyPage(page, pageSize), error: null };
+      }
+
+      let searchStudentIds: string[] | undefined;
+      if (search && query.scope !== 'own') {
+        const studentResult = await client.from('students').select('id').eq('is_active', true).or(`nama.ilike.%${search}%,nis.ilike.%${search}%`);
+        if (studentResult.error) return { data: null, error: studentResult.error };
+        searchStudentIds = uniqueIds((studentResult.data || []).map((row) => row.id));
+      }
+
+      if (search && (searchAssignmentIds?.length ?? 0) === 0 && (searchStudentIds?.length ?? 0) === 0) {
+        return { data: emptyPage(page, pageSize), error: null };
+      }
+
       let dbQuery = client.from('grades').select(GRADE_SELECT, { count: 'exact' });
       if (query.assignment_id) dbQuery = dbQuery.eq('assignment_id', query.assignment_id);
       if (query.student_id) dbQuery = dbQuery.eq('student_id', query.student_id);
+      if (categoryAssignmentIds) dbQuery = dbQuery.in('assignment_id', categoryAssignmentIds);
+      if (classStudentIds) dbQuery = dbQuery.in('student_id', classStudentIds);
+      if (search) {
+        const terms: string[] = [];
+        if (searchAssignmentIds?.length) terms.push(`assignment_id.in.(${searchAssignmentIds.join(',')})`);
+        if (searchStudentIds?.length) terms.push(`student_id.in.(${searchStudentIds.join(',')})`);
+        if (terms.length > 0) dbQuery = dbQuery.or(terms.join(','));
+      }
       dbQuery = dbQuery.order('updated_at', { ascending: false }).order('id', { ascending: false }).range(from, to);
       const result = await dbQuery;
       if (result.error) return { data: null, error: result.error };
-      let rows: GradeRecord[] = (result.data || []).map((row) => mapGradeRow(row as Record<string, unknown>));
-      const search = query.search?.trim().toLowerCase();
-      if (search) rows = rows.filter((row) => [row.student_nama, row.student_nis, row.assignment_title].some((value) => String(value || '').toLowerCase().includes(search)));
-      if (query.kelas && query.kelas !== 'all') rows = rows.filter((row) => String(row.kelas || '').toLowerCase().startsWith(query.kelas!.trim().toLowerCase()));
-      if (query.category && query.category !== 'all') rows = rows.filter((row) => row.assignment_category === query.category);
+      const rows: GradeRecord[] = (result.data || []).map((row) => mapGradeRow(row as Record<string, unknown>));
       const total = result.count ?? rows.length;
       return { data: { data: rows, total, page, pageSize, totalPages: Math.ceil(total / pageSize) || 1 }, error: null };
     },
@@ -67,21 +139,67 @@ export function createGradesRepository(client: SupabaseLike, state: GradesMemory
       if (!client) {
         let rows = [...state.assignments];
         if (query.category && query.category !== 'all') rows = rows.filter((row) => row.category === query.category);
-        if (query.kelas && query.kelas !== 'all') rows = rows.filter((row) => row.kelas === query.kelas || row.kelas === 'Semua');
-        if (query.search) { const search = query.search.toLowerCase(); rows = rows.filter((row) => `${row.title} ${row.description || ''} ${row.kelas || ''}`.toLowerCase().includes(search)); }
+        if (query.student_id) {
+          const studentClass = state.grades.find((grade) => grade.student_id === query.student_id)?.kelas;
+          if (!studentClass) return { data: emptyPage(page, pageSize), error: null };
+          const targets = assignmentTargets(studentClass);
+          rows = rows.filter((row) => !row.kelas || targets.includes(row.kelas));
+        } else if (query.kelas && query.kelas !== 'all') {
+          rows = rows.filter((row) => row.kelas === query.kelas || row.kelas === 'Semua');
+        }
+        const search = normalizeSearch(query.search)?.toLowerCase();
+        if (search) rows = rows.filter((row) => `${row.title} ${row.description || ''}`.toLowerCase().includes(search));
+        rows.sort((a, b) => String(b.date).localeCompare(String(a.date)) || b.id.localeCompare(a.id));
         const total = rows.length;
         return { data: { data: rows.slice(from, to + 1), total, page, pageSize, totalPages: Math.ceil(total / pageSize) || 1 }, error: null };
       }
       let dbQuery = client.from('assignments').select('id,title,category,deskripsi,keterangan_kategori,kelas,due_date,created_by,updated_by,updated_at,created_at', { count: 'exact' });
       if (query.category && query.category !== 'all') dbQuery = dbQuery.eq('category', query.category);
-      if (query.kelas && query.kelas !== 'all' && ['X', 'XI', 'XII'].includes(query.kelas)) dbQuery = dbQuery.in('kelas', [query.kelas, 'Semua']);
-      const search = query.search?.trim().replace(/[^a-zA-Z0-9 -]/g, ' ').replace(/\s+/g, ' ').slice(0, 100);
-      if (search) dbQuery = dbQuery.or(`title.ilike.%${search}%,deskripsi.ilike.%${search}%,kelas.ilike.%${search}%`);
+      if (query.student_id) {
+        const studentResult = await client.from('students').select('kelas').eq('id', query.student_id).eq('is_active', true).maybeSingle();
+        if (studentResult.error) return { data: null, error: studentResult.error };
+        if (!studentResult.data?.kelas) return { data: emptyPage(page, pageSize), error: null };
+        const targets = assignmentTargets(String(studentResult.data.kelas));
+        dbQuery = dbQuery.or(`kelas.is.null,kelas.in.(${targets.join(',')})`);
+      } else if (query.kelas && query.kelas !== 'all' && ['X', 'XI', 'XII'].includes(query.kelas)) {
+        dbQuery = dbQuery.or(`kelas.is.null,kelas.in.(${query.kelas},Semua)`);
+      }
+      const search = normalizeSearch(query.search);
+      if (search) {
+        // Keep one PostgREST OR expression when class scoping is active; the
+        // class predicate above remains the authoritative visibility filter.
+        dbQuery = dbQuery.ilike('title', `%${search}%`);
+      }
       const result = await dbQuery.order('due_date', { ascending: false }).order('created_at', { ascending: false }).range(from, to);
       if (result.error) return { data: null, error: result.error };
       const rows = (result.data || []).map((row) => mapAssignmentRow(row as Record<string, unknown>));
       const total = result.count ?? rows.length;
       return { data: { data: rows, total, page, pageSize, totalPages: Math.ceil(total / pageSize) || 1 }, error: null };
+    },
+    async summary(query) {
+      const counts: GradeSummary['counts'] = { A: 0, B: 0, C: 0, D: 0, E: 0 };
+      if (!client) {
+        let rows = [...state.grades];
+        if (query.student_id) rows = rows.filter((row) => row.student_id === query.student_id);
+        if (query.category && query.category !== 'all') rows = rows.filter((row) => row.assignment_category === query.category);
+        rows.forEach((row) => { if (row.nilai in counts) counts[row.nilai] += 1; });
+        const latest = [...rows].sort((a, b) => String(b.updated_at || b.created_at).localeCompare(String(a.updated_at || a.created_at)))[0];
+        return { data: { total: rows.length, counts, latest }, error: null };
+      }
+      let dbQuery = client.from('grades').select(GRADE_SELECT).eq('status', 'graded');
+      if (query.student_id) dbQuery = dbQuery.eq('student_id', query.student_id);
+      if (query.category && query.category !== 'all') {
+        const assignmentResult = await client.from('assignments').select('id').eq('category', query.category);
+        if (assignmentResult.error) return { data: null, error: assignmentResult.error };
+        const assignmentIds = uniqueIds((assignmentResult.data || []).map((row) => row.id));
+        if (assignmentIds.length === 0) return { data: { total: 0, counts }, error: null };
+        dbQuery = dbQuery.in('assignment_id', assignmentIds);
+      }
+      const result = await dbQuery.order('updated_at', { ascending: false }).order('id', { ascending: false });
+      if (result.error) return { data: null, error: result.error };
+      const rows = (result.data || []).map((row) => mapGradeRow(row as Record<string, unknown>));
+      rows.forEach((row) => { if (row.nilai in counts) counts[row.nilai] += 1; });
+      return { data: { total: rows.length, counts, latest: rows[0] }, error: null };
     },
     async createAssignment(input) {
       if (!client) {

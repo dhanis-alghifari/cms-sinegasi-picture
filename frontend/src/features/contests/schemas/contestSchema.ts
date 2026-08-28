@@ -2,21 +2,37 @@
 // Zod validation schemas for contest creation and film submissions
 
 import { z } from 'zod';
+import { getFutureDateInputValue } from '@/shared/utils/formatDate';
 
-export const contestLevelEnum = z.enum(['Lokal', 'Regional', 'Nasional', 'Internasional']);
+export const contestLevelEnum = z.enum(['bekasi', 'jabodetabek', 'jawa_barat', 'nasional', 'umum']);
 export const contestStatusEnum = z.enum(['buka', 'proses_penjurian', 'selesai']);
 export const awardStatusEnum = z.enum(['Juara 1', 'Juara 2', 'Juara 3', 'Harapan', 'Finalis', 'Peserta']);
 
-export const contestSchema = z.object({
+const calendarDate = z.string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Tanggal harus berformat YYYY-MM-DD')
+  .refine((value) => {
+    const parsed = new Date(`${value}T00:00:00.000Z`);
+    return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+  }, 'Tanggal tidak valid');
+
+const contestFields = {
   nama_lomba: z.string().min(3, 'Nama lomba minimal 3 karakter').trim(),
-  penyelenggara: z.string().min(2, 'Penyelenggara minimal 2 karakter').trim(),
+  kota: z.string().min(2, 'Kota minimal 2 karakter').max(120).trim(),
   tingkat: contestLevelEnum,
-  deadline: z.string().min(1, 'Deadline pendaftaran wajib diisi'),
   status: contestStatusEnum,
+  tahun_event: z.number().int().min(1900, 'Tahun event tidak valid').max(2200, 'Tahun event tidak valid'),
   website_url: z.string().url('URL website tidak valid').optional().or(z.literal('')),
   deskripsi: z.string().optional(),
   change_reason: z.string().optional(),
+};
+
+export const contestSchema = z.object({
+  ...contestFields,
+  deadline: calendarDate.refine((value) => value >= getFutureDateInputValue(1), 'Deadline harus besok atau setelahnya'),
 });
+
+/** Edit permits an unchanged historical deadline; the API enforces future-only dates when it changes. */
+export const contestEditSchema = z.object({ ...contestFields, deadline: calendarDate });
 
 export type ContestFormValues = z.infer<typeof contestSchema>;
 
@@ -30,3 +46,13 @@ export const submitFilmEntrySchema = z.object({
 });
 
 export type SubmitFilmEntryFormValues = z.infer<typeof submitFilmEntrySchema>;
+
+export const workTypeEnum = z.enum(['short_film', 'documentary', 'photography', 'animation', 'commercial', 'music_video', 'experimental', 'other']);
+export const contestEntryStatusEnum = z.enum(['proses_submit', 'sudah_terkirim', 'menunggu_pengumuman', 'selesai']);
+
+export const createContestEntrySchema = z.object({
+  title: z.string().min(2, 'Judul karya minimal 2 karakter').max(200).trim(),
+  work_type_code: workTypeEnum,
+});
+
+export type CreateContestEntryFormValues = z.infer<typeof createContestEntrySchema>;

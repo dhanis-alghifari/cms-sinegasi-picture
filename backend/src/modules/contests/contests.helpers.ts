@@ -1,4 +1,4 @@
-import type { ContestRecord, ContestPublicStatus, ContestStatus } from './contests.types.js';
+import type { ContestRecord, ContestPublicStatus, ContestScope, ContestStatus } from './contests.types.js';
 import { asDatabaseError } from '../../shared/database/database.types.js';
 import type { DatabaseRow } from '../../shared/database/database.types.js';
 
@@ -57,6 +57,8 @@ export function normalizeStatus(value: unknown): ContestStatus | undefined {
   return status && status !== 'all' ? status : undefined;
 }
 
+export const CONTEST_SCOPE_CODES = ['bekasi', 'jabodetabek', 'jawa_barat', 'nasional', 'umum'] as const;
+
 const PUBLIC_TO_LEGACY_STATUS: Record<string, ContestStatus> = {
   buka: 'progres',
   proses_penjurian: 'progres',
@@ -64,18 +66,37 @@ const PUBLIC_TO_LEGACY_STATUS: Record<string, ContestStatus> = {
 };
 
 const PUBLIC_TO_LEGACY_LEVEL: Record<string, string> = {
+  bekasi: 'kota',
+  jabodetabek: 'provinsi',
+  jawa_barat: 'provinsi',
+  nasional: 'nasional',
+  umum: 'nasional',
   lokal: 'kabupaten',
   regional: 'provinsi',
-  nasional: 'nasional',
   internasional: 'internasional',
 };
 
 const LEGACY_TO_PUBLIC_LEVEL: Record<string, string> = {
-  kabupaten: 'Lokal',
-  kota: 'Lokal',
-  provinsi: 'Regional',
-  nasional: 'Nasional',
-  internasional: 'Internasional',
+  kabupaten: 'bekasi',
+  kota: 'bekasi',
+  provinsi: 'jawa_barat',
+  nasional: 'nasional',
+  internasional: 'umum',
+};
+
+const PUBLIC_SCOPE_ALIASES: Record<string, ContestScope> = {
+  bekasi: 'bekasi',
+  jabodetabek: 'jabodetabek',
+  jawa_barat: 'jawa_barat',
+  provinsi_jawa_barat: 'jawa_barat',
+  nasional: 'nasional',
+  umum: 'umum',
+  lokal: 'bekasi',
+  kabupaten: 'bekasi',
+  kota: 'bekasi',
+  regional: 'jawa_barat',
+  provinsi: 'jawa_barat',
+  internasional: 'umum',
 };
 
 export function normalizeContestStatus(value: unknown): ContestStatus | undefined {
@@ -101,16 +122,28 @@ export function normalizeContestLevel(value: unknown): string | undefined {
   return PUBLIC_TO_LEGACY_LEVEL[level.toLowerCase()] || level.toLowerCase();
 }
 
+export function normalizeContestScope(value: unknown): ContestScope | undefined {
+  const scope = cleanText(value, 32)?.toLowerCase();
+  if (!scope) return undefined;
+  return PUBLIC_SCOPE_ALIASES[scope];
+}
+
 export function toPublicContestLevel(level: unknown): string {
   const normalized = cleanText(level, 32)?.toLowerCase() || '';
-  return LEGACY_TO_PUBLIC_LEVEL[normalized] || String(level ?? '');
+  return PUBLIC_SCOPE_ALIASES[normalized] || LEGACY_TO_PUBLIC_LEVEL[normalized] || String(level ?? '');
 }
 
 export function contestErrorMessage(error: unknown, fallback: string): string {
   const databaseError = asDatabaseError(error);
   if (databaseError?.code === '23505') return 'Data lomba atau pendaftaran film sudah ada.';
   if (databaseError?.code === '23503') return 'Lomba atau karya film yang dipilih tidak ditemukan.';
-  if (databaseError?.code === '42P01' || databaseError?.code === '42703' || databaseError?.code === 'PGRST205') return 'Skema lomba belum terpasang. Jalankan migration contest terlebih dahulu.';
+  if (databaseError?.message === 'CONTEST_SCOPE_INVALID') {
+    return 'Tingkat lomba tidak valid.';
+  }
+  if (databaseError?.message === 'CONTEST_DEADLINE_MUST_BE_FUTURE' || (databaseError?.code === '22023' && /DEADLINE/i.test(databaseError.message || ''))) {
+    return 'Deadline pendaftaran harus besok atau tanggal setelahnya.';
+  }
+  if (databaseError?.code === '42P01' || databaseError?.code === '42703' || databaseError?.code === 'PGRST204' || databaseError?.code === 'PGRST205') return 'Skema lomba belum terpasang atau belum dimuat ulang. Jalankan migration contest terlebih dahulu, lalu restart backend.';
   if (databaseError?.message?.trim() && !/[{}]/.test(databaseError.message)) return databaseError.message.trim();
   return fallback;
 }
@@ -140,10 +173,15 @@ export function mapContestRow(row: DatabaseRow): ContestRecord {
     hasil: nullableText(row.hasil),
     nama_lomba: String(row.nama_lomba ?? nama),
     penyelenggara: String(row.penyelenggara ?? jenis),
-    tingkat: String(row.tingkat ?? toPublicContestLevel(level)),
+    kota: nullableText(row.kota),
+    tingkat: toPublicContestLevel(row.tingkat ?? level),
     deadline: tanggal,
+    tahun_event: row.tahun_event == null ? null : Number(row.tahun_event),
     website_url: nullableText(row.website_url),
     deskripsi: nullableText(row.deskripsi),
+    planned_work_count: row.planned_work_count == null ? null : Number(row.planned_work_count),
+    academic_year: nullableText(row.academic_year),
+    entry_count: row.entry_count == null ? undefined : Number(row.entry_count),
     piala_url: nullableText(row.piala_url),
     juara: nullableText(row.juara),
     kategori_penghargaan: nullableText(row.kategori_penghargaan),

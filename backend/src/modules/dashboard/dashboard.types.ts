@@ -21,11 +21,15 @@ export type DashboardSummary = {
     sakit: number;
     izin: number;
     alpha: number;
+    total?: number;
   };
   cash: {
     totalTunggakan: number;
+    totalDibayar: number;
+    jumlahPembayaran: number;
     statusPembayaranTerakhir: string;
     riwayat: Array<{
+      id?: string;
       nominal: number;
       date: string;
       status: string;

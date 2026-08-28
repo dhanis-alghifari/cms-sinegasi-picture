@@ -3,6 +3,10 @@
 
 import { z } from 'zod';
 
+// 600 KiB compressed JPEG becomes roughly 820k characters as a data URL.
+// Keep the client contract aligned with the Fastify cash-proof limit.
+const MAX_CASH_PROOF_URL_LENGTH = 900_000;
+
 const isoDate = z.string().refine((value) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const parsed = new Date(`${value}T00:00:00.000Z`);
@@ -21,7 +25,7 @@ export const cashInSchema = z.object({
   foto_bukti_url: z.string().refine(
     (val) => !val || val.startsWith('http://') || val.startsWith('https://') || val.startsWith('data:image/'),
     'URL foto tidak valid',
-  ).optional().or(z.literal('')),
+  ).max(MAX_CASH_PROOF_URL_LENGTH, 'Foto terlalu besar. Pilih foto yang lebih kecil.').optional().or(z.literal('')),
 }).superRefine((data, ctx) => {
   if (data.type === 'iuran_wajib' && !data.student_id) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['student_id'], message: 'Siswa wajib dipilih untuk pembayaran iuran' });
@@ -49,21 +53,27 @@ export const cashOutSchema = z.object({
   foto_bukti_url: z.string().refine(
     (val) => !val || val.startsWith('http://') || val.startsWith('https://') || val.startsWith('data:image/'),
     'URL foto tidak valid',
-  ).optional().or(z.literal('')),
+  ).max(MAX_CASH_PROOF_URL_LENGTH, 'Foto terlalu besar. Pilih foto yang lebih kecil.').optional().or(z.literal('')),
 });
 
 export type CashOutFormValues = z.infer<typeof cashOutSchema>;
 
 // Student Dispute Form Schema (Wajib Foto Bukti)
 export const disputeSchema = z.object({
-  transaction_id: z.string().min(1, 'Transaksi wajib dipilih'),
+  transaction_id: z.string().optional(),
+  debt_record_id: z.string().optional(),
   reason: z.string().min(10, 'Alasan sanggahan minimal 10 karakter'),
   bukti_sanggahan_url: z.string()
     .min(1, 'Wajib melampirkan foto bukti pembayaran')
+    .max(MAX_CASH_PROOF_URL_LENGTH, 'Foto terlalu besar. Pilih foto yang lebih kecil.')
     .refine(
       (val) => val.startsWith('http://') || val.startsWith('https://') || val.startsWith('data:image/'),
       'URL foto bukti tidak valid',
     ),
+}).superRefine((data, ctx) => {
+  if ((!data.transaction_id && !data.debt_record_id) || (data.transaction_id && data.debt_record_id)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['reason'], message: 'Catatan kas yang disanggah tidak valid' });
+  }
 });
 
 export type DisputeFormValues = z.infer<typeof disputeSchema>;

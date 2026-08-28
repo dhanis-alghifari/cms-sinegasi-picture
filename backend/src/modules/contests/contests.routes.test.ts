@@ -32,15 +32,34 @@ test('contest routes keep role and capability guards', async (t) => {
     headers: { authorization: `Bearer ${leader}` },
     payload: {
       nama_lomba: 'Festival Public Contract',
-      penyelenggara: 'Sekolah',
-      tingkat: 'Regional',
+      kota: 'Yogyakarta',
+      tingkat: 'jawa_barat',
       deadline: '2026-12-01',
       status: 'buka',
+      tahun_event: 2026,
       website_url: 'https://example.test/contest',
     },
   });
   assert.equal(acceptedPublicCreate.statusCode, 201);
   assert.equal(acceptedPublicCreate.json().data.status_public, 'buka');
+
+  const contestId = acceptedPublicCreate.json().data.id as string;
+  const missingReasonUpdate = await app.inject({
+    method: 'PUT',
+    url: `/api/contests/${contestId}`,
+    headers: { authorization: `Bearer ${leader}` },
+    payload: { kota: 'Bekasi' },
+  });
+  assert.equal(missingReasonUpdate.statusCode, 422);
+  assert.equal(missingReasonUpdate.json().error_code, 'CONTEST_UPDATE_REASON_REQUIRED');
+
+  const acceptedUpdate = await app.inject({
+    method: 'PUT',
+    url: `/api/contests/${contestId}`,
+    headers: { authorization: `Bearer ${leader}`, 'x-change-reason': 'Memperbarui kota event' },
+    payload: { kota: 'Bekasi' },
+  });
+  assert.equal(acceptedUpdate.statusCode, 200);
 
   const acceptedSubmit = await app.inject({
     method: 'POST',

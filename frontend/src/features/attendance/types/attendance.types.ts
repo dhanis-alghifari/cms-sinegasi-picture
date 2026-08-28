@@ -40,6 +40,7 @@ export interface AttendanceFilterParams {
   kelas?: string;
   status?: AttendanceStatus;
   search?: string;
+  scope?: 'own';
 }
 
 export interface RecordAttendanceItem {
@@ -52,6 +53,22 @@ export interface RecordAttendancePayload {
   tanggal: string;
   kelas: string;
   records: RecordAttendanceItem[];
+}
+
+export interface AttendanceRosterRecord {
+  student_id: string;
+  nis: string;
+  nama: string;
+  kelas: string;
+  status?: AttendanceStatus;
+  keterangan?: string;
+}
+
+export interface AttendanceRosterParams {
+  tanggal: string;
+  kelas: string;
+  page?: number;
+  pageSize?: number;
 }
 
 export interface CorrectAttendancePayload {

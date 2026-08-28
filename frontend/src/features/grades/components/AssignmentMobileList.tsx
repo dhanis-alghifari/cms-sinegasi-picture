@@ -10,9 +10,10 @@ import { ASSIGNMENT_CATEGORY_LABELS, type Assignment } from '../types/grades.typ
 
 interface AssignmentMobileListProps {
   assignments: Assignment[];
+  isOwn?: boolean;
 }
 
-export function AssignmentMobileList({ assignments }: AssignmentMobileListProps) {
+export function AssignmentMobileList({ assignments, isOwn = false }: AssignmentMobileListProps) {
   if (assignments.length === 0) {
     return <EmptyState icon={ClipboardList} title="Belum ada tugas penilaian" description="Buat tugas atau kegiatan baru agar dapat digunakan untuk penilaian siswa." />;
   }
@@ -24,7 +25,7 @@ export function AssignmentMobileList({ assignments }: AssignmentMobileListProps)
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold text-ink">{assignment.title}</p>
-              <p className="mt-1 text-xs text-ink-tertiary">{formatDateShort(assignment.date)} · {assignment.kelas || 'Semua kelas'}</p>
+              <p className="mt-1 text-xs text-ink-tertiary">{formatDateShort(assignment.date)}{!isOwn && ` · ${assignment.kelas || 'Semua kelas'}`}</p>
             </div>
             <AuditHistoryButton tableName="assignments" recordId={assignment.id} />
           </div>

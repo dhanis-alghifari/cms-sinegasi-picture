@@ -5,6 +5,7 @@ export type AttendanceListQuery = {
   kelas?: string;
   status?: string;
   tanggal?: string;
+  student_id?: string;
   page: number;
   pageSize: number;
 };
@@ -16,6 +17,33 @@ export type AttendanceWriteInput = {
   keterangan?: string;
   idempotencyKey: string;
   actorId: string;
+};
+
+export type AttendanceRosterQuery = {
+  tanggal: string;
+  kelas: string;
+  page: number;
+  pageSize: number;
+};
+
+export type AttendanceBatchWriteInput = {
+  tanggal: string;
+  kelas: string;
+  records: Array<{
+    student_id: string;
+    status: string;
+    keterangan?: string;
+  }>;
+  actorId: string;
+};
+
+export type AttendanceRosterRecord = {
+  student_id: string;
+  nis: string;
+  nama: string;
+  kelas: string;
+  status?: string;
+  keterangan?: string;
 };
 
 export type AttendanceCorrectionInput = {
@@ -43,8 +71,10 @@ export type AttendanceRepositoryError = {
 export interface AttendanceRepository {
   isConfigured(): boolean;
   list(query: AttendanceListQuery): Promise<{ data: unknown[]; count: number; error: AttendanceRepositoryError }>;
-  summary(tanggal: string): Promise<{ data: AttendanceSummary | null; error: AttendanceRepositoryError }>;
+  roster(query: AttendanceRosterQuery): Promise<{ data: AttendanceRosterRecord[]; count: number; error: AttendanceRepositoryError }>;
+  summary(tanggal?: string, studentId?: string): Promise<{ data: AttendanceSummary | null; error: AttendanceRepositoryError }>;
   record(input: AttendanceWriteInput): Promise<{ data: Record<string, unknown> | null; error: AttendanceRepositoryError }>;
+  batchRecord(input: AttendanceBatchWriteInput): Promise<{ data: Record<string, unknown>[]; error: AttendanceRepositoryError }>;
   correct(input: AttendanceCorrectionInput): Promise<{ data: Record<string, unknown> | null; error: AttendanceRepositoryError }>;
 }
 
@@ -52,6 +82,7 @@ type SupabaseLike = SupabaseClient | null;
 
 const ATTENDANCE_LIST_SELECT = 'id,student_id,tanggal,status,keterangan,idempotency_key,created_by,created_at,updated_by,updated_at,students!inner(id,nis,nama,kelas,peminatan)';
 const ATTENDANCE_RECORD_SELECT = 'id,student_id,tanggal,status,keterangan,idempotency_key,created_by,created_at,updated_by,updated_at';
+const ATTENDANCE_ROSTER_STUDENT_SELECT = 'id,nis,nama,kelas';
 
 function sanitizeSearch(value: string): string {
   return value.trim().replace(/[%,_()]/g, ' ').replace(/\s+/g, ' ').slice(0, 100);
@@ -86,6 +117,7 @@ export function createAttendanceRepository(client: SupabaseLike): AttendanceRepo
 
       let dbQuery = client.from('attendance').select(ATTENDANCE_LIST_SELECT, { count: 'exact' });
       if (query.tanggal) dbQuery = dbQuery.eq('tanggal', query.tanggal);
+      if (query.student_id) dbQuery = dbQuery.eq('student_id', query.student_id);
       if (query.status && query.status !== 'all') dbQuery = dbQuery.eq('status', query.status);
 
       const search = query.search ? sanitizeSearch(query.search) : '';
@@ -107,8 +139,70 @@ export function createAttendanceRepository(client: SupabaseLike): AttendanceRepo
       return { data: data || [], count: count ?? 0, error: error || null };
     },
 
-    async summary(tanggal) {
+    async roster(query) {
+      if (!client) return { data: [], count: 0, error: null };
+
+      let studentsQuery = client
+        .from('students')
+        .select(ATTENDANCE_ROSTER_STUDENT_SELECT, { count: 'exact' })
+        .eq('is_active', true);
+      const kelas = query.kelas.trim();
+      if (['X', 'XI', 'XII'].includes(kelas)) {
+        studentsQuery = studentsQuery.or(`kelas.eq.${kelas},kelas.ilike.${kelas} %`);
+      } else {
+        studentsQuery = studentsQuery.eq('kelas', kelas);
+      }
+
+      const from = (query.page - 1) * query.pageSize;
+      const to = from + query.pageSize - 1;
+      const studentsResult = await studentsQuery
+        .order('nama', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, to);
+      if (studentsResult.error) return { data: [], count: 0, error: studentsResult.error };
+
+      const students = (studentsResult.data || []) as Array<Record<string, unknown>>;
+      if (students.length === 0) return { data: [], count: studentsResult.count ?? 0, error: null };
+      const studentIds = students.map((student) => String(student.id));
+      const attendanceResult = await client
+        .from('attendance')
+        .select('student_id,status,keterangan')
+        .eq('tanggal', query.tanggal)
+        .in('student_id', studentIds);
+      if (attendanceResult.error) return { data: [], count: 0, error: attendanceResult.error };
+
+      const attendanceByStudent = new Map(
+        ((attendanceResult.data || []) as Array<Record<string, unknown>>)
+          .map((row) => [String(row.student_id), row]),
+      );
+      const data = students.map((student) => {
+        const attendance = attendanceByStudent.get(String(student.id));
+        return {
+          student_id: String(student.id),
+          nis: String(student.nis || ''),
+          nama: String(student.nama || ''),
+          kelas: String(student.kelas || ''),
+          ...(attendance?.status == null ? {} : { status: String(attendance.status) }),
+          ...(attendance?.keterangan == null ? {} : { keterangan: String(attendance.keterangan) }),
+        };
+      });
+      return { data, count: studentsResult.count ?? data.length, error: null };
+    },
+
+    async summary(tanggal, studentId) {
       if (!client) return { data: { hadir: 0, sakit: 0, izin: 0, alpha: 0, total: 0 }, error: null };
+
+      if (studentId) {
+        let ownQuery = client.from('attendance').select('status').eq('student_id', studentId);
+        if (tanggal) ownQuery = ownQuery.eq('tanggal', tanggal);
+        const ownResult = await ownQuery;
+        return {
+          data: ownResult.error ? null : countSummaryRows((ownResult.data || []) as Array<{ status?: string }>),
+          error: ownResult.error || null,
+        };
+      }
+
+      if (!tanggal) return { data: { hadir: 0, sakit: 0, izin: 0, alpha: 0, total: 0 }, error: null };
 
       // The SQL function performs COUNT/FILTER in PostgreSQL, so the API does
       // not transfer every attendance row for a high-volume school date.
@@ -167,6 +261,33 @@ export function createAttendanceRepository(client: SupabaseLike): AttendanceRepo
         updated_at: new Date().toISOString(),
       }], { onConflict: 'idempotency_key' }).select(ATTENDANCE_RECORD_SELECT).single();
       return { data: data as Record<string, unknown> | null, error: error || null };
+    },
+
+    async batchRecord(input) {
+      if (!client) {
+        return {
+          data: input.records.map((record, index) => ({
+            id: `att-${Date.now()}-${index}`,
+            student_id: record.student_id,
+            tanggal: input.tanggal,
+            status: record.status,
+            keterangan: record.keterangan,
+            idempotency_key: `att-${record.student_id}-${input.tanggal}`,
+          })),
+          error: null,
+        };
+      }
+
+      const result = await client.rpc('record_attendance_batch_atomic', {
+        p_tanggal: input.tanggal,
+        p_kelas: input.kelas,
+        p_records: input.records,
+        p_actor_id: input.actorId,
+      });
+      if (result.error) return { data: [], error: result.error };
+      const payload = (Array.isArray(result.data) ? result.data[0] : result.data) as Record<string, unknown> | null;
+      const rows = Array.isArray(payload?.data) ? payload.data : [];
+      return { data: rows as Record<string, unknown>[], error: null };
     },
 
     async correct(input) {

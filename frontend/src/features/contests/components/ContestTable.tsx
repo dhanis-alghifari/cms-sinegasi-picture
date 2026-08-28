@@ -1,7 +1,7 @@
 // src/features/contests/components/ContestTable.tsx
-// Table for film contests & festivals displaying name, organizer, level badge, deadline, entries, and action menu
+// Table for film contests & festivals displaying name, city, level badge, deadline, entries, and action menu
 
-import { MoreVertical, Edit2, Film, ExternalLink, Trophy } from 'lucide-react';
+import { MoreVertical, Edit2, Layers3, ExternalLink, Trophy } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -20,41 +20,27 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/common/EmptyState';
 import { formatDateShort } from '@/shared/utils/formatDate';
-import { formatStatusLabel } from '@/shared/utils/formatLabels';
 import { getSafeExternalUrl } from '@/shared/utils/safeUrl';
 import type { Contest } from '../types/contests.types';
+import {
+  CONTEST_SCOPE_BADGE_CLASSES,
+  getContestScopeLabel,
+  getContestStatusBadgeClass,
+  getContestStatusLabel,
+} from '../utils/contestLabels';
 import { AuditHistoryButton } from '@/features/audit/components/AuditTable';
 
 interface ContestTableProps {
   contests: Contest[];
   onEdit: (contest: Contest) => void;
-  onSubmitFilm: (contest: Contest) => void;
+  onManageEntries: (contest: Contest) => void;
   canManage?: boolean;
 }
-
-const levelBadgeColors: Record<string, string> = {
-  Lokal: 'bg-surface-3 text-ink-subtle border-hairline',
-  Regional: 'bg-primary/15 text-primary border-primary/30',
-  Nasional: 'bg-semantic-warning/15 text-semantic-warning border-semantic-warning/30 font-bold',
-  Internasional: 'bg-semantic-success/15 text-semantic-success border-semantic-success/30 font-bold',
-};
-
-const statusBadgeColors: Record<string, string> = {
-  buka: 'bg-semantic-success/15 text-semantic-success border-semantic-success/30 font-semibold',
-  proses_penjurian: 'bg-semantic-warning/15 text-semantic-warning border-semantic-warning/30 font-semibold',
-  selesai: 'bg-surface-3 text-ink-tertiary border-hairline',
-};
-
-const statusLabels: Record<string, string> = {
-  buka: 'Buka Pendaftaran',
-  proses_penjurian: 'Proses Penjurian',
-  selesai: 'Selesai',
-};
 
 export function ContestTable({
   contests,
   onEdit,
-  onSubmitFilm,
+  onManageEntries,
   canManage = true,
 }: ContestTableProps) {
   if (contests.length === 0) {
@@ -71,7 +57,7 @@ export function ContestTable({
       <Table>
         <TableHeader className="bg-surface-2/60">
           <TableRow className="border-hairline">
-            <TableHead className="text-ink-subtle text-xs font-semibold">Nama Lomba &amp; Penyelenggara</TableHead>
+            <TableHead className="text-ink-subtle text-xs font-semibold">Nama Lomba &amp; Kota</TableHead>
             <TableHead className="text-ink-subtle text-xs font-semibold">Tingkat</TableHead>
             <TableHead className="text-ink-subtle text-xs font-semibold">Deadline</TableHead>
             <TableHead className="text-ink-subtle text-xs font-semibold">Status Event</TableHead>
@@ -100,14 +86,14 @@ export function ContestTable({
                       </a>
                     )}
                   </div>
-                  <p className="text-ink-tertiary text-[10px]">Oleh: {c.penyelenggara}</p>
+                  <p className="text-ink-tertiary text-[10px]">{c.kota || 'Kota belum diisi'} · Tahun {c.tahun_event || '-'}</p>
                 </div>
               </TableCell>
 
               {/* Tingkat */}
               <TableCell>
-                <Badge variant="outline" className={`text-xs px-2.5 py-0.5 rounded ${levelBadgeColors[c.tingkat] ?? ''}`}>
-                  {c.tingkat}
+                <Badge variant="outline" className={`text-xs px-2.5 py-0.5 rounded ${CONTEST_SCOPE_BADGE_CLASSES[c.tingkat] ?? ''}`}>
+                  {getContestScopeLabel(c.tingkat)}
                 </Badge>
               </TableCell>
 
@@ -118,18 +104,19 @@ export function ContestTable({
 
               {/* Status Event */}
               <TableCell>
-                <Badge variant="outline" className={`text-xs px-2.5 py-0.5 rounded ${statusBadgeColors[c.status] ?? ''}`}>
-                  {statusLabels[c.status] ?? formatStatusLabel(c.status)}
+                <Badge variant="outline" className={`text-xs px-2.5 py-0.5 rounded ${getContestStatusBadgeClass(c.status_public ?? c.status)}`}>
+                  {getContestStatusLabel(c.status_public ?? c.status)}
                 </Badge>
               </TableCell>
 
               {/* Submitted Films List */}
               <TableCell className="text-ink-subtle text-xs">
+                {typeof c.entry_count === 'number' && <p className="mb-1 text-[10px] font-semibold text-primary">{c.entry_count} karya di pipeline</p>}
                 {c.submissions && c.submissions.length > 0 ? (
                   <div className="space-y-1">
                     {c.submissions.map((sub) => (
                       <div key={sub.id} className="flex items-center gap-1.5 text-[11px]">
-                        <Film size={12} className="text-primary shrink-0" />
+                        <Layers3 size={12} className="text-primary shrink-0" />
                         <span className="font-semibold text-ink">{sub.judul_film}</span>
                         <span className="text-ink-tertiary">({sub.sutradara_nama})</span>
                         {sub.award_status !== 'Peserta' && (
@@ -161,9 +148,9 @@ export function ContestTable({
                       }
                     />
                     <DropdownMenuContent align="end" className="bg-surface-3 border-hairline text-ink">
-                      <DropdownMenuItem onClick={() => onSubmitFilm(c)} className="text-xs cursor-pointer">
-                        <Film size={14} className="mr-2 text-primary" />
-                        Daftarkan Karya Film
+                      <DropdownMenuItem onClick={() => onManageEntries(c)} className="text-xs cursor-pointer">
+                        <Layers3 size={14} className="mr-2 text-primary" />
+                        Kelola Karya
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => onEdit(c)} className="text-xs cursor-pointer">
                         <Edit2 size={14} className="mr-2 text-ink-subtle" />

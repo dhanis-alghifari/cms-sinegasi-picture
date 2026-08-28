@@ -29,12 +29,74 @@ export const attendanceWriteRouteSchema = {
   body: {
     type: 'object',
     additionalProperties: false,
-    required: ['student_id', 'tanggal', 'status'],
     properties: {
       student_id: { type: 'string', minLength: 1, maxLength: 64 },
-      tanggal: { type: 'string', minLength: 10, maxLength: 10 },
-      status: { type: 'string', minLength: 1, maxLength: 32 },
+      tanggal: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
+      status: { type: 'string', enum: ['hadir', 'sakit', 'izin', 'alpha'] },
+      kelas: { type: 'string', minLength: 1, maxLength: 80 },
+      records: {
+        type: 'array',
+        minItems: 1,
+        maxItems: 500,
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['student_id', 'status'],
+          properties: {
+            student_id: { type: 'string', minLength: 1, maxLength: 64 },
+            status: { type: 'string', enum: ['hadir', 'sakit', 'izin', 'alpha'] },
+            keterangan: { type: 'string', maxLength: 500 },
+          },
+        },
+      },
       keterangan: { type: 'string', maxLength: 500 },
+      idempotency_key: { type: 'string', minLength: 8, maxLength: 128 },
+      idempotencyKey: { type: 'string', minLength: 8, maxLength: 128 },
+    },
+    anyOf: [
+      { required: ['student_id', 'tanggal', 'status'] },
+      { required: ['tanggal', 'kelas', 'records'] },
+    ],
+  },
+} as const;
+
+export const attendanceRosterRouteSchema = {
+  querystring: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['tanggal', 'kelas'],
+    properties: {
+      tanggal: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
+      kelas: { type: 'string', minLength: 1, maxLength: 80 },
+      page: { type: 'string', pattern: '^[0-9]+$' },
+      pageSize: { type: 'string', pattern: '^[0-9]+$' },
+    },
+  },
+} as const;
+
+export const attendanceBatchWriteRouteSchema = {
+  body: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['tanggal', 'kelas', 'records'],
+    properties: {
+      tanggal: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
+      kelas: { type: 'string', minLength: 1, maxLength: 80 },
+      records: {
+        type: 'array',
+        minItems: 1,
+        maxItems: 500,
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['student_id', 'status'],
+          properties: {
+            student_id: { type: 'string', minLength: 1, maxLength: 64 },
+            status: { type: 'string', enum: ['hadir', 'sakit', 'izin', 'alpha'] },
+            keterangan: { type: 'string', maxLength: 500 },
+          },
+        },
+      },
       idempotency_key: { type: 'string', minLength: 8, maxLength: 128 },
       idempotencyKey: { type: 'string', minLength: 8, maxLength: 128 },
     },
@@ -52,6 +114,7 @@ export const attendanceListRouteSchema = {
       tanggal: { type: 'string', minLength: 10, maxLength: 10 },
       page: { type: 'string', pattern: '^[0-9]+$' },
       pageSize: { type: 'string', pattern: '^[0-9]+$' },
+      scope: { type: 'string', enum: ['own'] },
     },
   },
 } as const;
@@ -62,6 +125,7 @@ export const attendanceSummaryRouteSchema = {
     additionalProperties: false,
     properties: {
       tanggal: { type: 'string', minLength: 10, maxLength: 10 },
+      scope: { type: 'string', enum: ['own'] },
     },
   },
 } as const;

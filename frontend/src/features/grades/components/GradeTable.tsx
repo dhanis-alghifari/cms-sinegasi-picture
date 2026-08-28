@@ -18,6 +18,7 @@ import { AuditHistoryButton } from '@/features/audit/components/AuditTable';
 
 interface GradeTableProps {
   grades: StudentGrade[];
+  isPersonal?: boolean;
 }
 
 const gradeBadgeColors: Record<string, string> = {
@@ -36,7 +37,7 @@ const gradePredicates: Record<string, string> = {
   E: 'Sangat Kurang',
 };
 
-export function GradeTable({ grades }: GradeTableProps) {
+export function GradeTable({ grades, isPersonal = false }: GradeTableProps) {
   if (grades.length === 0) {
     return (
       <EmptyState
@@ -52,9 +53,9 @@ export function GradeTable({ grades }: GradeTableProps) {
         <TableHeader className="bg-surface-2/60">
           <TableRow className="border-hairline">
             <TableHead className="text-ink-subtle text-xs font-semibold">Tanggal</TableHead>
-            <TableHead className="text-ink-subtle text-xs font-semibold">NIS</TableHead>
-            <TableHead className="text-ink-subtle text-xs font-semibold">Nama Siswa</TableHead>
-            <TableHead className="text-ink-subtle text-xs font-semibold">Kelas</TableHead>
+            {!isPersonal && <TableHead className="text-ink-subtle text-xs font-semibold">NIS</TableHead>}
+            {!isPersonal && <TableHead className="text-ink-subtle text-xs font-semibold">Nama Siswa</TableHead>}
+            {!isPersonal && <TableHead className="text-ink-subtle text-xs font-semibold">Kelas</TableHead>}
             <TableHead className="text-ink-subtle text-xs font-semibold">Judul Tugas / Kegiatan</TableHead>
             <TableHead className="text-ink-subtle text-xs font-semibold">Kategori</TableHead>
             <TableHead className="text-ink-subtle text-xs font-semibold">Nilai (A-E)</TableHead>
@@ -67,9 +68,9 @@ export function GradeTable({ grades }: GradeTableProps) {
           {grades.map((g) => (
             <TableRow key={g.id} className="border-hairline hover:bg-surface-2/40">
               <TableCell className="text-ink-subtle text-xs">{formatDateShort(g.created_at)}</TableCell>
-              <TableCell className="text-ink-muted text-xs font-mono">{g.student_nis ?? '-'}</TableCell>
-              <TableCell className="text-ink font-semibold text-xs">{g.student_nama ?? 'Siswa'}</TableCell>
-              <TableCell className="text-ink-muted text-xs">{g.kelas ?? '-'}</TableCell>
+              {!isPersonal && <TableCell className="text-ink-muted text-xs font-mono">{g.student_nis ?? '-'}</TableCell>}
+              {!isPersonal && <TableCell className="text-ink font-semibold text-xs">{g.student_nama ?? 'Siswa'}</TableCell>}
+              {!isPersonal && <TableCell className="text-ink-muted text-xs">{g.kelas ?? '-'}</TableCell>}
               <TableCell className="text-ink font-medium text-xs">{g.assignment_title ?? 'Evaluasi'}</TableCell>
               <TableCell className="text-ink-subtle text-xs">
                 {g.assignment_category ? (ASSIGNMENT_CATEGORY_LABELS[g.assignment_category] ?? formatEnumLabel(g.assignment_category)) : 'Kelas'}

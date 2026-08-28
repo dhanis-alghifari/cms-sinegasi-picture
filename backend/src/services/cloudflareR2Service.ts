@@ -18,7 +18,7 @@ export interface R2UploadResult {
 interface R2Config {
   accountId: string;
   bucketName: string;
-  publicDomain: string;
+  publicDomain?: string;
   accessKeyId: string;
   secretAccessKey: string;
 }
@@ -26,7 +26,7 @@ interface R2Config {
 const R2_REGION = 'auto';
 const PRESIGNED_URL_TTL_SECONDS = 900;
 
-function getR2Config(): R2Config {
+function getR2Config(requirePublicDomain = false): R2Config {
   const config: R2Config = {
     accountId: runtimeConfig.r2AccountId,
     bucketName: runtimeConfig.r2BucketName,
@@ -34,7 +34,8 @@ function getR2Config(): R2Config {
     accessKeyId: runtimeConfig.r2AccessKeyId,
     secretAccessKey: runtimeConfig.r2SecretAccessKey,
   };
-  if (Object.values(config).some((value) => !value)) {
+  if (!config.accountId || !config.bucketName || !config.accessKeyId || !config.secretAccessKey
+      || (requirePublicDomain && !config.publicDomain)) {
     throw new Error('R2_STORAGE_NOT_CONFIGURED');
   }
   return config;
@@ -67,7 +68,7 @@ function signingKey(secret: string, date: string): Buffer {
   return hmac(hmac(hmac(hmac(`AWS4${secret}`, date), R2_REGION), 's3'), 'aws4_request');
 }
 
-function presignedUrl(config: R2Config, key: string, method: 'PUT' | 'DELETE'): string {
+function presignedUrl(config: R2Config, key: string, method: 'GET' | 'HEAD' | 'PUT' | 'DELETE'): string {
   const now = new Date();
   const amzDate = now.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
   const shortDate = amzDate.slice(0, 8);
@@ -108,7 +109,17 @@ function presignedUrl(config: R2Config, key: string, method: 'PUT' | 'DELETE'): 
 }
 
 function publicObjectUrl(config: R2Config, key: string): string {
+  if (!config.publicDomain) throw new Error('R2_PUBLIC_DOMAIN_NOT_CONFIGURED');
   return `${config.publicDomain}/${key.split('/').map(encodeURIComponent).join('/')}`;
+}
+
+function normalizedObjectKey(key: string): string {
+  const normalized = key.trim();
+  const segments = normalized.split('/');
+  if (!normalized || normalized.length > 1024 || segments.some((segment) => !segment || segment === '.' || segment === '..')) {
+    throw new Error('R2_INVALID_KEY');
+  }
+  return normalized;
 }
 
 /** Uploads an object through a short-lived signed PUT request. */
@@ -116,7 +127,7 @@ export async function uploadToCloudflareR2(options: R2UploadOptions): Promise<R2
   let config: R2Config;
   let key = '';
   try {
-    config = getR2Config();
+    config = getR2Config(true);
     key = buildObjectKey(options.fileName, options.folder);
     const response = await fetch(presignedUrl(config, key, 'PUT'), {
       method: 'PUT',
@@ -136,7 +147,7 @@ export function generateR2PresignedUrl(
   fileName: string,
   folder = 'students',
 ): { uploadUrl: string; publicUrl: string; key: string } {
-  const config = getR2Config();
+  const config = getR2Config(true);
   const key = buildObjectKey(fileName, folder);
   return {
     uploadUrl: presignedUrl(config, key, 'PUT'),
@@ -151,7 +162,7 @@ export async function deleteFromCloudflareR2(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const config = getR2Config();
-    const rawKey = keyOrUrl.startsWith(`${config.publicDomain}/`)
+    const rawKey = config.publicDomain && keyOrUrl.startsWith(`${config.publicDomain}/`)
       ? keyOrUrl.slice(`${config.publicDomain}/`.length)
       : keyOrUrl;
     const key = rawKey.split('/').map((segment) => decodeURIComponent(segment)).join('/');
@@ -164,4 +175,47 @@ export async function deleteFromCloudflareR2(
   } catch (error: unknown) {
     return { success: false, error: error instanceof Error ? error.message : 'R2_DELETE_FAILED' };
   }
+}
+
+/** Creates a private-object upload URL without exposing a permanent public URL. */
+export function generateR2PrivateUploadUrl(
+  fileName: string,
+  folder = 'contest-evidence',
+): { uploadUrl: string; key: string; expiresInSeconds: number } {
+  const config = getR2Config();
+  const key = buildObjectKey(fileName, folder);
+  return {
+    uploadUrl: presignedUrl(config, key, 'PUT'),
+    key,
+    expiresInSeconds: PRESIGNED_URL_TTL_SECONDS,
+  };
+}
+
+/** Verifies a private object after the browser completed its direct PUT upload. */
+export async function inspectCloudflareR2Object(
+  objectKey: string,
+): Promise<{ exists: boolean; contentType?: string; contentLength?: number }> {
+  const config = getR2Config();
+  const response = await fetch(presignedUrl(config, normalizedObjectKey(objectKey), 'HEAD'), {
+    method: 'HEAD',
+  });
+  if (response.status === 404) return { exists: false };
+  if (!response.ok) throw new Error(`R2_HEAD_FAILED_${response.status}`);
+  const contentLength = Number(response.headers.get('content-length'));
+  return {
+    exists: true,
+    contentType: response.headers.get('content-type')?.split(';')[0]?.trim() || undefined,
+    contentLength: Number.isFinite(contentLength) ? contentLength : undefined,
+  };
+}
+
+/** Issues a short-lived read URL for an attached private evidence object. */
+export function generateR2PrivateAccessUrl(
+  objectKey: string,
+): { accessUrl: string; expiresInSeconds: number } {
+  const config = getR2Config();
+  return {
+    accessUrl: presignedUrl(config, normalizedObjectKey(objectKey), 'GET'),
+    expiresInSeconds: PRESIGNED_URL_TTL_SECONDS,
+  };
 }

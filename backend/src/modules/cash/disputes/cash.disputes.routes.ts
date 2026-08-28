@@ -1,11 +1,17 @@
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { authenticate, type JwtPayload } from '../../../middleware/authMiddleware.js';
-import { requireCapability } from '../../../middleware/capabilities.js';
-import { resolveDatabaseUserId } from '../../auth/auth.identity.js';
-import { cashDisputeCreateRouteSchema, cashDisputeUpdateRouteSchema } from '../shared/http/cash.schema.js';
+import { hasCapability, requireAnyCapability, requireCapability } from '../../../middleware/capabilities.js';
+import { resolveDatabaseStudentId, resolveDatabaseUserId } from '../../auth/auth.identity.js';
+import {
+  cashDisputeCreateRouteSchema,
+  cashDisputeEvidenceRouteSchema,
+  cashDisputeListRouteSchema,
+  cashDisputeQuotaRouteSchema,
+  cashDisputeUpdateRouteSchema,
+} from '../shared/http/cash.schema.js';
 import { sendServiceError } from '../../../shared/http/sendServiceError.js';
 import { CashDisputesService } from './cash.disputes.service.js';
-import type { CreateCashDisputeInput, ResolveCashDisputeInput } from './cash.disputes.types.js';
+import type { CashDisputeListQuery, CreateCashDisputeInput, ResolveCashDisputeInput } from './cash.disputes.types.js';
 
 type AuditInput = {
   action: string;
@@ -20,27 +26,84 @@ export interface CashDisputesRoutesOptions {
   persistAuditLog: (request: FastifyRequest, input: AuditInput) => Promise<void>;
 }
 
-const managerGuard = requireCapability('cash.manage');
+const managerGuard = requireCapability('cash.dispute.review');
 
 const cashDisputesRoutes: FastifyPluginAsync<CashDisputesRoutesOptions> = async (fastify, options) => {
   fastify.post('/api/cash/disputes', {
     schema: cashDisputeCreateRouteSchema,
-    preHandler: [authenticate, requireCapability('cash.read')],
+    preHandler: [authenticate, requireCapability('cash.dispute.create')],
   }, async (request, reply) => {
     const body = (request.body || {}) as CreateCashDisputeInput;
     const user = request.user as JwtPayload;
     const actorId = options.disputesService.repositoryIsConfigured() ? await resolveDatabaseUserId(user) : user.userId;
     if (!actorId) return reply.status(503).send({ statusCode: 503, message: 'Akun login belum terhubung ke users.id database yang valid. Hubungi administrator.' });
+    const idempotencyKey = String(request.headers['x-idempotency-key'] || '').trim();
+    const actorStudentId = user.role === 'member'
+      ? (options.disputesService.repositoryIsConfigured() ? await resolveDatabaseStudentId(user, actorId) : user.studentId || null)
+      : undefined;
     try {
-      const data = await options.disputesService.create(body, actorId, user.role, user.studentId);
+      const data = await options.disputesService.create(body, actorId, user.role, idempotencyKey, actorStudentId || undefined);
       await options.persistAuditLog(request, {
         action: 'INSERT',
         tableName: 'cash_disputes',
-        recordId: data.id,
-        newValues: { transaction_id: data.transaction_id, student_id: data.student_id },
+        recordId: data.dispute.id,
+        newValues: { transaction_id: data.dispute.transaction_id, debt_record_id: data.dispute.debt_record_id, student_id: data.dispute.student_id, attempt_number: data.dispute.attempt_number },
         changeReason: 'Pengajuan sanggahan transaksi kas',
       });
-      return reply.status(201).send({ success: true, data });
+      reply.header('Cache-Control', 'no-store');
+      return reply.status(data.idempotentReplay ? 200 : 201).send({ success: true, data });
+    } catch (error) {
+      return sendServiceError(error, reply);
+    }
+  });
+
+  fastify.get('/api/cash/disputes/quota', {
+    schema: cashDisputeQuotaRouteSchema,
+    preHandler: [authenticate, requireCapability('cash.dispute.create')],
+  }, async (request, reply) => {
+    const user = request.user as JwtPayload;
+    const studentId = options.disputesService.repositoryIsConfigured()
+      ? await resolveDatabaseStudentId(user)
+      : user.studentId || null;
+    if (!studentId) return reply.status(403).send({ success: false, error_code: 'STUDENT_SCOPE_UNAVAILABLE', message: 'Akun member belum terhubung ke data siswa.' });
+    try {
+      reply.header('Cache-Control', 'no-store');
+      return reply.send({ success: true, data: await options.disputesService.getQuota(studentId) });
+    } catch (error) {
+      return sendServiceError(error, reply);
+    }
+  });
+
+  fastify.get('/api/cash/disputes', {
+    schema: cashDisputeListRouteSchema,
+    preHandler: [authenticate, requireAnyCapability('cash.dispute.review', 'cash.dispute.read.own')],
+  }, async (request, reply) => {
+    const user = request.user as JwtPayload;
+    const own = !hasCapability(user.role, 'cash.dispute.review');
+    const studentId = own ? await resolveDatabaseStudentId(user) : null;
+    if (own && !studentId) return reply.status(403).send({ success: false, error_code: 'STUDENT_SCOPE_UNAVAILABLE', message: 'Akun member belum terhubung ke data siswa.' });
+    try {
+      const data = await options.disputesService.list(request.query as CashDisputeListQuery, studentId);
+      return reply.send({ success: true, ...data });
+    } catch (error) {
+      return sendServiceError(error, reply);
+    }
+  });
+
+  fastify.get('/api/cash/disputes/:id/evidence', {
+    schema: cashDisputeEvidenceRouteSchema,
+    preHandler: [authenticate, requireAnyCapability('cash.dispute.review', 'cash.dispute.read.own')],
+  }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const user = request.user as JwtPayload;
+    const own = !hasCapability(user.role, 'cash.dispute.review');
+    const studentId = own
+      ? (options.disputesService.repositoryIsConfigured() ? await resolveDatabaseStudentId(user) : user.studentId || null)
+      : null;
+    if (own && !studentId) return reply.status(403).send({ success: false, error_code: 'STUDENT_SCOPE_UNAVAILABLE', message: 'Akun member belum terhubung ke data siswa.' });
+    try {
+      reply.header('Cache-Control', 'no-store');
+      return reply.send({ success: true, data: await options.disputesService.getEvidence(id, studentId) });
     } catch (error) {
       return sendServiceError(error, reply);
     }
@@ -61,9 +124,10 @@ const cashDisputesRoutes: FastifyPluginAsync<CashDisputesRoutesOptions> = async 
         action: 'UPDATE',
         tableName: 'cash_disputes',
         recordId: id,
-        newValues: { status: data.status },
+        newValues: { status: data.dispute.status, review_note: data.dispute.review_note, resolution_transaction_id: data.resolutionTransactionId },
         changeReason: 'Verifikasi sanggahan transaksi kas',
       });
+      reply.header('Cache-Control', 'no-store');
       return reply.send({ success: true, data });
     } catch (error) {
       return sendServiceError(error, reply);

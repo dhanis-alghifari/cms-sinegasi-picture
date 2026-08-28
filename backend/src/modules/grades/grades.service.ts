@@ -35,6 +35,14 @@ export class GradesService {
     return result.data;
   }
 
+  async summary(query: GradeListQuery) {
+    const category = query.category && query.category !== 'all' ? normalizeAssignmentCategory(query.category) : undefined;
+    if (query.category && query.category !== 'all' && !category) throw new GradesServiceError(422, 'INVALID_CATEGORY', 'Kategori tugas tidak valid.');
+    const result = await this.repository.summary({ ...query, category: category || undefined });
+    if (result.error || !result.data) listError(result.error, 'Gagal memuat rekap nilai.');
+    return result.data;
+  }
+
   async createAssignment(input: CreateAssignmentInput, actorId: string | null) {
     const title = clean(input.title); const category = normalizeAssignmentCategory(input.category); const dueDate = clean(input.due_date || input.date);
     const description = clean(input.description); const categoryDescription = clean(input.keterangan_kategori || input.description); const kelas = clean(input.kelas);

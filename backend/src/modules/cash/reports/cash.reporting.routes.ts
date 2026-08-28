@@ -1,7 +1,7 @@
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { authenticate, type JwtPayload } from '../../../middleware/authMiddleware.js';
-import { requireCapability } from '../../../middleware/capabilities.js';
-import { resolveDatabaseUserId } from '../../auth/auth.identity.js';
+import { hasCapability, requireCapability, requireAnyCapability } from '../../../middleware/capabilities.js';
+import { resolveDatabaseStudentId, resolveDatabaseUserId } from '../../auth/auth.identity.js';
 import {
   cashBillingRulesUpdateRouteSchema,
   cashDebtListRouteSchema,
@@ -24,10 +24,6 @@ export interface CashReportingRoutesOptions {
   persistAuditLog: (request: FastifyRequest, input: AuditInput) => Promise<void>;
 }
 
-function isUuid(value: string | undefined): value is string {
-  return Boolean(value && /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(value));
-}
-
 const managerGuard = requireCapability('cash.manage');
 
 const cashReportingRoutes: FastifyPluginAsync<CashReportingRoutesOptions> = async (fastify, options) => {
@@ -44,11 +40,13 @@ const cashReportingRoutes: FastifyPluginAsync<CashReportingRoutesOptions> = asyn
 
   fastify.get('/api/cash/debts', {
     schema: cashDebtListRouteSchema,
-    preHandler: [authenticate, requireCapability('cash.read')],
+    preHandler: [authenticate, requireAnyCapability('cash.read', 'cash.read.own')],
   }, async (request, reply) => {
     const user = request.user as JwtPayload;
-    if (user.role === 'member' && !isUuid(user.studentId)) return reply.send({ success: true, data: [], total: 0, page: 1, pageSize: 20, totalPages: 1 });
-    const scope = { studentId: user.role === 'member' ? user.studentId || null : null };
+    const own = !hasCapability(user.role, 'cash.read');
+    const studentId = own ? await resolveDatabaseStudentId(user) : null;
+    if (own && !studentId) return reply.status(403).send({ success: false, error_code: 'STUDENT_SCOPE_UNAVAILABLE', message: 'Akun member belum terhubung ke data siswa.' });
+    const scope = { studentId };
     try {
       return reply.send({ success: true, ...(await options.reportingService.listDebts(request.query as Record<string, string | undefined>, scope)) });
     } catch (error) {

@@ -4,19 +4,21 @@
 import { GraduationCap } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { formatNumber } from '@/shared/utils/formatNumber';
-import type { StudentGrade } from '../types/grades.types';
+import type { GradeSummary, StudentGrade } from '../types/grades.types';
 
 interface GradeDistributionStatsProps {
   grades: StudentGrade[];
+  summary?: GradeSummary;
+  isPersonal?: boolean;
 }
 
-export function GradeDistributionStats({ grades }: GradeDistributionStatsProps) {
-  const total = grades.length;
-  const countA = grades.filter((g) => g.nilai === 'A').length;
-  const countB = grades.filter((g) => g.nilai === 'B').length;
-  const countC = grades.filter((g) => g.nilai === 'C').length;
-  const countD = grades.filter((g) => g.nilai === 'D').length;
-  const countE = grades.filter((g) => g.nilai === 'E').length;
+export function GradeDistributionStats({ grades, summary, isPersonal = false }: GradeDistributionStatsProps) {
+  const total = summary?.total ?? grades.length;
+  const countA = summary?.counts.A ?? grades.filter((g) => g.nilai === 'A').length;
+  const countB = summary?.counts.B ?? grades.filter((g) => g.nilai === 'B').length;
+  const countC = summary?.counts.C ?? grades.filter((g) => g.nilai === 'C').length;
+  const countD = summary?.counts.D ?? grades.filter((g) => g.nilai === 'D').length;
+  const countE = summary?.counts.E ?? grades.filter((g) => g.nilai === 'E').length;
 
   const items = [
     { label: 'Predikat A', count: countA, textColor: 'text-semantic-success', barColor: 'bg-semantic-success' },
@@ -31,8 +33,8 @@ export function GradeDistributionStats({ grades }: GradeDistributionStatsProps) 
       <CardContent className="space-y-4 p-4 sm:p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-sm font-medium text-ink">Sebaran Nilai Universal</p>
-            <p className="mt-0.5 text-xs text-ink-subtle">Distribusi seluruh penilaian yang terdaftar.</p>
+            <p className="text-sm font-medium text-ink">{isPersonal ? 'Rekap Nilai Saya' : 'Sebaran Nilai Universal'}</p>
+            <p className="mt-0.5 text-xs text-ink-subtle">{isPersonal ? 'Ringkasan seluruh nilai yang sudah diterbitkan untuk Anda.' : 'Distribusi seluruh penilaian yang terdaftar.'}</p>
           </div>
           <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-surface-2">
             <GraduationCap size={16} className="text-primary" aria-hidden="true" />
@@ -41,7 +43,7 @@ export function GradeDistributionStats({ grades }: GradeDistributionStatsProps) 
 
         <div className="flex items-baseline gap-2 border-b border-hairline pb-3">
           <span className="text-2xl font-bold tracking-tight text-ink">{formatNumber(total)}</span>
-          <span className="text-sm text-ink-subtle">Penilaian terdaftar</span>
+          <span className="text-sm text-ink-subtle">{isPersonal ? 'Nilai diterbitkan' : 'Penilaian terdaftar'}</span>
         </div>
 
         <div className="space-y-3" aria-label="Distribusi nilai A sampai E">

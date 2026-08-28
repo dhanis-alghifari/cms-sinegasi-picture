@@ -12,13 +12,18 @@ export function useCreateDisputeMutation() {
   return useMutation({
     mutationFn: ({
       payload,
+      idempotencyKey,
     }: {
       payload: CreateDisputePayload;
-    }) => cashService.createDispute(payload),
+      idempotencyKey?: string;
+    }) => cashService.createDispute(payload, idempotencyKey ?? crypto.randomUUID()),
     onSuccess: async () => {
       await invalidateActiveQueries(queryClient, [
         QUERY_KEYS.CASH_TRANSACTIONS,
+        QUERY_KEYS.CASH_DEBT_RECORDS,
+        QUERY_KEYS.CASH_DEBTS,
         QUERY_KEYS.CASH_DISPUTES,
+        QUERY_KEYS.CASH_DISPUTE_QUOTA,
       ]);
     },
   });

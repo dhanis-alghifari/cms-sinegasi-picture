@@ -10,6 +10,7 @@ import type {
   BulkGradingPayload,
   CreateAssignmentPayload,
   AssignmentFilterParams,
+  GradeSummary,
 } from '../types/grades.types';
 
 interface AssignmentApiRecord {
@@ -65,7 +66,7 @@ export const gradesService = {
     if (params?.category) query.append('category', params.category);
     if (params?.kelas) query.append('kelas', params.kelas);
     if (params?.search) query.append('search', params.search);
-    if (params?.student_id) query.append('student_id', params.student_id);
+    if (params?.scope) query.append('scope', params.scope);
 
     const endpoint = `/api/grades${query.toString() ? `?${query.toString()}` : ''}`;
     return apiClient.get<PaginatedResponse<StudentGrade>>(endpoint);
@@ -78,6 +79,7 @@ export const gradesService = {
     if (params?.category) query.append('category', params.category);
     if (params?.kelas) query.append('kelas', params.kelas);
     if (params?.search) query.append('search', params.search);
+    if (params?.scope) query.append('scope', params.scope);
 
     const endpoint = `/api/grades/assignments${query.toString() ? `?${query.toString()}` : ''}`;
     const response = await apiClient.get<AssignmentApiResponse | AssignmentApiRecord[]>(endpoint);
@@ -98,6 +100,15 @@ export const gradesService = {
       pageSize: response.pageSize ?? params?.pageSize ?? records.length,
       totalPages: response.totalPages ?? 1,
     };
+  },
+
+  async getSummary(params?: Pick<GradeFilterParams, 'scope' | 'category'>): Promise<GradeSummary> {
+    const query = new URLSearchParams();
+    if (params?.scope) query.append('scope', params.scope);
+    if (params?.category) query.append('category', params.category);
+    const endpoint = `/api/grades/summary${query.toString() ? `?${query.toString()}` : ''}`;
+    const response = await apiClient.get<{ data?: GradeSummary }>(endpoint);
+    return response.data ?? { total: 0, counts: { A: 0, B: 0, C: 0, D: 0, E: 0 } };
   },
 
   async createAssignment(payload: CreateAssignmentPayload): Promise<Assignment> {

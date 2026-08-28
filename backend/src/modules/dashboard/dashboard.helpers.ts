@@ -26,12 +26,15 @@ export function createDefaultDashboardSummary(studentId: string): DashboardSumma
       sakit: 1,
       izin: 1,
       alpha: 0,
+      total: 40,
     },
     cash: {
       totalTunggakan: 0,
+      totalDibayar: 50000,
+      jumlahPembayaran: 1,
       statusPembayaranTerakhir: 'LUNAS (Agustus 2026)',
       riwayat: [
-        { nominal: 50000, date: '2026-08-04', status: 'lunas', keterangan: 'Iuran Kas Bulanan' },
+        { id: `${studentId}:payment:1`, nominal: 50000, date: '2026-08-04', status: 'lunas', keterangan: 'Iuran Kas Bulanan' },
       ],
     },
     grades: {

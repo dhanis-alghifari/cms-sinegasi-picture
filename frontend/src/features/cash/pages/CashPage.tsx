@@ -32,6 +32,7 @@ import {
   useCashDebtsQuery,
   useBillingRulesQuery,
   useCashReportQuery,
+  useCashDisputeQuotaQuery,
 } from "../queries/useCashQuery";
 
 import { useCreateCashInMutation } from "../mutations/useCreateCashInMutation";
@@ -49,6 +50,7 @@ import { CashTransactionTable } from "../components/CashTransactionTable";
 import { CashTransactionMobileList } from "../components/CashTransactionMobileList";
 import { DebtRecordsTable } from "../components/DebtRecordsTable";
 import { DebtRecordsMobileList } from "../components/DebtRecordsMobileList";
+import { CashDisputeQueue } from "../components/CashDisputeQueue";
 import {
   getDateDaysBefore,
   getInclusiveDays,
@@ -56,7 +58,7 @@ import {
   type CashReportPreset,
 } from "../utils/reportDates";
 
-import type { CashReport, CashTransaction } from "../types/cash.types";
+import type { CashReport, CashTransaction, DebtRecord } from "../types/cash.types";
 import type {
   CashInFormValues,
   CashOutFormValues,
@@ -64,7 +66,7 @@ import type {
   BillingRulesFormValues,
 } from "../schemas/cashSchema";
 
-type CashView = "activity" | "transactions" | "debts" | "report";
+type CashView = "activity" | "transactions" | "debts" | "disputes" | "report";
 
 const LazyFastCashInModal = lazy(() =>
   import("../components/FastCashInModal").then(({ FastCashInModal }) => ({
@@ -227,6 +229,7 @@ export function CashPage() {
   const [cashOutOpen, setCashOutOpen] = useState(false);
   const [disputeOpen, setDisputeOpen] = useState(false);
   const [disputeTx, setDisputeTx] = useState<CashTransaction | null>(null);
+  const [disputeDebt, setDisputeDebt] = useState<DebtRecord | null>(null);
   const [rulesOpen, setRulesOpen] = useState(false);
 
   // Pagination state
@@ -247,6 +250,7 @@ export function CashPage() {
   const isActivityView = currentView === "activity";
   const isTransactionsView = currentView === "transactions";
   const isDebtsView = currentView === "debts";
+  const isDisputesView = currentView === "disputes";
   const isReportView = currentView === "report";
 
   const reportRangeError = useMemo(() => {
@@ -265,7 +269,7 @@ export function CashPage() {
     refetch: refetchSummary,
   } = useCashSummaryQuery();
   const shouldLoadPaymentMethods =
-    cashInOpen || isTransactionsView || isReportView;
+    isTreasurerOrTeacher && (cashInOpen || isTransactionsView || isReportView);
   const {
     data: paymentMethodsData,
     isLoading: isPaymentMethodsLoading,
@@ -306,6 +310,8 @@ export function CashPage() {
     isTreasurerOrTeacher && isReportView && !reportRangeError,
   );
   const { data: rulesData } = useBillingRulesQuery(cashInOpen || rulesOpen);
+  const { data: disputeQuotaData } = useCashDisputeQuotaQuery(isStudent);
+  const disputeQuota = disputeQuotaData?.data;
 
   // Mutations
   const cashInMutation = useCreateCashInMutation();
@@ -360,13 +366,20 @@ export function CashPage() {
 
   const handleOpenDispute = (tx: CashTransaction) => {
     setDisputeTx(tx);
+    setDisputeDebt(null);
+    setDisputeOpen(true);
+  };
+
+  const handleOpenDebtDispute = (debt: DebtRecord) => {
+    setDisputeTx(null);
+    setDisputeDebt(debt);
     setDisputeOpen(true);
   };
 
   const handleDisputeSubmit = async (values: DisputeFormValues) => {
-    const { ...payload } = values;
     await disputeMutation.mutateAsync({
-      payload: { ...payload, student_id: disputeTx?.student_id },
+      payload: values,
+      idempotencyKey: crypto.randomUUID(),
     });
   };
 
@@ -439,8 +452,8 @@ export function CashPage() {
   return (
     <div className="mx-auto max-w-7xl space-y-5 px-4 pb-28 pt-5 sm:space-y-6 sm:px-6 sm:pt-6 sm:pb-28 md:pb-6">
       <PageHeader
-        title="Uang Kas & Manajemen Utang"
-        subtitle="Pencatatan iuran kas masuk, pengeluaran 2-tahap, saldo tidak boleh negatif, dan sanggahan siswa."
+        title={isStudent ? 'Keuangan Kas Saya' : 'Uang Kas & Manajemen Utang'}
+        subtitle={isStudent ? 'Pantau pembayaran, tunggakan, dan sanggahan kas Anda.' : 'Pencatatan iuran kas masuk, pengeluaran 2-tahap, saldo tidak boleh negatif, dan sanggahan siswa.'}
         actions={
           isTreasurerOrTeacher ? (
             <ResponsivePageActions
@@ -490,6 +503,13 @@ export function CashPage() {
         }}
       />
 
+      {isStudent && disputeQuota && (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm text-ink" role="status">
+          <span><strong>Kuota sanggahan bulan {disputeQuota.period}:</strong> {disputeQuota.used}/{disputeQuota.limit} terpakai · {disputeQuota.remaining} tersisa</span>
+          <span className="text-xs text-ink-subtle">Reset {new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium' }).format(new Date(disputeQuota.resets_at))}</span>
+        </div>
+      )}
+
       {/* Tabs Layout */}
       <Tabs
         value={currentView}
@@ -497,7 +517,7 @@ export function CashPage() {
         className="w-full"
       >
         <TabsList
-          className={`grid min-h-14 w-full gap-1 bg-surface-1 p-2 md:flex md:h-auto md:min-h-0 md:w-fit md:gap-2 md:p-1 ${isTreasurerOrTeacher ? "grid-cols-4" : "grid-cols-2"}`}
+          className={`grid min-h-14 w-full gap-1 bg-surface-1 p-2 md:flex md:h-auto md:min-h-0 md:w-fit md:gap-2 md:p-1 ${isTreasurerOrTeacher ? "grid-cols-5" : "grid-cols-3"}`}
         >
           {isTreasurerOrTeacher && (
             <TabsTrigger
@@ -520,7 +540,14 @@ export function CashPage() {
             className="min-h-12 min-w-0 flex-1 px-1 text-xs leading-tight md:min-h-9 md:min-w-40 md:flex-none md:whitespace-nowrap md:px-3 data-[state=active]:bg-surface-2 data-[state=active]:text-ink"
           >
             <span className="md:hidden">Tunggakan</span>
-            <span className="hidden md:inline">Daftar Tunggakan Siswa</span>
+              <span className="hidden md:inline">{isStudent ? 'Tunggakan Saya' : 'Daftar Tunggakan Siswa'}</span>
+          </TabsTrigger>
+          <TabsTrigger
+            value="disputes"
+            className="min-h-12 min-w-0 flex-1 px-1 text-xs leading-tight md:min-h-9 md:min-w-36 md:flex-none md:whitespace-nowrap md:px-3 data-[state=active]:bg-surface-2 data-[state=active]:text-ink"
+          >
+            <span className="md:hidden">Sanggahan</span>
+            <span className="hidden md:inline">Sanggahan Kas</span>
           </TabsTrigger>
           {isTreasurerOrTeacher && (
             <TabsTrigger
@@ -661,12 +688,14 @@ export function CashPage() {
                     transactions={txData?.data ?? []}
                     onDispute={handleOpenDispute}
                     isStudent={isStudent}
+                    disputeQuota={disputeQuota}
                   />
                 ) : (
                   <CashTransactionTable
                     transactions={txData?.data ?? []}
                     onDispute={handleOpenDispute}
                     isStudent={isStudent}
+                    disputeQuota={disputeQuota}
                   />
                 )}
                 <Pagination
@@ -696,9 +725,9 @@ export function CashPage() {
             ) : (
               <div className="space-y-4">
                 {isMobile ? (
-                  <DebtRecordsMobileList debts={debtsData?.data ?? []} />
+                  <DebtRecordsMobileList debts={debtsData?.data ?? []} isStudent={isStudent} onDispute={handleOpenDebtDispute} disputeQuota={disputeQuota} />
                 ) : (
-                  <DebtRecordsTable debts={debtsData?.data ?? []} />
+                  <DebtRecordsTable debts={debtsData?.data ?? []} isStudent={isStudent} onDispute={handleOpenDebtDispute} disputeQuota={disputeQuota} />
                 )}
                 <Pagination
                   page={debtsData?.page ?? debtsPage}
@@ -709,6 +738,12 @@ export function CashPage() {
                 />
               </div>
             )}
+          </TabsContent>
+        )}
+
+        {isDisputesView && (
+          <TabsContent value="disputes" className="mt-4">
+            <CashDisputeQueue reviewer={isTreasurerOrTeacher} />
           </TabsContent>
         )}
       </Tabs>
@@ -756,9 +791,11 @@ export function CashPage() {
             open={disputeOpen}
             onOpenChange={setDisputeOpen}
             transaction={disputeTx}
+            debt={disputeDebt}
             onSubmit={handleDisputeSubmit}
             isLoading={disputeMutation.isPending}
             error={disputeMutation.error}
+            quota={disputeQuota}
           />
         )}
       </Suspense>

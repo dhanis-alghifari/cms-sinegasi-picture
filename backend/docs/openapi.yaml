@@ -622,6 +622,7 @@ paths:
         - { name: kelas, in: query, required: false, schema: { type: string, maxLength: 64 } }
         - { name: status, in: query, required: false, schema: { type: string, maxLength: 32 } }
         - { name: tanggal, in: query, required: false, schema: { type: string, format: date } }
+        - { name: scope, in: query, required: false, schema: { type: string, enum: [own] } }
         - { name: page, in: query, required: false, schema: { type: integer, minimum: 1, default: 1 } }
         - { name: pageSize, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
       responses:
@@ -631,9 +632,51 @@ paths:
       summary: Record attendance
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  additionalProperties: false
+                  required: [student_id, tanggal, status]
+                  properties:
+                    student_id: { type: string, minLength: 1, maxLength: 64 }
+                    tanggal: { type: string, format: date }
+                    status: { type: string, enum: [hadir, sakit, izin, alpha] }
+                    keterangan: { type: string, maxLength: 500 }
+                - $ref: '#/components/schemas/AttendanceBatchRequest'
       responses:
         '201': { description: Attendance recorded }
         '403': { description: Capability denied }
+  /api/attendance/roster:
+    get:
+      summary: Read a paginated student roster for attendance entry
+      parameters:
+        - { name: tanggal, in: query, required: true, schema: { type: string, format: date } }
+        - { name: kelas, in: query, required: true, schema: { type: string, minLength: 1, maxLength: 80 } }
+        - { name: page, in: query, required: false, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: pageSize, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 50, default: 10 } }
+      responses:
+        '200': { description: Paginated active students with existing attendance for the selected date }
+        '403': { description: Capability denied }
+  /api/attendance/batch:
+    post:
+      summary: Record attendance for one class atomically
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AttendanceBatchRequest'
+      responses:
+        '201': { description: Attendance batch recorded atomically }
+        '403': { description: Capability denied }
+        '409': { description: Attendance conflicts with a concurrent change }
+        '422': { description: Invalid class, record, or status }
   /api/attendance/summary:
     get:
       summary: Summarize attendance for one date
@@ -820,8 +863,22 @@ paths:
         '422': { description: Invalid amount, date range, or missing change reason }
         '503': { description: Cash schema or database identity is not available }
   /api/cash/disputes:
+    get:
+      summary: List cash disputes in the caller's scope
+      parameters:
+        - { name: page, in: query, required: false, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: pageSize, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+        - { name: cursor, in: query, required: false, schema: { type: string, maxLength: 512 } }
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 50, default: 10 } }
+        - { name: status, in: query, required: false, schema: { type: string, enum: [pending, approved, rejected] } }
+      responses:
+        '200': { description: Paginated disputes scoped to the member or reviewer queue }
+        '401': { description: Unauthenticated }
+        '403': { description: Dispute read capability or student scope unavailable }
     post:
-      summary: Submit a dispute for an incoming cash transaction
+      summary: Submit a dispute for an incoming cash transaction or debt record
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKeyRequired'
       requestBody:
         required: true
         content:
@@ -832,9 +889,26 @@ paths:
         '201': { description: Dispute submitted }
         '401': { description: Unauthenticated }
         '403': { description: Member attempted to dispute another student's transaction }
-        '409': { description: Transaction already has a dispute }
+        '409': { description: Target has a pending/approved dispute or idempotency conflict }
+        '429': { description: Monthly quota of two submissions is exhausted }
         '422': { description: Missing proof or reason shorter than 10 characters }
         '503': { description: Cash schema or database identity is not available }
+  /api/cash/disputes/quota:
+    get:
+      summary: Return the authenticated member's non-rollover monthly dispute quota
+      responses:
+        '200': { description: Current period quota and reset timestamp }
+        '403': { description: Student scope unavailable }
+        '503': { description: Cash dispute schema is not available }
+  /api/cash/disputes/{id}/evidence:
+    get:
+      summary: Lazily retrieve one dispute proof for an authorized member or reviewer
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, maxLength: 64 } }
+      responses:
+        '200': { description: Evidence URL/data returned; never included in list responses }
+        '403': { description: Evidence is outside the caller's scope }
+        '404': { description: Evidence or dispute not found }
   /api/cash/disputes/{id}:
     patch:
       summary: Approve or reject a cash dispute
@@ -850,7 +924,7 @@ paths:
         '200': { description: Dispute status updated }
         '403': { description: Teacher or treasurer role required }
         '404': { description: Dispute not found }
-        '422': { description: Invalid dispute status }
+        '422': { description: Invalid status, review note, or debt settlement details }
         '503': { description: Cash schema or database identity is not available }
   /api/borrowing:
     get:
@@ -945,7 +1019,7 @@ paths:
         '503': { description: Borrowing schema or database identity is not available }
   /api/grades:
     get:
-      summary: List grades with bounded pagination and optional assignment/student filters
+      summary: List grades with authoritative personal or operational scope
       security: [{ bearerAuth: [] }]
       parameters:
         - { name: assignment_id, in: query, schema: { type: string, maxLength: 128 } }
@@ -953,6 +1027,7 @@ paths:
         - { name: category, in: query, schema: { type: string, maxLength: 40 } }
         - { name: kelas, in: query, schema: { type: string, maxLength: 80 } }
         - { name: search, in: query, schema: { type: string, maxLength: 100 } }
+        - { name: scope, in: query, schema: { type: string, enum: [own, operational], default: operational } }
         - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
         - { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
       responses:
@@ -962,8 +1037,15 @@ paths:
         '503': { description: Grade schema is not available }
   /api/grades/assignments:
     get:
-      summary: List assignments for grade entry
+      summary: List assignments scoped to a student's class or operational users
       security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: category, in: query, schema: { type: string, maxLength: 40 } }
+        - { name: kelas, in: query, schema: { type: string, maxLength: 80 } }
+        - { name: search, in: query, schema: { type: string, maxLength: 100 } }
+        - { name: scope, in: query, schema: { type: string, enum: [own, operational], default: operational } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 10 } }
       responses:
         '200': { description: Paginated assignments }
         '401': { description: Unauthenticated }
@@ -982,6 +1064,19 @@ paths:
         '201': { description: Assignment created }
         '403': { description: Teacher role required }
         '422': { description: Invalid assignment fields }
+        '503': { description: Grade schema is not available }
+  /api/grades/summary:
+    get:
+      summary: Read complete A-E grade summary for the authoritative scope
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: scope, in: query, schema: { type: string, enum: [own, operational], default: operational } }
+        - { name: category, in: query, schema: { type: string, maxLength: 40 } }
+      responses:
+        '200': { description: Complete grade distribution and latest grade }
+        '401': { description: Unauthenticated }
+        '403': { description: Personal scope requires a linked student account }
+        '422': { description: Invalid assignment category }
         '503': { description: Grade schema is not available }
   /api/grades/bulk:
     post:
@@ -1020,6 +1115,7 @@ paths:
       parameters:
         - { name: status, in: query, required: false, schema: { type: string, maxLength: 32 } }
         - { name: tingkat, in: query, required: false, schema: { type: string, maxLength: 32 } }
+        - { name: tahun_event, in: query, required: false, schema: { type: integer, minimum: 1900, maximum: 2200 } }
         - { name: search, in: query, required: false, schema: { type: string, maxLength: 100 } }
         - { name: page, in: query, required: false, schema: { type: integer, minimum: 1, default: 1 } }
         - { name: pageSize, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
@@ -1048,6 +1144,14 @@ paths:
       responses:
         '200': { description: Contest totals, active contests, submitted works, and win rate }
         '401': { description: Unauthenticated }
+  /api/contest-work-types:
+    get:
+      summary: List active human-readable media work types
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Active work types for the contest work form }
+        '401': { description: Unauthenticated }
+        '503': { description: Contest media schema is not available }
   /api/contests/win-rate:
     get:
       summary: Read contest win rate by year and level
@@ -1090,6 +1194,146 @@ paths:
         '403': { description: Capability denied }
         '409': { description: Duplicate contest-film submission }
         '422': { description: Invalid legacy or frontend submission payload }
+  /api/contests/{contestId}/entries:
+    get:
+      summary: List generalized media works registered for a contest
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: contestId, in: path, required: true, schema: { type: string, maxLength: 64 } }
+        - { name: page, in: query, required: false, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: pageSize, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+        - { name: status, in: query, required: false, schema: { type: string, enum: [all, proses_submit, sudah_terkirim, menunggu_pengumuman, selesai] } }
+      responses:
+        '200': { description: Paginated generalized contest entries }
+        '401': { description: Unauthenticated }
+        '503': { description: Contest media schema is not available }
+    post:
+      summary: Register a film, photo, animation, or other media work for a contest
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: contestId, in: path, required: true, schema: { type: string, maxLength: 64 } }
+        - $ref: '#/components/parameters/ChangeReason'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContestEntryCreateRequest'
+      responses:
+        '201': { description: Generalized contest entry created }
+        '403': { description: Contest submit capability required }
+        '409': { description: Work already registered for this contest }
+        '422': { description: Invalid work payload }
+  /api/contest-entries/{id}:
+    get:
+      summary: Read one generalized contest entry
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, maxLength: 64 } }
+      responses:
+        '200': { description: Contest entry detail }
+        '404': { description: Contest entry not found }
+  /api/contest-entries/{id}/transitions:
+    post:
+      summary: Move a contest entry to the next non-final pipeline status
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, maxLength: 64 } }
+        - $ref: '#/components/parameters/ChangeReason'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContestEntryTransitionRequest'
+      responses:
+        '200': { description: Contest entry status updated and audited }
+        '403': { description: Contest manage capability required }
+        '422': { description: Transition order or attached upload evidence is invalid }
+  /api/contest-entries/{id}/evidence-uploads:
+    post:
+      summary: Reserve private screenshot evidence and receive a short-lived R2 upload URL
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, maxLength: 64 } }
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContestEvidenceUploadRequest'
+      responses:
+        '201': { description: Evidence metadata reserved and signed PUT URL issued }
+        '403': { description: Contest manage capability required }
+        '422': { description: Unsupported image, size, target status, or pipeline state }
+        '503': { description: Private object storage unavailable }
+  /api/contest-entries/{id}/finalize:
+    post:
+      summary: Atomically finish an entry with evidence, outcome, and simplified award results
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, maxLength: 64 } }
+        - $ref: '#/components/parameters/ChangeReason'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContestEntryFinalizeRequest'
+      responses:
+        '200': { description: Entry, evidence, outcome, and results committed atomically }
+        '403': { description: Contest manage capability required }
+        '422': { description: Finalization evidence, result, or transition is invalid }
+        '503': { description: Private object storage unavailable }
+  /api/contest-evidence/{id}/access:
+    get:
+      summary: Issue a short-lived read URL for attached private contest evidence
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, maxLength: 64 } }
+      responses:
+        '200': { description: Signed evidence access URL issued }
+        '403': { description: Contest manage capability required }
+        '404': { description: Attached evidence not found }
+  /api/contest-achievements:
+    get:
+      summary: List normalized contest outcomes and achievements
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: search, in: query, required: false, schema: { type: string, maxLength: 100 } }
+        - { name: result_kind, in: query, required: false, schema: { type: string, enum: [rank, top_n, special_award, finalist, nominee, honorable_mention, other] } }
+        - { name: position, in: query, required: false, schema: { type: integer, minimum: 1 } }
+        - { name: outcome_status, in: query, required: false, schema: { type: string, enum: [pending, awarded, not_awarded] } }
+        - { name: tahun_event, in: query, required: false, schema: { type: integer, minimum: 1900, maximum: 2200 } }
+        - { name: page, in: query, required: false, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: pageSize, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+      responses:
+        '200': { description: Paginated achievement rows; one entry may return multiple result rows }
+        '401': { description: Unauthenticated }
+        '503': { description: Contest results schema unavailable }
+  /api/contest-entries/{id}/results:
+    post:
+      summary: Record or replace the normalized results for a contest entry
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, maxLength: 64 } }
+        - $ref: '#/components/parameters/ChangeReason'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContestResultRequest'
+      responses:
+        '200': { description: Contest entry outcome and result rows recorded }
+        '403': { description: Contest manage capability required }
+        '409': { description: Duplicate result row }
+        '422': { description: Invalid outcome, result, or audit reason }
   /api/equipment:
     get:
       summary: List equipment with bounded filters and pagination
@@ -1219,6 +1463,11 @@ components:
       name: X-Idempotency-Key
       in: header
       required: false
+      schema: { type: string, minLength: 8, maxLength: 128 }
+    IdempotencyKeyRequired:
+      name: X-Idempotency-Key
+      in: header
+      required: true
       schema: { type: string, minLength: 8, maxLength: 128 }
     ChangeReason:
       name: X-Change-Reason
@@ -1638,19 +1887,37 @@ components:
     CashDisputeCreateRequest:
       type: object
       additionalProperties: false
-      required: [transaction_id, bukti_sanggahan_url]
+      required: [reason, bukti_sanggahan_url]
+      oneOf:
+        - required: [transaction_id]
+          not: { required: [debt_record_id] }
+        - required: [debt_record_id]
+          not: { required: [transaction_id] }
       properties:
         transaction_id: { type: string, minLength: 1, maxLength: 64 }
-        student_id: { type: string, maxLength: 64 }
-        reason: { type: string, maxLength: 2000 }
-        alasan_sanggahan: { type: string, maxLength: 2000 }
-        bukti_sanggahan_url: { type: string, minLength: 1, maxLength: 2000 }
+        debt_record_id: { type: string, minLength: 1, maxLength: 64 }
+        reason: { type: string, minLength: 10, maxLength: 2000 }
+        bukti_sanggahan_url: { type: string, minLength: 1, maxLength: 900000 }
+    CashDisputeQuota:
+      type: object
+      required: [period, period_start, limit, used, remaining, resets_at]
+      properties:
+        period: { type: string, pattern: '^\d{4}-\d{2}$' }
+        period_start: { type: string, format: date }
+        limit: { type: integer, minimum: 2, maximum: 2 }
+        used: { type: integer, minimum: 0, maximum: 2 }
+        remaining: { type: integer, minimum: 0, maximum: 2 }
+        resets_at: { type: string, format: date-time }
     CashDisputeUpdateRequest:
       type: object
       additionalProperties: false
-      required: [status]
+      required: [status, review_note]
       properties:
         status: { type: string, enum: [approved, rejected, resolved] }
+        review_note: { type: string, minLength: 5, maxLength: 2000 }
+        resolution_date: { type: string, format: date }
+        resolution_amount: { type: number, exclusiveMinimum: 0 }
+        payment_method_code: { type: string, maxLength: 40 }
     CashTransaction:
       type: object
       required: [id, tipe, jumlah, tanggal, idempotency_key, created_at]
@@ -1716,7 +1983,7 @@ components:
         keterangan: { type: string, maxLength: 500 }
         type: { type: string, enum: [iuran_wajib, pemasukan] }
         student_id: { type: string, maxLength: 64 }
-        foto_bukti_url: { type: string, maxLength: 2000 }
+        foto_bukti_url: { type: string, maxLength: 900000 }
         idempotency_key: { type: string, minLength: 8, maxLength: 128 }
         metode_pembayaran: { type: string, nullable: true, maxLength: 40 }
     CashOutRequest:
@@ -1726,7 +1993,7 @@ components:
         nominal: { type: number, exclusiveMinimum: 0, maximum: 9999999999.99 }
         jumlah: { type: number, exclusiveMinimum: 0, maximum: 9999999999.99 }
         keterangan: { type: string, minLength: 1, maxLength: 500 }
-        foto_bukti_url: { type: string, maxLength: 2000 }
+        foto_bukti_url: { type: string, maxLength: 900000 }
         idempotency_key: { type: string, minLength: 8, maxLength: 128 }
         metode_pembayaran: { type: string, maxLength: 40 }
     BorrowingCreateRequest:
@@ -1907,8 +2174,10 @@ components:
         status_public: { type: string, enum: [buka, proses_penjurian, selesai] }
         nama_lomba: { type: string, minLength: 1, maxLength: 200 }
         penyelenggara: { type: string, minLength: 1, maxLength: 120 }
-        tingkat: { type: string, maxLength: 32 }
+        kota: { type: string, minLength: 2, maxLength: 120 }
+        tingkat: { type: string, enum: [bekasi, jabodetabek, jawa_barat, nasional, umum] }
         deadline: { type: string, format: date }
+        tahun_event: { type: integer, minimum: 1900, maximum: 2200 }
         website_url: { type: string, nullable: true, format: uri }
         deskripsi: { type: string, nullable: true, maxLength: 2000 }
         submissions: { type: array, items: { $ref: '#/components/schemas/ContestSubmission' } }
@@ -1929,7 +2198,7 @@ components:
       additionalProperties: false
       anyOf:
         - required: [nama, jenis, level, tanggal]
-        - required: [nama_lomba, penyelenggara, tingkat, deadline]
+        - required: [nama_lomba, kota, tingkat, status, tahun_event, deadline]
       properties:
         nama: { type: string, minLength: 1, maxLength: 200 }
         jenis: { type: string, minLength: 1, maxLength: 120 }
@@ -1939,8 +2208,10 @@ components:
         hasil: { type: string, nullable: true, maxLength: 500 }
         nama_lomba: { type: string, minLength: 1, maxLength: 200 }
         penyelenggara: { type: string, minLength: 1, maxLength: 120 }
-        tingkat: { type: string, minLength: 1, maxLength: 32 }
+        kota: { type: string, minLength: 2, maxLength: 120 }
+        tingkat: { type: string, enum: [bekasi, jabodetabek, jawa_barat, nasional, umum] }
         deadline: { type: string, format: date }
+        tahun_event: { type: integer, minimum: 1900, maximum: 2200 }
         website_url: { type: string, nullable: true, format: uri }
         deskripsi: { type: string, nullable: true, maxLength: 2000 }
         change_reason: { type: string, maxLength: 500 }
@@ -1956,11 +2227,13 @@ components:
         hasil: { type: string, nullable: true, maxLength: 500 }
         nama_lomba: { type: string, minLength: 1, maxLength: 200 }
         penyelenggara: { type: string, minLength: 1, maxLength: 120 }
-        tingkat: { type: string, minLength: 1, maxLength: 32 }
+        kota: { type: string, minLength: 2, maxLength: 120 }
+        tingkat: { type: string, enum: [bekasi, jabodetabek, jawa_barat, nasional, umum] }
         deadline: { type: string, format: date }
+        tahun_event: { type: integer, minimum: 1900, maximum: 2200 }
         website_url: { type: string, nullable: true, format: uri }
         deskripsi: { type: string, nullable: true, maxLength: 2000 }
-        change_reason: { type: string, maxLength: 500 }
+        change_reason: { type: string, minLength: 5, maxLength: 500 }
     ContestSubmission:
       type: object
       required: [id, contest_id]
@@ -1993,6 +2266,102 @@ components:
         award_status: { type: string, minLength: 1, maxLength: 32 }
         sertifikat_url: { type: string, nullable: true, maxLength: 2048, format: uri }
         change_reason: { type: string, maxLength: 500 }
+    ContestEntry:
+      type: object
+      required: [id, contest_id, work_id, pipeline_status]
+      properties:
+        id: { type: string, maxLength: 64 }
+        contest_id: { type: string, maxLength: 64 }
+        work_id: { type: string, maxLength: 64 }
+        pipeline_status: { type: string, enum: [proses_submit, sudah_terkirim, menunggu_pengumuman, selesai] }
+        outcome_status: { type: string, enum: [pending, awarded, not_awarded] }
+        result_label: { type: string, nullable: true, maxLength: 200 }
+        result_note: { type: string, nullable: true, maxLength: 2000 }
+        submitted_at: { type: string, nullable: true, format: date-time }
+        completed_at: { type: string, nullable: true, format: date-time }
+        work:
+          type: object
+          properties:
+            id: { type: string, maxLength: 64 }
+            title: { type: string, maxLength: 200 }
+            work_type_code: { type: string, maxLength: 64 }
+            work_type_label: { type: string, maxLength: 120 }
+            description: { type: string, nullable: true, maxLength: 2000 }
+            primary_asset_url: { type: string, nullable: true, format: uri }
+            video_url: { type: string, nullable: true, format: uri }
+    ContestEntryCreateRequest:
+      type: object
+      additionalProperties: false
+      anyOf:
+        - required: [work_id]
+        - required: [work]
+      properties:
+        work_id: { type: string, minLength: 1, maxLength: 64 }
+        work:
+          type: object
+          additionalProperties: false
+          required: [title, work_type_code]
+          properties:
+            title: { type: string, minLength: 2, maxLength: 200 }
+            work_type_code: { type: string, enum: [short_film, documentary, photography, animation, commercial, music_video, experimental, other] }
+    ContestEntryTransitionRequest:
+      type: object
+      additionalProperties: false
+      required: [status, change_reason]
+      properties:
+        status: { type: string, enum: [sudah_terkirim, menunggu_pengumuman] }
+        evidence_id: { type: string, maxLength: 64 }
+        change_reason: { type: string, minLength: 5, maxLength: 500 }
+    ContestEvidenceUploadRequest:
+      type: object
+      additionalProperties: false
+      required: [target_status, file_name, content_type, file_size_bytes]
+      properties:
+        target_status: { type: string, enum: [sudah_terkirim, selesai] }
+        file_name: { type: string, minLength: 1, maxLength: 255 }
+        content_type: { type: string, enum: [image/jpeg, image/png, image/webp] }
+        file_size_bytes: { type: integer, minimum: 1, maximum: 5242880 }
+    ContestEntryFinalizeRequest:
+      type: object
+      additionalProperties: false
+      required: [outcome_status, results, evidence_id, change_reason]
+      properties:
+        outcome_status: { type: string, enum: [awarded, not_awarded] }
+        evidence_id: { type: string, minLength: 1, maxLength: 64 }
+        change_reason: { type: string, minLength: 5, maxLength: 500 }
+        results:
+          type: array
+          maxItems: 20
+          items:
+            type: object
+            additionalProperties: false
+            required: [result_kind, result_title]
+            properties:
+              result_kind: { type: string, enum: [rank, finalist, nominee, other] }
+              result_title: { type: string, minLength: 2, maxLength: 200 }
+              position: { type: integer, minimum: 1, maximum: 100000, nullable: true }
+    ContestResultRequest:
+      type: object
+      additionalProperties: false
+      required: [outcome_status, results, change_reason]
+      properties:
+        outcome_status: { type: string, enum: [pending, awarded, not_awarded] }
+        results:
+          type: array
+          maxItems: 20
+          items:
+            type: object
+            additionalProperties: false
+            required: [result_kind, result_title]
+            properties:
+              result_kind: { type: string, enum: [rank, top_n, special_award, finalist, nominee, honorable_mention, other] }
+              result_title: { type: string, minLength: 2, maxLength: 200 }
+              position: { type: integer, minimum: 1, maximum: 100000, nullable: true }
+              category_name: { type: string, maxLength: 160 }
+              notes: { type: string, maxLength: 2000 }
+        change_reason: { type: string, minLength: 5, maxLength: 500 }
+        idempotency_key: { type: string, minLength: 8, maxLength: 128 }
+        evidence_url: { type: string, maxLength: 900000 }
     LoginRequest:
       type: object
       additionalProperties: false
@@ -2015,3 +2384,24 @@ components:
       properties:
         status: { type: string, minLength: 1, maxLength: 32 }
         keterangan: { type: string, maxLength: 500 }
+    AttendanceBatchRequest:
+      type: object
+      additionalProperties: false
+      required: [tanggal, kelas, records]
+      properties:
+        tanggal: { type: string, format: date }
+        kelas: { type: string, minLength: 1, maxLength: 80 }
+        records:
+          type: array
+          minItems: 1
+          maxItems: 500
+          items:
+            type: object
+            additionalProperties: false
+            required: [student_id, status]
+            properties:
+              student_id: { type: string, minLength: 1, maxLength: 64 }
+              status: { type: string, enum: [hadir, sakit, izin, alpha] }
+              keterangan: { type: string, maxLength: 500 }
+        idempotency_key: { type: string, minLength: 8, maxLength: 128 }
+        idempotencyKey: { type: string, minLength: 8, maxLength: 128 }

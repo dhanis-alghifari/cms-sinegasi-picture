@@ -21,3 +21,11 @@ export function useAssignmentsQuery(params?: AssignmentFilterParams, enabled = t
     enabled,
   });
 }
+
+export function useGradeSummaryQuery(params?: Pick<GradeFilterParams, 'scope' | 'category'>, enabled = true) {
+  return useQuery({
+    queryKey: [...QUERY_KEYS.GRADES, 'summary', params],
+    queryFn: () => gradesService.getSummary(params),
+    enabled,
+  });
+}

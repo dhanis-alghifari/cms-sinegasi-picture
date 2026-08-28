@@ -5,11 +5,12 @@ import {
   DEFAULT_CONTESTS,
   DEFAULT_WIN_RATE,
   mapContestRow,
-  normalizeContestLevel,
+  normalizeContestScope,
   normalizeContestStatus,
   normalizeStatus,
   parsePagination,
   sanitizeContestSearch,
+  toPublicContestLevel,
 } from './contests.helpers.js';
 import type {
   ContestListQuery,
@@ -33,7 +34,7 @@ const CONTEST_SELECT = [
   'id', 'nama', 'jenis', 'level', 'tanggal', 'status', 'hasil', 'piala_url',
   'juara', 'kategori_penghargaan', 'catatan', 'created_by', 'created_at',
   'updated_by', 'updated_at', 'nama_lomba', 'penyelenggara', 'tingkat',
-  'deadline', 'status_public', 'website_url', 'deskripsi',
+  'deadline', 'status_public', 'website_url', 'deskripsi', 'kota', 'tahun_event', 'planned_work_count', 'academic_year',
 ].join(',');
 
 const SUBMISSION_SELECT = [
@@ -43,7 +44,7 @@ const SUBMISSION_SELECT = [
 const WIN_RATE_SELECT = 'tahun,level,total_lomba,total_selesai,total_menang,win_rate_persen';
 
 function isMissingSchemaError(error: unknown): boolean {
-  return ['42P01', '42703', 'PGRST205'].includes(databaseErrorCode(error) || '');
+  return ['42P01', '42703', 'PGRST204', 'PGRST205'].includes(databaseErrorCode(error) || '');
 }
 
 function emptySummary() {
@@ -75,16 +76,18 @@ export function createContestsRepository(client: SupabaseLike, state: ContestMem
       const statusPublic = rawStatus === 'buka' || rawStatus === 'proses_penjurian' || rawStatus === 'selesai'
         ? rawStatus
         : undefined;
-      const level = normalizeContestLevel(query.tingkat);
+      const scope = normalizeContestScope(query.tingkat);
       const search = sanitizeContestSearch(query.search);
+      const eventYear = query.tahun_event ? Number.parseInt(query.tahun_event, 10) : undefined;
 
       if (!client) {
         const rows = state.contests.filter((row) => {
           const matchesSearch = !search
-            || [row.nama, row.jenis, row.nama_lomba, row.penyelenggara].join(' ').toLowerCase().includes(search.toLowerCase());
+            || [row.nama, row.nama_lomba, row.kota].join(' ').toLowerCase().includes(search.toLowerCase());
           const matchesStatus = !status
             || (statusPublic ? row.status_public === statusPublic || (!row.status_public && row.status === status) : row.status === status);
-          return matchesStatus && (!level || row.level === level || row.tingkat === query.tingkat) && matchesSearch;
+          const matchesYear = eventYear === undefined || row.tahun_event === eventYear;
+          return matchesStatus && (!scope || toPublicContestLevel(row.tingkat ?? row.level) === scope) && matchesSearch && matchesYear;
         });
         const data = rows.slice(from, to + 1).map((row) => mapContestRow(row as unknown as DatabaseRow));
         for (const row of data) {
@@ -104,11 +107,12 @@ export function createContestsRepository(client: SupabaseLike, state: ContestMem
       let dbQuery = client.from('contests').select(CONTEST_SELECT, { count: 'exact' });
       if (statusPublic) dbQuery = dbQuery.eq('status_public', statusPublic);
       else if (status) dbQuery = dbQuery.eq('status', status);
-      if (level) dbQuery = dbQuery.eq('level', level);
-      if (search) dbQuery = dbQuery.or(`nama.ilike.%${search}%,nama_lomba.ilike.%${search}%,penyelenggara.ilike.%${search}%`);
+      if (scope) dbQuery = dbQuery.eq('tingkat', scope);
+      if (eventYear !== undefined && Number.isInteger(eventYear)) dbQuery = dbQuery.eq('tahun_event', eventYear);
+      if (search) dbQuery = dbQuery.or(`nama.ilike.%${search}%,nama_lomba.ilike.%${search}%,kota.ilike.%${search}%`);
 
       const result = await dbQuery
-        .order('tanggal', { ascending: false })
+        .order('deadline', { ascending: false })
         .order('id', { ascending: false })
         .range(from, to);
       if (result.error) return { error: result.error };
@@ -116,7 +120,7 @@ export function createContestsRepository(client: SupabaseLike, state: ContestMem
       const data = (result.data || []).map((row) => mapContestRow(row as unknown as DatabaseRow));
       const contestIds = data.map((row: ContestRecord) => row.id);
       if (contestIds.length > 0) {
-        const [richSubmissionsResult, legacySubmissionsResult] = await Promise.all([
+        const [richSubmissionsResult, legacySubmissionsResult, genericEntriesResult] = await Promise.all([
           client.from('contest_submissions')
             .select(SUBMISSION_SELECT)
             .in('contest_id', contestIds)
@@ -125,8 +129,11 @@ export function createContestsRepository(client: SupabaseLike, state: ContestMem
             .select('id,contest_id,film_id,created_by,created_at')
             .in('contest_id', contestIds)
             .order('created_at', { ascending: false }),
+          client.from('contest_entries')
+            .select('id,contest_id')
+            .in('contest_id', contestIds),
         ]);
-        const failedResult = [richSubmissionsResult, legacySubmissionsResult]
+        const failedResult = [richSubmissionsResult, legacySubmissionsResult, genericEntriesResult]
           .find((item) => item.error && !isMissingSchemaError(item.error));
         if (failedResult?.error) return { error: failedResult.error };
 
@@ -165,6 +172,7 @@ export function createContestsRepository(client: SupabaseLike, state: ContestMem
           const submissions = grouped.get(row.id) || [];
           row.submissions = submissions;
           row.submission_count = submissions.length;
+          row.entry_count = genericEntriesResult.error ? undefined : ((genericEntriesResult.data || []) as unknown as DatabaseRow[]).filter((entry) => String(entry.contest_id) === row.id).length;
         }
       }
       const total = result.count ?? data.length;
@@ -193,7 +201,7 @@ export function createContestsRepository(client: SupabaseLike, state: ContestMem
         };
       }
 
-      const [total, selesai, progres, menang, contestFilms, contestSubmissions] = await Promise.all([
+      const [total, selesai, progres, menang, contestFilms, contestSubmissions, genericEntries, genericAwards] = await Promise.all([
         client.from('contests').select('id', { count: 'exact', head: true }),
         client.from('contests').select('id', { count: 'exact', head: true }).eq('status', 'selesai'),
         client.from('contests').select('id', { count: 'exact', head: true }).eq('status', 'progres'),
@@ -201,15 +209,19 @@ export function createContestsRepository(client: SupabaseLike, state: ContestMem
           .eq('status', 'selesai').or('hasil.not.is.null,juara.not.is.null'),
         client.from('contest_films').select('id', { count: 'exact', head: true }),
         client.from('contest_submissions').select('id', { count: 'exact', head: true }),
+        client.from('contest_entries').select('id', { count: 'exact', head: true }),
+        client.from('contest_entries').select('id', { count: 'exact', head: true }).eq('outcome_status', 'awarded'),
       ]);
-      const failed = [total, selesai, progres, menang, contestFilms, contestSubmissions]
+      const failed = [total, selesai, progres, menang, contestFilms, contestSubmissions, genericEntries, genericAwards]
         .find((result) => result.error && !isMissingSchemaError(result.error));
       if (failed?.error) return { error: failed.error };
 
       const totalCount = total.count ?? 0;
       const selesaiCount = selesai.count ?? 0;
-      const menangCount = menang.count ?? 0;
-      const submittedCount = (contestFilms.count ?? 0) + (contestSubmissions.count ?? 0);
+      const menangCount = genericAwards.error ? (menang.count ?? 0) : (genericAwards.count ?? 0);
+      const submittedCount = genericEntries.error
+        ? (contestFilms.count ?? 0) + (contestSubmissions.count ?? 0)
+        : (genericEntries.count ?? 0);
       return {
         data: {
           total: totalCount,
@@ -292,10 +304,14 @@ export function createContestsRepository(client: SupabaseLike, state: ContestMem
           hasil: input.hasil,
           nama_lomba: input.namaLomba ?? input.nama,
           penyelenggara: input.penyelenggara ?? input.jenis,
+          kota: input.kota ?? null,
           tingkat: input.tingkat ?? undefined,
           deadline: input.deadline ?? input.tanggal,
+          tahun_event: input.tahunEvent ?? Number(input.academicYear ?? new Date().getFullYear()),
           website_url: input.websiteUrl ?? null,
           deskripsi: input.deskripsi ?? null,
+          planned_work_count: input.plannedWorkCount ?? null,
+          academic_year: input.academicYear ?? new Date().getFullYear().toString(),
           created_by: input.actorId,
           created_at: new Date().toISOString(),
         };
@@ -305,18 +321,24 @@ export function createContestsRepository(client: SupabaseLike, state: ContestMem
 
       const result = await client.from('contests').insert([{
         nama: input.nama,
+        nama_festival: input.nama,
         jenis: input.jenis,
         level: input.level,
         tanggal: input.tanggal,
+        tanggal_lomba: input.tanggal,
         status: input.status,
         hasil: input.hasil,
         nama_lomba: input.namaLomba,
         penyelenggara: input.penyelenggara,
+        kota: input.kota,
         tingkat: input.tingkat,
         deadline: input.deadline,
+        tahun_event: input.tahunEvent,
         status_public: input.statusPublic,
         website_url: input.websiteUrl,
         deskripsi: input.deskripsi,
+        planned_work_count: input.plannedWorkCount,
+        academic_year: input.academicYear,
         ...(input.actorId ? { created_by: input.actorId } : {}),
       }]).select(CONTEST_SELECT).single();
       if (result.error) return { error: result.error };
@@ -336,13 +358,15 @@ export function createContestsRepository(client: SupabaseLike, state: ContestMem
         return { data: state.contests[index] };
       }
 
-      const payload = {
-        ...input.changes,
-        ...(input.actorId ? { updated_by: input.actorId } : {}),
-        updated_at: new Date().toISOString(),
-      };
-      const result = await client.from('contests').update(payload).eq('id', id)
-        .select(CONTEST_SELECT).maybeSingle();
+      const result = await client.rpc('update_contest_atomic', {
+        p_contest_id: id,
+        p_changes: input.changes,
+        p_updated_by: input.actorId,
+        p_change_reason: input.changeReason,
+        p_request_id: input.auditContext?.requestId || null,
+        p_operation_id: input.auditContext?.operationId || null,
+        p_user_agent: input.auditContext?.userAgent || null,
+      }).maybeSingle();
       if (result.error) return { error: result.error };
       return { data: result.data ? mapContestRow(result.data as unknown as DatabaseRow) : null };
     },

@@ -12,7 +12,7 @@ const CashPage = lazy(() =>
 
 export const cashRoutes: RouteObject[] = [
   {
-    element: <CapabilityRoute capabilities={['cash.read']} />,
+    element: <CapabilityRoute capabilities={['cash.read', 'cash.read.own']} />,
     children: [{
       path: 'cash',
       element: <Suspense fallback={<PageLoader />}><CashPage /></Suspense>,

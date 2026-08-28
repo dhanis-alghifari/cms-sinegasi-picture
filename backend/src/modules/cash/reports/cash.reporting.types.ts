@@ -37,6 +37,7 @@ export type CashDebtRecord = {
   keterangan: string;
   periode: string;
   idempotency_key: string;
+  settled_transaction_id?: string;
   tanggal?: string;
   created_by?: string;
   created_at: string;
@@ -47,6 +48,7 @@ export type CashDebtRecord = {
   student_nama?: string;
   nis?: string;
   kelas?: string;
+  dispute?: { id: string; status: string; reason?: string; has_evidence?: boolean; attempt_number?: number; review_note?: string };
 };
 
 export type CashReportingMemoryState = {

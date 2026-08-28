@@ -64,7 +64,7 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
   });
 
   if (!response.ok) {
-    let errorBody: { message?: string; errors?: Record<string, string[]>; error_code?: string; error?: string; request_id?: string } = {};
+    let errorBody: { message?: string; errors?: Record<string, string[]>; error_code?: string; error?: string; request_id?: string; details?: unknown } = {};
 
     try {
       errorBody = await response.json();
@@ -85,7 +85,7 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
       case 422:
         throw new ValidationError(message, errorBody.errors, errorCode, errorBody.request_id);
       default:
-        throw new ApiError(message, response.status, errorBody.errors, errorCode, errorBody.request_id);
+        throw new ApiError(message, response.status, errorBody.errors, errorCode, errorBody.request_id, errorBody.details);
     }
   }
 

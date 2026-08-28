@@ -8,14 +8,16 @@ export class ApiError extends Error {
   public readonly errors?: Record<string, string[]>;
   public readonly errorCode?: string;
   public readonly requestId?: string;
+  public readonly details?: unknown;
 
-  constructor(message: string, statusCode: number, errors?: Record<string, string[]>, errorCode?: string, requestId?: string) {
+  constructor(message: string, statusCode: number, errors?: Record<string, string[]>, errorCode?: string, requestId?: string, details?: unknown) {
     super(message);
     this.message = message;
     this.statusCode = statusCode;
     this.errors = errors;
     this.errorCode = errorCode;
     this.requestId = requestId;
+    this.details = details;
     this.name = 'ApiError';
   }
 }

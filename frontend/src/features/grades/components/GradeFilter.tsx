@@ -15,6 +15,7 @@ interface GradeFilterProps {
   kelas: string;
   onKelasChange: (value: string) => void;
   onReset: () => void;
+  isOwn?: boolean;
 }
 
 export function GradeFilter({
@@ -25,8 +26,9 @@ export function GradeFilter({
   kelas,
   onKelasChange,
   onReset,
+  isOwn = false,
 }: GradeFilterProps) {
-  const hasActiveFilters = Boolean(search || category !== 'all' || kelas !== 'all');
+  const hasActiveFilters = Boolean(search || category !== 'all' || (!isOwn && kelas !== 'all'));
 
   return (
     <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-4">
@@ -35,7 +37,7 @@ export function GradeFilter({
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-tertiary" />
         <Input
           type="text"
-          placeholder="Cari Nama Siswa atau Judul Tugas..."
+          placeholder={isOwn ? 'Cari judul tugas atau kegiatan...' : 'Cari nama siswa atau judul tugas...'}
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
           className="pl-9 bg-surface-1 border-hairline text-ink placeholder:text-ink-tertiary text-xs h-9"
@@ -56,18 +58,12 @@ export function GradeFilter({
         </SelectContent>
       </Select>
 
-      {/* Kelas Select */}
-      <Select value={kelas} onValueChange={(val) => val !== null && onKelasChange(val)}>
-        <SelectTrigger className="w-full sm:w-36 bg-surface-1 border-hairline text-ink text-xs h-9">
-          <SelectValue placeholder="Pilih Kelas" />
-        </SelectTrigger>
+      {!isOwn && <Select value={kelas} onValueChange={(val) => val !== null && onKelasChange(val)}>
+        <SelectTrigger className="w-full sm:w-36 bg-surface-1 border-hairline text-ink text-xs h-9"><SelectValue placeholder="Pilih Kelas" /></SelectTrigger>
         <SelectContent className="bg-surface-3 border-hairline text-ink">
-          <SelectItem value="all">Semua Kelas</SelectItem>
-          <SelectItem value="X">Kelas X</SelectItem>
-          <SelectItem value="XI">Kelas XI</SelectItem>
-          <SelectItem value="XII">Kelas XII</SelectItem>
+          <SelectItem value="all">Semua Kelas</SelectItem><SelectItem value="X">Kelas X</SelectItem><SelectItem value="XI">Kelas XI</SelectItem><SelectItem value="XII">Kelas XII</SelectItem>
         </SelectContent>
-      </Select>
+      </Select>}
 
       {/* Reset Button */}
       {hasActiveFilters && (

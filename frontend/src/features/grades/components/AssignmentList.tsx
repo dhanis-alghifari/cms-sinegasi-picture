@@ -25,6 +25,7 @@ interface AssignmentListProps {
   total: number;
   pageSize: number;
   onPageChange: (page: number) => void;
+  isOwn?: boolean;
 }
 
 export function AssignmentList({
@@ -36,14 +37,15 @@ export function AssignmentList({
   total,
   pageSize,
   onPageChange,
+  isOwn = false,
 }: AssignmentListProps) {
   const isMobile = useIsMobile();
   return (
     <section className="space-y-3">
       <div>
-        <h2 className="text-ink text-sm font-semibold">Daftar Tugas / Kegiatan Penilaian</h2>
+        <h2 className="text-ink text-sm font-semibold">{isOwn ? 'Tugas Saya' : 'Daftar Tugas / Kegiatan Penilaian'}</h2>
         <p className="text-ink-subtle text-xs mt-1">
-          Tugas tetap tampil meskipun belum ada siswa yang dinilai.
+          {isOwn ? 'Tugas dan kegiatan yang ditujukan untuk kelas Anda.' : 'Tugas tetap tampil meskipun belum ada siswa yang dinilai.'}
         </p>
       </div>
 
@@ -65,14 +67,14 @@ export function AssignmentList({
         </div>
       ) : (
         <div className="space-y-4">
-          {isMobile ? <AssignmentMobileList assignments={assignments} /> : <div className="rounded-lg border border-hairline bg-surface-1 overflow-x-auto">
+          {isMobile ? <AssignmentMobileList assignments={assignments} isOwn={isOwn} /> : <div className="rounded-lg border border-hairline bg-surface-1 overflow-x-auto">
             <Table>
               <TableHeader className="bg-surface-2/60">
                 <TableRow className="border-hairline">
                   <TableHead className="text-ink-subtle text-xs font-semibold">Tanggal</TableHead>
                   <TableHead className="text-ink-subtle text-xs font-semibold">Judul</TableHead>
                   <TableHead className="text-ink-subtle text-xs font-semibold">Kategori</TableHead>
-                  <TableHead className="text-ink-subtle text-xs font-semibold">Kelas</TableHead>
+                  {!isOwn && <TableHead className="text-ink-subtle text-xs font-semibold">Kelas</TableHead>}
                   <TableHead className="text-ink-subtle text-xs font-semibold">Deskripsi</TableHead>
                   <TableHead className="text-right text-ink-subtle text-xs font-semibold">Riwayat</TableHead>
                 </TableRow>
@@ -91,9 +93,7 @@ export function AssignmentList({
                         {ASSIGNMENT_CATEGORY_LABELS[assignment.category] ?? formatEnumLabel(assignment.category)}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-ink-muted text-xs whitespace-nowrap">
-                      {assignment.kelas || 'Semua kelas'}
-                    </TableCell>
+                    {!isOwn && <TableCell className="text-ink-muted text-xs whitespace-nowrap">{assignment.kelas || 'Semua kelas'}</TableCell>}
                     <TableCell className="text-ink-subtle text-xs min-w-56">
                       {assignment.description || '-'}
                     </TableCell>

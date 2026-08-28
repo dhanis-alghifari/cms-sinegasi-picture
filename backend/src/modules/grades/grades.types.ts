@@ -2,9 +2,16 @@ import type { ActorSummary } from '../../shared/actors/actors.types.js';
 
 export type GradeLetter = 'A' | 'B' | 'C' | 'D' | 'E';
 export type AssignmentCategory = 'class_task' | 'crew_film' | 'event_participation' | 'other';
+export type GradesReadScope = 'own' | 'operational';
 
-export type GradeListQuery = { assignment_id?: string; category?: string; kelas?: string; search?: string; student_id?: string; page?: string; pageSize?: string };
-export type AssignmentListQuery = { category?: string; kelas?: string; search?: string; page?: string; pageSize?: string };
+export type GradeListQuery = { assignment_id?: string; category?: string; kelas?: string; search?: string; student_id?: string; scope?: GradesReadScope; page?: string; pageSize?: string };
+export type AssignmentListQuery = { category?: string; kelas?: string; search?: string; student_id?: string; scope?: GradesReadScope; page?: string; pageSize?: string };
+
+export type GradeSummary = {
+  total: number;
+  counts: Record<GradeLetter, number>;
+  latest?: GradeRecord;
+};
 
 export type GradeRecord = {
   id: string; assignment_id: string; assignment_title?: string; assignment_category?: AssignmentCategory;

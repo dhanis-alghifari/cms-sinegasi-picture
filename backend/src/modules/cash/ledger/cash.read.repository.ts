@@ -29,7 +29,7 @@ type MemoryDebtSnapshot = {
 
 type SupabaseLike = SupabaseClient | null;
 
-const TRANSACTION_SELECT = 'id,student_id,type,nominal,keterangan,foto_bukti_url,tanggal,idempotency_key,created_by,created_at,updated_by,updated_at,is_billing,payment_method_id,cash_payment_methods(code,label),students(id,nis,nama,kelas),cash_disputes(id,transaction_id,reason,alasan_sanggahan,bukti_sanggahan_url,status,created_at)';
+const TRANSACTION_SELECT = 'id,student_id,type,nominal,keterangan,foto_bukti_url,tanggal,idempotency_key,created_by,created_at,updated_by,updated_at,is_billing,payment_method_id,cash_payment_methods(code,label),students(id,nis,nama,kelas),cash_disputes!cash_disputes_transaction_id_fkey(id,transaction_id,reason,alasan_sanggahan,status,attempt_number,review_note,created_at)';
 
 function sanitizeSearch(value: string): string {
   return value.trim().replace(/[%,_()]/g, ' ').replace(/\s+/g, ' ').slice(0, 100);

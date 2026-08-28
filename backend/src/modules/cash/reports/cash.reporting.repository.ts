@@ -29,7 +29,9 @@ export interface CashReportingRepository {
 
 type SupabaseLike = SupabaseClient | null;
 
-const DEBT_SELECT = 'id,student_id,amount,status,keterangan,periode,idempotency_key,tanggal,created_by,created_at,updated_by,updated_at,students(id,nis,nama,kelas)';
+// `debt_records` stores the record timestamp as `created_at`; unlike
+// `cash_transactions`, it has no business-date `tanggal` column.
+const DEBT_SELECT = 'id,student_id,amount,status,keterangan,periode,idempotency_key,settled_transaction_id,created_by,created_at,updated_by,updated_at,students(id,nis,nama,kelas),cash_disputes(id,status,reason,alasan_sanggahan,attempt_number,review_note,created_at)';
 const BILLING_RULES_SELECT = 'nominal_iuran_wajib,holiday_start_date,holiday_end_date,skip_week,updated_by,updated_at';
 
 type CashStudentJoinRow = {
@@ -46,12 +48,13 @@ type CashDebtRow = {
   keterangan?: unknown;
   periode?: unknown;
   idempotency_key?: unknown;
-  tanggal?: unknown;
+  settled_transaction_id?: unknown;
   created_by?: unknown;
   created_at?: unknown;
   updated_by?: unknown;
   updated_at?: unknown;
   students?: CashStudentJoinRow | CashStudentJoinRow[] | null;
+  cash_disputes?: Array<{ id?: unknown; status?: unknown; reason?: unknown; alasan_sanggahan?: unknown; attempt_number?: unknown; review_note?: unknown; created_at?: unknown }> | null;
 };
 
 function sanitizeSearch(value: string): string {
@@ -72,6 +75,7 @@ function optionalString(value: unknown): string | undefined {
 
 function mapDebt(row: CashDebtRow): CashDebtRecord {
   const student = Array.isArray(row.students) ? row.students[0] : row.students;
+  const dispute = [...(row.cash_disputes ?? [])].sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')) || String(b.id || '').localeCompare(String(a.id || '')))[0];
   return {
     id: String(row.id),
     student_id: String(row.student_id),
@@ -80,7 +84,10 @@ function mapDebt(row: CashDebtRow): CashDebtRecord {
     keterangan: String(row.keterangan || ''),
     periode: String(row.periode || ''),
     idempotency_key: String(row.idempotency_key || ''),
-    tanggal: optionalString(row.tanggal),
+    settled_transaction_id: optionalString(row.settled_transaction_id),
+    // Debt records do not have a separate business date; keep the internal
+    // reporting field derived from the persisted creation timestamp.
+    tanggal: optionalString(row.created_at),
     created_by: optionalString(row.created_by),
     created_at: String(row.created_at || ''),
     updated_by: optionalString(row.updated_by),
@@ -88,6 +95,14 @@ function mapDebt(row: CashDebtRow): CashDebtRecord {
     student_nama: optionalString(student?.nama),
     nis: optionalString(student?.nis),
     kelas: optionalString(student?.kelas),
+    dispute: dispute ? {
+      id: String(dispute.id),
+      status: String(dispute.status || 'pending'),
+      reason: optionalString(dispute.reason ?? dispute.alasan_sanggahan),
+      has_evidence: true,
+      attempt_number: Number(dispute.attempt_number || 1),
+      review_note: optionalString(dispute.review_note),
+    } : undefined,
   };
 }
 

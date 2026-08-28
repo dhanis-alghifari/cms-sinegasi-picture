@@ -15,6 +15,10 @@ interface DashboardOverviewProps {
 }
 
 export function DashboardOverview({ data, isStudentRole }: DashboardOverviewProps) {
+  if (data?.scope === 'personal' || isStudentRole) {
+    return <StudentPersonalDashboard data={data?.studentPersonal} />;
+  }
+
   return (
     <div className="space-y-6">
       {/* Three primary widgets first; the distribution widget gets a readable full row. */}
@@ -29,10 +33,6 @@ export function DashboardOverview({ data, isStudentRole }: DashboardOverviewProp
         )}
       </div>
 
-      {/* Student Personal Section (if student role or studentPersonal data present) */}
-      {(isStudentRole || data?.studentPersonal) && (
-        <StudentPersonalDashboard data={data?.studentPersonal} />
-      )}
     </div>
   );
 }

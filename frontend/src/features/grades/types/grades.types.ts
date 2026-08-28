@@ -4,6 +4,7 @@ import type { ActorSummary } from '@/shared/types/common';
 
 export type GradeLetter = 'A' | 'B' | 'C' | 'D' | 'E';
 export type AssignmentCategory = 'class_task' | 'crew_film' | 'event_participation' | 'other';
+export type GradesReadScope = 'own' | 'operational';
 
 export const ASSIGNMENT_CATEGORY_LABELS: Record<AssignmentCategory, string> = {
   class_task: 'Kelas',
@@ -55,7 +56,7 @@ export interface GradeFilterParams {
   category?: AssignmentCategory;
   kelas?: string;
   search?: string;
-  student_id?: string;
+  scope?: GradesReadScope;
 }
 
 export interface AssignmentFilterParams {
@@ -64,6 +65,13 @@ export interface AssignmentFilterParams {
   category?: AssignmentCategory;
   kelas?: string;
   search?: string;
+  scope?: GradesReadScope;
+}
+
+export interface GradeSummary {
+  total: number;
+  counts: Record<GradeLetter, number>;
+  latest?: StudentGrade;
 }
 
 export interface BulkGradeItem {

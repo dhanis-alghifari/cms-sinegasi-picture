@@ -36,22 +36,27 @@ export type DashboardApiSummary = {
     distribution: { A: number; B: number; C: number; D: number; E: number };
   };
   studentPersonal?: {
-    kehadiranBulanIni: {
+    kehadiran: {
       hadir: number;
       sakit: number;
       izin: number;
       alpha: number;
       persentase: number;
+      total: number;
     };
-    tunggakanKas: { totalTunggakan: number; statusPembayaranTerakhir: string };
+    kas: {
+      totalTunggakan: number;
+      totalDibayar: number;
+      jumlahPembayaran: number;
+      statusPembayaranTerakhir: string;
+      riwayatPembayaran: Array<{ id?: string; nominal: number; date: string; status: string; keterangan: string }>;
+    };
     nilaiTerakhir: {
       assignmentTitle: string;
       nilai: 'A' | 'B' | 'C' | 'D' | 'E';
       category: string;
       tanggal: string;
     } | null;
-    peminjamanAktif: Array<{ id: string; namaAlat: string; dueAt: string; isOverdue: boolean }>;
-    tugasLomba: Array<{ id: string; namaFestival: string; roleInContest: string; status: string }>;
   };
 };
 
@@ -123,39 +128,26 @@ export class DashboardService {
         totalSiswa: 1,
         persentaseHadir: summary.attendance.persentase,
       },
-      alat: {
-        tersedia: 0,
-        dipinjam: summary.activeBorrowings.length,
-        maintenance: 0,
-        rusak: 0,
-        totalAlat: summary.activeBorrowings.length,
-        overdueCount: summary.activeBorrowings.filter((item) => item.isOverdue).length,
-      },
+      alat: { tersedia: 0, dipinjam: 0, maintenance: 0, rusak: 0, totalAlat: 0, overdueCount: 0 },
       studentPersonal: {
-        kehadiranBulanIni: {
+        kehadiran: {
           hadir: summary.attendance.hadir,
           sakit: summary.attendance.sakit,
           izin: summary.attendance.izin,
           alpha: summary.attendance.alpha,
           persentase: summary.attendance.persentase,
+          total: summary.attendance.total ?? summary.attendance.hadir + summary.attendance.sakit + summary.attendance.izin + summary.attendance.alpha,
         },
-        tunggakanKas: {
+        kas: {
           totalTunggakan: summary.cash.totalTunggakan,
+          totalDibayar: summary.cash.totalDibayar,
+          jumlahPembayaran: summary.cash.jumlahPembayaran,
           statusPembayaranTerakhir: summary.cash.statusPembayaranTerakhir,
+          riwayatPembayaran: summary.cash.riwayat,
         },
         nilaiTerakhir: latestGrade && grade
           ? { assignmentTitle: latestGrade.taskTitle, nilai: grade, category: latestGrade.category, tanggal: latestGrade.date }
           : null,
-        peminjamanAktif: summary.activeBorrowings.map((item, index) => ({
-          id: `${summary.studentId}:borrowing:${index}`,
-          ...item,
-        })),
-        tugasLomba: summary.contestTasks.map((item, index) => ({
-          id: `${summary.studentId}:contest:${index}`,
-          namaFestival: item.namaContest,
-          roleInContest: item.role,
-          status: item.status,
-        })),
       },
     };
   }

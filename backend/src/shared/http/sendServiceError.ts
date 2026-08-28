@@ -4,6 +4,7 @@ type ServiceErrorLike = {
   statusCode?: unknown;
   errorCode?: unknown;
   message?: unknown;
+  details?: unknown;
 };
 
 /** Converts known service errors to the legacy HTTP envelope. Unknown errors bubble to Fastify. */
@@ -15,6 +16,15 @@ export function sendServiceError(error: unknown, reply: FastifyReply): unknown {
   const errorCode = candidate && typeof candidate.errorCode === 'string' ? candidate.errorCode : 'REQUEST_FAILED';
   const requestId = reply.request.id;
   reply.header('X-Request-Id', requestId);
+  reply.header('Cache-Control', 'no-store');
+  const details = candidate?.details;
+  if (statusCode === 429) {
+    const resetAt = details && typeof details === 'object' && 'resets_at' in details
+      ? Date.parse(String((details as { resets_at?: unknown }).resets_at))
+      : Number.NaN;
+    const retryAfter = Number.isFinite(resetAt) ? Math.max(1, Math.ceil((resetAt - Date.now()) / 1000)) : 86400;
+    reply.header('Retry-After', String(retryAfter));
+  }
   return reply.status(statusCode).send({
     success: false,
     statusCode,
@@ -22,5 +32,6 @@ export function sendServiceError(error: unknown, reply: FastifyReply): unknown {
     error_code: errorCode,
     message,
     request_id: requestId,
+    ...(details === undefined ? {} : { details }),
   });
 }

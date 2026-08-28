@@ -14,6 +14,7 @@ interface AssignmentFilterProps {
   kelas: string;
   onKelasChange: (value: string) => void;
   onReset: () => void;
+  isOwn?: boolean;
 }
 
 export function AssignmentFilter({
@@ -24,8 +25,9 @@ export function AssignmentFilter({
   kelas,
   onKelasChange,
   onReset,
+  isOwn = false,
 }: AssignmentFilterProps) {
-  const hasActiveFilters = Boolean(search || category !== 'all' || kelas !== 'all');
+  const hasActiveFilters = Boolean(search || category !== 'all' || (!isOwn && kelas !== 'all'));
 
   return (
     <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
@@ -33,7 +35,7 @@ export function AssignmentFilter({
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-tertiary" />
         <Input
           type="text"
-          placeholder="Cari judul atau deskripsi tugas..."
+          placeholder="Cari judul tugas..."
           value={search}
           onChange={(event) => onSearchChange(event.target.value)}
           className="pl-9 bg-surface-1 border-hairline text-ink placeholder:text-ink-tertiary text-xs h-9"
@@ -53,7 +55,7 @@ export function AssignmentFilter({
         </SelectContent>
       </Select>
 
-      <Select value={kelas} onValueChange={(value) => value !== null && onKelasChange(value)}>
+      {!isOwn && <Select value={kelas} onValueChange={(value) => value !== null && onKelasChange(value)}>
         <SelectTrigger className="w-full sm:w-36 bg-surface-1 border-hairline text-ink text-xs h-9">
           <SelectValue placeholder="Pilih kelas" />
         </SelectTrigger>
@@ -63,7 +65,7 @@ export function AssignmentFilter({
           <SelectItem value="XI">Kelas XI</SelectItem>
           <SelectItem value="XII">Kelas XII</SelectItem>
         </SelectContent>
-      </Select>
+      </Select>}
 
       {hasActiveFilters && (
         <Button

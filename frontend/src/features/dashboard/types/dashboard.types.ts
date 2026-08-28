@@ -46,17 +46,26 @@ export interface GradeDistributionSummary {
 }
 
 export interface StudentPersonalSummary {
-  kehadiranBulanIni: {
+  kehadiran: {
     hadir: number;
     sakit: number;
     izin: number;
     alpha: number;
     persentase: number;
+    total: number;
   };
-  tunggakanKas: {
+  kas: {
     totalTunggakan: number;
+    totalDibayar: number;
+    jumlahPembayaran: number;
     statusPembayaranTerakhir: string;
-    tanggalTerakhirBayar?: string;
+    riwayatPembayaran: Array<{
+      id?: string;
+      nominal: number;
+      date: string;
+      status: string;
+      keterangan: string;
+    }>;
   };
   nilaiTerakhir: {
     assignmentTitle: string;
@@ -65,18 +74,6 @@ export interface StudentPersonalSummary {
     keterangan?: string;
     tanggal: string;
   } | null;
-  peminjamanAktif: Array<{
-    id: string;
-    namaAlat: string;
-    dueAt: string;
-    isOverdue: boolean;
-  }>;
-  tugasLomba: Array<{
-    id: string;
-    namaFestival: string;
-    roleInContest: string;
-    status: string;
-  }>;
 }
 
 export interface DashboardSummaryData {
