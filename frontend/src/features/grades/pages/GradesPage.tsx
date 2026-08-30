@@ -4,21 +4,22 @@
 import { useState } from 'react';
 import { ClipboardList, GraduationCap, PlusCircle } from 'lucide-react';
 
-import { PageHeader } from '@/components/common/PageHeader';
-import { ResponsivePageActions } from '@/components/common/ResponsivePageActions';
-import { PageLoader } from '@/components/common/LoadingSpinner';
-import { Pagination } from '@/components/common/Pagination';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { PageHeader } from '@/shared/ui/PageHeader';
+import { ResponsivePageActions } from '@/shared/ui/ResponsivePageActions';
+import { PageLoader } from '@/shared/ui/LoadingSpinner';
+import { Pagination } from '@/shared/ui/Pagination';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/primitives/tabs';
 
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
-import { useStudentsQuery } from '@/features/students/queries/useStudentsQuery';
+import { useStudentsQuery } from '@/features/students/hooks/useStudentsQuery';
 import { useDebouncedValue } from '@/shared/hooks/useDebouncedValue';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { useIsMobile } from '@/shared/hooks/use-mobile';
 import { hasCapability } from '@/shared/auth/capabilities';
+import { isOneOf } from '@/shared/utils/isOneOf';
 
-import { useGradesQuery, useAssignmentsQuery, useGradeSummaryQuery } from '../queries/useGradesQuery';
-import { useCreateAssignmentMutation } from '../mutations/useCreateAssignmentMutation';
-import { useBulkGradingMutation } from '../mutations/useBulkGradingMutation';
+import { useGradesQuery, useAssignmentsQuery, useGradeSummaryQuery } from '../hooks/useGradesQuery';
+import { useCreateAssignmentMutation } from '../hooks/useCreateAssignmentMutation';
+import { useBulkGradingMutation } from '../hooks/useBulkGradingMutation';
 
 import { GradeDistributionStats } from '../components/GradeDistributionStats';
 import { AssignmentFilter } from '../components/AssignmentFilter';
@@ -29,7 +30,8 @@ import { GradeMobileList } from '../components/GradeMobileList';
 import { CreateAssignmentModal } from '../components/CreateAssignmentModal';
 import { BulkGradingModal } from '../components/BulkGradingModal';
 
-import type { AssignmentCategory, BulkGradeItem } from '../types/grades.types';
+import { ASSIGNMENT_CATEGORY_VALUES } from '../types/grades.types';
+import type { BulkGradeItem } from '../types/grades.types';
 import type { CreateAssignmentFormValues } from '../schemas/gradeSchema';
 
 export function GradesPage() {
@@ -108,13 +110,13 @@ export function GradesPage() {
     page,
     pageSize,
     search: debouncedSearch || undefined,
-    category: category !== 'all' ? (category as AssignmentCategory) : undefined,
+    category: isOneOf(category, ASSIGNMENT_CATEGORY_VALUES) ? category : undefined,
     kelas: kelas !== 'all' ? kelas : undefined,
     scope: gradeScope,
   });
   const { data: gradeSummary } = useGradeSummaryQuery({
     scope: gradeScope,
-    category: category !== 'all' ? (category as AssignmentCategory) : undefined,
+    category: isOneOf(category, ASSIGNMENT_CATEGORY_VALUES) ? category : undefined,
   });
 
   const {
@@ -125,7 +127,7 @@ export function GradesPage() {
     page: assignmentPage,
     pageSize: assignmentPageSize,
     search: debouncedAssignmentSearch || undefined,
-    category: assignmentCategory !== 'all' ? (assignmentCategory as AssignmentCategory) : undefined,
+    category: isOneOf(assignmentCategory, ASSIGNMENT_CATEGORY_VALUES) ? assignmentCategory : undefined,
     kelas: assignmentKelas !== 'all' ? assignmentKelas : undefined,
     scope: gradeScope,
   });

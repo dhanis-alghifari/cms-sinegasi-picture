@@ -2,7 +2,7 @@
 // Dashboard widget — Ringkasan Absensi Siswa Hari Ini
 
 import { CalendarCheck, CheckCircle2, AlertCircle, Clock, XCircle } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/primitives/card';
 import { formatNumber } from '@/shared/utils/formatNumber';
 import type { AbsensiSummary } from '../types/dashboard.types';
 

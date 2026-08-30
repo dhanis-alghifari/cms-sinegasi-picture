@@ -1,9 +1,9 @@
 import { Edit3, Lock } from 'lucide-react';
 
-import { AuditHistoryButton } from '@/features/audit/components/AuditTable';
-import { EmptyState } from '@/components/common/EmptyState';
-import { AttendanceStatusBadge } from '@/components/feedback/StatusBadge';
-import { Button } from '@/components/ui/button';
+import { AuditHistoryButton } from '@/features/audit/components/AuditHistoryButton';
+import { EmptyState } from '@/shared/ui/EmptyState';
+import { AttendanceStatusBadge } from './AttendanceStatusBadge';
+import { Button } from '@/shared/ui/primitives/button';
 import { formatDateShort } from '@/shared/utils/formatDate';
 
 import type { AttendanceRecord } from '../types/attendance.types';

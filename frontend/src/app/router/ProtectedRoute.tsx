@@ -4,7 +4,7 @@
 
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
-import { PageLoader } from '@/components/common/LoadingSpinner';
+import { PageLoader } from '@/shared/ui/LoadingSpinner';
 
 export function ProtectedRoute() {
   const { isAuthenticated, user, authHydrated, sessionChecked } = useAuthStore();

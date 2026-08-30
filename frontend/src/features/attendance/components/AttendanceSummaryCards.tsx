@@ -2,7 +2,7 @@
 // Summary cards for attendance metrics
 
 import { CheckCircle2, AlertCircle, Clock, XCircle, Users } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent } from '@/shared/ui/primitives/card';
 import { formatNumber } from '@/shared/utils/formatNumber';
 import type { AttendanceSummaryMetrics } from '../types/attendance.types';
 

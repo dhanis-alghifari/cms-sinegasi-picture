@@ -1,9 +1,9 @@
 import { Edit2, Power } from 'lucide-react';
 
-import { AuditHistoryButton } from '@/features/audit/components/AuditTable';
-import { EmptyState } from '@/components/common/EmptyState';
-import { Button } from '@/components/ui/button';
-import { StatusBadge } from '@/components/feedback/StatusBadge';
+import { AuditHistoryButton } from '@/features/audit/components/AuditHistoryButton';
+import { EmptyState } from '@/shared/ui/EmptyState';
+import { Button } from '@/shared/ui/primitives/button';
+import { StatusBadge } from '@/shared/ui/StatusBadge';
 import type { ClassOption } from '../types/classes.types';
 
 interface ClassMobileListProps {

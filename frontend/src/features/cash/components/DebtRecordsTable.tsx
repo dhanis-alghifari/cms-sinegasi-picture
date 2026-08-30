@@ -8,15 +8,15 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { StatusBadge } from '@/components/feedback/StatusBadge';
-import { EmptyState } from '@/components/common/EmptyState';
+} from '@/shared/ui/primitives/table';
+import { StatusBadge } from '@/shared/ui/StatusBadge';
+import { EmptyState } from '@/shared/ui/EmptyState';
 import { formatCurrency } from '@/shared/utils/formatCurrency';
 import { formatDateShort } from '@/shared/utils/formatDate';
 import type { CashDisputeQuota, DebtRecord } from '../types/cash.types';
 import { getDisputeAction } from '../utils/disputeState';
-import { AuditHistoryButton } from '@/features/audit/components/AuditTable';
-import { Button } from '@/components/ui/button';
+import { AuditHistoryButton } from '@/features/audit/components/AuditHistoryButton';
+import { Button } from '@/shared/ui/primitives/button';
 import type { MouseEvent } from 'react';
 
 interface DebtRecordsTableProps {

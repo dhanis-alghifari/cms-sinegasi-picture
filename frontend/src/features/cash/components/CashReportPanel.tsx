@@ -5,9 +5,9 @@ import { formatCurrency } from '@/shared/utils/formatCurrency';
 import { formatNumber } from '@/shared/utils/formatNumber';
 import { formatDateShort } from '@/shared/utils/formatDate';
 import { formatPaymentMethodLabel } from '@/shared/utils/formatLabels';
-import { useIsMobile } from '@/hooks/use-mobile';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useIsMobile } from '@/shared/hooks/use-mobile';
+import { Button } from '@/shared/ui/primitives/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/ui/primitives/card';
 
 import type { CashPaymentMethod, CashReport, CashReportDailyPoint } from '../types/cash.types';
 import { CashReportDailyPrintTable } from './CashReportDailyPrintTable';

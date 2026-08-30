@@ -1,9 +1,9 @@
 import { KeyRound, MoreVertical, UserCheck, UserRound, UserX } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { StatusBadge } from '@/components/feedback/StatusBadge';
-import { EmptyState } from '@/components/common/EmptyState';
-import { AuditHistoryButton } from '@/features/audit/components/AuditTable';
+import { Button } from '@/shared/ui/primitives/button';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/shared/ui/primitives/dropdown-menu';
+import { StatusBadge } from '@/shared/ui/StatusBadge';
+import { EmptyState } from '@/shared/ui/EmptyState';
+import { AuditHistoryButton } from '@/features/audit/components/AuditHistoryButton';
 import type { Student } from '../types/students.types';
 
 interface StudentMobileListProps {

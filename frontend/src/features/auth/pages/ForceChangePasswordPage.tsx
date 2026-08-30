@@ -1,6 +1,6 @@
 // First-login password page. Route protection is provided by FirstLoginRoute.
 
-import { AuthLayout } from '@/layouts/AuthLayout';
+import { AuthLayout } from '@/app/layouts/AuthLayout';
 import { PasswordChangeForm } from '../components/PasswordChangeForm';
 import { useNavigate } from 'react-router-dom';
 

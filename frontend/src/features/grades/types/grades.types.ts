@@ -2,8 +2,10 @@
 // Student grades & universal grading domain types according to PRD schema
 import type { ActorSummary } from '@/shared/types/common';
 
-export type GradeLetter = 'A' | 'B' | 'C' | 'D' | 'E';
-export type AssignmentCategory = 'class_task' | 'crew_film' | 'event_participation' | 'other';
+export const GRADE_LETTER_VALUES = ['A', 'B', 'C', 'D', 'E'] as const;
+export type GradeLetter = typeof GRADE_LETTER_VALUES[number];
+export const ASSIGNMENT_CATEGORY_VALUES = ['class_task', 'crew_film', 'event_participation', 'other'] as const;
+export type AssignmentCategory = typeof ASSIGNMENT_CATEGORY_VALUES[number];
 export type GradesReadScope = 'own' | 'operational';
 
 export const ASSIGNMENT_CATEGORY_LABELS: Record<AssignmentCategory, string> = {

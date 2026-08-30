@@ -4,16 +4,16 @@
 import { useState } from 'react';
 import { CheckCheck } from 'lucide-react';
 
-import { PageHeader } from '@/components/common/PageHeader';
-import { PageLoader } from '@/components/common/LoadingSpinner';
-import { EmptyState } from '@/components/common/EmptyState';
-import { Button } from '@/components/ui/button';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { PageHeader } from '@/shared/ui/PageHeader';
+import { PageLoader } from '@/shared/ui/LoadingSpinner';
+import { EmptyState } from '@/shared/ui/EmptyState';
+import { Button } from '@/shared/ui/primitives/button';
+import { Tabs, TabsList, TabsTrigger } from '@/shared/ui/primitives/tabs';
 
-import { useNotificationsQuery, useUnreadCountQuery } from '../queries/useNotificationsQuery';
+import { useNotificationsQuery, useUnreadCountQuery } from '../hooks/useNotificationsQuery';
 import { formatNumber } from '@/shared/utils/formatNumber';
-import { useMarkNotificationReadMutation } from '../mutations/useMarkNotificationReadMutation';
-import { useMarkAllNotificationsReadMutation } from '../mutations/useMarkAllNotificationsReadMutation';
+import { useMarkNotificationReadMutation } from '../hooks/useMarkNotificationReadMutation';
+import { useMarkAllNotificationsReadMutation } from '../hooks/useMarkAllNotificationsReadMutation';
 
 import { NotificationItem } from '../components/NotificationItem';
 

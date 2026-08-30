@@ -2,7 +2,7 @@
 // Shared HTTP client — Constitution: all requests through service layer, never from UI directly
 // PRD: every mutating request must send x-change-reason header
 
-import { env } from '@/app/config/env';
+import { env } from '@/shared/config/env';
 import {
   ApiError,
   ForbiddenError,
@@ -33,26 +33,28 @@ interface RequestOptions extends RequestInit {
   idempotencyKey?: string;
 }
 
+export type ResponseDecoder<T> = (payload: unknown) => T;
+
 async function request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
   const { changeReason, idempotencyKey, headers: customHeaders, ...rest } = options;
 
   const token = getToken();
 
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...(customHeaders as Record<string, string>),
-  };
+  const headers = new Headers(customHeaders);
+  if (!headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
 
   if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
+    headers.set('Authorization', 'Bearer ' + token);
   }
 
   // PRD: Zero Silent Edits — every mutation must include x-change-reason
   if (changeReason) {
-    headers['x-change-reason'] = changeReason;
+    headers.set('x-change-reason', changeReason);
   }
   if (idempotencyKey) {
-    headers['x-idempotency-key'] = idempotencyKey;
+    headers.set('x-idempotency-key', idempotencyKey);
   }
 
   const response = await fetch(`${env.apiUrl}${endpoint}`, {
@@ -106,10 +108,47 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
   }
 }
 
+async function requestParsed<T>(
+  endpoint: string,
+  decoder: ResponseDecoder<T>,
+  options: RequestOptions = {},
+): Promise<T> {
+  const payload = await request<unknown>(endpoint, options);
+  return decoder(payload);
+}
+
 // HTTP method helpers
 export const apiClient = {
   get<T>(endpoint: string, options?: RequestOptions): Promise<T> {
     return request<T>(endpoint, { method: 'GET', ...options });
+  },
+
+  getParsed<T>(endpoint: string, decoder: ResponseDecoder<T>, options?: RequestOptions): Promise<T> {
+    return requestParsed(endpoint, decoder, { method: 'GET', ...options });
+  },
+
+  postParsed<T>(endpoint: string, body: unknown, decoder: ResponseDecoder<T>, options?: RequestOptions): Promise<T> {
+    return requestParsed(endpoint, decoder, {
+      method: 'POST',
+      body: JSON.stringify(body),
+      ...options,
+    });
+  },
+
+  putParsed<T>(endpoint: string, body: unknown, decoder: ResponseDecoder<T>, options?: RequestOptions): Promise<T> {
+    return requestParsed(endpoint, decoder, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+      ...options,
+    });
+  },
+
+  patchParsed<T>(endpoint: string, body: unknown, decoder: ResponseDecoder<T>, options?: RequestOptions): Promise<T> {
+    return requestParsed(endpoint, decoder, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+      ...options,
+    });
   },
 
   post<T>(endpoint: string, body: unknown, options?: RequestOptions): Promise<T> {

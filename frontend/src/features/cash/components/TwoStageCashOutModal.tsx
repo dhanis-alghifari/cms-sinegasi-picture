@@ -15,15 +15,15 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { cn } from '@/lib/utils';
+} from '@/shared/ui/primitives/dialog';
+import { Button } from '@/shared/ui/primitives/button';
+import { Label } from '@/shared/ui/primitives/label';
+import { Textarea } from '@/shared/ui/primitives/textarea';
+import { cn } from '@/shared/utils/cn';
 import { getErrorMessage } from '@/shared/api/errors';
 import { formatCurrency } from '@/shared/utils/formatCurrency';
-import { ImageUploadField } from '@/shared/components/ImageUploadField';
-import { FormattedNumberInput } from '@/shared/components/FormattedNumberInput';
+import { ImageUploadField } from './ImageUploadField';
+import { FormattedNumberInput } from './FormattedNumberInput';
 
 import { cashOutSchema, type CashOutFormValues } from '../schemas/cashSchema';
 

@@ -2,16 +2,32 @@
 // Film Contests & Achievements domain types according to PRD schema
 import type { ActorSummary } from '@/shared/types/common';
 
-export type ContestScope = 'bekasi' | 'jabodetabek' | 'jawa_barat' | 'nasional' | 'umum';
+export const CONTEST_SCOPE_VALUES = ['bekasi', 'jabodetabek', 'jawa_barat', 'nasional', 'umum'] as const;
+export type ContestScope = typeof CONTEST_SCOPE_VALUES[number];
 /** @deprecated Use ContestScope. Kept as a domain alias for existing imports. */
 export type ContestLevel = ContestScope;
-export type ContestStatus = 'buka' | 'proses_penjurian' | 'selesai';
-export type AwardStatus = 'Juara 1' | 'Juara 2' | 'Juara 3' | 'Harapan' | 'Finalis' | 'Peserta';
-export type WorkTypeCode = 'short_film' | 'documentary' | 'photography' | 'animation' | 'commercial' | 'music_video' | 'experimental' | 'other';
-export type ContestEntryStatus = 'proses_submit' | 'sudah_terkirim' | 'menunggu_pengumuman' | 'selesai';
-export type ContestResultKind = 'rank' | 'top_n' | 'special_award' | 'finalist' | 'nominee' | 'honorable_mention' | 'other';
-export type ContestFinalizeResultKind = 'rank' | 'finalist' | 'nominee' | 'other';
-export type ContestOutcomeStatus = 'pending' | 'awarded' | 'not_awarded';
+export const CONTEST_STATUS_VALUES = ['buka', 'proses_penjurian', 'selesai'] as const;
+export type ContestStatus = typeof CONTEST_STATUS_VALUES[number];
+export const AWARD_STATUS_VALUES = ['Juara 1', 'Juara 2', 'Juara 3', 'Harapan', 'Finalis', 'Peserta'] as const;
+export type AwardStatus = typeof AWARD_STATUS_VALUES[number];
+export const WORK_TYPE_VALUES = ['short_film', 'documentary', 'photography', 'animation', 'commercial', 'music_video', 'experimental', 'other'] as const;
+export type WorkTypeCode = typeof WORK_TYPE_VALUES[number];
+export interface ContestWorkTypeOption {
+  code: WorkTypeCode;
+  label: string;
+  sort_order?: number;
+}
+export const CONTEST_ENTRY_STATUS_VALUES = ['proses_submit', 'sudah_terkirim', 'menunggu_pengumuman', 'selesai'] as const;
+export type ContestEntryStatus = typeof CONTEST_ENTRY_STATUS_VALUES[number];
+export const CONTEST_RESULT_KIND_VALUES = ['rank', 'top_n', 'special_award', 'finalist', 'nominee', 'honorable_mention', 'other'] as const;
+export type ContestResultKind = typeof CONTEST_RESULT_KIND_VALUES[number];
+export const CONTEST_FINALIZE_RESULT_KIND_VALUES = ['rank', 'finalist', 'nominee', 'other'] as const;
+export type ContestFinalizeResultKind = typeof CONTEST_FINALIZE_RESULT_KIND_VALUES[number];
+export const CONTEST_OUTCOME_STATUS_VALUES = ['pending', 'awarded', 'not_awarded'] as const;
+export type ContestOutcomeStatus = typeof CONTEST_OUTCOME_STATUS_VALUES[number];
+export const CONTEST_FINAL_OUTCOME_STATUS_VALUES = ['awarded', 'not_awarded'] as const;
+export type ContestFinalOutcomeStatus = typeof CONTEST_FINAL_OUTCOME_STATUS_VALUES[number];
+export const DEFAULT_CONTEST_WORK_TYPE: WorkTypeCode = 'short_film';
 
 export interface FilmSubmission {
   id: string;
@@ -167,6 +183,11 @@ export interface RecordContestResultPayload {
   evidence_url?: string;
 }
 
+export interface RecordContestResultResponse {
+  entry: Pick<ContestEntry, 'id' | 'outcome_status'> & Partial<ContestEntry>;
+  idempotent_replay: boolean;
+}
+
 export interface ContestEntriesResponse {
   data: ContestEntry[];
   total: number;
@@ -196,7 +217,7 @@ export interface ContestEvidenceUploadReservation {
 }
 
 export interface FinalizeContestEntryPayload {
-  outcome_status: Extract<ContestOutcomeStatus, 'awarded' | 'not_awarded'>;
+  outcome_status: ContestFinalOutcomeStatus;
   results: Array<{
     result_kind: ContestFinalizeResultKind;
     result_title: string;
@@ -208,5 +229,22 @@ export interface FinalizeContestEntryPayload {
 
 export interface FinalizeContestEntryResponse {
   entry: ContestEntry;
-  results: Array<Record<string, unknown>>;
+  results: FinalizedContestEntryResult[];
+}
+
+export interface FinalizedContestEntryResult {
+  id: string;
+  entry_id: string;
+  result_kind: ContestResultKind;
+  result_title: string;
+  position: number | null;
+  category_name: string | null;
+  notes: string | null;
+  is_active: boolean;
+  voided_at: string | null;
+  voided_by: string | null;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
 }

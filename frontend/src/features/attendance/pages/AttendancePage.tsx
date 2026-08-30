@@ -4,20 +4,21 @@
 import { useState } from 'react';
 import { CalendarCheck } from 'lucide-react';
 
-import { PageHeader } from '@/components/common/PageHeader';
-import { ResponsivePageActions } from '@/components/common/ResponsivePageActions';
-import { PageLoader } from '@/components/common/LoadingSpinner';
-import { Pagination } from '@/components/common/Pagination';
+import { PageHeader } from '@/shared/ui/PageHeader';
+import { ResponsivePageActions } from '@/shared/ui/ResponsivePageActions';
+import { PageLoader } from '@/shared/ui/LoadingSpinner';
+import { Pagination } from '@/shared/ui/Pagination';
 
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
-import { useClassOptionsQuery } from '@/features/classes/queries/useClassOptionsQuery';
+import { useClassOptionsQuery } from '@/features/classes/hooks/useClassOptionsQuery';
 import { useDebouncedValue } from '@/shared/hooks/useDebouncedValue';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { useIsMobile } from '@/shared/hooks/use-mobile';
 import { hasCapability } from '@/shared/auth/capabilities';
+import { isOneOf } from '@/shared/utils/isOneOf';
 
-import { useAttendanceQuery, useAttendanceSummaryQuery } from '../queries/useAttendanceQuery';
-import { useRecordAttendanceMutation } from '../mutations/useRecordAttendanceMutation';
-import { useCorrectAttendanceMutation } from '../mutations/useCorrectAttendanceMutation';
+import { useAttendanceQuery, useAttendanceSummaryQuery } from '../hooks/useAttendanceQuery';
+import { useRecordAttendanceMutation } from '../hooks/useRecordAttendanceMutation';
+import { useCorrectAttendanceMutation } from '../hooks/useCorrectAttendanceMutation';
 
 import { AttendanceSummaryCards } from '../components/AttendanceSummaryCards';
 import { AttendanceFilter } from '../components/AttendanceFilter';
@@ -26,7 +27,8 @@ import { AttendanceMobileList } from '../components/AttendanceMobileList';
 import { RecordAttendanceModal } from '../components/RecordAttendanceModal';
 import { CorrectAttendanceModal } from '../components/CorrectAttendanceModal';
 
-import type { AttendanceRecord, AttendanceStatus, RecordAttendanceItem } from '../types/attendance.types';
+import { ATTENDANCE_STATUS_VALUES } from '../types/attendance.types';
+import type { AttendanceRecord, RecordAttendanceItem } from '../types/attendance.types';
 import type { CorrectAttendanceFormValues } from '../schemas/attendanceSchema';
 
 export function AttendancePage() {
@@ -86,7 +88,7 @@ export function AttendancePage() {
     pageSize,
     tanggal,
     kelas: kelas !== 'all' ? kelas : undefined,
-    status: status !== 'all' ? (status as AttendanceStatus) : undefined,
+    status: isOneOf(status, ATTENDANCE_STATUS_VALUES) ? status : undefined,
     search: debouncedSearch || undefined,
     scope: isOwn ? 'own' : undefined,
   });

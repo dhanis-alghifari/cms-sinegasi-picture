@@ -2,7 +2,7 @@
 // Modal for processing equipment return with physical condition check and fine calculation
 
 import { useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { RotateCcw, Loader2 } from 'lucide-react';
 
@@ -13,13 +13,13 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { cn } from '@/lib/utils';
+} from '@/shared/ui/primitives/dialog';
+import { Button } from '@/shared/ui/primitives/button';
+import { Input } from '@/shared/ui/primitives/input';
+import { Label } from '@/shared/ui/primitives/label';
+import { Textarea } from '@/shared/ui/primitives/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/primitives/select';
+import { cn } from '@/shared/utils/cn';
 import { getErrorMessage } from '@/shared/api/errors';
 import { formatCurrency } from '@/shared/utils/formatCurrency';
 
@@ -61,6 +61,7 @@ export function ProcessReturnModal({
       change_reason: 'Pemeriksaan & pengembalian fisik barang inventaris',
     },
   });
+  const totalFine = useWatch({ control: form.control, name: 'total_denda', defaultValue: 0 });
 
   const handleConditionChange = (equipmentId: string, kondisi: string) => {
     const damageFine: Record<string, number> = {
@@ -150,7 +151,7 @@ export function ProcessReturnModal({
               <Input
                 id="total_denda"
                 type="text"
-                value={formatCurrency(form.watch('total_denda') ?? 0)}
+                value={formatCurrency(totalFine ?? 0)}
                 readOnly
                 aria-describedby="total-denda-help"
                 className="bg-surface-2 border-hairline text-semantic-danger font-mono font-bold text-xs h-9"

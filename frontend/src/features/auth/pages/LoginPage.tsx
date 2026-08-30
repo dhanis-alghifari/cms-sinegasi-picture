@@ -3,7 +3,7 @@
 // Playbook-09: Login → validate → receive token → store session → protected routes
 
 import { useNavigate } from 'react-router-dom';
-import { AuthLayout } from '@/layouts/AuthLayout';
+import { AuthLayout } from '@/app/layouts/AuthLayout';
 import { LoginForm } from '../components/LoginForm';
 import { useAuthStore } from '../hooks/useAuthStore';
 

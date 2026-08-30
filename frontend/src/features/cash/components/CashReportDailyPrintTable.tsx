@@ -5,7 +5,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
+} from '@/shared/ui/primitives/table';
 import { formatCurrency } from '@/shared/utils/formatCurrency';
 import { formatDateShort } from '@/shared/utils/formatDate';
 

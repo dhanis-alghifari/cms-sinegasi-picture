@@ -14,17 +14,19 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { cn } from '@/lib/utils';
+} from '@/shared/ui/primitives/dialog';
+import { Button } from '@/shared/ui/primitives/button';
+import { Input } from '@/shared/ui/primitives/input';
+import { Label } from '@/shared/ui/primitives/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/primitives/select';
+import { cn } from '@/shared/utils/cn';
 import { getErrorMessage } from '@/shared/api/errors';
 import { formatDateShort } from '@/shared/utils/formatDate';
+import { isOneOf } from '@/shared/utils/isOneOf';
 
 import { correctAttendanceSchema, type CorrectAttendanceFormValues } from '../schemas/attendanceSchema';
-import type { AttendanceRecord, AttendanceStatus } from '../types/attendance.types';
+import { ATTENDANCE_STATUS_VALUES } from '../types/attendance.types';
+import type { AttendanceRecord } from '../types/attendance.types';
 
 interface CorrectAttendanceModalProps {
   open: boolean;
@@ -110,7 +112,9 @@ export function CorrectAttendanceModal({
             <Label className="text-ink-muted text-xs font-semibold">Status Kehadiran Baru *</Label>
             <Select
               value={selectedStatus}
-              onValueChange={(val) => val && form.setValue('status', val as AttendanceStatus)}
+              onValueChange={(val) => {
+                if (isOneOf(val, ATTENDANCE_STATUS_VALUES)) form.setValue('status', val);
+              }}
             >
               <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs h-9">
                 <SelectValue placeholder="Pilih status kehadiran" />

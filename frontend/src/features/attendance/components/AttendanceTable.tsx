@@ -9,13 +9,13 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { Button } from '@/components/ui/button';
-import { AttendanceStatusBadge } from '@/components/feedback/StatusBadge';
-import { EmptyState } from '@/components/common/EmptyState';
+} from '@/shared/ui/primitives/table';
+import { Button } from '@/shared/ui/primitives/button';
+import { AttendanceStatusBadge } from './AttendanceStatusBadge';
+import { EmptyState } from '@/shared/ui/EmptyState';
 import { formatDateShort } from '@/shared/utils/formatDate';
 import type { AttendanceRecord } from '../types/attendance.types';
-import { AuditHistoryButton } from '@/features/audit/components/AuditTable';
+import { AuditHistoryButton } from '@/features/audit/components/AuditHistoryButton';
 
 interface AttendanceTableProps {
   records: AttendanceRecord[];

@@ -1,20 +1,20 @@
 import { useState } from 'react';
 import { Check, Download, Eye, Loader2, RotateCcw, X, ZoomIn, ZoomOut } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Pagination } from '@/components/common/Pagination';
-import { EmptyState } from '@/components/common/EmptyState';
-import { PageLoader } from '@/components/common/LoadingSpinner';
-import { StatusBadge } from '@/components/feedback/StatusBadge';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/shared/ui/primitives/button';
+import { Pagination } from '@/shared/ui/Pagination';
+import { EmptyState } from '@/shared/ui/EmptyState';
+import { PageLoader } from '@/shared/ui/LoadingSpinner';
+import { StatusBadge } from '@/shared/ui/StatusBadge';
+import { Input } from '@/shared/ui/primitives/input';
+import { Label } from '@/shared/ui/primitives/label';
+import { Textarea } from '@/shared/ui/primitives/textarea';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/shared/ui/primitives/dialog';
 import { formatCurrency } from '@/shared/utils/formatCurrency';
 import { formatDateShort } from '@/shared/utils/formatDate';
 import { getErrorMessage } from '@/shared/api/errors';
-import { cashService } from '../services/cash.service';
-import { useCashDisputesQuery, useCashPaymentMethodsQuery } from '../queries/useCashQuery';
-import { useResolveDisputeMutation } from '../mutations/useResolveDisputeMutation';
+import { cashService } from '../api/cash.service';
+import { useCashDisputesQuery, useCashPaymentMethodsQuery } from '../hooks/useCashQuery';
+import { useResolveDisputeMutation } from '../hooks/useResolveDisputeMutation';
 import type { CashDispute, DisputeStatus } from '../types/cash.types';
 
 function statusLabel(status: DisputeStatus) {

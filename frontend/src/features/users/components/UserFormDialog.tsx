@@ -13,14 +13,15 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { cn } from '@/lib/utils';
+} from '@/shared/ui/primitives/dialog';
+import { Button } from '@/shared/ui/primitives/button';
+import { Input } from '@/shared/ui/primitives/input';
+import { Label } from '@/shared/ui/primitives/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/primitives/select';
+import { cn } from '@/shared/utils/cn';
 import { ApiError, getErrorMessage } from '@/shared/api/errors';
-import type { UserRole } from '@/shared/types/common';
+import { USER_ROLE_VALUES } from '@/shared/types/common';
+import { isOneOf } from '@/shared/utils/isOneOf';
 
 import { userSchema, type UserFormValues } from '../schemas/userSchema';
 import type { UserAccount } from '../types/users.types';
@@ -49,7 +50,7 @@ export function UserFormDialog({
     defaultValues: {
       username: '',
       nama: '',
-      role: '' as UserRole,
+      role: undefined,
       password: '',
       change_reason: '',
     },
@@ -82,7 +83,7 @@ export function UserFormDialog({
       form.reset({
         username: '',
         nama: '',
-        role: '' as UserRole,
+        role: undefined,
         password: '',
         change_reason: '',
       });
@@ -180,7 +181,9 @@ export function UserFormDialog({
             <Label className="text-ink-muted text-xs">Peran (Role Akses) *</Label>
             <Select
               value={selectedRole}
-              onValueChange={(val) => val && form.setValue('role', val as UserRole)}
+              onValueChange={(val) => {
+                if (isOneOf(val, USER_ROLE_VALUES)) form.setValue('role', val);
+              }}
             >
               <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs h-9">
                 <SelectValue placeholder="Pilih Role" />

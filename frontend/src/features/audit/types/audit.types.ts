@@ -1,6 +1,7 @@
 import type { PaginatedResponse, UserRole } from '@/shared/types/common';
 
-export type AuditAction = 'INSERT' | 'UPDATE' | 'DELETE' | 'SYSTEM_CHECK';
+export const AUDIT_ACTION_VALUES = ['INSERT', 'UPDATE', 'DELETE', 'SYSTEM_CHECK'] as const;
+export type AuditAction = typeof AUDIT_ACTION_VALUES[number];
 
 export interface AuditActor {
   id?: string;

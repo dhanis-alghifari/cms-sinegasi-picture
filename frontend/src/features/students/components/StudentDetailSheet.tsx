@@ -1,8 +1,8 @@
 import { KeyRound, Pencil, Phone, UserCheck, UserRound, UserX } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { StatusBadge } from '@/components/feedback/StatusBadge';
-import { AuditHistoryButton } from '@/features/audit/components/AuditTable';
+import { Button } from '@/shared/ui/primitives/button';
+import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/shared/ui/primitives/sheet';
+import { StatusBadge } from '@/shared/ui/StatusBadge';
+import { AuditHistoryButton } from '@/features/audit/components/AuditHistoryButton';
 import type { Student } from '../types/students.types';
 
 interface StudentDetailSheetProps {

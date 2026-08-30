@@ -1,8 +1,8 @@
 import { AlertCircle, ArrowRight } from 'lucide-react';
 
-import { EmptyState } from '@/components/common/EmptyState';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { EmptyState } from '@/shared/ui/EmptyState';
+import { Button } from '@/shared/ui/primitives/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/primitives/card';
 import { formatCurrency } from '@/shared/utils/formatCurrency';
 
 import { CashTransactionMobileList } from './CashTransactionMobileList';

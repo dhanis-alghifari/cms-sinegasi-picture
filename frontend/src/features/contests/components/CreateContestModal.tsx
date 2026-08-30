@@ -13,21 +13,23 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { cn } from '@/lib/utils';
+} from '@/shared/ui/primitives/dialog';
+import { Button } from '@/shared/ui/primitives/button';
+import { Input } from '@/shared/ui/primitives/input';
+import { Label } from '@/shared/ui/primitives/label';
+import { Textarea } from '@/shared/ui/primitives/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/primitives/select';
+import { cn } from '@/shared/utils/cn';
 import { getErrorMessage } from '@/shared/api/errors';
 
 import { contestEditSchema, contestSchema, type ContestFormValues } from '../schemas/contestSchema';
-import type { Contest, ContestScope, ContestStatus } from '../types/contests.types';
+import type { Contest } from '../types/contests.types';
 import { getFutureDateInputValue } from '@/shared/utils/formatDate';
 import {
   CONTEST_SCOPE_OPTIONS,
   CONTEST_STATUS_OPTIONS,
+  isContestScope,
+  isContestStatus,
   normalizeContestScope,
 } from '../utils/contestLabels';
 
@@ -35,7 +37,7 @@ interface CreateContestModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   contest?: Contest | null;
-  onSubmit: (values: ContestFormValues) => Promise<void>;
+  onSubmit: (formValues: ContestFormValues) => Promise<void>;
   isLoading?: boolean;
   error?: unknown;
 }
@@ -48,10 +50,10 @@ export function CreateContestModal({
   isLoading,
   error,
 }: CreateContestModalProps) {
-  const isEditing = Boolean(contest);
+  const isEditingContest = Boolean(contest);
 
   const form = useForm<ContestFormValues>({
-    resolver: zodResolver(isEditing ? contestEditSchema : contestSchema),
+    resolver: zodResolver(isEditingContest ? contestEditSchema : contestSchema),
     defaultValues: {
       nama_lomba: '',
       kota: '',
@@ -65,8 +67,8 @@ export function CreateContestModal({
     },
   });
 
-  const selectedLevel = useWatch({ control: form.control, name: 'tingkat' });
-  const selectedStatus = useWatch({ control: form.control, name: 'status' });
+  const selectedContestScope = useWatch({ control: form.control, name: 'tingkat' });
+  const selectedContestStatus = useWatch({ control: form.control, name: 'status' });
 
   useEffect(() => {
     if (contest) {
@@ -96,12 +98,12 @@ export function CreateContestModal({
     }
   }, [contest, form, open]);
 
-  const handleSubmit = form.handleSubmit(async (data) => {
-    if (isEditing && (!data.change_reason || data.change_reason.trim().length < 5)) {
+  const handleContestFormSubmit = form.handleSubmit(async (formValues) => {
+    if (isEditingContest && (!formValues.change_reason || formValues.change_reason.trim().length < 5)) {
       form.setError('change_reason', { message: 'Alasan perubahan wajib diisi (minimal 5 karakter)' });
       return;
     }
-    await onSubmit(data);
+    await onSubmit(formValues);
     onOpenChange(false);
   });
 
@@ -112,18 +114,18 @@ export function CreateContestModal({
           <div className="mb-1 flex min-w-0 items-start gap-2">
             <Trophy size={18} className="text-semantic-warning" />
             <DialogTitle className="min-w-0 text-ink text-base font-semibold leading-snug">
-              {isEditing ? 'Edit Event Perlombaan' : 'Tambah Event Festival / Perlombaan'}
+              {isEditingContest ? 'Edit Event Perlombaan' : 'Tambah Event Festival / Perlombaan'}
             </DialogTitle>
           </div>
 
           <DialogDescription className="text-ink-subtle text-xs">
-            {isEditing
+            {isEditingContest
               ? 'Perbarui informasi festival film atau status penjurian.'
               : 'Daftarkan event yang dapat menerima karya film, foto, animasi, atau media lain.'}
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-hidden overflow-y-auto overscroll-contain px-0.5 pb-1 pt-1 pr-1 sm:gap-5">
+        <form onSubmit={handleContestFormSubmit} className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-hidden overflow-y-auto overscroll-contain px-0.5 pb-1 pt-1 pr-1 sm:gap-5">
           {Boolean(error) && (
             <div role="alert" className="shrink-0 rounded border border-semantic-danger/30 bg-semantic-danger/10 px-3 py-2 text-xs text-semantic-danger">
               {getErrorMessage(error)}
@@ -162,8 +164,8 @@ export function CreateContestModal({
               <Label htmlFor="tingkat" className="text-xs text-ink-muted">Tingkat Lomba <span className="text-semantic-danger" aria-hidden="true">*</span></Label>
               <Select
                 items={CONTEST_SCOPE_OPTIONS}
-                value={selectedLevel}
-                onValueChange={(val) => val && form.setValue('tingkat', val as ContestScope, { shouldDirty: true, shouldValidate: true })}
+                value={selectedContestScope}
+                onValueChange={(nextScope) => { if (isContestScope(nextScope)) form.setValue('tingkat', nextScope, { shouldDirty: true, shouldValidate: true }); }}
               >
                 <SelectTrigger id="tingkat" className="w-full bg-surface-2 border-hairline text-ink text-xs h-11 sm:h-9">
                   <SelectValue placeholder="Pilih tingkat lomba" />
@@ -180,8 +182,8 @@ export function CreateContestModal({
               <Label htmlFor="status" className="text-xs text-ink-muted">Status Event <span className="text-semantic-danger" aria-hidden="true">*</span></Label>
               <Select
                 items={CONTEST_STATUS_OPTIONS}
-                value={selectedStatus}
-                onValueChange={(val) => val && form.setValue('status', val as ContestStatus, { shouldDirty: true, shouldValidate: true })}
+                value={selectedContestStatus}
+                onValueChange={(nextStatus) => { if (isContestStatus(nextStatus)) form.setValue('status', nextStatus, { shouldDirty: true, shouldValidate: true }); }}
               >
               <SelectTrigger id="status" className="w-full bg-surface-2 border-hairline text-ink text-xs h-11 sm:h-9">
                   <SelectValue placeholder="Pilih status event" />
@@ -244,7 +246,7 @@ export function CreateContestModal({
           </section>
 
           {/* Change Reason (Zero Silent Edits Requirement — Wajib hanya saat Edit/Ubah Data) */}
-          {isEditing && (
+          {isEditingContest && (
             <section className="space-y-2 rounded-lg border border-semantic-warning/40 bg-semantic-warning/5 p-3 sm:p-4">
               <div>
                 <Label htmlFor="change_reason" className="text-xs font-semibold text-ink">

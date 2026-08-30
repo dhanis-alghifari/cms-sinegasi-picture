@@ -2,9 +2,10 @@
 // Zod validation schemas for assignments and bulk grading
 
 import { z } from 'zod';
+import { ASSIGNMENT_CATEGORY_VALUES, GRADE_LETTER_VALUES } from '../types/grades.types';
 
-export const gradeLetterEnum = z.enum(['A', 'B', 'C', 'D', 'E']);
-export const assignmentCategoryEnum = z.enum(['class_task', 'crew_film', 'event_participation', 'other']);
+export const gradeLetterEnum = z.enum(GRADE_LETTER_VALUES);
+export const assignmentCategoryEnum = z.enum(ASSIGNMENT_CATEGORY_VALUES);
 
 export const createAssignmentSchema = z.object({
   title: z.string().min(3, 'Judul tugas minimal 3 karakter').trim(),

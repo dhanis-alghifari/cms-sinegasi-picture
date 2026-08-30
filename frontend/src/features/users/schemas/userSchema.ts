@@ -2,17 +2,9 @@
 // Zod validation schemas for user management forms
 
 import { z } from 'zod';
+import { USER_ROLE_VALUES } from '@/shared/types/common';
 
-export const userRoleEnum = z.enum([
-  'teacher',
-  'leader',
-  'vice_leader',
-  'treasurer',
-  'secretary',
-  'equipment_team',
-  'contest_team',
-  'member',
-]);
+export const userRoleEnum = z.enum(USER_ROLE_VALUES);
 
 export const userSchema = z.object({
   username: z

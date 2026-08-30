@@ -9,16 +9,16 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
+} from '@/shared/ui/primitives/table';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { EmptyState } from '@/components/common/EmptyState';
+} from '@/shared/ui/primitives/dropdown-menu';
+import { Button } from '@/shared/ui/primitives/button';
+import { Badge } from '@/shared/ui/primitives/badge';
+import { EmptyState } from '@/shared/ui/EmptyState';
 import { formatDateShort } from '@/shared/utils/formatDate';
 import { getSafeExternalUrl } from '@/shared/utils/safeUrl';
 import type { Contest } from '../types/contests.types';
@@ -28,7 +28,7 @@ import {
   getContestStatusBadgeClass,
   getContestStatusLabel,
 } from '../utils/contestLabels';
-import { AuditHistoryButton } from '@/features/audit/components/AuditTable';
+import { AuditHistoryButton } from '@/features/audit/components/AuditHistoryButton';
 
 interface ContestTableProps {
   contests: Contest[];

@@ -2,7 +2,7 @@
 // Summary cards for cash balance, total inbound, total outbound, and total student debt
 
 import { Wallet, ArrowDownRight, ArrowUpRight, AlertCircle } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent } from '@/shared/ui/primitives/card';
 import { CashSectionError, CashSectionSkeleton } from './CashSectionState';
 import { formatCurrency } from '@/shared/utils/formatCurrency';
 import type { CashSummary } from '../types/cash.types';

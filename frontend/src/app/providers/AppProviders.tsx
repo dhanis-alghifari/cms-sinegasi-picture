@@ -3,9 +3,9 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider, MutationCache } from '@tanstack/react-query';
-import { TooltipProvider } from '@/components/ui/tooltip';
-import { Toaster } from '@/components/ui/toast';
-import { authService } from '@/features/auth/services/auth.service';
+import { TooltipProvider } from '@/shared/ui/primitives/tooltip';
+import { Toaster } from '@/shared/ui/primitives/toast';
+import { authService } from '@/features/auth/api/auth.service';
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 
 interface AppProvidersProps {

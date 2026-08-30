@@ -1,12 +1,12 @@
 import { Edit2, KeyRound, MoreVertical, Trash2, UserCheck, UserX } from 'lucide-react';
 
-import { AuditHistoryButton } from '@/features/audit/components/AuditTable';
-import { EmptyState } from '@/components/common/EmptyState';
-import { StatusBadge } from '@/components/feedback/StatusBadge';
-import { Button } from '@/components/ui/button';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { AuditHistoryButton } from '@/features/audit/components/AuditHistoryButton';
+import { EmptyState } from '@/shared/ui/EmptyState';
+import { StatusBadge } from '@/shared/ui/StatusBadge';
+import { Button } from '@/shared/ui/primitives/button';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/shared/ui/primitives/dropdown-menu';
 import { formatRoleLabel } from '@/shared/utils/formatLabels';
-import { ActorSummaryText } from '@/shared/components/ActorSummaryText';
+import { ActorSummaryText } from './ActorSummaryText';
 
 import type { UserAccount } from '../types/users.types';
 

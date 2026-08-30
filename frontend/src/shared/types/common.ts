@@ -20,15 +20,18 @@ export interface PaginationParams {
   search?: string;
 }
 
-export type UserRole =
-  | 'teacher'
-  | 'leader'
-  | 'vice_leader'
-  | 'treasurer'
-  | 'secretary'
-  | 'equipment_team'
-  | 'contest_team'
-  | 'member';
+export const USER_ROLE_VALUES = [
+  'teacher',
+  'leader',
+  'vice_leader',
+  'treasurer',
+  'secretary',
+  'equipment_team',
+  'contest_team',
+  'member',
+] as const;
+
+export type UserRole = typeof USER_ROLE_VALUES[number];
 
 export interface ApiError {
   message: string;

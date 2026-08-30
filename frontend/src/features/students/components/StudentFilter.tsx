@@ -2,9 +2,9 @@
 // Filter bar for students page — Search input, Kelas filter (X, XI, XII), Peminatan filter
 
 import { Search, X } from 'lucide-react';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Button } from '@/components/ui/button';
+import { Input } from '@/shared/ui/primitives/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/primitives/select';
+import { Button } from '@/shared/ui/primitives/button';
 
 interface StudentFilterProps {
   search: string;

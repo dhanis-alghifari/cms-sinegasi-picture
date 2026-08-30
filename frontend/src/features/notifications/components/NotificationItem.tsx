@@ -12,7 +12,7 @@ import {
   Bell,
   Check,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn } from '@/shared/utils/cn';
 import { formatDateShort } from '@/shared/utils/formatDate';
 import type { NotificationRecord, NotificationType } from '../types/notifications.types';
 import { getSafeInternalPath } from '@/shared/utils/safeUrl';

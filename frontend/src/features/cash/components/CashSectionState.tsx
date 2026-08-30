@@ -1,6 +1,6 @@
 import { AlertCircle, RefreshCw } from 'lucide-react';
 
-import { Button } from '@/components/ui/button';
+import { Button } from '@/shared/ui/primitives/button';
 import { getErrorMessage } from '@/shared/api/errors';
 
 interface CashSectionSkeletonProps {

@@ -3,15 +3,15 @@ import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Check, Eye, EyeOff, Loader2, LogOut, ShieldCheck } from 'lucide-react';
 
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { cn } from '@/lib/utils';
+import { Button } from '@/shared/ui/primitives/button';
+import { Input } from '@/shared/ui/primitives/input';
+import { Label } from '@/shared/ui/primitives/label';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/shared/ui/primitives/card';
+import { cn } from '@/shared/utils/cn';
 import { getErrorMessage } from '@/shared/api/errors';
 
 import { changePasswordSchema, type ChangePasswordFormValues } from '../schemas/loginSchema';
-import { useChangePasswordMutation } from '../mutations/useChangePasswordMutation';
+import { useChangePasswordMutation } from '../hooks/useChangePasswordMutation';
 import { useAuthStore } from '../hooks/useAuthStore';
 
 interface PasswordChangeFormProps {

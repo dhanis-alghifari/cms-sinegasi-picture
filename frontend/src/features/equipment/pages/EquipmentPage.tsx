@@ -4,20 +4,21 @@
 import { useState } from 'react';
 import { Plus } from 'lucide-react';
 
-import { PageHeader } from '@/components/common/PageHeader';
-import { ResponsivePageActions } from '@/components/common/ResponsivePageActions';
-import { PageLoader } from '@/components/common/LoadingSpinner';
-import { Pagination } from '@/components/common/Pagination';
+import { PageHeader } from '@/shared/ui/PageHeader';
+import { ResponsivePageActions } from '@/shared/ui/ResponsivePageActions';
+import { PageLoader } from '@/shared/ui/LoadingSpinner';
+import { Pagination } from '@/shared/ui/Pagination';
 
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import { useDebouncedValue } from '@/shared/hooks/useDebouncedValue';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { useIsMobile } from '@/shared/hooks/use-mobile';
 import { hasCapability } from '@/shared/auth/capabilities';
+import { isOneOf } from '@/shared/utils/isOneOf';
 
-import { useEquipmentQuery, useEquipmentSummaryQuery } from '../queries/useEquipmentQuery';
-import { useCreateEquipmentMutation } from '../mutations/useCreateEquipmentMutation';
-import { useUpdateEquipmentMutation } from '../mutations/useUpdateEquipmentMutation';
-import { useUpdateConditionMutation } from '../mutations/useUpdateConditionMutation';
+import { useEquipmentQuery, useEquipmentSummaryQuery } from '../hooks/useEquipmentQuery';
+import { useCreateEquipmentMutation } from '../hooks/useCreateEquipmentMutation';
+import { useUpdateEquipmentMutation } from '../hooks/useUpdateEquipmentMutation';
+import { useUpdateConditionMutation } from '../hooks/useUpdateConditionMutation';
 
 import { EquipmentSummaryStats } from '../components/EquipmentSummaryStats';
 import { EquipmentFilter } from '../components/EquipmentFilter';
@@ -28,9 +29,11 @@ import { UpdateConditionDialog } from '../components/UpdateConditionDialog';
 
 import type {
   Equipment,
-  EquipmentCategory,
-  EquipmentCondition,
-  EquipmentAvailability,
+} from '../types/equipment.types';
+import {
+  EQUIPMENT_AVAILABILITY_VALUES,
+  EQUIPMENT_CATEGORY_VALUES,
+  EQUIPMENT_CONDITION_VALUES,
 } from '../types/equipment.types';
 import type { EquipmentFormValues, UpdateConditionFormValues } from '../schemas/equipmentSchema';
 
@@ -90,9 +93,9 @@ export function EquipmentPage() {
     page,
     pageSize,
     search: debouncedSearch || undefined,
-    kategori: kategori !== 'all' ? (kategori as EquipmentCategory) : undefined,
-    kondisi: kondisi !== 'all' ? (kondisi as EquipmentCondition) : undefined,
-    status: status !== 'all' ? (status as EquipmentAvailability) : undefined,
+    kategori: isOneOf(kategori, EQUIPMENT_CATEGORY_VALUES) ? kategori : undefined,
+    kondisi: isOneOf(kondisi, EQUIPMENT_CONDITION_VALUES) ? kondisi : undefined,
+    status: isOneOf(status, EQUIPMENT_AVAILABILITY_VALUES) ? status : undefined,
   });
 
   // Mutations

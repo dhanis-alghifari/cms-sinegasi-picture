@@ -1,7 +1,7 @@
 import { Combobox } from '@base-ui/react/combobox';
 import { Check, ChevronDown, Search } from 'lucide-react';
 
-import { cn } from '@/lib/utils';
+import { cn } from '@/shared/utils/cn';
 import type { StudentOption } from '@/features/students/types/students.types';
 
 interface StudentSearchComboboxProps {

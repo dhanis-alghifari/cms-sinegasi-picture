@@ -9,21 +9,21 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
+} from '@/shared/ui/primitives/table';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Button } from '@/components/ui/button';
-import { StatusBadge } from '@/components/feedback/StatusBadge';
-import { EmptyState } from '@/components/common/EmptyState';
+} from '@/shared/ui/primitives/dropdown-menu';
+import { Button } from '@/shared/ui/primitives/button';
+import { StatusBadge } from '@/shared/ui/StatusBadge';
+import { EmptyState } from '@/shared/ui/EmptyState';
 
 import type { UserAccount } from '../types/users.types';
 import { formatRoleLabel } from '@/shared/utils/formatLabels';
-import { AuditHistoryButton } from '@/features/audit/components/AuditTable';
-import { ActorSummaryText } from '@/shared/components/ActorSummaryText';
+import { AuditHistoryButton } from '@/features/audit/components/AuditHistoryButton';
+import { ActorSummaryText } from './ActorSummaryText';
 
 interface UserTableProps {
   users: UserAccount[];

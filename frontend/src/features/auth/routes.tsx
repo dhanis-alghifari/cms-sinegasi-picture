@@ -3,7 +3,7 @@
 
 import { lazy, Suspense } from 'react';
 import type { RouteObject } from 'react-router-dom';
-import { PageLoader } from '@/components/common/LoadingSpinner';
+import { PageLoader } from '@/shared/ui/LoadingSpinner';
 
 const LoginPage = lazy(() =>
   import('./pages/LoginPage').then((m) => ({ default: m.LoginPage })),

@@ -4,18 +4,18 @@
 import { useState } from 'react';
 import { Plus } from 'lucide-react';
 
-import { PageHeader } from '@/components/common/PageHeader';
-import { ResponsivePageActions } from '@/components/common/ResponsivePageActions';
-import { PageLoader } from '@/components/common/LoadingSpinner';
-import { Pagination } from '@/components/common/Pagination';
-import { ReasonDialog } from '@/components/common/ActionDialog';
+import { PageHeader } from '@/shared/ui/PageHeader';
+import { ResponsivePageActions } from '@/shared/ui/ResponsivePageActions';
+import { PageLoader } from '@/shared/ui/LoadingSpinner';
+import { Pagination } from '@/shared/ui/Pagination';
+import { ReasonDialog } from '@/shared/ui/ActionDialog';
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import { useDebouncedValue } from '@/shared/hooks/useDebouncedValue';
 
-import { useStudentsQuery } from '../queries/useStudentsQuery';
-import { useCreateStudentMutation } from '../mutations/useCreateStudentMutation';
-import { useUpdateStudentMutation } from '../mutations/useUpdateStudentMutation';
-import { useProvisionStudentAccountMutation } from '../mutations/useProvisionStudentAccountMutation';
+import { useStudentsQuery } from '../hooks/useStudentsQuery';
+import { useCreateStudentMutation } from '../hooks/useCreateStudentMutation';
+import { useUpdateStudentMutation } from '../hooks/useUpdateStudentMutation';
+import { useProvisionStudentAccountMutation } from '../hooks/useProvisionStudentAccountMutation';
 import { StudentFilter } from '../components/StudentFilter';
 import { StudentTable } from '../components/StudentTable';
 import { StudentMobileList } from '../components/StudentMobileList';
@@ -23,9 +23,11 @@ import { StudentDetailSheet } from '../components/StudentDetailSheet';
 import { StudentFormDialog } from '../components/StudentFormDialog';
 import { StudentStatusDialog } from '../components/StudentStatusDialog';
 import { StudentAccountCredentialsDialog } from '../components/StudentAccountCredentialsDialog';
-import type { Student, Peminatan, StudentAccountCredentials } from '../types/students.types';
+import { PEMINATAN_VALUES } from '../types/students.types';
+import type { Student, StudentAccountCredentials } from '../types/students.types';
+import { isOneOf } from '@/shared/utils/isOneOf';
 import type { StudentFormValues } from '../schemas/studentSchema';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { useIsMobile } from '@/shared/hooks/use-mobile';
 import { hasCapability } from '@/shared/auth/capabilities';
 
 export function StudentsPage() {
@@ -82,7 +84,7 @@ export function StudentsPage() {
     pageSize,
     search: debouncedSearch || undefined,
     kelas: kelas !== 'all' ? kelas : undefined,
-    peminatan: peminatan !== 'all' ? (peminatan as Peminatan) : undefined,
+    peminatan: isOneOf(peminatan, PEMINATAN_VALUES) ? peminatan : undefined,
   });
 
   const createMutation = useCreateStudentMutation();

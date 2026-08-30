@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { Filter, RefreshCcw } from 'lucide-react';
 
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { Button } from '@/shared/ui/primitives/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/ui/primitives/card';
+import { Input } from '@/shared/ui/primitives/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/primitives/select';
+import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/shared/ui/primitives/sheet';
+import { useIsMobile } from '@/shared/hooks/use-mobile';
 import { formatDateShort } from '@/shared/utils/formatDate';
 import { formatPaymentMethodLabel } from '@/shared/utils/formatLabels';
 

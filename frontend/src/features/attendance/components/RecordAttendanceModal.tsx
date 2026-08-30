@@ -6,7 +6,7 @@ import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { CalendarCheck, ChevronDown, Loader2 } from 'lucide-react';
 
-import { NoticeDialog } from '@/components/common/ActionDialog';
+import { NoticeDialog } from '@/shared/ui/ActionDialog';
 import {
   Dialog,
   DialogContent,
@@ -14,17 +14,19 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { cn } from '@/lib/utils';
+} from '@/shared/ui/primitives/dialog';
+import { Button } from '@/shared/ui/primitives/button';
+import { Input } from '@/shared/ui/primitives/input';
+import { Label } from '@/shared/ui/primitives/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/primitives/select';
+import { cn } from '@/shared/utils/cn';
+import { isOneOf } from '@/shared/utils/isOneOf';
 import { getErrorMessage } from '@/shared/api/errors';
 import type { ClassOption } from '@/features/classes/types/classes.types';
 
 import { batchAttendanceSchema, type BatchAttendanceFormValues } from '../schemas/attendanceSchema';
-import { useAttendanceRosterQuery } from '../queries/useAttendanceQuery';
+import { useAttendanceRosterQuery } from '../hooks/useAttendanceQuery';
+import { ATTENDANCE_STATUS_VALUES } from '../types/attendance.types';
 import type { AttendanceStatus, RecordAttendanceItem } from '../types/attendance.types';
 
 interface RecordAttendanceModalProps {
@@ -235,7 +237,7 @@ export function RecordAttendanceModal({
                         <p className="text-[10px] text-ink-tertiary">{student.nis} · {student.kelas}</p>
                       </div>
                       <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
-                        <Select value={item.status} onValueChange={(value) => value && handleStatusChange(student.student_id, value as AttendanceStatus)}>
+                        <Select value={item.status} onValueChange={(value) => { if (isOneOf(value, ATTENDANCE_STATUS_VALUES)) handleStatusChange(student.student_id, value); }}>
                           <SelectTrigger className="h-8 w-full bg-surface-1 text-xs text-ink sm:w-28"><SelectValue placeholder="Status" /></SelectTrigger>
                           <SelectContent className="bg-surface-3 text-ink">
                             <SelectItem value="hadir">Hadir</SelectItem>

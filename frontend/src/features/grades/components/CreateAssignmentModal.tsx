@@ -12,17 +12,18 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { cn } from '@/lib/utils';
+} from '@/shared/ui/primitives/dialog';
+import { Button } from '@/shared/ui/primitives/button';
+import { Input } from '@/shared/ui/primitives/input';
+import { Label } from '@/shared/ui/primitives/label';
+import { Textarea } from '@/shared/ui/primitives/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/primitives/select';
+import { cn } from '@/shared/utils/cn';
 import { getErrorMessage } from '@/shared/api/errors';
+import { isOneOf } from '@/shared/utils/isOneOf';
 
 import { createAssignmentSchema, type CreateAssignmentFormValues } from '../schemas/gradeSchema';
-import { ASSIGNMENT_CATEGORY_LABELS, type AssignmentCategory } from '../types/grades.types';
+import { ASSIGNMENT_CATEGORY_VALUES, ASSIGNMENT_CATEGORY_LABELS } from '../types/grades.types';
 
 interface CreateAssignmentModalProps {
   open: boolean;
@@ -106,7 +107,7 @@ export function CreateAssignmentModal({
               <Label className="text-ink-muted text-xs">Kategori *</Label>
               <Select
                 value={selectedCategory}
-                onValueChange={(val) => val && form.setValue('category', val as AssignmentCategory)}
+                onValueChange={(val) => { if (isOneOf(val, ASSIGNMENT_CATEGORY_VALUES)) form.setValue('category', val); }}
               >
                 <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs h-9">
                   <SelectValue placeholder="Pilih Kategori" />

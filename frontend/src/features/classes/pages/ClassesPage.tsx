@@ -2,19 +2,19 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Plus, Search, Layers, Edit2, Power } from 'lucide-react';
-import { PageHeader } from '@/components/common/PageHeader';
-import { ResponsivePageActions } from '@/components/common/ResponsivePageActions';
-import { PageLoader } from '@/components/common/LoadingSpinner';
-import { Pagination } from '@/components/common/Pagination';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { PageHeader } from '@/shared/ui/PageHeader';
+import { ResponsivePageActions } from '@/shared/ui/ResponsivePageActions';
+import { PageLoader } from '@/shared/ui/LoadingSpinner';
+import { Pagination } from '@/shared/ui/Pagination';
+import { Button } from '@/shared/ui/primitives/button';
+import { Input } from '@/shared/ui/primitives/input';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
+} from '@/shared/ui/primitives/select';
 import {
   Table,
   TableBody,
@@ -22,15 +22,15 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
+} from '@/shared/ui/primitives/table';
 import { useDebouncedValue } from '@/shared/hooks/useDebouncedValue';
-import { useIsMobile } from '@/hooks/use-mobile';
-import { ReasonDialog } from '@/components/common/ActionDialog';
-import { classesService } from '../services/classes.service';
+import { useIsMobile } from '@/shared/hooks/use-mobile';
+import { ReasonDialog } from '@/shared/ui/ActionDialog';
+import { classesService } from '../api/classes.service';
 import { ClassFormDialog } from '../components/ClassFormDialog';
 import { ClassMobileList } from '../components/ClassMobileList';
 import type { ClassOption } from '../types/classes.types';
-import { AuditHistoryButton } from '@/features/audit/components/AuditTable';
+import { AuditHistoryButton } from '@/features/audit/components/AuditHistoryButton';
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import { hasCapability } from '@/shared/auth/capabilities';
 

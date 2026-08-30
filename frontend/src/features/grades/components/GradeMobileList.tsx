@@ -1,6 +1,6 @@
-import { AuditHistoryButton } from '@/features/audit/components/AuditTable';
-import { EmptyState } from '@/components/common/EmptyState';
-import { Badge } from '@/components/ui/badge';
+import { AuditHistoryButton } from '@/features/audit/components/AuditHistoryButton';
+import { EmptyState } from '@/shared/ui/EmptyState';
+import { Badge } from '@/shared/ui/primitives/badge';
 import { formatDateShort } from '@/shared/utils/formatDate';
 import { formatEnumLabel } from '@/shared/utils/formatLabels';
 

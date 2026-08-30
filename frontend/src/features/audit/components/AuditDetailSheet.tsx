@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { AlertCircle, CheckCircle2, Clock3, UserRound } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/shared/ui/primitives/button';
 import {
   Sheet,
   SheetClose,
@@ -9,8 +9,8 @@ import {
   SheetFooter,
   SheetHeader,
   SheetTitle,
-} from '@/components/ui/sheet';
-import { useAuditEntryQuery, useAuditRecordHistoryQuery } from '../queries/useAuditQuery';
+} from '@/shared/ui/primitives/sheet';
+import { useAuditEntryQuery, useAuditRecordHistoryQuery } from '../hooks/useAuditQuery';
 import type { AuditLog } from '../types/audit.types';
 import {
   formatAuditActionLabel,

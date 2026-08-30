@@ -2,26 +2,15 @@
 // Zod validation schemas for equipment form and condition updates
 
 import { z } from 'zod';
+import {
+  EQUIPMENT_AVAILABILITY_VALUES,
+  EQUIPMENT_CATEGORY_VALUES,
+  EQUIPMENT_CONDITION_VALUES,
+} from '../types/equipment.types';
 
-export const equipmentCategoryEnum = z.enum([
-  'Kamera',
-  'Lensa',
-  'Audio',
-  'Lighting',
-  'Aksesoris',
-  'Lainnya',
-]);
-
-export const equipmentConditionEnum = z.enum([
-  'bagus',
-  'sedikit_kerusakan',
-  'rusak',
-  'rusak_besar',
-  'sedang_diperbaiki',
-  'hilang',
-]);
-
-export const equipmentAvailabilityEnum = z.enum(['tersedia', 'dipinjam', 'maintenance']);
+export const equipmentCategoryEnum = z.enum(EQUIPMENT_CATEGORY_VALUES);
+export const equipmentConditionEnum = z.enum(EQUIPMENT_CONDITION_VALUES);
+export const equipmentAvailabilityEnum = z.enum(EQUIPMENT_AVAILABILITY_VALUES);
 
 const equipmentPhotoSchema = z
   .string()

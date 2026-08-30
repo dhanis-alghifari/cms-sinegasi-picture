@@ -3,7 +3,7 @@
 
 import { UserCheck, Wallet, GraduationCap, ArrowRight, CircleCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/primitives/card';
 import { formatCurrency } from '@/shared/utils/formatCurrency';
 import { formatNumber } from '@/shared/utils/formatNumber';
 import { formatDateShort } from '@/shared/utils/formatDate';

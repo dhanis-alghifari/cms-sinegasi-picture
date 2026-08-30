@@ -1,10 +1,10 @@
 import { AlertTriangle, ArrowRightLeft, CheckCircle2, MoreVertical, RotateCcw } from 'lucide-react';
 
-import { AuditHistoryButton } from '@/features/audit/components/AuditTable';
-import { EmptyState } from '@/components/common/EmptyState';
-import { BorrowingStatusBadge } from '@/components/feedback/StatusBadge';
-import { Button } from '@/components/ui/button';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { AuditHistoryButton } from '@/features/audit/components/AuditHistoryButton';
+import { EmptyState } from '@/shared/ui/EmptyState';
+import { BorrowingStatusBadge } from './BorrowingStatusBadge';
+import { Button } from '@/shared/ui/primitives/button';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/shared/ui/primitives/dropdown-menu';
 import { formatCurrency } from '@/shared/utils/formatCurrency';
 import { formatDateShort } from '@/shared/utils/formatDate';
 import { formatStatusLabel } from '@/shared/utils/formatLabels';

@@ -2,7 +2,7 @@
 // Summary cards for equipment catalog metrics
 
 import { Camera, CheckCircle2, PackageCheck, Wrench, AlertTriangle } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent } from '@/shared/ui/primitives/card';
 import { formatNumber } from '@/shared/utils/formatNumber';
 import type { EquipmentSummary } from '../types/equipment.types';
 

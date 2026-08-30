@@ -2,7 +2,8 @@
 // Attendance domain types according to PRD schema
 import type { ActorSummary } from '@/shared/types/common';
 
-export type AttendanceStatus = 'hadir' | 'sakit' | 'izin' | 'alpha';
+export const ATTENDANCE_STATUS_VALUES = ['hadir', 'sakit', 'izin', 'alpha'] as const;
+export type AttendanceStatus = typeof ATTENDANCE_STATUS_VALUES[number];
 
 export interface AttendanceRecord {
   id: string;

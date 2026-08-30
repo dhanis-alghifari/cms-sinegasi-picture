@@ -3,7 +3,7 @@
 
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
-import { PageLoader } from '@/components/common/LoadingSpinner';
+import { PageLoader } from '@/shared/ui/LoadingSpinner';
 
 export function PublicRoute() {
   const { isAuthenticated, authHydrated, sessionChecked } = useAuthStore();

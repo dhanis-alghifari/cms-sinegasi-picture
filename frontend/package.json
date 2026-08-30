@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "check:api-boundaries": "node scripts/check-api-boundaries.mjs",
     "check:dialogs": "node scripts/check-responsive-dialogs.mjs",
+    "check:feature-boundaries": "node scripts/check-feature-boundaries.mjs",
+    "check:storytelling": "node scripts/check-storytelling-code.mjs",
     "lint": "eslint .",
     "preview": "vite preview"
   },

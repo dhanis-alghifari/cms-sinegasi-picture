@@ -1,16 +1,18 @@
 import { RotateCcw, Search } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Button } from '@/shared/ui/primitives/button';
+import { Input } from '@/shared/ui/primitives/input';
+import { Label } from '@/shared/ui/primitives/label';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import type { AuditAction, AuditLogFilterParams } from '../types/audit.types';
+} from '@/shared/ui/primitives/select';
+import { AUDIT_ACTION_VALUES } from '../types/audit.types';
+import type { AuditLogFilterParams } from '../types/audit.types';
 import { AUDIT_ACTION_LABELS } from '@/shared/utils/formatLabels';
+import { isOneOf } from '@/shared/utils/isOneOf';
 
 interface AuditFilterProps {
   value: AuditLogFilterParams;
@@ -67,7 +69,7 @@ export function AuditFilter({ value, onChange, onReset }: AuditFilterProps) {
 
         <div className="space-y-1">
           <Label className="text-ink-muted text-xs">Jenis perubahan</Label>
-          <Select value={value.action ?? 'all'} onValueChange={(next) => setValue('action', next && next !== 'all' ? next as AuditAction : undefined)}>
+          <Select value={value.action ?? 'all'} onValueChange={(next) => setValue('action', isOneOf(next, AUDIT_ACTION_VALUES) ? next : undefined)}>
             <SelectTrigger className="w-full bg-surface-2 border-hairline text-ink text-xs">
               <SelectValue placeholder="Semua perubahan" />
             </SelectTrigger>

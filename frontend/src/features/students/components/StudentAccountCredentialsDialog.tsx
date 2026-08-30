@@ -8,9 +8,9 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
+} from '@/shared/ui/primitives/dialog';
+import { Button } from '@/shared/ui/primitives/button';
+import { Label } from '@/shared/ui/primitives/label';
 import type { StudentAccountCredentials } from '../types/students.types';
 
 interface StudentAccountCredentialsDialogProps {

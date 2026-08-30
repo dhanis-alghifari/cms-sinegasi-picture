@@ -3,10 +3,17 @@
 
 import { z } from 'zod';
 import { getFutureDateInputValue } from '@/shared/utils/formatDate';
+import {
+  AWARD_STATUS_VALUES,
+  CONTEST_ENTRY_STATUS_VALUES,
+  CONTEST_SCOPE_VALUES,
+  CONTEST_STATUS_VALUES,
+  WORK_TYPE_VALUES,
+} from '../types/contests.types';
 
-export const contestLevelEnum = z.enum(['bekasi', 'jabodetabek', 'jawa_barat', 'nasional', 'umum']);
-export const contestStatusEnum = z.enum(['buka', 'proses_penjurian', 'selesai']);
-export const awardStatusEnum = z.enum(['Juara 1', 'Juara 2', 'Juara 3', 'Harapan', 'Finalis', 'Peserta']);
+export const contestLevelEnum = z.enum(CONTEST_SCOPE_VALUES);
+export const contestStatusEnum = z.enum(CONTEST_STATUS_VALUES);
+export const awardStatusEnum = z.enum(AWARD_STATUS_VALUES);
 
 const calendarDate = z.string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, 'Tanggal harus berformat YYYY-MM-DD')
@@ -47,8 +54,8 @@ export const submitFilmEntrySchema = z.object({
 
 export type SubmitFilmEntryFormValues = z.infer<typeof submitFilmEntrySchema>;
 
-export const workTypeEnum = z.enum(['short_film', 'documentary', 'photography', 'animation', 'commercial', 'music_video', 'experimental', 'other']);
-export const contestEntryStatusEnum = z.enum(['proses_submit', 'sudah_terkirim', 'menunggu_pengumuman', 'selesai']);
+export const workTypeEnum = z.enum(WORK_TYPE_VALUES);
+export const contestEntryStatusEnum = z.enum(CONTEST_ENTRY_STATUS_VALUES);
 
 export const createContestEntrySchema = z.object({
   title: z.string().min(2, 'Judul karya minimal 2 karakter').max(200).trim(),

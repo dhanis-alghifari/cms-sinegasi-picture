@@ -9,15 +9,15 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { Button } from '@/components/ui/button';
-import { BorrowingStatusBadge } from '@/components/feedback/StatusBadge';
-import { EmptyState } from '@/components/common/EmptyState';
+} from '@/shared/ui/primitives/table';
+import { Button } from '@/shared/ui/primitives/button';
+import { BorrowingStatusBadge } from './BorrowingStatusBadge';
+import { EmptyState } from '@/shared/ui/EmptyState';
 import { formatDateShort } from '@/shared/utils/formatDate';
 import { formatCurrency } from '@/shared/utils/formatCurrency';
 import { formatStatusLabel } from '@/shared/utils/formatLabels';
 import type { BorrowingRecord } from '../types/borrowing.types';
-import { AuditHistoryButton } from '@/features/audit/components/AuditTable';
+import { AuditHistoryButton } from '@/features/audit/components/AuditHistoryButton';
 
 interface BorrowingTableProps {
   borrowings: BorrowingRecord[];

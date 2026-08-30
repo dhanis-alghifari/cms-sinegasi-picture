@@ -2,7 +2,7 @@
 // Dashboard widget — Ringkasan Uang Kas
 
 import { Wallet, ArrowDownRight, ArrowUpRight } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/primitives/card';
 import { formatCurrency } from '@/shared/utils/formatCurrency';
 import { formatDateShort } from '@/shared/utils/formatDate';
 import type { KasSummary } from '../types/dashboard.types';

@@ -8,13 +8,13 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import { EmptyState } from '@/components/common/EmptyState';
+} from '@/shared/ui/primitives/table';
+import { Badge } from '@/shared/ui/primitives/badge';
+import { EmptyState } from '@/shared/ui/EmptyState';
 import { formatDateShort } from '@/shared/utils/formatDate';
 import { formatEnumLabel } from '@/shared/utils/formatLabels';
 import { ASSIGNMENT_CATEGORY_LABELS, type StudentGrade } from '../types/grades.types';
-import { AuditHistoryButton } from '@/features/audit/components/AuditTable';
+import { AuditHistoryButton } from '@/features/audit/components/AuditHistoryButton';
 
 interface GradeTableProps {
   grades: StudentGrade[];

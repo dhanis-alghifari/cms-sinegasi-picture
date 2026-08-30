@@ -2,7 +2,7 @@
 // Summary cards for film contests & achievements metrics
 
 import { Trophy, Film, Award, Flame } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent } from '@/shared/ui/primitives/card';
 import { formatNumber } from '@/shared/utils/formatNumber';
 import type { ContestSummary } from '../types/contests.types';
 

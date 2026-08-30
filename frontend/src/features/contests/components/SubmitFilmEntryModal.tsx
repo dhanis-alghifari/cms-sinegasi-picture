@@ -12,16 +12,16 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { cn } from '@/lib/utils';
+} from '@/shared/ui/primitives/dialog';
+import { Button } from '@/shared/ui/primitives/button';
+import { Input } from '@/shared/ui/primitives/input';
+import { Label } from '@/shared/ui/primitives/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/primitives/select';
+import { cn } from '@/shared/utils/cn';
 import { getErrorMessage } from '@/shared/api/errors';
 
-import { submitFilmEntrySchema, type SubmitFilmEntryFormValues } from '../schemas/contestSchema';
-import type { Contest, AwardStatus } from '../types/contests.types';
+import { awardStatusEnum, submitFilmEntrySchema, type SubmitFilmEntryFormValues } from '../schemas/contestSchema';
+import type { Contest } from '../types/contests.types';
 
 interface StudentOption {
   id: string;
@@ -135,7 +135,10 @@ export function SubmitFilmEntryModal({
               <Label className="text-ink-muted text-xs">Status Prestasi / Penghargaan *</Label>
               <Select
                 value={selectedAwardStatus}
-                onValueChange={(val) => val && form.setValue('award_status', val as AwardStatus)}
+                onValueChange={(val) => {
+                  const parsedAwardStatus = awardStatusEnum.safeParse(val);
+                  if (parsedAwardStatus.success) form.setValue('award_status', parsedAwardStatus.data);
+                }}
               >
                 <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs h-9 font-semibold">
                   <SelectValue placeholder="Pilih status penghargaan" />

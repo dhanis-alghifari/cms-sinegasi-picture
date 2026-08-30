@@ -1,32 +1,285 @@
-# React + TypeScript + Vite
+# Frontend Architecture
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Frontend aplikasi CMS Sinegasi Picture menggunakan React, TypeScript, Vite,
+React Router, TanStack Query, Zustand, React Hook Form, Zod, dan Tailwind CSS.
 
-Currently, two official plugins are available:
+Dokumen ini menjadi aturan kerja sederhana agar codebase mudah dicari, dibaca,
+dan dirawat. Refactor struktur dilakukan bertahap supaya setiap langkah dapat
+diverifikasi.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Struktur yang dituju
 
-## React Compiler
+    src/
+    +-- main.tsx                 # Entry Vite
+    +-- app/                     # Komposisi aplikasi
+    |   +-- App.tsx
+    |   +-- layouts/
+    |   +-- navigation/
+    |   +-- providers/
+    |   +-- router/
+    |   +-- styles/
+    +-- features/                # Domain bisnis
+    |   +-- <feature>/
+    |       +-- api/              # Service HTTP dan integrasi backend
+    |       +-- components/       # Komponen khusus feature
+    |       +-- hooks/            # Query, mutation, dan hook feature
+    |       +-- pages/            # Root halaman
+    |       +-- schemas/          # Validasi input feature (jika ada)
+    |       +-- types/            # Type domain feature
+    |       +-- utils/            # Helper feature (jika ada)
+    |       +-- routes.tsx
+    +-- shared/                  # Kode reusable tanpa aturan domain
+        +-- api/
+        +-- auth/
+        +-- config/
+        +-- hooks/
+        +-- types/
+        +-- ui/
+        |   +-- primitives/       # Komponen UI generik/generated
+        +-- utils/
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Folder top-level lama sudah dipindahkan ke app atau shared. File main.tsx
+tetap berada di src sebagai entry point Vite.
 
-## Expanding the Oxlint configuration
+## Aturan penempatan kode
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+### Komponen global
 
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
-```
+Letakkan komponen di shared/ui jika komponen tersebut:
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+- tidak mengenal domain bisnis tertentu;
+- digunakan oleh sedikitnya dua feature nyata; dan
+- memiliki API yang stabil untuk digunakan ulang.
+
+Primitive seperti Button, Input, Dialog, dan Select berada di
+shared/ui/primitives. Pola umum seperti PageHeader, Pagination, EmptyState,
+dan StatusBadge berada langsung di shared/ui.
+
+Jangan memindahkan komponen ke shared hanya karena terlihat generik. Promosikan
+komponen setelah ada kebutuhan penggunaan ulang yang nyata.
+
+### Komponen lokal
+
+Komponen yang hanya dipakai satu domain berada di
+features/<feature>/components. Hook, konstanta, dan helper yang hanya dipakai satu
+komponen diletakkan sedekat mungkin dengan komponen tersebut.
+
+Jika sebuah child component tidak bermakna tanpa parent-nya, simpan keduanya di
+folder parent. Komponen satu file tidak perlu memiliki folder tambahan; buat
+folder hanya ketika beberapa file memang saling terkait.
+
+### Hasil ownership Fase 2
+
+Komponen global yang dipakai lintas domain berada di shared/ui atau
+shared/ui/primitives. Komponen yang hanya memiliki arti dalam satu domain tetap
+berada di feature tersebut, misalnya:
+
+- users/components/ActorSummaryText
+- cash/components/FormattedNumberInput dan ImageUploadField
+- equipment/components/MultiImageUploadField
+- attendance/components/AttendanceStatusBadge
+- borrowing/components/BorrowingStatusBadge
+
+AuditHistoryButton dipisahkan dari tabel audit menjadi file tersendiri karena
+dipakai oleh banyak feature, tetapi tetap dikelola di feature audit sebagai
+integrasi lintas domain yang eksplisit.
+
+### Arah dependensi
+
+    app -> features -> shared
+
+- app boleh mengompilasi route, provider, layout, dan feature.
+- features boleh menggunakan shared dan feature lain jika kebutuhan bisnis
+  memang jelas.
+- shared tidak boleh mengimpor app, layout, atau feature tertentu.
+- API, hook, schema, dan type tidak boleh mengimpor komponen UI.
+- Hindari barrel export baru; import langsung membuat dependensi mudah dilacak.
+
+### Boundary response API
+
+Semua payload dari HTTP dianggap sebagai data eksternal dan harus divalidasi
+sebelum dipakai oleh feature. Service yang sudah dimigrasikan menggunakan
+apiClient.getParsed, postParsed, putParsed, atau patchParsed bersama decoder
+Zod atau normalizer eksplisit di layer api.
+
+Decoder bertanggung jawab memvalidasi envelope success, data paginated, union
+status, dan field wajib. Jika bentuk response berubah atau tidak valid, client
+melempar API_RESPONSE_INVALID daripada membiarkan payload rusak masuk ke UI.
+Transformasi nama legacy ke kontrak frontend juga dilakukan di decoder, bukan
+di komponen.
+
+Migrasi dilakukan bertahap per vertical slice. Saat ini guardrail berlaku untuk
+auth, contests, dan dashboard:
+
+    npm run check:api-boundaries
+
+Service feature lain tetap boleh memakai jalur legacy sampai memiliki decoder
+yang sesuai, tetapi tidak boleh mencampur generic cast dengan response yang
+belum divalidasi di service yang sudah dimigrasikan.
+
+### Storytelling code
+
+Nama kode harus menjelaskan cerita use case tanpa perlu menebak konteksnya.
+Aturan ini berlaku terutama untuk page dan controller feature:
+
+- State domain memakai nama seperti contestBeingEdited, nextPipelineStatus,
+  selectedEvidenceFile, dan awardResultRows.
+- Handler memakai nama aksi yang spesifik, misalnya
+  handleOpenContestEntries atau handlePipelineUpdateSubmit.
+- Boolean memakai awalan is, has, atau can.
+- Parameter callback memakai nama bermakna seperti searchTerm, resultRow, atau
+  nextStatus, bukan val, item, row, atau data ketika konteksnya dapat dibuat
+  lebih jelas.
+- Nama field API tetap mengikuti kontrak backend; yang diperjelas adalah
+  variabel lokal dan fungsi yang mengorkestrasi alurnya.
+- Jangan membuat abstraksi hanya untuk mengganti nama. Pecah fungsi hanya saat
+  ada tanggung jawab yang berbeda dan tetap mudah diikuti pemula.
+
+Pemeriksaan awal untuk vertical slice kontes:
+
+    npm run check:storytelling
+
+### SOLID per feature
+
+Workstream D dimulai dari feature `contests` dengan batas tanggung jawab yang
+jelas:
+
+- `ContestEntriesDialog` hanya mengorkestrasi query, tampilan mode, dan child component.
+- `CreateContestEntryForm` memiliki form karya dan mutation pembuatan karya.
+- `ContestPipelineUpdateForm` memiliki alur perubahan status dan upload bukti.
+- `ContestEntryList` hanya merender daftar karya.
+- `ContestAwardResultFields` hanya merender field hasil penghargaan berulang.
+- `utils/contestPipelineRules.ts` hanya berisi aturan dan transformasi domain murni.
+
+Dengan pembagian ini, perubahan markup tidak perlu menyentuh aturan pipeline,
+dan perubahan aturan pipeline tidak perlu mengubah daftar karya. Boundary utama
+diverifikasi dengan:
+
+    npm run check:feature-boundaries
+
+Guardrail ini sengaja kecil dan spesifik. Ia mencegah dialog orkestrator
+memiliki form atau mutation sendiri, serta menjaga utility pipeline tetap bebas
+dari React dan komponen UI.
+
+### Compound component yang terukur
+
+Compound component hanya digunakan pada kelompok field hasil penghargaan karena
+header, tombol tambah, daftar, dan row-nya memakai context callback yang sama.
+Pemakaiannya tetap terbaca dari parent:
+
+    <ContestAwardResultFields {...handlers}>
+      <ContestAwardResultFields.Header />
+      <ContestAwardResultFields.List />
+    </ContestAwardResultFields>
+
+Tidak semua komponen diubah menjadi compound component. Jika bagian-bagiannya
+tidak berbagi state atau tidak membutuhkan komposisi, props biasa lebih sederhana.
+Kontrak root, context, dan pemakaian compound diperiksa oleh
+`npm run check:feature-boundaries`.
+
+### DRY pengetahuan domain
+
+Pada feature contests, nilai domain memiliki satu sumber kebenaran:
+
+- types/contests.types.ts menyimpan daftar nilai dan type union seperti status,
+  scope, jenis karya, dan hasil penghargaan.
+- utils/contestLabels.ts menyimpan label UI, opsi dropdown, type guard, badge,
+  dan formatter tampilan.
+- utils/contestPipelineRules.ts hanya menyimpan aturan pipeline murni; ia tidak
+  mendefinisikan label atau opsi tampilan.
+
+Komponen dan hook mengonsumsi katalog tersebut. Katalog lokal tidak dibuat ulang
+karena dapat membuat UI dan API memiliki daftar nilai yang berbeda. Label yang
+memang berbeda karena konteks, seperti label hasil pada form dan badge rekap,
+tetap didefinisikan terpisah dengan nama yang menjelaskan konteksnya.
+
+Pemeriksaan DRY vertical slice ini dijalankan dengan:
+
+    node scripts/check-domain-dry.mjs
+
+### Lazy loading yang konsisten
+
+Setiap feature route memuat page dengan React.lazy dan merendernya di dalam
+Suspense dengan fallback PageLoader. Dengan begitu bundle awal tidak
+memasukkan halaman yang belum dibuka pengguna. Komponen kecil yang selalu
+dibutuhkan oleh page tetap eager agar tidak menambah boundary dan request yang
+tidak perlu.
+
+Dialog, laporan, dan panel opsional yang berukuran besar boleh memiliki lazy
+boundary di dalam feature page. Boundary tersebut harus memakai fallback yang
+sesuai konteks; modal yang belum dibuka boleh memakai fallback kosong agar tidak
+menggeser layout.
+
+Pemeriksaan seluruh route dijalankan dengan:
+
+    node scripts/check-lazy-loading.mjs
+
+## Batas ukuran file
+
+Batas ini adalah alat bantu review, bukan target untuk menambah isi file:
+
+- 80-250 baris: ukuran ideal untuk page atau component biasa.
+- Di atas 300 baris: mulai cari tanggung jawab yang dapat dipisahkan.
+- Di atas 400 baris: muncul sebagai warning lint dan wajib direview.
+- Di atas 500 baris: wajib dipecah berdasarkan tanggung jawab.
+- File handwritten tidak boleh mencapai 1.000 baris.
+
+File generated atau primitive dari library boleh memiliki pengecualian dengan
+alasan yang jelas. Pengecualian tidak berlaku untuk page, modal, atau feature
+controller yang kita pelihara sendiri.
+
+### Hasil Fase 4 - Pecah file besar
+
+File handwritten yang sebelumnya terlalu besar sudah dipisahkan berdasarkan tanggung jawab:
+
+- cash/pages/CashPage.tsx menjadi orchestration page, CashPageTabs, CashPageModals, dan utility export/print laporan.
+- cash/components/FastCashInModal.tsx menjadi controller dan FastCashInFields.
+- students/components/StudentFormDialog.tsx menjadi controller dan StudentFormFields.
+- grades/components/BulkGradingModal.tsx menjadi controller dan BulkGradingFields.
+
+Controller tetap memegang state, query, mutation, validasi, dan submit. Komponen
+fields hanya memegang markup serta callback yang dibutuhkan. Primitive sidebar
+dipertahankan sebagai pengecualian karena merupakan komponen UI bersama/generated,
+bukan feature business code.
+
+### Hasil Fase 5 - Cleanup
+
+Audit cleanup menemukan bahwa referensi folder lama (`services`, `queries`,
+`mutations`, dan `compositions`) serta artefak debug tidak lagi digunakan, jadi
+tidak ada file bisnis yang dihapus secara spekulatif. Cleanup yang diterapkan:
+
+- `ProcessReturnModal` memakai `useWatch` sehingga tidak memicu warning React
+  Compiler dari `form.watch()` di render.
+- Warning Fast Refresh dinonaktifkan secara terbatas hanya untuk modul route yang
+  mengekspor konfigurasi `RouteObject` dan primitive UI generated/shared yang
+  memang mengekspor variant atau manager bersama komponennya.
+- Batas ukuran file tetap aktif untuk kode feature; primitive shared tetap menjadi
+  pengecualian yang terdokumentasi.
+
+Tidak ada perubahan pada kontrak API, state bisnis, atau alur pengguna.
+
+## Pola kerja per feature
+
+1. Mulai dari pages atau route feature untuk memahami use case.
+2. Letakkan komponen tampilan di components dan data access di api.
+3. Letakkan schema dan type domain di model.
+4. Promosikan komponen ke shared/ui setelah benar-benar reusable.
+5. Jalankan validasi sebelum membuat commit.
+
+Validasi lokal:
+
+    npm run lint
+    npm run check:dialogs
+    npm run build
+
+## Tahapan migrasi
+
+1. Guardrail dan dokumentasi.
+2. Konsolidasi app, features, dan shared.
+3. Pemisahan komponen global dan lokal.
+4. Normalisasi struktur internal setiap feature. (selesai untuk boundary api/hooks/components)
+5. Pemecahan file besar.
+6. Cleanup dead code dan penambahan test.
+
+Setiap tahap harus menjaga perilaku aplikasi tetap sama dan diverifikasi sebelum
+tahap berikutnya dimulai.

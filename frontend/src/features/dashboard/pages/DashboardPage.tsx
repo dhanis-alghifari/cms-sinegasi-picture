@@ -1,14 +1,14 @@
 // src/features/dashboard/pages/DashboardPage.tsx
 // Dashboard Page — Thin orchestration page (Constitution: composition + query integration only)
 
-import { PageHeader } from '@/components/common/PageHeader';
-import { PageLoader } from '@/components/common/LoadingSpinner';
-import { Button } from '@/components/ui/button';
+import { PageHeader } from '@/shared/ui/PageHeader';
+import { PageLoader } from '@/shared/ui/LoadingSpinner';
+import { Button } from '@/shared/ui/primitives/button';
 import { RefreshCw } from 'lucide-react';
 import { getErrorMessage } from '@/shared/api/errors';
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
-import { useDashboardQuery } from '../queries/useDashboardQuery';
-import { DashboardOverview } from '../compositions/DashboardOverview';
+import { useDashboardQuery } from '../hooks/useDashboardQuery';
+import { DashboardOverview } from '../components/DashboardOverview';
 import { formatRoleLabel } from '@/shared/utils/formatLabels';
 
 export function DashboardPage() {

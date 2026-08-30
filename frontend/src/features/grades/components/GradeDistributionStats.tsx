@@ -2,7 +2,7 @@
 // Summary cards for grade distribution A-E
 
 import { GraduationCap } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent } from '@/shared/ui/primitives/card';
 import { formatNumber } from '@/shared/utils/formatNumber';
 import type { GradeSummary, StudentGrade } from '../types/grades.types';
 

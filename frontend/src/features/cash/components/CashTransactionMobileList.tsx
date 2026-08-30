@@ -1,9 +1,9 @@
 import { AlertCircle, ArrowDownRight, ArrowUpRight } from 'lucide-react';
 
-import { AuditHistoryButton } from '@/features/audit/components/AuditTable';
-import { EmptyState } from '@/components/common/EmptyState';
-import { StatusBadge } from '@/components/feedback/StatusBadge';
-import { Button } from '@/components/ui/button';
+import { AuditHistoryButton } from '@/features/audit/components/AuditHistoryButton';
+import { EmptyState } from '@/shared/ui/EmptyState';
+import { StatusBadge } from '@/shared/ui/StatusBadge';
+import { Button } from '@/shared/ui/primitives/button';
 import { formatCurrency } from '@/shared/utils/formatCurrency';
 import { formatDateShort } from '@/shared/utils/formatDate';
 import { formatPaymentMethodLabel } from '@/shared/utils/formatLabels';

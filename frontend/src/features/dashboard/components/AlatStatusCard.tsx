@@ -2,7 +2,7 @@
 // Dashboard widget — Status Alat Sinematografi
 
 import { Camera, AlertTriangle } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/primitives/card';
 import { formatNumber } from '@/shared/utils/formatNumber';
 import type { AlatStatusSummary } from '../types/dashboard.types';
 

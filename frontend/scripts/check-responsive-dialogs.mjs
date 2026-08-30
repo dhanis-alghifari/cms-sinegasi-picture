@@ -4,7 +4,7 @@ import path from 'node:path';
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const sourceRoot = path.join(projectRoot, 'src');
-const dialogPrimitivePath = path.join(sourceRoot, 'components', 'ui', 'dialog.tsx');
+const dialogPrimitivePath = path.join(sourceRoot, 'shared', 'ui', 'primitives', 'dialog.tsx');
 const violations = [];
 let dialogFilesChecked = 0;
 
@@ -46,10 +46,13 @@ for (const filePath of files) {
     const hasConstrainedForm = formClasses.some((className) =>
       ['min-h-0', 'flex-1', 'overflow-hidden'].every((token) => className.split(/\s+/).includes(token)),
     );
-    const hasScrollableBody = /className="[^"]*overflow-y-auto[^"]*"/.test(source);
+    const classNames = [...source.matchAll(/className="([^"]*)"/g)].map((match) => match[1]);
+    const hasScrollableBody = classNames.some((className) =>
+      ['min-h-0', 'flex-1', 'overflow-y-auto'].every((token) => className.split(/\s+/).includes(token)),
+    );
 
-    if (!hasConstrainedForm || !hasScrollableBody) {
-      violations.push(`${relativePath(filePath)}: dialog overflow-hidden wajib memiliki form min-h-0 dan satu body overflow-y-auto.`);
+    if (!hasScrollableBody || (formClasses.length > 0 && !hasConstrainedForm)) {
+      violations.push(`${relativePath(filePath)}: dialog overflow-hidden wajib memiliki body min-h-0 flex-1 overflow-y-auto; form pembungkus juga wajib memiliki constraint layout.`);
     }
   }
 }
@@ -68,16 +71,16 @@ const requiredFooterContracts = [
 
 for (const contract of requiredFooterContracts) {
   if (!dialogPrimitive.includes(contract)) {
-    violations.push(`src/components/ui/dialog.tsx: kontrak footer hilang (${contract}).`);
+    violations.push(`src/shared/ui/primitives/dialog.tsx: kontrak footer hilang (${contract}).`);
   }
 }
 
 if (/data-slot="dialog-footer"[\s\S]{0,500}\b-mb-/.test(dialogPrimitive)) {
-  violations.push('src/components/ui/dialog.tsx: DialogFooter tidak boleh memakai margin bawah negatif.');
+  violations.push('src/shared/ui/primitives/dialog.tsx: DialogFooter tidak boleh memakai margin bawah negatif.');
 }
 
 if (/data-slot="dialog-footer"[\s\S]{0,500}\bsm:(?:flex-row|\[&>\[data-slot=button\]\])/.test(dialogPrimitive)) {
-  violations.push('src/components/ui/dialog.tsx: layout desktop DialogFooter harus mulai pada md, bukan sm.');
+  violations.push('src/shared/ui/primitives/dialog.tsx: layout desktop DialogFooter harus mulai pada md, bukan sm.');
 }
 
 if (violations.length > 0) {

@@ -4,24 +4,25 @@
 import { useState } from 'react';
 import { PackagePlus } from 'lucide-react';
 
-import { PageHeader } from '@/components/common/PageHeader';
-import { ResponsivePageActions } from '@/components/common/ResponsivePageActions';
-import { PageLoader } from '@/components/common/LoadingSpinner';
-import { Pagination } from '@/components/common/Pagination';
-import { ConfirmDialog } from '@/components/common/ActionDialog';
+import { PageHeader } from '@/shared/ui/PageHeader';
+import { ResponsivePageActions } from '@/shared/ui/ResponsivePageActions';
+import { PageLoader } from '@/shared/ui/LoadingSpinner';
+import { Pagination } from '@/shared/ui/Pagination';
+import { ConfirmDialog } from '@/shared/ui/ActionDialog';
 
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
-import { useStudentsQuery } from '@/features/students/queries/useStudentsQuery';
-import { useEquipmentQuery } from '@/features/equipment/queries/useEquipmentQuery';
+import { useStudentsQuery } from '@/features/students/hooks/useStudentsQuery';
+import { useEquipmentQuery } from '@/features/equipment/hooks/useEquipmentQuery';
 import { useDebouncedValue } from '@/shared/hooks/useDebouncedValue';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { useIsMobile } from '@/shared/hooks/use-mobile';
 import { hasCapability } from '@/shared/auth/capabilities';
+import { isOneOf } from '@/shared/utils/isOneOf';
 
-import { useBorrowingQuery, useBorrowingSummaryQuery } from '../queries/useBorrowingQuery';
-import { useCreateBorrowingMutation } from '../mutations/useCreateBorrowingMutation';
-import { useApproveRejectBorrowingMutation } from '../mutations/useApproveRejectBorrowingMutation';
-import { useHandoverBorrowingMutation } from '../mutations/useHandoverBorrowingMutation';
-import { useReturnBorrowingMutation } from '../mutations/useReturnBorrowingMutation';
+import { useBorrowingQuery, useBorrowingSummaryQuery } from '../hooks/useBorrowingQuery';
+import { useCreateBorrowingMutation } from '../hooks/useCreateBorrowingMutation';
+import { useApproveRejectBorrowingMutation } from '../hooks/useApproveRejectBorrowingMutation';
+import { useHandoverBorrowingMutation } from '../hooks/useHandoverBorrowingMutation';
+import { useReturnBorrowingMutation } from '../hooks/useReturnBorrowingMutation';
 
 import { BorrowingSummaryCards } from '../components/BorrowingSummaryCards';
 import { BorrowingFilter } from '../components/BorrowingFilter';
@@ -31,7 +32,8 @@ import { CreateBorrowingModal } from '../components/CreateBorrowingModal';
 import { ApproveRejectModal } from '../components/ApproveRejectModal';
 import { ProcessReturnModal } from '../components/ProcessReturnModal';
 
-import type { BorrowingRecord, BorrowingStatus, ReturnItemCondition } from '../types/borrowing.types';
+import { BORROWING_STATUS_VALUES } from '../types/borrowing.types';
+import type { BorrowingRecord, ReturnItemCondition } from '../types/borrowing.types';
 import type { CreateBorrowingFormValues, ApproveRejectFormValues } from '../schemas/borrowingSchema';
 
 export function BorrowingPage() {
@@ -81,7 +83,7 @@ export function BorrowingPage() {
     page,
     pageSize,
     search: debouncedSearch || undefined,
-    status: status !== 'all' ? (status as BorrowingStatus) : undefined,
+    status: isOneOf(status, BORROWING_STATUS_VALUES) ? status : undefined,
     borrower_id: user?.role === 'member' ? user.studentId : undefined,
   });
 

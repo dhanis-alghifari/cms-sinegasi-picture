@@ -2,13 +2,16 @@
 // Borrowing & Return management domain types according to PRD schema
 import type { ActorSummary } from '@/shared/types/common';
 
-export type BorrowingStatus =
-  | 'menunggu_persetujuan'
-  | 'disetujui'
-  | 'ditolak'
-  | 'dipinjam'
-  | 'dikembalikan'
-  | 'terlambat';
+export const BORROWING_STATUS_VALUES = [
+  'menunggu_persetujuan',
+  'disetujui',
+  'ditolak',
+  'dipinjam',
+  'dikembalikan',
+  'terlambat',
+] as const;
+
+export type BorrowingStatus = typeof BORROWING_STATUS_VALUES[number];
 
 export interface BorrowedItem {
   borrowing_item_id?: string;

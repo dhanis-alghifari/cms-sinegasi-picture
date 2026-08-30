@@ -7,15 +7,15 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Eye, EyeOff, LogIn, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { cn } from '@/lib/utils';
+import { Button } from '@/shared/ui/primitives/button';
+import { Input } from '@/shared/ui/primitives/input';
+import { Label } from '@/shared/ui/primitives/label';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/shared/ui/primitives/card';
+import { cn } from '@/shared/utils/cn';
 import { getErrorMessage } from '@/shared/api/errors';
 
 import { loginSchema, type LoginFormValues } from '../schemas/loginSchema';
-import { useLoginMutation } from '../mutations/useLoginMutation';
+import { useLoginMutation } from '../hooks/useLoginMutation';
 
 interface LoginFormProps {
   onSuccess: () => void;

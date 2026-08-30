@@ -2,7 +2,8 @@
 // Student domain types according to PRD schema
 import type { ActorSummary } from '@/shared/types/common';
 
-export type Peminatan = 'kamera' | 'editing' | 'naskah';
+export const PEMINATAN_VALUES = ['kamera', 'editing', 'naskah'] as const;
+export type Peminatan = typeof PEMINATAN_VALUES[number];
 
 export interface Student {
   id: string;

@@ -2,9 +2,9 @@
 // Filter bar for attendance page — Date picker, Kelas select, Status select, Search input
 
 import { Search, X, Calendar as CalendarIcon } from 'lucide-react';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Button } from '@/components/ui/button';
+import { Input } from '@/shared/ui/primitives/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/primitives/select';
+import { Button } from '@/shared/ui/primitives/button';
 
 interface AttendanceFilterProps {
   tanggal: string;

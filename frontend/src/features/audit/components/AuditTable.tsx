@@ -1,7 +1,6 @@
-import { Eye, History } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { Eye } from 'lucide-react';
+import { Button } from '@/shared/ui/primitives/button';
+import { Badge } from '@/shared/ui/primitives/badge';
 import {
   Table,
   TableBody,
@@ -9,9 +8,8 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
+} from '@/shared/ui/primitives/table';
 import type { AuditLog } from '../types/audit.types';
-import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import {
   formatAuditActionLabel,
   formatFieldLabel,
@@ -95,26 +93,5 @@ export function AuditTable({ logs, onDetail }: AuditTableProps) {
         </TableBody>
       </Table>
     </div>
-  );
-}
-
-export function AuditHistoryButton({ tableName, recordId }: { tableName: string; recordId: string }) {
-  const navigate = useNavigate();
-  const user = useAuthStore((state) => state.user);
-
-  if (user?.role !== 'teacher') return null;
-
-  return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon"
-      title="Lihat riwayat perubahan"
-      aria-label="Lihat riwayat perubahan"
-      onClick={() => navigate(`/audit-logs?table_name=${encodeURIComponent(tableName)}&record_id=${encodeURIComponent(recordId)}`)}
-      className="h-8 w-8 text-ink-tertiary hover:text-primary hover:bg-primary/10"
-    >
-      <History size={14} />
-    </Button>
   );
 }

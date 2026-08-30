@@ -6,7 +6,7 @@ import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { ProtectedRoute } from './ProtectedRoute';
 import { PublicRoute } from './PublicRoute';
 import { FirstLoginRoute } from './FirstLoginRoute';
-import { DashboardLayout } from '@/layouts/DashboardLayout';
+import { DashboardLayout } from '@/app/layouts/DashboardLayout';
 import { authRoutes, firstLoginRoutes, passwordRoutes } from '@/features/auth/routes';
 import { dashboardRoutes } from '@/features/dashboard/routes';
 import { studentRoutes } from '@/features/students/routes';

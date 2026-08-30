@@ -3,17 +3,17 @@
 
 import { ClipboardList } from 'lucide-react';
 
-import { EmptyState } from '@/components/common/EmptyState';
-import { Pagination } from '@/components/common/Pagination';
-import { Badge } from '@/components/ui/badge';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { EmptyState } from '@/shared/ui/EmptyState';
+import { Pagination } from '@/shared/ui/Pagination';
+import { Badge } from '@/shared/ui/primitives/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/primitives/table';
 import { getErrorMessage } from '@/shared/api/errors';
 import { formatDateShort } from '@/shared/utils/formatDate';
 import { formatEnumLabel } from '@/shared/utils/formatLabels';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { useIsMobile } from '@/shared/hooks/use-mobile';
 
 import { ASSIGNMENT_CATEGORY_LABELS, type Assignment } from '../types/grades.types';
-import { AuditHistoryButton } from '@/features/audit/components/AuditTable';
+import { AuditHistoryButton } from '@/features/audit/components/AuditHistoryButton';
 import { AssignmentMobileList } from './AssignmentMobileList';
 
 interface AssignmentListProps {

@@ -1,4 +1,4 @@
-import { EmptyState } from '@/components/common/EmptyState';
+import { EmptyState } from '@/shared/ui/EmptyState';
 import { formatCurrency } from '@/shared/utils/formatCurrency';
 import { formatDateShort } from '@/shared/utils/formatDate';
 import { formatEnumLabel, formatPaymentMethodLabel } from '@/shared/utils/formatLabels';

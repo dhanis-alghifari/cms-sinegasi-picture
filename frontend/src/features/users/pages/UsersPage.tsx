@@ -4,22 +4,23 @@
 import { useState } from 'react';
 import { UserPlus } from 'lucide-react';
 
-import { PageHeader } from '@/components/common/PageHeader';
-import { ResponsivePageActions } from '@/components/common/ResponsivePageActions';
-import { PageLoader } from '@/components/common/LoadingSpinner';
-import { EmptyState } from '@/components/common/EmptyState';
-import { Pagination } from '@/components/common/Pagination';
-import { ReasonDialog } from '@/components/common/ActionDialog';
+import { PageHeader } from '@/shared/ui/PageHeader';
+import { ResponsivePageActions } from '@/shared/ui/ResponsivePageActions';
+import { PageLoader } from '@/shared/ui/LoadingSpinner';
+import { EmptyState } from '@/shared/ui/EmptyState';
+import { Pagination } from '@/shared/ui/Pagination';
+import { ReasonDialog } from '@/shared/ui/ActionDialog';
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import { useDebouncedValue } from '@/shared/hooks/useDebouncedValue';
-import { useIsMobile } from '@/hooks/use-mobile';
-import type { UserRole } from '@/shared/types/common';
+import { useIsMobile } from '@/shared/hooks/use-mobile';
+import { USER_ROLE_VALUES } from '@/shared/types/common';
+import { isOneOf } from '@/shared/utils/isOneOf';
 
-import { useUsersQuery } from '../queries/useUsersQuery';
-import { useCreateUserMutation } from '../mutations/useCreateUserMutation';
-import { useUpdateUserMutation } from '../mutations/useUpdateUserMutation';
-import { useResetPasswordMutation } from '../mutations/useResetPasswordMutation';
-import { useDeleteUserMutation } from '../mutations/useDeleteUserMutation';
+import { useUsersQuery } from '../hooks/useUsersQuery';
+import { useCreateUserMutation } from '../hooks/useCreateUserMutation';
+import { useUpdateUserMutation } from '../hooks/useUpdateUserMutation';
+import { useResetPasswordMutation } from '../hooks/useResetPasswordMutation';
+import { useDeleteUserMutation } from '../hooks/useDeleteUserMutation';
 import { UserFilter } from '../components/UserFilter';
 import { UserTable } from '../components/UserTable';
 import { UserMobileList } from '../components/UserMobileList';
@@ -78,7 +79,7 @@ export function UsersPage() {
     page,
     pageSize,
     search: debouncedSearch || undefined,
-    role: role !== 'all' ? (role as UserRole) : undefined,
+    role: isOneOf(role, USER_ROLE_VALUES) ? role : undefined,
     is_active: status === 'all' ? undefined : status === 'active',
   });
 

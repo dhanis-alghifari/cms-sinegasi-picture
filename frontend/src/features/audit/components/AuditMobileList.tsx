@@ -1,7 +1,7 @@
 import { Eye } from 'lucide-react';
 
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { Badge } from '@/shared/ui/primitives/badge';
+import { Button } from '@/shared/ui/primitives/button';
 import { formatAuditActionLabel, formatFieldLabel, formatResourceLabel, formatRoleLabel } from '@/shared/utils/formatLabels';
 import type { AuditLog } from '../types/audit.types';
 

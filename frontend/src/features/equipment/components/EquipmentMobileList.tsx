@@ -1,10 +1,10 @@
 import { Edit2, MoreVertical, QrCode, Wrench } from 'lucide-react';
 
-import { AuditHistoryButton } from '@/features/audit/components/AuditTable';
-import { EmptyState } from '@/components/common/EmptyState';
-import { StatusBadge } from '@/components/feedback/StatusBadge';
-import { Button } from '@/components/ui/button';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { AuditHistoryButton } from '@/features/audit/components/AuditHistoryButton';
+import { EmptyState } from '@/shared/ui/EmptyState';
+import { StatusBadge } from '@/shared/ui/StatusBadge';
+import { Button } from '@/shared/ui/primitives/button';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/shared/ui/primitives/dropdown-menu';
 import { formatStatusLabel } from '@/shared/utils/formatLabels';
 
 import type { Equipment, EquipmentAvailability, EquipmentCondition } from '../types/equipment.types';

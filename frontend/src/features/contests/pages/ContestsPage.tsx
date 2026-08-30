@@ -4,19 +4,19 @@
 import { useState } from 'react';
 import { Trophy } from 'lucide-react';
 
-import { PageHeader } from '@/components/common/PageHeader';
-import { ResponsivePageActions } from '@/components/common/ResponsivePageActions';
-import { PageLoader } from '@/components/common/LoadingSpinner';
-import { Pagination } from '@/components/common/Pagination';
+import { PageHeader } from '@/shared/ui/PageHeader';
+import { ResponsivePageActions } from '@/shared/ui/ResponsivePageActions';
+import { PageLoader } from '@/shared/ui/LoadingSpinner';
+import { Pagination } from '@/shared/ui/Pagination';
 
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import { useDebouncedValue } from '@/shared/hooks/useDebouncedValue';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { useIsMobile } from '@/shared/hooks/use-mobile';
 import { hasCapability } from '@/shared/auth/capabilities';
 
-import { useContestsQuery, useContestSummaryQuery } from '../queries/useContestsQuery';
-import { useCreateContestMutation } from '../mutations/useCreateContestMutation';
-import { useUpdateContestMutation } from '../mutations/useUpdateContestMutation';
+import { useContestsQuery, useContestSummaryQuery } from '../hooks/useContestsQuery';
+import { useCreateContestMutation } from '../hooks/useCreateContestMutation';
+import { useUpdateContestMutation } from '../hooks/useUpdateContestMutation';
 
 import { ContestSummaryCards } from '../components/ContestSummaryCards';
 import { ContestFilter } from '../components/ContestFilter';
@@ -26,8 +26,9 @@ import { CreateContestModal } from '../components/CreateContestModal';
 import { ContestEntriesDialog } from '../components/ContestEntriesDialog';
 import { ContestAchievementsPanel } from '../components/ContestAchievementsPanel';
 
-import type { Contest, ContestLevel, ContestStatus } from '../types/contests.types';
+import type { Contest } from '../types/contests.types';
 import type { ContestFormValues } from '../schemas/contestSchema';
+import { isContestScope, isContestStatus } from '../utils/contestLabels';
 
 export function ContestsPage() {
   const { user } = useAuthStore();
@@ -36,102 +37,102 @@ export function ContestsPage() {
 
   // Filters
   const [search, setSearch] = useState('');
-  const [tingkat, setTingkat] = useState('all');
-  const [status, setStatus] = useState('all');
+  const [scopeFilter, setScopeFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [page, setPage] = useState(1);
   const [activeView, setActiveView] = useState<'events' | 'achievements'>('events');
   const pageSize = 10;
 
-  const debouncedSearch = useDebouncedValue(search, 300);
+  const debouncedContestSearch = useDebouncedValue(search, 300);
 
-  const handleSearchChange = (val: string) => {
-    setSearch(val);
+  const handleSearchChange = (searchTerm: string) => {
+    setSearch(searchTerm);
     setPage(1);
   };
 
-  const handleTingkatChange = (val: string) => {
-    setTingkat(val);
+  const handleScopeFilterChange = (nextScopeFilter: string) => {
+    setScopeFilter(nextScopeFilter);
     setPage(1);
   };
 
-  const handleStatusChange = (val: string) => {
-    setStatus(val);
+  const handleStatusFilterChange = (nextStatusFilter: string) => {
+    setStatusFilter(nextStatusFilter);
     setPage(1);
   };
 
-  const handleResetFilter = () => {
+  const handleResetContestFilters = () => {
     setSearch('');
-    setTingkat('all');
-    setStatus('all');
+    setScopeFilter('all');
+    setStatusFilter('all');
     setPage(1);
   };
 
   // Modals
-  const [contestOpen, setContestOpen] = useState(false);
+  const [isContestFormOpen, setIsContestFormOpen] = useState(false);
   const [selectedContest, setSelectedContest] = useState<Contest | null>(null);
 
   const [submitFilmOpen, setSubmitFilmOpen] = useState(false);
   const [targetContest, setTargetContest] = useState<Contest | null>(null);
 
   // Queries
-  const { data: summaryData, isLoading: isSummaryLoading } = useContestSummaryQuery();
-  const { data: contestsData, isLoading: isContestsLoading } = useContestsQuery({
+  const { data: contestSummary, isLoading: isContestSummaryLoading } = useContestSummaryQuery();
+  const { data: contestPage, isLoading: isContestPageLoading } = useContestsQuery({
     page,
     pageSize,
-    search: debouncedSearch || undefined,
-    tingkat: tingkat !== 'all' ? (tingkat as ContestLevel) : undefined,
-    status: status !== 'all' ? (status as ContestStatus) : undefined,
+    search: debouncedContestSearch || undefined,
+    tingkat: isContestScope(scopeFilter) ? scopeFilter : undefined,
+    status: isContestStatus(statusFilter) ? statusFilter : undefined,
   });
 
   // Mutations
-  const createMutation = useCreateContestMutation();
-  const updateMutation = useUpdateContestMutation();
+  const createContestMutation = useCreateContestMutation();
+  const updateContestMutation = useUpdateContestMutation();
 
   // Handlers
-  const handleOpenAdd = () => {
+  const handleOpenCreateContest = () => {
     setSelectedContest(null);
-    setContestOpen(true);
+    setIsContestFormOpen(true);
   };
 
-  const handleOpenEdit = (c: Contest) => {
-    setSelectedContest(c);
-    setContestOpen(true);
+  const handleOpenEditContest = (contest: Contest) => {
+    setSelectedContest(contest);
+    setIsContestFormOpen(true);
   };
 
-  const handleOpenEntries = (c: Contest) => {
-    setTargetContest(c);
+  const handleOpenContestEntries = (contest: Contest) => {
+    setTargetContest(contest);
     setSubmitFilmOpen(true);
   };
 
-  const handleContestFormSubmit = async (values: ContestFormValues) => {
-    const { change_reason, ...payload } = values;
+  const handleContestFormSubmit = async (formValues: ContestFormValues) => {
+    const { change_reason: changeReason, ...contestFormPayload } = formValues;
 
     if (selectedContest) {
-      await updateMutation.mutateAsync({
+      await updateContestMutation.mutateAsync({
         id: selectedContest.id,
         payload: {
-          nama_lomba: payload.nama_lomba,
-          kota: payload.kota,
-          tingkat: payload.tingkat,
-          ...(payload.deadline !== selectedContest.deadline ? { deadline: payload.deadline } : {}),
-          status: payload.status,
-          tahun_event: payload.tahun_event,
-          website_url: payload.website_url || undefined,
-          deskripsi: payload.deskripsi || undefined,
+          nama_lomba: contestFormPayload.nama_lomba,
+          kota: contestFormPayload.kota,
+          tingkat: contestFormPayload.tingkat,
+          ...(contestFormPayload.deadline !== selectedContest.deadline ? { deadline: contestFormPayload.deadline } : {}),
+          status: contestFormPayload.status,
+          tahun_event: contestFormPayload.tahun_event,
+          website_url: contestFormPayload.website_url || undefined,
+          deskripsi: contestFormPayload.deskripsi || undefined,
         },
-        changeReason: change_reason ?? '',
+        changeReason: changeReason ?? '',
       });
     } else {
-      await createMutation.mutateAsync({
+      await createContestMutation.mutateAsync({
         payload: {
-          nama_lomba: payload.nama_lomba,
-          kota: payload.kota,
-          tingkat: payload.tingkat,
-          deadline: payload.deadline,
-          status: payload.status,
-          tahun_event: payload.tahun_event,
-          website_url: payload.website_url || undefined,
-          deskripsi: payload.deskripsi || undefined,
+          nama_lomba: contestFormPayload.nama_lomba,
+          kota: contestFormPayload.kota,
+          tingkat: contestFormPayload.tingkat,
+          deadline: contestFormPayload.deadline,
+          status: contestFormPayload.status,
+          tahun_event: contestFormPayload.tahun_event,
+          website_url: contestFormPayload.website_url || undefined,
+          deskripsi: contestFormPayload.deskripsi || undefined,
         },
       });
     }
@@ -149,7 +150,7 @@ export function ContestsPage() {
                 id: 'add-contest',
                 label: 'Tambah Event Festival',
                 icon: Trophy,
-                onSelect: handleOpenAdd,
+                onSelect: handleOpenCreateContest,
               }]}
             />
           ) : undefined
@@ -157,7 +158,7 @@ export function ContestsPage() {
       />
 
       {/* Summary Cards */}
-      {isSummaryLoading ? <PageLoader /> : <ContestSummaryCards summary={summaryData} />}
+      {isContestSummaryLoading ? <PageLoader /> : <ContestSummaryCards summary={contestSummary} />}
 
       <div className="flex w-full gap-1 border-b border-hairline" role="tablist" aria-label="Perlombaan dan prestasi">
         <button type="button" role="tab" aria-selected={activeView === 'events'} onClick={() => setActiveView('events')} className={`border-b-2 px-3 py-2 text-xs font-semibold transition-colors ${activeView === 'events' ? 'border-primary text-primary' : 'border-transparent text-ink-tertiary hover:text-ink'}`}>Event &amp; pendaftaran</button>
@@ -170,28 +171,28 @@ export function ContestsPage() {
       <ContestFilter
         search={search}
         onSearchChange={handleSearchChange}
-        tingkat={tingkat}
-        onTingkatChange={handleTingkatChange}
-        status={status}
-        onStatusChange={handleStatusChange}
-        onReset={handleResetFilter}
+        tingkat={scopeFilter}
+        onTingkatChange={handleScopeFilterChange}
+        status={statusFilter}
+        onStatusChange={handleStatusFilterChange}
+        onReset={handleResetContestFilters}
       />
 
       {/* Table */}
-      {isContestsLoading ? (
+      {isContestPageLoading ? (
         <PageLoader />
       ) : (
         <div className="space-y-4">
           {isMobile ? (
-            <ContestMobileList contests={contestsData?.data ?? []} onEdit={handleOpenEdit} onManageEntries={handleOpenEntries} canManage={canManage} />
+            <ContestMobileList contests={contestPage?.data ?? []} onEdit={handleOpenEditContest} onManageEntries={handleOpenContestEntries} canManage={canManage} />
           ) : (
-            <ContestTable contests={contestsData?.data ?? []} onEdit={handleOpenEdit} onManageEntries={handleOpenEntries} canManage={canManage} />
+            <ContestTable contests={contestPage?.data ?? []} onEdit={handleOpenEditContest} onManageEntries={handleOpenContestEntries} canManage={canManage} />
           )}
           <Pagination
-            page={contestsData?.page ?? page}
-            totalPages={contestsData?.totalPages ?? 1}
-            total={contestsData?.total ?? 0}
-            pageSize={contestsData?.pageSize ?? pageSize}
+            page={contestPage?.page ?? page}
+            totalPages={contestPage?.totalPages ?? 1}
+            total={contestPage?.total ?? 0}
+            pageSize={contestPage?.pageSize ?? pageSize}
             onPageChange={setPage}
           />
         </div>
@@ -201,12 +202,12 @@ export function ContestsPage() {
       {canManage && (
         <>
           <CreateContestModal
-            open={contestOpen}
-            onOpenChange={setContestOpen}
+            open={isContestFormOpen}
+            onOpenChange={setIsContestFormOpen}
             contest={selectedContest}
             onSubmit={handleContestFormSubmit}
-            isLoading={createMutation.isPending || updateMutation.isPending}
-            error={createMutation.error || updateMutation.error}
+            isLoading={createContestMutation.isPending || updateContestMutation.isPending}
+            error={createContestMutation.error || updateContestMutation.error}
           />
 
           <ContestEntriesDialog

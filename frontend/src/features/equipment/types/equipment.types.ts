@@ -2,17 +2,21 @@
 // Equipment catalog & condition domain types according to PRD schema
 import type { ActorSummary } from '@/shared/types/common';
 
-export type EquipmentCategory = 'Kamera' | 'Lensa' | 'Audio' | 'Lighting' | 'Aksesoris' | 'Lainnya';
+export const EQUIPMENT_CATEGORY_VALUES = ['Kamera', 'Lensa', 'Audio', 'Lighting', 'Aksesoris', 'Lainnya'] as const;
+export type EquipmentCategory = typeof EQUIPMENT_CATEGORY_VALUES[number];
 
-export type EquipmentCondition =
-  | 'bagus'
-  | 'sedikit_kerusakan'
-  | 'rusak'
-  | 'rusak_besar'
-  | 'sedang_diperbaiki'
-  | 'hilang';
+export const EQUIPMENT_CONDITION_VALUES = [
+  'bagus',
+  'sedikit_kerusakan',
+  'rusak',
+  'rusak_besar',
+  'sedang_diperbaiki',
+  'hilang',
+] as const;
+export type EquipmentCondition = typeof EQUIPMENT_CONDITION_VALUES[number];
 
-export type EquipmentAvailability = 'tersedia' | 'dipinjam' | 'maintenance';
+export const EQUIPMENT_AVAILABILITY_VALUES = ['tersedia', 'dipinjam', 'maintenance'] as const;
+export type EquipmentAvailability = typeof EQUIPMENT_AVAILABILITY_VALUES[number];
 
 export interface Equipment {
   id: string;

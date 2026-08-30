@@ -2,20 +2,20 @@ import { useMemo, useState } from 'react';
 import { AlertCircle, History } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 
-import { PageHeader } from '@/components/common/PageHeader';
-import { PageLoader } from '@/components/common/LoadingSpinner';
-import { EmptyState } from '@/components/common/EmptyState';
-import { Pagination } from '@/components/common/Pagination';
+import { PageHeader } from '@/shared/ui/PageHeader';
+import { PageLoader } from '@/shared/ui/LoadingSpinner';
+import { EmptyState } from '@/shared/ui/EmptyState';
+import { Pagination } from '@/shared/ui/Pagination';
 
 import { AuditFilter } from '../components/AuditFilter';
 import { AuditTable } from '../components/AuditTable';
 import { AuditMobileList } from '../components/AuditMobileList';
 import { AuditDetailSheet } from '../components/AuditDetailSheet';
-import { useAuditLogsQuery } from '../queries/useAuditQuery';
+import { useAuditLogsQuery } from '../hooks/useAuditQuery';
 import { useDebouncedValue } from '@/shared/hooks/useDebouncedValue';
 import { formatResourceLabel } from '@/shared/utils/formatLabels';
 import { formatNumber } from '@/shared/utils/formatNumber';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { useIsMobile } from '@/shared/hooks/use-mobile';
 import type { AuditLog, AuditLogFilterParams } from '../types/audit.types';
 
 const PAGE_SIZE = 20;

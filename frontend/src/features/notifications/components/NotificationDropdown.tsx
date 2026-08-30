@@ -7,12 +7,12 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Button } from '@/components/ui/button';
-import { useNotificationsQuery, useUnreadCountQuery } from '../queries/useNotificationsQuery';
+} from '@/shared/ui/primitives/dropdown-menu';
+import { Button } from '@/shared/ui/primitives/button';
+import { useNotificationsQuery, useUnreadCountQuery } from '../hooks/useNotificationsQuery';
 import { formatNumber } from '@/shared/utils/formatNumber';
-import { useMarkNotificationReadMutation } from '../mutations/useMarkNotificationReadMutation';
-import { useMarkAllNotificationsReadMutation } from '../mutations/useMarkAllNotificationsReadMutation';
+import { useMarkNotificationReadMutation } from '../hooks/useMarkNotificationReadMutation';
+import { useMarkAllNotificationsReadMutation } from '../hooks/useMarkAllNotificationsReadMutation';
 import { NotificationItem } from './NotificationItem';
 import { useNavigate } from 'react-router-dom';
 

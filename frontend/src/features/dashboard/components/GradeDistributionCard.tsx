@@ -2,7 +2,7 @@
 // Dashboard widget — Sebaran Nilai A-E Universal Grading System
 
 import { GraduationCap } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/primitives/card';
 import { formatNumber } from '@/shared/utils/formatNumber';
 import type { GradeDistributionSummary } from '../types/dashboard.types';
 

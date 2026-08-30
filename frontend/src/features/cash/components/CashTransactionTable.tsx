@@ -9,16 +9,16 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { Button } from '@/components/ui/button';
-import { StatusBadge } from '@/components/feedback/StatusBadge';
-import { EmptyState } from '@/components/common/EmptyState';
+} from '@/shared/ui/primitives/table';
+import { Button } from '@/shared/ui/primitives/button';
+import { StatusBadge } from '@/shared/ui/StatusBadge';
+import { EmptyState } from '@/shared/ui/EmptyState';
 import { formatCurrency } from '@/shared/utils/formatCurrency';
 import { formatDateShort } from '@/shared/utils/formatDate';
 import { formatPaymentMethodLabel } from '@/shared/utils/formatLabels';
 import type { CashDisputeQuota, CashTransaction } from '../types/cash.types';
 import { getDisputeAction } from '../utils/disputeState';
-import { AuditHistoryButton } from '@/features/audit/components/AuditTable';
+import { AuditHistoryButton } from '@/features/audit/components/AuditHistoryButton';
 
 interface CashTransactionTableProps {
   transactions: CashTransaction[];

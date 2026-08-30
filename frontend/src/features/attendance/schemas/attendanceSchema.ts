@@ -2,8 +2,9 @@
 // Zod validation schemas for attendance recording and correction
 
 import { z } from 'zod';
+import { ATTENDANCE_STATUS_VALUES } from '../types/attendance.types';
 
-export const attendanceStatusEnum = z.enum(['hadir', 'sakit', 'izin', 'alpha']);
+export const attendanceStatusEnum = z.enum(ATTENDANCE_STATUS_VALUES);
 
 export const singleAttendanceItemSchema = z
   .object({

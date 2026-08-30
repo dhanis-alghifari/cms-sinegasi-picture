@@ -1,29 +1,33 @@
 import { useMemo, useState } from 'react';
 import { AlertCircle, Save, ShieldCheck } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { PageHeader } from '@/components/common/PageHeader';
-import { PageLoader } from '@/components/common/LoadingSpinner';
-import { useAccessControlMatrixQuery, useUpdateRoleCapabilitiesMutation } from '../queries/useAccessControlQuery';
+import { Button } from '@/shared/ui/primitives/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/primitives/card';
+import { PageHeader } from '@/shared/ui/PageHeader';
+import { PageLoader } from '@/shared/ui/LoadingSpinner';
+import { useAccessControlMatrixQuery, useUpdateRoleCapabilitiesMutation } from '../hooks/useAccessControlQuery';
 import { CAPABILITY_VALUES, type Capability } from '@/shared/auth/capabilities';
 import { formatRoleLabel } from '@/shared/utils/formatLabels';
 import type { UserRole } from '@/shared/types/common';
 
-const permissionLabels: Record<Capability, string> = Object.fromEntries(
-  CAPABILITY_VALUES.map((permission) => [permission, permission.replaceAll('.', ' › ')]),
-) as Record<Capability, string>;
+const permissionLabels: Partial<Record<Capability, string>> = {};
+for (const permission of CAPABILITY_VALUES) {
+  permissionLabels[permission] = permission.replaceAll('.', ' › ');
+}
 
 export function AccessControlPage() {
   const { data, isLoading, isError, error } = useAccessControlMatrixQuery();
   const mutation = useUpdateRoleCapabilitiesMutation();
-  const [drafts, setDrafts] = useState<Record<UserRole, Capability[]>>({} as Record<UserRole, Capability[]>);
-  const [reasons, setReasons] = useState<Record<UserRole, string>>({} as Record<UserRole, string>);
+  const [drafts, setDrafts] = useState<Partial<Record<UserRole, Capability[]>>>({});
+  const [reasons, setReasons] = useState<Partial<Record<UserRole, string>>>({});
 
   const permissions = useMemo(() => data?.permissions ?? CAPABILITY_VALUES, [data]);
-  const serverDrafts = useMemo(
-    () => Object.fromEntries((data?.roles ?? []).map((item) => [item.role, item.capabilities])) as Record<UserRole, Capability[]>,
-    [data],
-  );
+  const serverDrafts = useMemo<Partial<Record<UserRole, Capability[]>>>(() => {
+    const roleCapabilities: Partial<Record<UserRole, Capability[]>> = {};
+    for (const role of data?.roles ?? []) {
+      roleCapabilities[role.role] = role.capabilities;
+    }
+    return roleCapabilities;
+  }, [data]);
 
   if (isLoading) return <PageLoader />;
   if (isError || !data) {
