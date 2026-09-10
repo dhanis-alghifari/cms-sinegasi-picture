@@ -33,6 +33,7 @@ export const QUERY_KEYS = {
   ATTENDANCE_SUMMARY: ['attendance', 'summary'] as const,
 
   // Classes
+  CLASSES: ['classes'] as const,
   CLASS_OPTIONS: ['classes', 'options'] as const,
 
   // Grades

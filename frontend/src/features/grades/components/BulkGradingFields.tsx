@@ -93,7 +93,7 @@ export function BulkGradingFields({
               value={selectedAssignmentId}
               onValueChange={onAssignmentChange}
             >
-              <SelectTrigger className="w-full bg-surface-2 border-hairline text-ink text-xs h-9">
+              <SelectTrigger className="w-full bg-surface-2 border-hairline text-ink text-xs">
                 <SelectValue placeholder="Pilih tugas...">
                   {selectedAssignment ? formatAssignmentLabel(selectedAssignment) : undefined}
                 </SelectValue>
@@ -118,7 +118,7 @@ export function BulkGradingFields({
             <Input
               id="change_reason"
               placeholder="Contoh: Penilaian tugas sinematografi minggu ini"
-              className={cn('bg-surface-2 border-hairline text-ink text-xs h-9', form.formState.errors.change_reason && 'border-semantic-danger')}
+              className={cn('bg-surface-2 border-hairline text-ink text-xs', form.formState.errors.change_reason && 'border-semantic-danger')}
               {...form.register('change_reason')}
             />
             {form.formState.errors.change_reason && (
@@ -141,7 +141,7 @@ export function BulkGradingFields({
                   aria-expanded={studentPickerOpen}
                   aria-controls="student-picker-list"
                   onClick={onToggleStudentPicker}
-                  className="w-full justify-between bg-surface-2 border-hairline text-ink text-xs h-9 font-normal"
+                  className="w-full justify-between bg-surface-2 border-hairline text-ink text-xs font-normal"
                 >
                   <span className="flex items-center gap-2 truncate">
                     <Search size={14} className="text-ink-tertiary shrink-0" />
@@ -157,7 +157,7 @@ export function BulkGradingFields({
                       value={studentSearch}
                       onChange={(event) => onStudentSearchChange(event.target.value)}
                       placeholder="Cari nama, NIS, kelas, atau peminatan..."
-                      className="bg-surface-2 border-hairline text-ink text-xs h-8 mb-2"
+                      className="bg-surface-2 border-hairline text-ink text-xs mb-2"
                       aria-label="Cari siswa"
                     />
                     <div id="student-picker-list" role="listbox" aria-label="Daftar siswa" className="max-h-44 overflow-y-auto space-y-1">
@@ -232,7 +232,7 @@ export function BulkGradingFields({
                         value={item.nilai}
                         onValueChange={(val) => { if (isOneOf(val, GRADE_LETTER_VALUES)) onGradeChange(s.id, val); }}
                       >
-                        <SelectTrigger className="w-full bg-surface-1 border-hairline text-ink text-xs h-8 font-bold md:w-24">
+                        <SelectTrigger className="w-full bg-surface-1 border-hairline text-ink text-xs font-bold md:w-24">
                           <SelectValue placeholder="Pilih nilai" />
                         </SelectTrigger>
                         <SelectContent className="bg-surface-3 border-hairline text-ink">
@@ -249,7 +249,7 @@ export function BulkGradingFields({
                         placeholder="Catatan nilai opsional"
                         value={item.keterangan}
                         onChange={(e) => onKeteranganChange(s.id, e.target.value)}
-                        className="w-full bg-surface-1 border-hairline text-ink text-xs h-8 md:w-40"
+                          className="w-full bg-surface-1 border-hairline text-ink text-xs md:w-40"
                       />
                       <Button
                         type="button"

@@ -32,10 +32,20 @@ export const batchAttendanceSchema = z.object({
 
 export type BatchAttendanceFormValues = z.infer<typeof batchAttendanceSchema>;
 
-export const correctAttendanceSchema = z.object({
-  status: attendanceStatusEnum,
-  keterangan: z.string().optional(),
-  change_reason: z.string().min(5, 'Alasan koreksi absensi terkunci wajib diisi (minimal 5 karakter)'),
-});
+export const correctAttendanceSchema = z
+  .object({
+    status: attendanceStatusEnum,
+    keterangan: z.string().optional(),
+    change_reason: z.string().min(5, 'Alasan koreksi absensi terkunci wajib diisi (minimal 5 karakter)'),
+  })
+  .superRefine((data, context) => {
+    if (data.status !== 'hadir' && !data.keterangan?.trim()) {
+      context.addIssue({
+        code: 'custom',
+        path: ['keterangan'],
+        message: 'Keterangan wajib diisi untuk Sakit, Izin, atau Alpha',
+      });
+    }
+  });
 
 export type CorrectAttendanceFormValues = z.infer<typeof correctAttendanceSchema>;

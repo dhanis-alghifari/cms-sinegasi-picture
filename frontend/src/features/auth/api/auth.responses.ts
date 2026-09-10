@@ -14,7 +14,7 @@ const authUserSchema: z.ZodType<AuthUser> = z.object({
   studentId: z.string().min(1).optional(),
   auth_version: z.number().int().nonnegative().optional(),
   capabilities: z.array(z.enum(CAPABILITY_VALUES)).optional(),
-}).passthrough();
+}).loose();
 
 const loginResponseSchema = z.object({
   success: z.literal(true),

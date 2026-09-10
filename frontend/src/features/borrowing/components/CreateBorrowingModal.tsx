@@ -140,7 +140,7 @@ export function CreateBorrowingModal({
                 value={selectedBorrowerId}
                 onValueChange={(val) => val && form.setValue('borrower_id', val)}
               >
-                <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs h-9">
+                <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs">
                   <SelectValue placeholder="Pilih Siswa">
                     {selectedBorrower ? `${selectedBorrower.nama} (${selectedBorrower.kelas})` : undefined}
                   </SelectValue>
@@ -164,7 +164,7 @@ export function CreateBorrowingModal({
               <Input
                 id="keperluan"
                 placeholder="cth. Shooting Short Movie A"
-                className="bg-surface-2 border-hairline text-ink text-xs h-9"
+                className="bg-surface-2 border-hairline text-ink text-xs"
                 {...form.register('keperluan')}
               />
               {form.formState.errors.keperluan && (
@@ -180,7 +180,7 @@ export function CreateBorrowingModal({
               <Input
                 id="tanggal_pinjam"
                 type="date"
-                className="bg-surface-2 border-hairline text-ink text-xs h-9"
+                className="bg-surface-2 border-hairline text-ink text-xs"
                 {...form.register('tanggal_pinjam')}
               />
               {form.formState.errors.tanggal_pinjam && (
@@ -194,7 +194,7 @@ export function CreateBorrowingModal({
               <Input
                 id="rencana_kembali"
                 type="date"
-                className="bg-surface-2 border-hairline text-ink text-xs h-9"
+                className="bg-surface-2 border-hairline text-ink text-xs"
                 {...form.register('rencana_kembali')}
               />
               {form.formState.errors.rencana_kembali && (
@@ -216,7 +216,7 @@ export function CreateBorrowingModal({
                 value={equipmentSearch}
                 onChange={(event) => setEquipmentSearch(event.target.value)}
                 placeholder="Cari kode, nama, atau kategori alat..."
-                className="pl-8 pr-8 bg-surface-2 border-hairline text-ink text-xs h-8"
+                className="pl-8 pr-8 bg-surface-2 border-hairline text-ink text-xs"
                 aria-label="Cari peralatan tersedia"
               />
               {equipmentSearch && (

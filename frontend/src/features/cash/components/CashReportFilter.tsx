@@ -211,19 +211,19 @@ function ReportFilterFields({
       <div className="grid gap-3 md:grid-cols-[1fr_auto_1fr_auto] md:items-end">
         <label className="space-y-1 text-xs text-ink-subtle">
           <span className="block">Tanggal mulai</span>
-          <Input type="date" value={startDate} max={endDate || undefined} onChange={(event) => onStartDateChange(event.target.value)} className="min-h-12 border-hairline bg-surface-2 text-xs text-ink md:h-9 md:min-h-0" />
+          <Input type="date" value={startDate} max={endDate || undefined} onChange={(event) => onStartDateChange(event.target.value)} className="border-hairline bg-surface-2 text-xs text-ink" />
         </label>
         <span className="hidden pb-2 text-xs text-ink-tertiary md:block">sampai</span>
         <label className="space-y-1 text-xs text-ink-subtle">
           <span className="block">Tanggal selesai</span>
-          <Input type="date" value={endDate} min={startDate || undefined} onChange={(event) => onEndDateChange(event.target.value)} className="min-h-12 border-hairline bg-surface-2 text-xs text-ink md:h-9 md:min-h-0" />
+          <Input type="date" value={endDate} min={startDate || undefined} onChange={(event) => onEndDateChange(event.target.value)} className="border-hairline bg-surface-2 text-xs text-ink" />
         </label>
         <div className="flex min-h-12 items-center justify-start text-xs text-ink-tertiary md:h-9 md:min-h-0 md:justify-end">{getInclusiveDays(startDate, endDate) || '—'} hari</div>
       </div>
       <div className="space-y-1 text-xs text-ink-subtle">
         <span className="block">Metode pembayaran</span>
         <Select value={paymentMethodCode || 'all'} onValueChange={(value) => onPaymentMethodChange(value === 'all' || !value ? '' : value)} disabled={isPaymentMethodsLoading}>
-          <SelectTrigger className="min-h-12 border-hairline bg-surface-2 text-xs text-ink md:h-9 md:min-h-0" aria-label="Filter metode pembayaran laporan">
+          <SelectTrigger className="border-hairline bg-surface-2 text-xs text-ink" aria-label="Filter metode pembayaran laporan">
             <SelectValue placeholder="Semua metode" />
           </SelectTrigger>
           <SelectContent className="border-hairline bg-surface-3 text-ink">

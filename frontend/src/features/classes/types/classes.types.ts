@@ -1,10 +1,23 @@
 // src/features/classes/types/classes.types.ts
 import type { ActorSummary } from '@/shared/types/common';
 
-export interface ClassOption {
+export type ClassLevel = 'X' | 'XI' | 'XII' | string;
+
+/**
+ * Small projection used by selectors such as the student and attendance forms.
+ * Keep this separate from the administrative class record because the options
+ * endpoint intentionally does not return audit or status fields.
+ */
+export interface ClassSelectorOption {
   id: string;
   nama_kelas: string;
-  tingkat: 'X' | 'XI' | 'XII' | string;
+  tingkat: ClassLevel;
+}
+
+/**
+ * Complete class record returned by the administrative classes endpoints.
+ */
+export interface ClassRecord extends ClassSelectorOption {
   is_active: boolean;
   created_at?: string;
   created_by?: string;

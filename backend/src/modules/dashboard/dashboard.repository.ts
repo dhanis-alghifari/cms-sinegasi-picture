@@ -1,10 +1,19 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { DashboardMemoryState, DashboardRepository, DashboardSummary } from './dashboard.types.js';
+import type {
+  DashboardMemoryState,
+  DashboardRepository,
+  DashboardSummary,
+  OperationalDashboardSummary,
+} from './dashboard.types.js';
 import { createDefaultDashboardSummary } from './dashboard.helpers.js';
 
 /** Database-backed member read model with a deterministic local fallback. */
 type DatabaseRow = Record<string, unknown>;
 type SupabaseLike = SupabaseClient | null;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
 
 function asNumber(value: unknown): number {
   const parsed = typeof value === 'number' ? value : Number(value);
@@ -88,6 +97,20 @@ async function readDatabaseSummary(client: SupabaseClient, studentId: string): P
   };
 }
 
+async function readOperationalDashboardSummary(
+  client: SupabaseClient,
+): Promise<{ data: OperationalDashboardSummary } | { error: unknown }> {
+  const result = await client.rpc('get_operational_dashboard_summary', { p_report_date: null });
+  if (result.error) return { error: result.error };
+
+  const summary = Array.isArray(result.data) ? result.data[0] : result.data;
+  if (!isRecord(summary)) {
+    return { error: new Error('Operational dashboard RPC returned an invalid payload.') };
+  }
+
+  return { data: summary as unknown as OperationalDashboardSummary };
+}
+
 export function createDashboardRepository(state: DashboardMemoryState, client: SupabaseLike = null): DashboardRepository {
   return {
     async getStudentSummary(studentId) {
@@ -98,6 +121,12 @@ export function createDashboardRepository(state: DashboardMemoryState, client: S
       const summary = createDefaultDashboardSummary(studentId);
       state.summaries.set(studentId, summary);
       return { data: { ...summary, studentId } };
+    },
+    async getOperationalSummary() {
+      if (client) return readOperationalDashboardSummary(client);
+      return {
+        error: new Error('Supabase client is required for the operational dashboard summary.'),
+      };
     },
   };
 }

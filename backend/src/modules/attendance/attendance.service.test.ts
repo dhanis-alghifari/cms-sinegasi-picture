@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { AttendanceService, AttendanceServiceError } from './attendance.service.js';
-import type { AttendanceRepository } from './attendance.repository.js';
+import type { AttendanceCorrectionInput, AttendanceRepository } from './attendance.repository.js';
 
 function repository(overrides: Partial<AttendanceRepository> = {}): AttendanceRepository {
   return {
@@ -21,7 +21,26 @@ function repository(overrides: Partial<AttendanceRepository> = {}): AttendanceRe
 
 test('attendance service applies bounded pagination and calculates total pages', async () => {
   const service = new AttendanceService(repository({
-    list: async () => ({ data: [{ id: 'att-1' }], count: 101, error: null }),
+    list: async () => ({
+      data: [{
+        id: 'att-1',
+        student_id: 'student-1',
+        student_nis: '001',
+        student_nama: 'Ari',
+        kelas: 'X TKJ',
+        tanggal: '2026-08-13',
+        status: 'hadir',
+        keterangan: null,
+        is_locked: false,
+        idempotency_key: 'attendance-1',
+        created_by: null,
+        created_at: '2026-08-13T07:00:00.000Z',
+        updated_by: null,
+        updated_at: null,
+      }],
+      count: 101,
+      error: null,
+    }),
   }));
   const result = await service.list({ page: 2, pageSize: 50 });
   assert.equal(result.total, 101);
@@ -116,4 +135,88 @@ test('attendance service delegates a valid batch and returns its count', async (
   });
   assert.equal(received, 1);
   assert.equal(result.total, 1);
+});
+
+test('attendance service rejects an inverted reporting date range', async () => {
+  const service = new AttendanceService(repository({
+    list: async () => { throw new Error('repository should not be called'); },
+  }));
+
+  await assert.rejects(
+    service.list({
+      date_from: '2026-09-30',
+      date_to: '2026-09-01',
+      page: 1,
+      pageSize: 50,
+    }),
+    (error: unknown) => error instanceof AttendanceServiceError
+      && error.statusCode === 422
+      && error.errorCode === 'INVALID_DATE_RANGE',
+  );
+});
+
+test('attendance service normalizes and forwards correction audit context', async () => {
+  let received: AttendanceCorrectionInput | undefined;
+  const service = new AttendanceService(repository({
+    correct: async (input) => {
+      received = input;
+      return { data: { id: input.attendanceId, status: input.status }, error: null };
+    },
+  }));
+
+  await service.correct({
+    attendanceId: 'attendance-1',
+    status: ' SAKIT ',
+    keterangan: '  Surat sakit  ',
+    actorId: 'teacher-1',
+    changeReason: '  Surat sakit terlambat diserahkan  ',
+  });
+
+  assert.deepEqual(received, {
+    attendanceId: 'attendance-1',
+    status: 'sakit',
+    keterangan: 'Surat sakit',
+    actorId: 'teacher-1',
+    changeReason: 'Surat sakit terlambat diserahkan',
+  });
+});
+
+test('attendance service rejects a non-present correction without a note', async () => {
+  const service = new AttendanceService(repository({
+    correct: async () => { throw new Error('repository should not be called'); },
+  }));
+
+  await assert.rejects(
+    service.correct({
+      attendanceId: 'attendance-1',
+      status: 'sakit',
+      actorId: 'teacher-1',
+      changeReason: 'Koreksi status',
+    }),
+    (error: unknown) => error instanceof AttendanceServiceError
+      && error.statusCode === 422
+      && error.errorCode === 'REQUIRED_NOTE',
+  );
+});
+
+test('attendance service maps a missing correction row to 404 and preserves database diagnostics', async () => {
+  const service = new AttendanceService(repository({
+    correct: async () => ({
+      data: null,
+      error: { code: 'P0002', message: 'ATTENDANCE_NOT_FOUND' },
+    }),
+  }));
+
+  await assert.rejects(
+    service.correct({
+      attendanceId: 'missing-attendance',
+      status: 'hadir',
+      actorId: 'teacher-1',
+      changeReason: 'Koreksi data lama',
+    }),
+    (error: unknown) => error instanceof AttendanceServiceError
+      && error.statusCode === 404
+      && error.errorCode === 'ATTENDANCE_NOT_FOUND'
+      && error.databaseError?.code === 'P0002',
+  );
 });

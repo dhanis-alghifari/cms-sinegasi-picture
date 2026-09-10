@@ -177,8 +177,8 @@
 
 /*
  * Mobile reachability contract.
- * Feature-level classes may keep desktop density (h-7/h-8/h-9), but the
- * shared interactive primitives must remain reachable on narrow viewports.
+ * Shared interactive primitives own control height. Feature-level code should
+ * select a documented primitive density instead of overriding h-* directly.
  * Keep this scoped to mobile so desktop tables and toolbars stay dense.
  */
 @media (max-width: 767px), (pointer: coarse) {

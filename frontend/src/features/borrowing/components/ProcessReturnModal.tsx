@@ -140,7 +140,7 @@ export function ProcessReturnModal({
               <Input
                 id="tanggal_dikembalikan"
                 type="date"
-                className="bg-surface-2 border-hairline text-ink text-xs h-9"
+                className="bg-surface-2 border-hairline text-ink text-xs"
                 {...form.register('tanggal_dikembalikan')}
               />
             </div>
@@ -154,7 +154,7 @@ export function ProcessReturnModal({
                 value={formatCurrency(totalFine ?? 0)}
                 readOnly
                 aria-describedby="total-denda-help"
-                className="bg-surface-2 border-hairline text-semantic-danger font-mono font-bold text-xs h-9"
+                className="bg-surface-2 border-hairline text-semantic-danger font-mono font-bold text-xs"
               />
               <p id="total-denda-help" className="text-[10px] text-ink-tertiary">Dihitung ulang oleh server berdasarkan kondisi alat.</p>
             </div>
@@ -180,7 +180,7 @@ export function ProcessReturnModal({
                     value={state.kondisi}
                     onValueChange={(val) => val && handleConditionChange(item.equipment_id, val)}
                   >
-                    <SelectTrigger className="w-full bg-surface-1 border-hairline text-ink text-xs h-8 sm:w-36">
+                    <SelectTrigger className="w-full bg-surface-1 border-hairline text-ink text-xs sm:w-36">
                       <SelectValue placeholder="Pilih kondisi pengembalian" />
                     </SelectTrigger>
                     <SelectContent className="bg-surface-3 border-hairline text-ink">
@@ -217,7 +217,7 @@ export function ProcessReturnModal({
             <Input
               id="change_reason"
               placeholder="cth. Verifikasi pengembalian alat oleh Tim Peralatan"
-              className={cn('bg-surface-2 border-hairline text-ink text-xs h-9', form.formState.errors.change_reason && 'border-semantic-danger')}
+              className={cn('bg-surface-2 border-hairline text-ink text-xs', form.formState.errors.change_reason && 'border-semantic-danger')}
               {...form.register('change_reason')}
             />
             {form.formState.errors.change_reason && (

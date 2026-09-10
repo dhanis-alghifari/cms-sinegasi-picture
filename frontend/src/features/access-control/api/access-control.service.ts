@@ -1,5 +1,9 @@
 import { apiClient } from '@/shared/api/client';
-import type { Capability } from '@/shared/auth/capabilities';
+import {
+  decodeAccessControlAuditLogs,
+  decodeAccessControlMatrix,
+  decodeUpdatedRoleCapabilities,
+} from './access-control.responses';
 import type {
   AccessControlAuditLog,
   AccessControlMatrix,
@@ -7,29 +11,25 @@ import type {
 } from '../types/access-control.types';
 import type { UserRole } from '@/shared/types/common';
 
-type DataEnvelope<T> = { data: T };
-
-function unwrap<T>(payload: DataEnvelope<T>): T {
-  return payload.data;
-}
-
 export const accessControlService = {
   async getMatrix(): Promise<AccessControlMatrix> {
-    return unwrap(await apiClient.get<DataEnvelope<AccessControlMatrix>>('/api/access-control/matrix'));
+    return apiClient.getParsed('/api/access-control/matrix', decodeAccessControlMatrix);
   },
 
   async listAuditLogs(limit = 100): Promise<AccessControlAuditLog[]> {
     const boundedLimit = Math.min(100, Math.max(1, Math.trunc(limit)));
-    return unwrap(await apiClient.get<DataEnvelope<AccessControlAuditLog[]>>(
+    return apiClient.getParsed(
       `/api/access-control/audit-logs?limit=${boundedLimit}`,
-    ));
+      decodeAccessControlAuditLogs,
+    );
   },
 
   async updateRoleCapabilities(role: UserRole, input: UpdateRoleCapabilitiesRequest) {
-    return unwrap(await apiClient.put<DataEnvelope<{ role: UserRole; capabilities: Capability[] }>>(
+    return apiClient.putParsed(
       `/api/access-control/roles/${encodeURIComponent(role)}/capabilities`,
       input,
+      decodeUpdatedRoleCapabilities,
       { changeReason: input.change_reason },
-    ));
+    );
   },
 };

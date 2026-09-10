@@ -4,19 +4,21 @@
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { QUERY_KEYS } from '@/shared/constants/queryKeys';
 import { attendanceService } from '../api/attendance.service';
-import type { AttendanceFilterParams, AttendanceRosterParams } from '../types/attendance.types';
+import type { AttendanceFilterParams, AttendanceRosterParams, AttendanceSummaryParams } from '../types/attendance.types';
 
-export function useAttendanceQuery(params?: AttendanceFilterParams) {
+export function useAttendanceQuery(params?: AttendanceFilterParams, enabled = true) {
   return useQuery({
     queryKey: [...QUERY_KEYS.ATTENDANCE, params],
     queryFn: () => attendanceService.getAttendance(params),
+    enabled,
   });
 }
 
-export function useAttendanceSummaryQuery(tanggal?: string, scope?: 'own') {
+export function useAttendanceSummaryQuery(params?: AttendanceSummaryParams, enabled = true) {
   return useQuery({
-    queryKey: [...QUERY_KEYS.ATTENDANCE_SUMMARY, tanggal, scope],
-    queryFn: () => attendanceService.getSummary(tanggal, scope),
+    queryKey: [...QUERY_KEYS.ATTENDANCE_SUMMARY, params],
+    queryFn: () => attendanceService.getSummary(params),
+    enabled,
   });
 }
 

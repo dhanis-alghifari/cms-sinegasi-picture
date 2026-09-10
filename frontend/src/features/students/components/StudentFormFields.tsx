@@ -11,7 +11,7 @@ import { Label } from '@/shared/ui/primitives/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/primitives/select';
 import { cn } from '@/shared/utils/cn';
 
-import type { ClassOption } from '@/features/classes/types/classes.types';
+import type { ClassSelectorOption } from '@/features/classes/types/classes.types';
 import type { StudentFormValues } from '../schemas/studentSchema';
 import { PEMINATAN_VALUES, type Peminatan } from '../types/students.types';
 import { isOneOf } from '@/shared/utils/isOneOf';
@@ -23,7 +23,7 @@ interface StudentFormFieldsProps {
   selectedPeminatan?: Peminatan;
   activePreview: string | null;
   fileInputRef: RefObject<HTMLInputElement | null>;
-  classOptions: ClassOption[];
+  classOptions: ClassSelectorOption[];
   classOptionsLoading: boolean;
   classOptionsError: string | null;
   onFileChange: (event: ChangeEvent<HTMLInputElement>) => void;
@@ -55,7 +55,7 @@ export function StudentFormFields({
                 id="nis"
                 placeholder="2026xxxx"
                 disabled={isEditing}
-                className={cn('bg-surface-2 border-hairline text-ink text-xs h-9 font-mono', form.formState.errors.nis && 'border-semantic-danger')}
+                className={cn('bg-surface-2 border-hairline text-ink text-xs font-mono', form.formState.errors.nis && 'border-semantic-danger')}
                 {...form.register('nis')}
               />
               {form.formState.errors.nis && (
@@ -68,7 +68,7 @@ export function StudentFormFields({
               <Input
                 id="nama"
                 placeholder="Nama lengkap siswa"
-                className={cn('bg-surface-2 border-hairline text-ink text-xs h-9', form.formState.errors.nama && 'border-semantic-danger')}
+                className={cn('bg-surface-2 border-hairline text-ink text-xs', form.formState.errors.nama && 'border-semantic-danger')}
                 {...form.register('nama')}
               />
               {form.formState.errors.nama && (
@@ -88,7 +88,7 @@ export function StudentFormFields({
               >
                 <SelectTrigger
                   className={cn(
-                    'w-full bg-surface-2 border-hairline text-ink text-xs h-9',
+                    'w-full bg-surface-2 border-hairline text-ink text-xs',
                     form.formState.errors.kelas && 'border-semantic-danger'
                   )}
                 >
@@ -130,7 +130,7 @@ export function StudentFormFields({
                 value={selectedPeminatan ?? ''}
                 onValueChange={(val) => form.setValue('peminatan', isOneOf(val, PEMINATAN_VALUES) ? val : undefined)}
               >
-                <SelectTrigger className="w-full bg-surface-2 border-hairline text-ink text-xs h-9">
+                <SelectTrigger className="w-full bg-surface-2 border-hairline text-ink text-xs">
                   <SelectValue placeholder="Pilih Peminatan" />
                 </SelectTrigger>
                 <SelectContent className="bg-surface-3 border-hairline text-ink">
@@ -146,7 +146,7 @@ export function StudentFormFields({
               <Input
                 id="no_telepon"
                 placeholder="0812xxxxxxxx"
-                className="bg-surface-2 border-hairline text-ink text-xs h-9"
+                className="bg-surface-2 border-hairline text-ink text-xs"
                 {...form.register('no_telepon')}
               />
             </div>
@@ -216,7 +216,7 @@ export function StudentFormFields({
               <Input
                 id="change_reason"
                 placeholder="cth. Penyesuaian kelas siswa / perbaikan penulisan nama"
-                className={cn('bg-surface-2 border-hairline text-ink text-xs h-9', form.formState.errors.change_reason && 'border-semantic-danger')}
+                className={cn('bg-surface-2 border-hairline text-ink text-xs', form.formState.errors.change_reason && 'border-semantic-danger')}
                 {...form.register('change_reason')}
               />
               {form.formState.errors.change_reason && (

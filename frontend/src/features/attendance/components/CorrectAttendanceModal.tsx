@@ -116,7 +116,7 @@ export function CorrectAttendanceModal({
                 if (isOneOf(val, ATTENDANCE_STATUS_VALUES)) form.setValue('status', val);
               }}
             >
-              <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs h-9">
+              <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs">
                 <SelectValue placeholder="Pilih status kehadiran" />
               </SelectTrigger>
               <SelectContent className="bg-surface-3 border-hairline text-ink">
@@ -134,9 +134,15 @@ export function CorrectAttendanceModal({
             <Input
               id="keterangan"
               placeholder="Sebutkan alasan izin/sakit atau surat dokter..."
-              className="bg-surface-2 border-hairline text-ink text-xs h-9"
+              className={cn(
+                'bg-surface-2 border-hairline text-ink text-xs',
+                form.formState.errors.keterangan && 'border-semantic-danger',
+              )}
               {...form.register('keterangan')}
             />
+            {form.formState.errors.keterangan && (
+              <p className="text-semantic-danger text-[10px]">{form.formState.errors.keterangan.message}</p>
+            )}
           </div>
 
           {/* Change Reason (Mandatory Audit Header) */}
@@ -147,7 +153,7 @@ export function CorrectAttendanceModal({
             <Input
               id="change_reason"
               placeholder="cth. Koreksi surat sakit yang terlambat diserahkan"
-              className={cn('bg-surface-2 border-hairline text-ink text-xs h-9', form.formState.errors.change_reason && 'border-semantic-danger')}
+              className={cn('bg-surface-2 border-hairline text-ink text-xs', form.formState.errors.change_reason && 'border-semantic-danger')}
               {...form.register('change_reason')}
             />
             {form.formState.errors.change_reason && (

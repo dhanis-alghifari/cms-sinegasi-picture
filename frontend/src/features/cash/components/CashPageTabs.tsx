@@ -241,7 +241,7 @@ export function CashPageTabs({
                   setTanggalMulai(event.target.value);
                   setTxPage(1);
                 }}
-                className="min-h-12 text-xs text-ink md:min-h-0 md:w-44"
+                className="text-xs text-ink md:w-44"
               />
               <Input
                 type="date"
@@ -252,7 +252,7 @@ export function CashPageTabs({
                   setTanggalSelesai(event.target.value);
                   setTxPage(1);
                 }}
-                className="min-h-12 text-xs text-ink md:min-h-0 md:w-44"
+                className="text-xs text-ink md:w-44"
               />
               <Select
                 value={metodePembayaran || "all"}
@@ -262,7 +262,7 @@ export function CashPageTabs({
                 }}
               >
                 <SelectTrigger
-                  className="min-h-12 text-xs text-ink md:min-h-0 md:w-48"
+                  className="text-xs text-ink md:w-48"
                   aria-label="Filter metode pembayaran"
                 >
                   <SelectValue placeholder="Semua metode" />

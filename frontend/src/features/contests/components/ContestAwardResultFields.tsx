@@ -156,7 +156,7 @@ function ContestAwardResultRow({
             onResultTitleChange(resultRowIndex, event.target.value);
           }}
           placeholder="Contoh: Best Student Short Film"
-          className="h-11 bg-surface-1 text-sm"
+          className="bg-surface-1 text-sm"
         />
       </div>
 
@@ -171,7 +171,7 @@ function ContestAwardResultRow({
               }
             }}
           >
-            <SelectTrigger className="h-11 bg-surface-1 text-sm">
+            <SelectTrigger className="bg-surface-1 text-sm">
               <SelectValue>{getContestFinalizeResultKindLabel(resultRow.result_kind)}</SelectValue>
             </SelectTrigger>
             <SelectContent className="bg-surface-3 text-ink">
@@ -200,7 +200,7 @@ function ContestAwardResultRow({
             }}
             placeholder="Contoh: 1"
             inputMode="numeric"
-            className="h-11 bg-surface-1 text-sm"
+            className="bg-surface-1 text-sm"
           />
         </div>
       </div>

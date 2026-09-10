@@ -37,13 +37,13 @@ export function StudentFilter({
           placeholder="Cari NIS atau Nama Siswa..."
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
-          className="pl-9 bg-surface-1 border-hairline text-ink placeholder:text-ink-tertiary text-xs h-9"
+          className="pl-9 bg-surface-1 border-hairline text-ink placeholder:text-ink-tertiary text-xs"
         />
       </div>
 
       {/* Kelas Filter (Fokus Kelas X, XI, XII) */}
       <Select value={kelas} onValueChange={(val) => val !== null && onKelasChange(val)}>
-        <SelectTrigger className="w-full sm:w-36 bg-surface-1 border-hairline text-ink text-xs h-9">
+        <SelectTrigger className="w-full sm:w-36 bg-surface-1 border-hairline text-ink text-xs">
           <SelectValue placeholder="Pilih Kelas" />
         </SelectTrigger>
         <SelectContent className="bg-surface-3 border-hairline text-ink">
@@ -56,7 +56,7 @@ export function StudentFilter({
 
       {/* Peminatan Filter */}
       <Select value={peminatan} onValueChange={(val) => val !== null && onPeminatanChange(val)}>
-        <SelectTrigger className="w-full sm:w-40 bg-surface-1 border-hairline text-ink text-xs h-9">
+        <SelectTrigger className="w-full sm:w-40 bg-surface-1 border-hairline text-ink text-xs">
           <SelectValue placeholder="Peminatan" />
         </SelectTrigger>
         <SelectContent className="bg-surface-3 border-hairline text-ink">

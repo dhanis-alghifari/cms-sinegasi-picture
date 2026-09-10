@@ -58,6 +58,45 @@ export type DashboardSummary = {
   }>;
 };
 
+export type OperationalDashboardSummary = {
+  reportDate: string;
+  timezone: string;
+  kas: {
+    saldoTerakhir: number;
+    pemasukanBulanIni: number;
+    pengeluaranBulanIni: number;
+    transaksiTerbaru: Array<{
+      id: string;
+      tipe: 'masuk' | 'keluar';
+      jumlah: number;
+      keterangan: string;
+      tanggal: string;
+      studentNama?: string | null;
+    }>;
+  };
+  absensi: {
+    hadir: number;
+    sakit: number;
+    izin: number;
+    alpha: number;
+    totalSiswa: number;
+    totalTercatat: number;
+    persentaseHadir: number;
+  };
+  alat: {
+    tersedia: number;
+    dipinjam: number;
+    maintenance: number;
+    rusak: number;
+    totalAlat: number;
+    overdueCount: number;
+  };
+  gradeDistribution: {
+    totalSiswaEvaluated: number;
+    distribution: { A: number; B: number; C: number; D: number; E: number };
+  };
+};
+
 export type DashboardMemoryState = {
   summaries: Map<string, DashboardSummary>;
 };
@@ -68,4 +107,5 @@ export type DashboardRepositoryResult<T> =
 
 export interface DashboardRepository {
   getStudentSummary(studentId: string): Promise<DashboardRepositoryResult<DashboardSummary>>;
+  getOperationalSummary(): Promise<DashboardRepositoryResult<OperationalDashboardSummary>>;
 }

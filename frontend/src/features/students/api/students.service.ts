@@ -2,6 +2,13 @@
 // Pure TS student service
 
 import { apiClient } from '@/shared/api/client';
+import {
+  decodeStudent,
+  decodeStudentAccountResponse,
+  decodeStudentList,
+  decodeStudentOptions,
+} from './students.responses';
+import { decodeVoidResponse } from '@/shared/api/responseValidation';
 import type { PaginatedResponse } from '@/shared/types/common';
 import type {
   Student,
@@ -23,11 +30,11 @@ export const studentsService = {
     if (params?.is_active !== undefined) query.append('is_active', String(params.is_active));
 
     const endpoint = `/api/students${query.toString() ? `?${query.toString()}` : ''}`;
-    return apiClient.get<PaginatedResponse<Student>>(endpoint);
+    return apiClient.getParsed(endpoint, decodeStudentList);
   },
 
   getStudentById(id: string): Promise<Student> {
-    return apiClient.get<Student>(`/api/students/${id}`);
+    return apiClient.getParsed(`/api/students/${id}`, decodeStudent);
   },
 
   getStudentOptions(params?: { search?: string; limit?: number; isActive?: boolean }): Promise<{ data: StudentOption[]; total: number }> {
@@ -37,17 +44,17 @@ export const studentsService = {
     if (params?.isActive !== undefined) query.append('active', String(params.isActive));
 
     const endpoint = `/api/students/options${query.toString() ? `?${query.toString()}` : ''}`;
-    return apiClient.get<{ data: StudentOption[]; total: number }>(endpoint);
+    return apiClient.getParsed(endpoint, decodeStudentOptions);
   },
 
   createStudent(payload: CreateStudentPayload): Promise<StudentAccountResponse> {
-    return apiClient.post<StudentAccountResponse>('/api/students', payload, {
+    return apiClient.postParsed('/api/students', payload, decodeStudentAccountResponse, {
       changeReason: payload.change_reason || 'Menambahkan siswa dan membuat akun anggota',
     });
   },
 
   provisionStudentAccount(id: string, changeReason: string): Promise<StudentAccountResponse> {
-    return apiClient.post<StudentAccountResponse>(`/api/students/${id}/provision-account`, {}, {
+    return apiClient.postParsed(`/api/students/${id}/provision-account`, {}, decodeStudentAccountResponse, {
       changeReason,
     });
   },
@@ -57,13 +64,13 @@ export const studentsService = {
     payload: UpdateStudentPayload,
     changeReason: string,
   ): Promise<Student> {
-    return apiClient.put<Student>(`/api/students/${id}`, payload, {
+    return apiClient.putParsed(`/api/students/${id}`, payload, decodeStudent, {
       changeReason,
     });
   },
 
   deleteStudent(id: string, changeReason: string): Promise<void> {
-    return apiClient.delete<void>(`/api/students/${id}`, {
+    return apiClient.deleteParsed(`/api/students/${id}`, decodeVoidResponse, {
       changeReason,
     });
   },

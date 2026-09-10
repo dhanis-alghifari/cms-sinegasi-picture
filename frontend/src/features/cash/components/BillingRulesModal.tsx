@@ -100,7 +100,7 @@ export function BillingRulesModal({
                   {...field}
                   id="nominal_iuran_wajib"
                   placeholder="5,000"
-                  className={cn('bg-surface-2 border-hairline text-ink text-xs h-9 font-mono', form.formState.errors.nominal_iuran_wajib && 'border-semantic-danger')}
+                  className={cn('bg-surface-2 border-hairline text-ink text-xs font-mono', form.formState.errors.nominal_iuran_wajib && 'border-semantic-danger')}
                   value={field.value}
                   onChange={(value) => field.onChange(value ?? 0)}
                 />
@@ -118,7 +118,7 @@ export function BillingRulesModal({
               <Input
                 id="holiday_start_date"
                 type="date"
-                className="bg-surface-2 border-hairline text-ink text-xs h-9"
+                className="bg-surface-2 border-hairline text-ink text-xs"
                 {...form.register('holiday_start_date')}
               />
             </div>
@@ -129,7 +129,7 @@ export function BillingRulesModal({
               <Input
                 id="holiday_end_date"
                 type="date"
-                className="bg-surface-2 border-hairline text-ink text-xs h-9"
+                className="bg-surface-2 border-hairline text-ink text-xs"
                 {...form.register('holiday_end_date')}
               />
             </div>
@@ -152,7 +152,7 @@ export function BillingRulesModal({
             <Input
               id="change_reason"
               placeholder="cth. Penyesuaian tarif iuran semester baru"
-              className={cn('bg-surface-2 border-hairline text-ink text-xs h-9', form.formState.errors.change_reason && 'border-semantic-danger')}
+              className={cn('bg-surface-2 border-hairline text-ink text-xs', form.formState.errors.change_reason && 'border-semantic-danger')}
               {...form.register('change_reason')}
             />
             {form.formState.errors.change_reason && (

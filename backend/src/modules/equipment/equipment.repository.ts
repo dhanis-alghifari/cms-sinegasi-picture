@@ -9,6 +9,7 @@ import {
 import type {
   EquipmentConditionInput,
   EquipmentCreateInput,
+  EquipmentDeleteInput,
   EquipmentDatabaseError,
   EquipmentEntry,
   EquipmentListQuery,
@@ -25,6 +26,17 @@ function databaseError(error: unknown): EquipmentDatabaseError | null {
   if (!error) return null;
   const value = error as EquipmentDatabaseError;
   return { code: value.code, message: value.message, details: value.details, hint: value.hint };
+}
+
+function firstRpcRow(value: unknown): Record<string, unknown> | null {
+  const row = Array.isArray(value) ? value[0] : value;
+  return row && typeof row === 'object' ? row as Record<string, unknown> : null;
+}
+
+function scalarRpcId(value: unknown): string | null {
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value) && typeof value[0] === 'string') return value[0];
+  return null;
 }
 
 function isMissingSchemaError(error: EquipmentDatabaseError | null): boolean {
@@ -219,22 +231,19 @@ export function createEquipmentRepository(client: EquipmentSupabaseClient, state
         return { data: { ...state.equipment[index] }, error: null };
       }
 
-      const result = await client.from('equipment')
-        .update({ ...equipmentDbPayload(input.changes), updated_by: input.actorId, updated_at: new Date().toISOString() })
-        .eq('id', input.id)
-        .select(EQUIPMENT_SELECT)
-        .maybeSingle();
+      const result = await client.rpc('update_equipment_atomic', {
+        p_equipment_id: input.id,
+        p_changes: input.changes,
+        p_updated_by: input.actorId,
+        p_change_reason: input.changeReason,
+      });
       const resultError = databaseError(result.error);
       if (resultError) return { data: null, error: resultError };
-      return { data: result.data ? mapEquipmentRow(result.data as unknown as Record<string, unknown>) : null, error: null };
+      const row = firstRpcRow(result.data);
+      return { data: row ? mapEquipmentRow(row) : null, error: null };
     },
 
     async updateCondition(input: EquipmentConditionInput) {
-      const payload = equipmentDbPayload({
-        kondisi: input.kondisi,
-        status: input.status,
-        catatan_kerusakan: input.catatanKerusakan,
-      });
       if (!client) {
         const item = findMemoryEquipment(state, input.id);
         if (!item) return { data: null, error: { code: 'NOT_FOUND', message: 'Alat tidak ditemukan.' } };
@@ -246,28 +255,36 @@ export function createEquipmentRepository(client: EquipmentSupabaseClient, state
         return { data: { ...item }, error: null };
       }
 
-      const result = await client.from('equipment')
-        .update({ ...payload, updated_by: input.actorId, updated_at: new Date().toISOString() })
-        .eq('id', input.id)
-        .select(EQUIPMENT_SELECT)
-        .maybeSingle();
+      const result = await client.rpc('update_equipment_condition_atomic', {
+        p_equipment_id: input.id,
+        p_kondisi: input.kondisi,
+        p_updated_by: input.actorId,
+        p_change_reason: input.changeReason,
+        ...(input.status === undefined ? {} : { p_status: input.status }),
+        ...(input.catatanKerusakan === undefined ? {} : { p_catatan_kerusakan: input.catatanKerusakan }),
+      });
       const resultError = databaseError(result.error);
       if (resultError) return { data: null, error: resultError };
-      return { data: result.data ? mapEquipmentRow(result.data as unknown as Record<string, unknown>) : null, error: null };
+      const row = firstRpcRow(result.data);
+      return { data: row ? mapEquipmentRow(row) : null, error: null };
     },
 
-    async remove(id: string) {
+    async remove(input: EquipmentDeleteInput) {
       if (!client) {
-        const index = state.equipment.findIndex((item) => item.id === id);
+        const index = state.equipment.findIndex((item) => item.id === input.id);
         if (index < 0) return { deletedId: null, error: { code: 'NOT_FOUND', message: 'Alat tidak ditemukan.' } };
         state.equipment.splice(index, 1);
-        return { deletedId: id, error: null };
+        return { deletedId: input.id, error: null };
       }
 
-      const result = await client.from('equipment').delete().eq('id', id).select('id');
+      const result = await client.rpc('delete_equipment_atomic', {
+        p_equipment_id: input.id,
+        p_deleted_by: input.actorId,
+        p_change_reason: input.changeReason,
+      });
       const resultError = databaseError(result.error);
       if (resultError) return { deletedId: null, error: resultError };
-      const deletedId = Array.isArray(result.data) && result.data[0] ? textValue(result.data[0].id) : null;
+      const deletedId = scalarRpcId(result.data);
       return { deletedId: deletedId || null, error: null };
     },
   };

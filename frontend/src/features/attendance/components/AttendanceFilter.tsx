@@ -1,5 +1,5 @@
 // src/features/attendance/components/AttendanceFilter.tsx
-// Filter bar for attendance page — Date picker, Kelas select, Status select, Search input
+// Filter bar for the daily attendance date, class, status, and search filters.
 
 import { Search, X, Calendar as CalendarIcon } from 'lucide-react';
 import { Input } from '@/shared/ui/primitives/input';
@@ -42,7 +42,7 @@ export function AttendanceFilter({
           type="date"
           value={tanggal}
           onChange={(e) => onTanggalChange(e.target.value)}
-          className="pl-9 bg-surface-1 border-hairline text-ink text-xs h-9"
+          className="pl-9 bg-surface-1 border-hairline text-ink text-xs"
         />
       </div>
 
@@ -54,13 +54,13 @@ export function AttendanceFilter({
           placeholder="Cari Nama atau NIS..."
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
-          className="pl-9 bg-surface-1 border-hairline text-ink placeholder:text-ink-tertiary text-xs h-9"
+          className="pl-9 bg-surface-1 border-hairline text-ink placeholder:text-ink-tertiary text-xs"
         />
       </div>}
 
       {/* Kelas Select */}
       {!isOwn && <Select value={kelas} onValueChange={(val) => val !== null && onKelasChange(val)}>
-        <SelectTrigger className="w-full sm:w-36 bg-surface-1 border-hairline text-ink text-xs h-9">
+        <SelectTrigger className="w-full sm:w-36 bg-surface-1 border-hairline text-ink text-xs">
           <SelectValue placeholder="Pilih Kelas" />
         </SelectTrigger>
         <SelectContent className="bg-surface-3 border-hairline text-ink">
@@ -73,7 +73,7 @@ export function AttendanceFilter({
 
       {/* Status Select */}
       <Select value={status} onValueChange={(val) => val !== null && onStatusChange(val)}>
-        <SelectTrigger className="w-full sm:w-36 bg-surface-1 border-hairline text-ink text-xs h-9">
+        <SelectTrigger className="w-full sm:w-36 bg-surface-1 border-hairline text-ink text-xs">
           <SelectValue placeholder="Status Kehadiran" />
         </SelectTrigger>
         <SelectContent className="bg-surface-3 border-hairline text-ink">
@@ -84,6 +84,18 @@ export function AttendanceFilter({
           <SelectItem value="alpha">Alpha</SelectItem>
         </SelectContent>
       </Select>
+
+      {/* Make the all-dates state explicit so the table and summary share the same scope. */}
+      {!isOwn && tanggal && (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => onTanggalChange('')}
+          className="text-ink-subtle hover:text-ink hover:bg-surface-2 text-xs h-9"
+        >
+          Semua tanggal
+        </Button>
+      )}
 
       {/* Reset Button */}
       {hasActiveFilters && (

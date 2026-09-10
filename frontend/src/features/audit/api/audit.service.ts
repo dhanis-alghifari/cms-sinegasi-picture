@@ -1,5 +1,6 @@
 import { apiClient } from '@/shared/api/client';
-import type { AuditLog, AuditLogFilterParams, AuditLogPage } from '../types/audit.types';
+import { decodeAuditLogPage, decodeAuditLogResponse } from './audit.responses';
+import type { AuditLogFilterParams } from '../types/audit.types';
 
 function toQueryString(params: AuditLogFilterParams): string {
   const query = new URLSearchParams();
@@ -12,15 +13,18 @@ function toQueryString(params: AuditLogFilterParams): string {
 export const auditService = {
   getLogs(params: AuditLogFilterParams = {}) {
     const query = toQueryString({ page: 1, pageSize: 20, ...params });
-    return apiClient.get<AuditLogPage>(`/api/audit-logs?${query}`);
+    return apiClient.getParsed(`/api/audit-logs?${query}`, decodeAuditLogPage);
   },
 
   getRecordHistory(tableName: string, recordId: string, params: AuditLogFilterParams = {}) {
     const query = toQueryString({ page: 1, pageSize: 20, ...params });
-    return apiClient.get<AuditLogPage>(`/api/audit-logs/${encodeURIComponent(tableName)}/${encodeURIComponent(recordId)}?${query}`);
+    return apiClient.getParsed(
+      `/api/audit-logs/${encodeURIComponent(tableName)}/${encodeURIComponent(recordId)}?${query}`,
+      decodeAuditLogPage,
+    );
   },
 
   getEntry(id: string) {
-    return apiClient.get<{ success: boolean; data: AuditLog }>(`/api/audit-logs/entry/${encodeURIComponent(id)}`);
+    return apiClient.getParsed(`/api/audit-logs/entry/${encodeURIComponent(id)}`, decodeAuditLogResponse);
   },
 };

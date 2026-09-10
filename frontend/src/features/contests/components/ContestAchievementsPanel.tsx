@@ -92,7 +92,8 @@ export function ContestAchievementsPanel() {
             value={searchTerm}
             onChange={(event) => handleSearchTermChange(event.target.value)}
             placeholder="Cari Juara 3, 10 besar, judul karya..."
-            className="h-10 pl-9 text-xs"
+            density="compact"
+            className="pl-9 text-xs"
           />
         </label>
 
@@ -101,7 +102,7 @@ export function ContestAchievementsPanel() {
           value={resultKindFilter}
           onValueChange={handleResultKindFilterChange}
         >
-          <SelectTrigger className="h-10 text-xs">
+          <SelectTrigger size="sm" className="text-xs">
             <SelectValue placeholder="Jenis hasil" />
           </SelectTrigger>
           <SelectContent>
@@ -119,7 +120,7 @@ export function ContestAchievementsPanel() {
           value={outcomeFilter}
           onValueChange={handleOutcomeFilterChange}
         >
-          <SelectTrigger className="h-10 text-xs">
+          <SelectTrigger size="sm" className="text-xs">
             <SelectValue placeholder="Status hasil" />
           </SelectTrigger>
           <SelectContent>
@@ -137,10 +138,11 @@ export function ContestAchievementsPanel() {
           value={positionFilter}
           onChange={(event) => handlePositionFilterChange(event.target.value)}
           placeholder="Posisi"
-          className="h-10 text-xs"
+          density="compact"
+          className="text-xs"
           aria-label="Filter posisi"
         />
-        <Button type="button" variant="outline" size="sm" className="h-10" onClick={resetAchievementFilters}>
+        <Button type="button" variant="outline" size="sm" onClick={resetAchievementFilters}>
           Reset
         </Button>
       </div>

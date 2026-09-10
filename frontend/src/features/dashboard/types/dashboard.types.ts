@@ -21,6 +21,7 @@ export interface AbsensiSummary {
   izin?: number;
   alpha?: number;
   totalSiswa: number;
+  totalTercatat?: number;
   persentaseHadir: number;
 }
 
@@ -79,6 +80,8 @@ export interface StudentPersonalSummary {
 export interface DashboardSummaryData {
   scope?: 'operational' | 'personal';
   role?: string;
+  reportDate?: string;
+  timezone?: string;
   kas?: KasSummary;
   absensi?: AbsensiSummary;
   alat?: AlatStatusSummary;

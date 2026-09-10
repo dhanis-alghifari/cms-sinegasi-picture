@@ -38,13 +38,13 @@ export function UserFilter({
           placeholder="Cari Username atau Nama Pengguna..."
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
-          className="pl-9 bg-surface-1 border-hairline text-ink placeholder:text-ink-tertiary text-xs h-9"
+          className="pl-9 bg-surface-1 border-hairline text-ink placeholder:text-ink-tertiary text-xs"
         />
       </div>
 
       {/* Role Filter */}
       <Select value={role} onValueChange={(val) => val !== null && onRoleChange(val)}>
-        <SelectTrigger className="w-full sm:w-44 bg-surface-1 border-hairline text-ink text-xs h-9">
+        <SelectTrigger className="w-full sm:w-44 bg-surface-1 border-hairline text-ink text-xs">
           <SelectValue placeholder="Pilih Role" />
         </SelectTrigger>
         <SelectContent className="bg-surface-3 border-hairline text-ink">
@@ -62,7 +62,7 @@ export function UserFilter({
 
       {/* Status Filter */}
       <Select value={status} onValueChange={(val) => val !== null && onStatusChange(val)}>
-        <SelectTrigger className="w-full sm:w-36 bg-surface-1 border-hairline text-ink text-xs h-9">
+        <SelectTrigger className="w-full sm:w-36 bg-surface-1 border-hairline text-ink text-xs">
           <SelectValue placeholder="Status Akun" />
         </SelectTrigger>
         <SelectContent className="bg-surface-3 border-hairline text-ink">

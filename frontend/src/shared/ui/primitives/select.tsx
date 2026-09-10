@@ -4,9 +4,87 @@ import * as React from "react"
 import { Select as SelectPrimitive } from "@base-ui/react/select"
 
 import { cn } from "@/shared/utils/cn"
+import { formatSelectValueLabel } from '@/shared/utils/formatLabels'
 import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from "lucide-react"
 
-const Select = SelectPrimitive.Root
+type SelectItemOption = {
+  value: unknown
+  label: React.ReactNode
+}
+
+function getSelectItemText(children: React.ReactNode): string | undefined {
+  const text = React.Children.toArray(children)
+    .map((child) => {
+      if (typeof child === "string" || typeof child === "number") {
+        return String(child)
+      }
+
+      if (!React.isValidElement<{ children?: React.ReactNode }>(child)) {
+        return ''
+      }
+
+      return getSelectItemText(child.props.children) ?? ''
+    })
+    .join('')
+    .trim()
+
+  return text || undefined
+}
+
+function collectSelectItems(
+  children: React.ReactNode,
+  collected: SelectItemOption[] = []
+): SelectItemOption[] {
+  React.Children.forEach(children, (child) => {
+    if (
+      !React.isValidElement<{
+        children?: React.ReactNode
+        value?: unknown
+        label?: string
+      }>(child)
+    ) {
+      return
+    }
+
+    if (child.type === SelectItem) {
+      const label = child.props.label ?? getSelectItemText(child.props.children)
+      if (child.props.value !== undefined && label) {
+        collected.push({ value: child.props.value, label })
+      }
+      return
+    }
+
+    collectSelectItems(child.props.children, collected)
+  })
+
+  return collected
+}
+
+function Select<Value = string, Multiple extends boolean | undefined = false>({
+  children,
+  items,
+  itemToStringLabel,
+  ...props
+}: SelectPrimitive.Root.Props<Value, Multiple>) {
+  const labelCatalog = items ?? collectSelectItems(children)
+  const hasLabelCatalog = Array.isArray(labelCatalog)
+    ? labelCatalog.length > 0
+    : Boolean(labelCatalog)
+
+  return (
+    <SelectPrimitive.Root
+      {...props}
+      items={labelCatalog as SelectPrimitive.Root.Props<Value, Multiple>['items']}
+      itemToStringLabel={
+        hasLabelCatalog || items
+          ? itemToStringLabel
+          : (value) => formatSelectValueLabel(value)
+      }
+    >
+      {children}
+    </SelectPrimitive.Root>
+  )
+}
 
 function SelectGroup({ className, ...props }: SelectPrimitive.Group.Props) {
   return (
@@ -41,7 +119,7 @@ function SelectTrigger({
       data-slot="select-trigger"
       data-size={size}
       className={cn(
-        "flex w-full min-w-0 items-center justify-between gap-1.5 rounded-lg border border-input bg-transparent py-2 pr-2 pl-2.5 text-sm whitespace-nowrap transition-colors outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 data-placeholder:text-muted-foreground data-[size=default]:h-12 data-[size=sm]:h-11 data-[size=sm]:rounded-[min(var(--radius-md),10px)] *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-1.5 dark:bg-input/30 dark:hover:bg-input/50 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "flex w-full min-w-0 items-center justify-between gap-1.5 rounded-lg border border-input bg-transparent py-2 pr-2 pl-2.5 text-sm whitespace-nowrap transition-colors outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 data-placeholder:text-muted-foreground data-[size=default]:h-[var(--control-height-mobile)] md:data-[size=default]:h-[var(--control-height-desktop)] data-[size=sm]:h-[var(--touch-target-min)] md:data-[size=sm]:h-8 data-[size=sm]:rounded-[min(var(--radius-md),10px)] *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-1.5 dark:bg-input/30 dark:hover:bg-input/50 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className
       )}
       {...props}

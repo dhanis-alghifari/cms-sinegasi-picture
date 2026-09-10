@@ -41,13 +41,13 @@ export function EquipmentFilter({
           placeholder="Cari Kode Alat atau Nama Alat..."
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
-          className="pl-9 bg-surface-1 border-hairline text-ink placeholder:text-ink-tertiary text-xs h-9"
+          className="pl-9 bg-surface-1 border-hairline text-ink placeholder:text-ink-tertiary text-xs"
         />
       </div>
 
       {/* Kategori Select */}
       <Select value={kategori} onValueChange={(val) => val !== null && onKategoriChange(val)}>
-        <SelectTrigger className="w-full sm:w-36 bg-surface-1 border-hairline text-ink text-xs h-9">
+        <SelectTrigger className="w-full sm:w-36 bg-surface-1 border-hairline text-ink text-xs">
           <SelectValue placeholder="Kategori" />
         </SelectTrigger>
         <SelectContent className="bg-surface-3 border-hairline text-ink">
@@ -63,7 +63,7 @@ export function EquipmentFilter({
 
       {/* Kondisi Select */}
       <Select value={kondisi} onValueChange={(val) => val !== null && onKondisiChange(val)}>
-        <SelectTrigger className="w-full sm:w-36 bg-surface-1 border-hairline text-ink text-xs h-9">
+        <SelectTrigger className="w-full sm:w-36 bg-surface-1 border-hairline text-ink text-xs">
           <SelectValue placeholder="Kondisi" />
         </SelectTrigger>
         <SelectContent className="bg-surface-3 border-hairline text-ink">
@@ -79,7 +79,7 @@ export function EquipmentFilter({
 
       {/* Status Availability Select */}
       <Select value={status} onValueChange={(val) => val !== null && onStatusChange(val)}>
-        <SelectTrigger className="w-full sm:w-36 bg-surface-1 border-hairline text-ink text-xs h-9">
+        <SelectTrigger className="w-full sm:w-36 bg-surface-1 border-hairline text-ink text-xs">
           <SelectValue placeholder="Status Pinjam" />
         </SelectTrigger>
         <SelectContent className="bg-surface-3 border-hairline text-ink">

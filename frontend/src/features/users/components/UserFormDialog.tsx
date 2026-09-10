@@ -149,7 +149,7 @@ export function UserFormDialog({
               autoCapitalize="none"
               autoCorrect="off"
               spellCheck={false}
-              className={cn('bg-surface-2 border-hairline text-ink text-xs h-9', form.formState.errors.username && 'border-semantic-danger')}
+              className={cn('bg-surface-2 border-hairline text-ink text-xs', form.formState.errors.username && 'border-semantic-danger')}
               {...form.register('username')}
             />
             {form.formState.errors.username && (
@@ -168,7 +168,7 @@ export function UserFormDialog({
             <Input
               id="nama"
               placeholder="Masukkan nama lengkap"
-              className={cn('bg-surface-2 border-hairline text-ink text-xs h-9', form.formState.errors.nama && 'border-semantic-danger')}
+              className={cn('bg-surface-2 border-hairline text-ink text-xs', form.formState.errors.nama && 'border-semantic-danger')}
               {...form.register('nama')}
             />
             {form.formState.errors.nama && (
@@ -185,7 +185,7 @@ export function UserFormDialog({
                 if (isOneOf(val, USER_ROLE_VALUES)) form.setValue('role', val);
               }}
             >
-              <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs h-9">
+              <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs">
                 <SelectValue placeholder="Pilih Role" />
               </SelectTrigger>
             <SelectContent className="bg-surface-3 border-hairline text-ink">
@@ -214,7 +214,7 @@ export function UserFormDialog({
                 id="password"
                 type="password"
                 placeholder="Password bawaan akun baru"
-                className={cn('bg-surface-2 border-hairline text-ink text-xs h-9', form.formState.errors.password && 'border-semantic-danger')}
+              className={cn('bg-surface-2 border-hairline text-ink text-xs', form.formState.errors.password && 'border-semantic-danger')}
                 {...form.register('password')}
               />
               <p className="text-ink-tertiary text-[10px]">
@@ -232,7 +232,7 @@ export function UserFormDialog({
               <Input
                 id="change_reason"
                 placeholder="cth. Perubahan nama pengurus / promosi role"
-                className={cn('bg-surface-2 border-hairline text-ink text-xs h-9', form.formState.errors.change_reason && 'border-semantic-danger')}
+              className={cn('bg-surface-2 border-hairline text-ink text-xs', form.formState.errors.change_reason && 'border-semantic-danger')}
                 {...form.register('change_reason')}
               />
               {form.formState.errors.change_reason && (

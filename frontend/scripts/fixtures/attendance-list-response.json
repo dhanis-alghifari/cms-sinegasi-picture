@@ -1,0 +1,29 @@
+{
+  "success": true,
+  "data": [
+    {
+      "id": "attendance-1",
+      "student_id": "student-1",
+      "tanggal": "2026-09-09",
+      "status": "hadir",
+      "keterangan": null,
+      "is_locked": false,
+      "idempotency_key": "attendance-1",
+      "created_by": "teacher-1",
+      "created_at": "2026-09-09T07:00:00.000Z",
+      "updated_by": null,
+      "updated_at": null,
+      "students": {
+        "id": "student-1",
+        "nis": "001",
+        "nama": "Siti Aminah",
+        "kelas": "X TKJ",
+        "peminatan": "Teknik Komputer dan Jaringan"
+      }
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "pageSize": 10,
+  "totalPages": 1
+}

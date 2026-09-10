@@ -115,14 +115,12 @@ const equipmentRoutes: FastifyPluginAsync<EquipmentRoutesOptions> = async (fasti
     if (!actorId) return reply.status(503).send({ statusCode: 503, message: 'Akun login belum terhubung ke users.id database yang valid.' });
     try {
       const { id } = request.params as { id: string };
-      const data = await options.equipmentService.update(id, requestBody(request), actorId);
-      await options.persistAuditLog(request, {
-        action: 'UPDATE',
-        tableName: 'equipment',
-        recordId: id,
-        newValues: data as unknown as Record<string, unknown>,
-        changeReason: changeReason(request, 'Memperbarui data alat sinematografi'),
-      });
+      const data = await options.equipmentService.update(
+        id,
+        requestBody(request),
+        actorId,
+        changeReason(request, 'Memperbarui data alat sinematografi'),
+      );
       return reply.send(data);
     } catch (error) {
       return sendServiceError(error, reply);
@@ -137,14 +135,12 @@ const equipmentRoutes: FastifyPluginAsync<EquipmentRoutesOptions> = async (fasti
     if (!actorId) return reply.status(503).send({ statusCode: 503, message: 'Akun login belum terhubung ke users.id database yang valid.' });
     try {
       const { id } = request.params as { id: string };
-      const data = await options.equipmentService.updateCondition(id, requestBody(request), actorId);
-      await options.persistAuditLog(request, {
-        action: 'UPDATE',
-        tableName: 'equipment',
-        recordId: id,
-        newValues: data as unknown as Record<string, unknown>,
-        changeReason: changeReason(request, 'Memperbarui kondisi alat sinematografi'),
-      });
+      const data = await options.equipmentService.updateCondition(
+        id,
+        requestBody(request),
+        actorId,
+        changeReason(request, 'Memperbarui kondisi alat sinematografi'),
+      );
       return reply.send(data);
     } catch (error) {
       return sendServiceError(error, reply);
@@ -155,15 +151,15 @@ const equipmentRoutes: FastifyPluginAsync<EquipmentRoutesOptions> = async (fasti
     schema: equipmentIdRouteSchema,
     preHandler: [authenticate, requireCapability('equipment.manage')],
   }, async (request, reply) => {
+    const actorId = await actorIdFor(request);
+    if (!actorId) return reply.status(503).send({ statusCode: 503, message: 'Akun login belum terhubung ke users.id database yang valid.' });
     try {
       const { id } = request.params as { id: string };
-      const deletedId = await options.equipmentService.remove(id);
-      await options.persistAuditLog(request, {
-        action: 'DELETE',
-        tableName: 'equipment',
-        recordId: deletedId,
-        changeReason: changeReason(request, 'Menghapus alat sinematografi'),
-      });
+      await options.equipmentService.remove(
+        id,
+        actorId,
+        changeReason(request, 'Menghapus alat sinematografi'),
+      );
       return reply.send({ success: true });
     } catch (error) {
       return sendServiceError(error, reply);

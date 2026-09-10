@@ -116,7 +116,7 @@ export function UpdateConditionDialog({
                 value={selectedCondition}
                 onValueChange={(val) => { if (isOneOf(val, EQUIPMENT_CONDITION_VALUES)) form.setValue('kondisi', val); }}
               >
-                <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs h-9">
+                <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs">
                   <SelectValue placeholder="Pilih kondisi baru" />
                 </SelectTrigger>
                 <SelectContent className="bg-surface-3 border-hairline text-ink">
@@ -137,7 +137,7 @@ export function UpdateConditionDialog({
                 value={selectedStatus}
                 onValueChange={(val) => { if (isOneOf(val, EQUIPMENT_AVAILABILITY_VALUES)) form.setValue('status', val); }}
               >
-                <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs h-9">
+                <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs">
                   <SelectValue placeholder="Pilih status baru" />
                 </SelectTrigger>
                 <SelectContent className="bg-surface-3 border-hairline text-ink">
@@ -169,7 +169,7 @@ export function UpdateConditionDialog({
             <Input
               id="change_reason"
               placeholder="cth. Laporan pengecekan rutin tim alat setelah penggunaan"
-              className={cn('bg-surface-2 border-hairline text-ink text-xs h-9', form.formState.errors.change_reason && 'border-semantic-danger')}
+              className={cn('bg-surface-2 border-hairline text-ink text-xs', form.formState.errors.change_reason && 'border-semantic-danger')}
               {...form.register('change_reason')}
             />
             {form.formState.errors.change_reason && (

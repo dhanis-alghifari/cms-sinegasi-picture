@@ -35,11 +35,57 @@ function recordValue(value: unknown): RecordValue {
   return isRecord(value) ? value : {};
 }
 
+const dashboardTransactionSchema = z.object({
+  id: z.string(),
+  tipe: z.enum(['masuk', 'keluar']),
+  jumlah: z.number(),
+  keterangan: z.string(),
+  tanggal: z.string(),
+  studentNama: z.string().nullable().optional(),
+}).loose();
+
 const dashboardEnvelopeSchema = z.object({
   success: z.literal(true),
-}).passthrough();
+  scope: z.enum(['operational', 'personal']),
+  role: z.string(),
+  reportDate: z.string().optional(),
+  timezone: z.string().optional(),
+  kas: z.object({
+    saldoTerakhir: z.number(),
+    pemasukanBulanIni: z.number(),
+    pengeluaranBulanIni: z.number(),
+    transaksiTerbaru: z.array(dashboardTransactionSchema),
+  }).loose(),
+  absensi: z.object({
+    hadir: z.number(),
+    sakit: z.number(),
+    izin: z.number(),
+    alpha: z.number(),
+    totalSiswa: z.number(),
+    totalTercatat: z.number(),
+    persentaseHadir: z.number(),
+  }).loose(),
+  alat: z.object({
+    tersedia: z.number(),
+    dipinjam: z.number(),
+    maintenance: z.number(),
+    rusak: z.number(),
+    totalAlat: z.number(),
+    overdueCount: z.number(),
+  }).loose(),
+  gradeDistribution: z.object({
+    totalSiswaEvaluated: z.number(),
+    distribution: z.object({
+      A: z.number(),
+      B: z.number(),
+      C: z.number(),
+      D: z.number(),
+      E: z.number(),
+    }).loose(),
+  }).loose().optional(),
+}).loose();
 
-const decodeDashboardEnvelope = decodeWithSchema(dashboardEnvelopeSchema);
+export const decodeDashboardResponse = decodeWithSchema(dashboardEnvelopeSchema);
 
 function parseRecentTransactions(value: unknown): KasSummary['transaksiTerbaru'] {
   if (!Array.isArray(value)) return [];
@@ -151,8 +197,8 @@ function parseStudentPersonalSummary(value: unknown): DashboardSummaryData['stud
 }
 
 function normalizeDashboardResponse(payload: unknown): DashboardSummaryData {
-  const response = decodeDashboardEnvelope(payload);
-  const root = isRecord(response.data) ? response.data : response;
+  const response = decodeDashboardResponse(payload);
+  const root = response;
   const kas = recordValue(root.kas);
   const absensi = recordValue(root.absensi);
   const alat = recordValue(root.alat);
@@ -161,6 +207,8 @@ function normalizeDashboardResponse(payload: unknown): DashboardSummaryData {
   const normalized: DashboardSummaryData = {
     scope: root.scope === 'personal' || root.scope === 'operational' ? root.scope : undefined,
     role: typeof root.role === 'string' ? root.role : undefined,
+    reportDate: typeof root.reportDate === 'string' ? root.reportDate : undefined,
+    timezone: typeof root.timezone === 'string' ? root.timezone : undefined,
     kas: {
       saldoTerakhir: numberValue(root.kasBalance) ?? numberValue(kas.saldoTerakhir) ?? 0,
       pemasukanBulanIni: numberValue(kas.pemasukanBulanIni) ?? 0,
@@ -173,6 +221,7 @@ function normalizeDashboardResponse(payload: unknown): DashboardSummaryData {
       izin: numberValue(absensi.izin),
       alpha: numberValue(absensi.alpha),
       totalSiswa: numberValue(root.totalSiswa) ?? numberValue(absensi.totalSiswa) ?? 0,
+      totalTercatat: numberValue(absensi.totalTercatat),
       persentaseHadir: numberValue(root.attendanceTodayPercentage)
         ?? numberValue(absensi.persentaseHadir)
         ?? numberValue(absensi.persentaseKehadiran)

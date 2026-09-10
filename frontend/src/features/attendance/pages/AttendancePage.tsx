@@ -24,6 +24,7 @@ import { AttendanceSummaryCards } from '../components/AttendanceSummaryCards';
 import { AttendanceFilter } from '../components/AttendanceFilter';
 import { AttendanceTable } from '../components/AttendanceTable';
 import { AttendanceMobileList } from '../components/AttendanceMobileList';
+import { AttendanceStudentReport } from '../components/AttendanceStudentReport';
 import { RecordAttendanceModal } from '../components/RecordAttendanceModal';
 import { CorrectAttendanceModal } from '../components/CorrectAttendanceModal';
 
@@ -36,7 +37,9 @@ export function AttendancePage() {
   const isMobile = useIsMobile();
   const canCorrect = hasCapability(user, 'attendance.correct');
   const canRecord = hasCapability(user, 'attendance.record');
+  const canReadStudents = hasCapability(user, 'students.read');
   const isOwn = hasCapability(user, 'attendance.read.own') && !hasCapability(user, 'attendance.read');
+  const [view, setView] = useState<'daily' | 'student_report'>('daily');
 
   // Filters
   const [tanggal, setTanggal] = useState(isOwn ? '' : new Date().toISOString().split('T')[0]);
@@ -82,7 +85,10 @@ export function AttendancePage() {
   const [correctRecord, setCorrectRecord] = useState<AttendanceRecord | null>(null);
 
   // Queries
-  const { data: summaryData, isLoading: isSummaryLoading } = useAttendanceSummaryQuery(tanggal || undefined, isOwn ? 'own' : undefined);
+  const { data: summaryData, isLoading: isSummaryLoading } = useAttendanceSummaryQuery({
+    tanggal: tanggal || undefined,
+    scope: isOwn ? 'own' : undefined,
+  }, view === 'daily');
   const { data: attendanceData, isLoading: isAttendanceLoading } = useAttendanceQuery({
     page,
     pageSize,
@@ -91,7 +97,7 @@ export function AttendancePage() {
     status: isOneOf(status, ATTENDANCE_STATUS_VALUES) ? status : undefined,
     search: debouncedSearch || undefined,
     scope: isOwn ? 'own' : undefined,
-  });
+  }, view === 'daily');
   const { data: classOptions = [] } = useClassOptionsQuery(canRecord);
 
   // Mutations
@@ -150,41 +156,70 @@ export function AttendancePage() {
         }
       />
 
-      {/* Summary Cards */}
-      {isSummaryLoading ? <PageLoader /> : <AttendanceSummaryCards summary={summaryData} isOwn={isOwn} />}
-
-      {/* Filter */}
-      <AttendanceFilter
-        tanggal={tanggal}
-        onTanggalChange={handleTanggalChange}
-        kelas={kelas}
-        onKelasChange={handleKelasChange}
-        status={status}
-        onStatusChange={handleStatusChange}
-        search={search}
-        onSearchChange={handleSearchChange}
-        onReset={handleResetFilter}
-        isOwn={isOwn}
-      />
-
-      {/* Table */}
-      {isAttendanceLoading ? (
-        <PageLoader />
-      ) : (
-        <div className="space-y-4">
-          {isMobile ? (
-            <AttendanceMobileList records={attendanceData?.data ?? []} onCorrect={handleOpenCorrect} isTeacher={canCorrect} />
-          ) : (
-            <AttendanceTable records={attendanceData?.data ?? []} onCorrect={handleOpenCorrect} isTeacher={canCorrect} />
-          )}
-          <Pagination
-            page={attendanceData?.page ?? page}
-            totalPages={attendanceData?.totalPages ?? 1}
-            total={attendanceData?.total ?? 0}
-            pageSize={attendanceData?.pageSize ?? pageSize}
-            onPageChange={setPage}
-          />
+      {!isOwn && canReadStudents && (
+        <div className="flex w-full max-w-xl rounded-xl border border-hairline bg-surface-2 p-1" role="tablist" aria-label="Mode absensi">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={view === 'daily'}
+            onClick={() => setView('daily')}
+            className={`min-h-11 flex-1 rounded-lg px-3 text-xs font-medium transition-colors ${view === 'daily' ? 'bg-surface-1 text-ink shadow-sm' : 'text-ink-subtle hover:text-ink'}`}
+          >
+            Absensi harian
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={view === 'student_report'}
+            onClick={() => setView('student_report')}
+            className={`min-h-11 flex-1 rounded-lg px-3 text-xs font-medium transition-colors ${view === 'student_report' ? 'bg-surface-1 text-ink shadow-sm' : 'text-ink-subtle hover:text-ink'}`}
+          >
+            Rekap siswa
+          </button>
         </div>
+      )}
+
+      {view === 'student_report' && !isOwn ? (
+        <AttendanceStudentReport canReadStudents={canReadStudents} />
+      ) : (
+        <>
+          {/* Summary Cards */}
+          {isSummaryLoading ? <PageLoader /> : <AttendanceSummaryCards summary={summaryData} isOwn={isOwn} totalLabel={tanggal ? undefined : 'catatan'} />}
+
+          {/* Filter */}
+          <AttendanceFilter
+            tanggal={tanggal}
+            onTanggalChange={handleTanggalChange}
+            kelas={kelas}
+            onKelasChange={handleKelasChange}
+            status={status}
+            onStatusChange={handleStatusChange}
+            search={search}
+            onSearchChange={handleSearchChange}
+            onReset={handleResetFilter}
+            isOwn={isOwn}
+          />
+
+          {/* Table */}
+          {isAttendanceLoading ? (
+            <PageLoader />
+          ) : (
+            <div className="space-y-4">
+              {isMobile ? (
+                <AttendanceMobileList records={attendanceData?.data ?? []} onCorrect={handleOpenCorrect} isTeacher={canCorrect} />
+              ) : (
+                <AttendanceTable records={attendanceData?.data ?? []} onCorrect={handleOpenCorrect} isTeacher={canCorrect} />
+              )}
+              <Pagination
+                page={attendanceData?.page ?? page}
+                totalPages={attendanceData?.totalPages ?? 1}
+                total={attendanceData?.total ?? 0}
+                pageSize={attendanceData?.pageSize ?? pageSize}
+                onPageChange={setPage}
+              />
+            </div>
+          )}
+        </>
       )}
 
       {/* Modals */}

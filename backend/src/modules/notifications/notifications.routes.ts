@@ -5,8 +5,9 @@ import { requireCapability } from '../../middleware/capabilities.js';
 import {
   notificationIdRouteSchema,
   notificationsListRouteSchema,
+  readAllNotificationsRouteSchema,
+  unreadCountRouteSchema,
 } from '../../shared/http/schemas/notifications.schema.js';
-import { authenticatedRouteSchema } from '../../shared/http/schemas/core.schema.js';
 import { NotificationsService, NotificationsServiceError } from './notifications.service.js';
 
 export interface NotificationsRoutesOptions {
@@ -29,7 +30,7 @@ const notificationsRoutes: FastifyPluginAsync<NotificationsRoutesOptions> = asyn
       : user.userId;
   };
 
-  fastify.get('/api/notifications/unread-count', { schema: authenticatedRouteSchema, preHandler: [authenticate, requireCapability('notifications.read')] }, async (request, reply) => {
+  fastify.get('/api/notifications/unread-count', { schema: unreadCountRouteSchema, preHandler: [authenticate, requireCapability('notifications.read')] }, async (request, reply) => {
     const userId = await userIdFor(request);
     if (!userId) return reply.status(503).send({ statusCode: 503, message: 'Akun login belum terhubung ke users.id database yang valid.' });
     try {
@@ -85,8 +86,8 @@ const notificationsRoutes: FastifyPluginAsync<NotificationsRoutesOptions> = asyn
     }
   };
 
-  fastify.patch('/api/notifications/read-all', { schema: authenticatedRouteSchema, preHandler: [authenticate, requireCapability('notifications.read')] }, markAllRead);
-  fastify.post('/api/notifications/read-all', { schema: authenticatedRouteSchema, preHandler: [authenticate, requireCapability('notifications.read')] }, markAllRead);
+  fastify.patch('/api/notifications/read-all', { schema: readAllNotificationsRouteSchema, preHandler: [authenticate, requireCapability('notifications.read')] }, markAllRead);
+  fastify.post('/api/notifications/read-all', { schema: readAllNotificationsRouteSchema, preHandler: [authenticate, requireCapability('notifications.read')] }, markAllRead);
 };
 
 export default notificationsRoutes;

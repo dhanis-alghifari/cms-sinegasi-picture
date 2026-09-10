@@ -2,6 +2,11 @@
 // Pure TS equipment catalog & inventory service
 
 import { apiClient } from '@/shared/api/client';
+import {
+  decodeEquipment,
+  decodeEquipmentList,
+  decodeEquipmentSummary,
+} from './equipment.responses';
 import type { PaginatedResponse } from '@/shared/types/common';
 import type {
   Equipment,
@@ -23,19 +28,19 @@ export const equipmentService = {
     if (params?.status) query.append('status', params.status);
 
     const endpoint = `/api/equipment${query.toString() ? `?${query.toString()}` : ''}`;
-    return apiClient.get<PaginatedResponse<Equipment>>(endpoint);
+    return apiClient.getParsed(endpoint, decodeEquipmentList);
   },
 
   getSummary(): Promise<EquipmentSummary> {
-    return apiClient.get<EquipmentSummary>('/api/equipment/summary');
+    return apiClient.getParsed('/api/equipment/summary', decodeEquipmentSummary);
   },
 
   getEquipmentById(id: string): Promise<Equipment> {
-    return apiClient.get<Equipment>(`/api/equipment/${id}`);
+    return apiClient.getParsed(`/api/equipment/${id}`, decodeEquipment);
   },
 
   createEquipment(payload: CreateEquipmentPayload): Promise<Equipment> {
-    return apiClient.post<Equipment>('/api/equipment', payload);
+    return apiClient.postParsed('/api/equipment', payload, decodeEquipment);
   },
 
   updateEquipment(
@@ -43,7 +48,7 @@ export const equipmentService = {
     payload: UpdateEquipmentPayload,
     changeReason: string,
   ): Promise<Equipment> {
-    return apiClient.put<Equipment>(`/api/equipment/${id}`, payload, {
+    return apiClient.putParsed(`/api/equipment/${id}`, payload, decodeEquipment, {
       changeReason,
     });
   },
@@ -53,7 +58,7 @@ export const equipmentService = {
     payload: UpdateConditionPayload,
     changeReason: string,
   ): Promise<Equipment> {
-    return apiClient.patch<Equipment>(`/api/equipment/${id}/condition`, payload, {
+    return apiClient.patchParsed(`/api/equipment/${id}/condition`, payload, decodeEquipment, {
       changeReason,
     });
   },

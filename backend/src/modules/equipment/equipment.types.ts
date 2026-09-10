@@ -87,6 +87,7 @@ export type EquipmentUpdateInput = {
     deskripsi: string;
   }>;
   actorId: string;
+  changeReason: string;
 };
 
 export type EquipmentConditionInput = {
@@ -95,6 +96,13 @@ export type EquipmentConditionInput = {
   status?: EquipmentStatus;
   catatanKerusakan?: string;
   actorId: string;
+  changeReason: string;
+};
+
+export type EquipmentDeleteInput = {
+  id: string;
+  actorId: string;
+  changeReason: string;
 };
 
 export type EquipmentDatabaseError = {
@@ -116,7 +124,7 @@ export interface EquipmentRepository {
   create(input: EquipmentCreateInput): Promise<{ data: EquipmentEntry | null; error: EquipmentDatabaseError | null }>;
   update(input: EquipmentUpdateInput): Promise<{ data: EquipmentEntry | null; error: EquipmentDatabaseError | null }>;
   updateCondition(input: EquipmentConditionInput): Promise<{ data: EquipmentEntry | null; error: EquipmentDatabaseError | null }>;
-  remove(id: string): Promise<{ deletedId: string | null; error: EquipmentDatabaseError | null }>;
+  remove(input: EquipmentDeleteInput): Promise<{ deletedId: string | null; error: EquipmentDatabaseError | null }>;
 }
 
 export type EquipmentSupabaseClient = SupabaseClient | null;

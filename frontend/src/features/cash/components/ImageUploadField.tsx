@@ -116,7 +116,7 @@ export function ImageUploadField({
         onChange={(event) => onChange(event.target.value)}
         placeholder="Atau masukkan URL foto https://..."
         disabled={disabled || isProcessing}
-        className={cn('min-h-12 h-auto bg-surface-2 border-hairline text-ink text-xs md:min-h-0 md:h-9', (error || localError) && 'border-semantic-danger')}
+        className={cn('bg-surface-2 border-hairline text-ink text-xs', (error || localError) && 'border-semantic-danger')}
       />
       {(error || localError) && <p className="text-semantic-danger text-[10px]">{localError || error}</p>}
     </div>

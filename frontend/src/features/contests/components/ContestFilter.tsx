@@ -38,7 +38,7 @@ export function ContestFilter({
           placeholder="Cari nama lomba atau kota..."
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
-          className="pl-9 bg-surface-1 border-hairline text-ink placeholder:text-ink-tertiary text-xs h-9"
+          className="pl-9 bg-surface-1 border-hairline text-ink placeholder:text-ink-tertiary text-xs"
         />
       </div>
 
@@ -48,7 +48,7 @@ export function ContestFilter({
         value={tingkat}
         onValueChange={(val) => val !== null && onTingkatChange(val)}
       >
-        <SelectTrigger className="w-full sm:w-40 bg-surface-1 border-hairline text-ink text-xs h-9">
+        <SelectTrigger className="w-full sm:w-40 bg-surface-1 border-hairline text-ink text-xs">
           <SelectValue placeholder="Tingkat Lomba" />
         </SelectTrigger>
         <SelectContent className="bg-surface-3 border-hairline text-ink">
@@ -65,7 +65,7 @@ export function ContestFilter({
         value={status}
         onValueChange={(val) => val !== null && onStatusChange(val)}
       >
-        <SelectTrigger className="w-full sm:w-40 bg-surface-1 border-hairline text-ink text-xs h-9">
+        <SelectTrigger className="w-full sm:w-40 bg-surface-1 border-hairline text-ink text-xs">
           <SelectValue placeholder="Status Lomba" />
         </SelectTrigger>
         <SelectContent className="bg-surface-3 border-hairline text-ink">

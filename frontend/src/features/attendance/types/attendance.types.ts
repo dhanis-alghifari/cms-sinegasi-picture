@@ -8,14 +8,13 @@ export type AttendanceStatus = typeof ATTENDANCE_STATUS_VALUES[number];
 export interface AttendanceRecord {
   id: string;
   student_id: string;
-  student_nis?: string;
-  student_nama?: string;
-  kelas?: string;
+  student_nis: string;
+  student_nama: string;
+  kelas: string;
   tanggal: string;
   status: AttendanceStatus;
   keterangan?: string;
   is_locked: boolean; // Auto-locked if created_at > 48h
-  recorded_by: string;
   created_by?: string;
   updated_by?: string;
   created_at: string;
@@ -38,11 +37,24 @@ export interface AttendanceFilterParams {
   page?: number;
   pageSize?: number;
   tanggal?: string;
+  date_from?: string;
+  date_to?: string;
+  student_id?: string;
   kelas?: string;
   status?: AttendanceStatus;
   search?: string;
   scope?: 'own';
 }
+
+export interface AttendanceSummaryParams {
+  tanggal?: string;
+  date_from?: string;
+  date_to?: string;
+  student_id?: string;
+  scope?: 'own';
+}
+
+export type AttendanceReportPreset = 'this_month' | 'semester' | 'last_30_days' | 'last_90_days' | 'all_time' | 'custom';
 
 export interface RecordAttendanceItem {
   student_id: string;
@@ -54,6 +66,25 @@ export interface RecordAttendancePayload {
   tanggal: string;
   kelas: string;
   records: RecordAttendanceItem[];
+}
+
+export interface AttendanceBatchRecord {
+  id: string;
+  student_id: string;
+  tanggal: string;
+  status: AttendanceStatus;
+  keterangan?: string;
+  is_locked: boolean;
+  idempotency_key: string;
+  created_by?: string;
+  created_at: string;
+  updated_by?: string;
+  updated_at?: string;
+}
+
+export interface AttendanceBatchResponse {
+  data: AttendanceBatchRecord[];
+  total: number;
 }
 
 export interface AttendanceRosterRecord {

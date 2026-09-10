@@ -148,7 +148,7 @@ export function ApproveRejectModal({
             <Input
               id="change_reason"
               placeholder="cth. Verifikasi ketersediaan jadwal shooting & tim alat"
-              className={cn('bg-surface-2 border-hairline text-ink text-xs h-9', form.formState.errors.change_reason && 'border-semantic-danger')}
+              className={cn('bg-surface-2 border-hairline text-ink text-xs', form.formState.errors.change_reason && 'border-semantic-danger')}
               {...form.register('change_reason')}
             />
             {form.formState.errors.change_reason && (

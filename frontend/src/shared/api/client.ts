@@ -151,6 +151,10 @@ export const apiClient = {
     });
   },
 
+  deleteParsed<T>(endpoint: string, decoder: ResponseDecoder<T>, options?: RequestOptions): Promise<T> {
+    return requestParsed(endpoint, decoder, { method: 'DELETE', ...options });
+  },
+
   post<T>(endpoint: string, body: unknown, options?: RequestOptions): Promise<T> {
     return request<T>(endpoint, {
       method: 'POST',

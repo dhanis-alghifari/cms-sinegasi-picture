@@ -18,12 +18,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/shared/ui/primitives/select';
-import type { ClassOption } from '../types/classes.types';
+import type { ClassRecord } from '../types/classes.types';
 
 interface ClassFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  initialData?: ClassOption | null;
+  initialData?: ClassRecord | null;
   onSubmit: (values: { nama_kelas: string; tingkat: string; change_reason?: string }) => Promise<void>;
   isLoading?: boolean;
 }
@@ -113,14 +113,14 @@ export function ClassFormDialog({
               placeholder="Contoh: X TKJ 1, XII AK 5"
               value={namaKelas}
               onChange={(e) => setNamaKelas(e.target.value)}
-              className="bg-surface-2 border-hairline text-ink text-xs h-9"
+              className="bg-surface-2 border-hairline text-ink text-xs"
             />
           </div>
 
           <div className="space-y-1">
             <Label className="text-ink-muted text-xs">Tingkat *</Label>
             <Select value={tingkat} onValueChange={(val) => val && setTingkat(val as 'X' | 'XI' | 'XII')}>
-              <SelectTrigger className="w-full bg-surface-2 border-hairline text-ink text-xs h-9">
+              <SelectTrigger className="w-full bg-surface-2 border-hairline text-ink text-xs">
                 <SelectValue placeholder="Pilih Tingkat" />
               </SelectTrigger>
               <SelectContent className="bg-surface-3 border-hairline text-ink">
@@ -140,7 +140,7 @@ export function ClassFormDialog({
               placeholder="Contoh: Penambahan rombel baru tahun ajaran 2026/2027"
               value={changeReason}
               onChange={(e) => setChangeReason(e.target.value)}
-              className="bg-surface-2 border-hairline text-ink text-xs h-9"
+              className="bg-surface-2 border-hairline text-ink text-xs"
             />
           </div>}
 

@@ -30,7 +30,7 @@ const actorSummarySchema = z.object({
   username: z.string().optional(),
   role: z.string().optional(),
   is_active: z.boolean().optional(),
-}).passthrough();
+}).loose();
 
 const contestStatusResponseSchema = z.union([
   z.enum(CONTEST_STATUS_VALUES),
@@ -48,7 +48,7 @@ const mediaWorkResponseSchema: z.ZodType<MediaWork> = z.object({
   description: nullableText,
   primary_asset_url: nullableText,
   video_url: nullableText,
-}).passthrough();
+}).loose();
 
 const contestResponseSchema: z.ZodType<Contest> = z.object({
   id: z.string().min(1),
@@ -70,7 +70,7 @@ const contestResponseSchema: z.ZodType<Contest> = z.object({
   updated_at: optionalText,
   created_actor: actorSummarySchema.optional(),
   updated_actor: actorSummarySchema.optional(),
-}).passthrough().transform((value): Contest => ({
+}).loose().transform((value): Contest => ({
   id: value.id,
   nama_lomba: value.nama_lomba,
   penyelenggara: value.penyelenggara,
@@ -113,7 +113,7 @@ const workTypeResponseSchema = z.object({
   code: z.enum(WORK_TYPE_VALUES),
   label: z.string().min(1),
   sort_order: z.number().int().optional(),
-}).passthrough();
+}).loose();
 
 const contestEntryResponseSchema: z.ZodType<ContestEntry> = z.object({
   id: z.string().min(1),
@@ -128,13 +128,13 @@ const contestEntryResponseSchema: z.ZodType<ContestEntry> = z.object({
   work: mediaWorkResponseSchema.optional(),
   created_at: z.string().optional(),
   updated_at: z.string().optional(),
-}).passthrough();
+}).loose();
 
 const evidenceReservationResponseSchema: z.ZodType<ContestEvidenceUploadReservation> = z.object({
   evidence_id: z.string().min(1),
   upload_url: z.string().url(),
   expires_in_seconds: z.number().int().positive(),
-}).passthrough();
+}).loose();
 
 const finalizedResultSchema = z.object({
   id: z.string().min(1),
@@ -151,12 +151,12 @@ const finalizedResultSchema = z.object({
   updated_by: z.string().nullable(),
   created_at: z.string(),
   updated_at: z.string(),
-}).passthrough();
+}).loose();
 
 const finalizeResponseSchema: z.ZodType<FinalizeContestEntryResponse> = z.object({
   entry: contestEntryResponseSchema,
   results: z.array(finalizedResultSchema),
-}).passthrough();
+}).loose();
 
 const achievementResponseSchema: z.ZodType<ContestEntryResult> = z.object({
   result_id: z.string().nullable(),
@@ -178,15 +178,15 @@ const achievementResponseSchema: z.ZodType<ContestEntryResult> = z.object({
   category_name: z.string().nullable().optional(),
   notes: z.string().nullable().optional(),
   created_at: z.string().nullable().optional(),
-}).passthrough();
+}).loose();
 
 const recordResultResponseSchema: z.ZodType<RecordContestResultResponse> = z.object({
   entry: z.object({
     id: z.string().min(1),
     outcome_status: z.enum(CONTEST_OUTCOME_STATUS_VALUES),
-  }).passthrough(),
+  }).loose(),
   idempotent_replay: z.boolean(),
-}).passthrough();
+}).loose();
 
 const filmSubmissionResponseSchema: z.ZodType<FilmSubmission> = z.object({
   id: z.string().min(1),
@@ -200,7 +200,7 @@ const filmSubmissionResponseSchema: z.ZodType<FilmSubmission> = z.object({
   sertifikat_url: optionalText,
   created_at: z.string().min(1),
   created_actor: actorSummarySchema.optional(),
-}).passthrough();
+}).loose();
 
 export const decodeContestListResponse = decodePaginatedResponse(contestResponseSchema);
 export const decodeContestSummary = decodeDataEnvelope(contestSummaryResponseSchema);

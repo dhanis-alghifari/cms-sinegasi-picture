@@ -270,7 +270,18 @@ Validasi lokal:
 
     npm run lint
     npm run check:dialogs
+    npm run check:form-controls
     npm run build
+
+Kontrak ukuran kontrol:
+
+- Input, SelectTrigger, dan tombol default memakai tinggi 48px pada mobile
+  dan 36px pada desktop.
+- Ukuran compact hanya boleh dipilih melalui varian primitive: gunakan
+  density="compact" pada Input dan size="sm" pada Select/Button, bukan dengan
+  menambahkan h-* yang berbeda pada kontrol yang berdampingan.
+- Ukuran kontrol pada satu baris harus sama; lebar boleh berbeda jika kebutuhan
+  konten memang berbeda, seperti status dan catatan absensi.
 
 ## Tahapan migrasi
 

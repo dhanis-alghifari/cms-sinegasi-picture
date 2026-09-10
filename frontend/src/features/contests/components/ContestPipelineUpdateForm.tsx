@@ -184,7 +184,7 @@ export function ContestPipelineUpdateForm({
       <div className="space-y-1.5">
         <Label className="text-xs text-ink-muted">Status berikutnya</Label>
         <Select value={nextPipelineStatus} disabled>
-          <SelectTrigger className="h-11 bg-surface-1 text-sm">
+          <SelectTrigger className="bg-surface-1 text-sm">
             <SelectValue>{getContestEntryStatusLabel(nextPipelineStatus)}</SelectValue>
           </SelectTrigger>
           <SelectContent>
@@ -244,7 +244,7 @@ export function ContestPipelineUpdateForm({
                 }
               }}
             >
-              <SelectTrigger className="h-11 bg-surface-2 text-sm">
+              <SelectTrigger className="bg-surface-2 text-sm">
                 <SelectValue>
                   {finalOutcomeStatus === 'awarded'
                     ? 'Mendapat penghargaan'

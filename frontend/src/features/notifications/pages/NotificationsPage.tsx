@@ -21,7 +21,12 @@ export function NotificationsPage() {
   const [filterTab, setFilterTab] = useState<'all' | 'unread'>('all');
 
   const { data: unreadData } = useUnreadCountQuery();
-  const { data: notificationsData, isLoading } = useNotificationsQuery({
+  const {
+    data: notificationsData,
+    isLoading,
+    isError,
+    refetch: refetchNotifications,
+  } = useNotificationsQuery({
     is_read: filterTab === 'unread' ? false : undefined,
   });
 
@@ -44,8 +49,8 @@ export function NotificationsPage() {
               disabled={markAllReadMutation.isPending}
               className="w-full bg-surface-1 text-xs font-medium text-ink-subtle hover:text-ink sm:w-auto"
             >
-              <CheckCheck size={14} className="mr-1.5 text-semantic-success" />
-              Tandai Semua Dibaca ({formatNumber(unreadCount)})
+              <CheckCheck size={14} aria-hidden="true" className="mr-1.5" />
+              Tandai semua dibaca
             </Button>
           ) : undefined
         }
@@ -71,6 +76,19 @@ export function NotificationsPage() {
       {/* List */}
       {isLoading ? (
         <PageLoader />
+      ) : isError ? (
+        <EmptyState
+          title="Notifikasi gagal dimuat"
+          description="Terjadi kendala saat mengambil notifikasi. Silakan coba lagi."
+          action={(
+            <Button
+              variant="outline"
+              onClick={() => refetchNotifications()}
+            >
+              Coba lagi
+            </Button>
+          )}
+        />
       ) : notificationsList.length === 0 ? (
         <EmptyState
           title="Tidak ada notifikasi"

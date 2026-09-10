@@ -27,7 +27,7 @@ export function successDataEnvelopeSchema<T extends z.ZodType>(dataSchema: T) {
   return z.object({
     success: z.literal(true),
     data: dataSchema,
-  }).passthrough();
+  }).loose();
 }
 
 export function successPaginationSchema<T extends z.ZodType>(itemSchema: T) {
@@ -38,7 +38,7 @@ export function successPaginationSchema<T extends z.ZodType>(itemSchema: T) {
     page: z.number().int().positive(),
     pageSize: z.number().int().positive(),
     totalPages: z.number().int().positive(),
-  }).passthrough();
+  }).loose();
 }
 
 export function decodeDataEnvelope<T>(dataSchema: z.ZodType<T>): ResponseDecoder<T> {
@@ -56,3 +56,13 @@ export function decodePaginatedResponse<T>(itemSchema: z.ZodType<T>): ResponseDe
   }));
   return decodeWithSchema(schema);
 }
+
+const voidResponseSchema = z.union([
+  z.undefined(),
+  z.object({ success: z.literal(true) }).loose(),
+]);
+
+/** Decode mutations whose useful result is only success/failure. */
+export const decodeVoidResponse: ResponseDecoder<void> = (payload) => {
+  decodeWithSchema(voidResponseSchema)(payload);
+};

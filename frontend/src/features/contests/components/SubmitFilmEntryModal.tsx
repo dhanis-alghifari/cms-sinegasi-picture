@@ -99,7 +99,7 @@ export function SubmitFilmEntryModal({
             <Input
               id="judul_film"
               placeholder="cth. Jejak di Atas Kanvas / Lentera Malam"
-              className={cn('bg-surface-2 border-hairline text-ink text-xs h-9', form.formState.errors.judul_film && 'border-semantic-danger')}
+              className={cn('bg-surface-2 border-hairline text-ink text-xs', form.formState.errors.judul_film && 'border-semantic-danger')}
               {...form.register('judul_film')}
             />
             {form.formState.errors.judul_film && (
@@ -115,7 +115,7 @@ export function SubmitFilmEntryModal({
                 value={selectedDirectorId}
                 onValueChange={(val) => val && form.setValue('sutradara_id', val)}
               >
-                <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs h-9">
+                <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs">
                   <SelectValue placeholder="Pilih Sutradara">
                     {selectedDirector ? `${selectedDirector.nama} (${selectedDirector.kelas})` : undefined}
                   </SelectValue>
@@ -140,7 +140,7 @@ export function SubmitFilmEntryModal({
                   if (parsedAwardStatus.success) form.setValue('award_status', parsedAwardStatus.data);
                 }}
               >
-                <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs h-9 font-semibold">
+                <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs font-semibold">
                   <SelectValue placeholder="Pilih status penghargaan" />
                 </SelectTrigger>
                 <SelectContent className="bg-surface-3 border-hairline text-ink">
@@ -161,7 +161,7 @@ export function SubmitFilmEntryModal({
             <Input
               id="link_video"
               placeholder="https://youtube.com/watch?v=... / https://drive.google.com/..."
-              className={cn('bg-surface-2 border-hairline text-ink text-xs h-9', form.formState.errors.link_video && 'border-semantic-danger')}
+              className={cn('bg-surface-2 border-hairline text-ink text-xs', form.formState.errors.link_video && 'border-semantic-danger')}
               {...form.register('link_video')}
             />
             {form.formState.errors.link_video && (
@@ -174,7 +174,7 @@ export function SubmitFilmEntryModal({
             <Input
               id="sertifikat_url"
               placeholder="https://drive.google.com/file/d/..."
-              className="bg-surface-2 border-hairline text-ink text-xs h-9"
+              className="bg-surface-2 border-hairline text-ink text-xs"
               {...form.register('sertifikat_url')}
             />
           </div>

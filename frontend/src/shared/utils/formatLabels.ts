@@ -234,3 +234,18 @@ export function formatSourceLabel(value: unknown, fallback = 'Aplikasi'): string
   };
   return labels[normalized] ?? formatTechnicalLabel(normalized, fallback);
 }
+
+export function formatSelectValueLabel(value: unknown, fallback = '—'): string {
+  const original = normalize(value);
+  const normalized = original.toLowerCase();
+  if (!normalized) return fallback;
+
+  return (
+    ROLE_LABELS[normalized] ??
+    STATUS_LABELS[normalized] ??
+    ENUM_LABELS[normalized] ??
+    RESOURCE_LABELS[normalized] ??
+    AUDIT_ACTION_LABELS[original.toUpperCase()] ??
+    formatTechnicalLabel(normalized, fallback)
+  );
+}

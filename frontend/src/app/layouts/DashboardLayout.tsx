@@ -1,12 +1,14 @@
 // Main responsive application shell. It owns layout/navigation only.
 
 import { useState } from 'react';
+import '@/app/styles/fonts.css';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, KeyRound, LogOut, MoreHorizontal } from 'lucide-react';
 import { cn } from '@/shared/utils/cn';
 import { Button } from '@/shared/ui/primitives/button';
 import { Separator } from '@/shared/ui/primitives/separator';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/shared/ui/primitives/sheet';
+import { Toaster } from '@/shared/ui/primitives/toast';
 import { useIsMobile } from '@/shared/hooks/use-mobile';
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import { NotificationDropdown } from '@/features/notifications/components/NotificationDropdown';
@@ -155,6 +157,8 @@ export function DashboardLayout() {
           </div>
         </SheetContent>
       </Sheet>
+
+      <Toaster />
     </div>
   );
 }

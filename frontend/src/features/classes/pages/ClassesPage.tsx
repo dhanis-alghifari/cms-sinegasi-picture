@@ -1,7 +1,7 @@
 // src/features/classes/pages/ClassesPage.tsx
 
-import { useCallback, useEffect, useState } from 'react';
-import { Plus, Search, Layers, Edit2, Power } from 'lucide-react';
+import { useState } from 'react';
+import { AlertCircle, Plus, Search, Layers, Edit2, Power } from 'lucide-react';
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { ResponsivePageActions } from '@/shared/ui/ResponsivePageActions';
 import { PageLoader } from '@/shared/ui/LoadingSpinner';
@@ -26,10 +26,13 @@ import {
 import { useDebouncedValue } from '@/shared/hooks/useDebouncedValue';
 import { useIsMobile } from '@/shared/hooks/use-mobile';
 import { ReasonDialog } from '@/shared/ui/ActionDialog';
-import { classesService } from '../api/classes.service';
+import { getErrorMessage } from '@/shared/api/errors';
+import { useClassesQuery } from '../hooks/useClassesQuery';
+import { useCreateClassMutation } from '../hooks/useCreateClassMutation';
+import { useUpdateClassMutation } from '../hooks/useUpdateClassMutation';
 import { ClassFormDialog } from '../components/ClassFormDialog';
 import { ClassMobileList } from '../components/ClassMobileList';
-import type { ClassOption } from '../types/classes.types';
+import type { ClassRecord } from '../types/classes.types';
 import { AuditHistoryButton } from '@/features/audit/components/AuditHistoryButton';
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import { hasCapability } from '@/shared/auth/capabilities';
@@ -38,52 +41,32 @@ export function ClassesPage() {
   const { user } = useAuthStore();
   const isMobile = useIsMobile();
   const canManage = hasCapability(user, 'classes.manage');
-  const [classes, setClasses] = useState<ClassOption[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [tingkatFilter, setTingkatFilter] = useState('all');
   const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
-  const [totalPages, setTotalPages] = useState(1);
   const pageSize = 10;
 
   const debouncedSearch = useDebouncedValue(search, 300);
 
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingClass, setEditingClass] = useState<ClassOption | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editingClass, setEditingClass] = useState<ClassRecord | null>(null);
   const [statusTarget, setStatusTarget] = useState<{
-    item: ClassOption;
+    item: ClassRecord;
     nextStatus: boolean;
     actionName: string;
   } | null>(null);
 
-  const loadClasses = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const res = await classesService.getAdminClasses({
-        search: debouncedSearch || undefined,
-        tingkat: tingkatFilter !== 'all' ? tingkatFilter : undefined,
-        page,
-        pageSize,
-      });
-      setClasses(res.data || []);
-      setTotal(res.total || 0);
-      setTotalPages(res.totalPages || 1);
-    } catch {
-      setClasses([]);
-      setTotal(0);
-      setTotalPages(1);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [debouncedSearch, tingkatFilter, page]);
+  const classesQuery = useClassesQuery({
+    search: debouncedSearch || undefined,
+    tingkat: tingkatFilter !== 'all' ? tingkatFilter : undefined,
+    page,
+    pageSize,
+  });
+  const createMutation = useCreateClassMutation();
+  const updateMutation = useUpdateClassMutation();
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => void loadClasses(), 0);
-    return () => window.clearTimeout(timer);
-  }, [loadClasses]);
+  const classes = classesQuery.data?.data ?? [];
 
   const handleSearchChange = (val: string) => {
     setSearch(val);
@@ -96,16 +79,20 @@ export function ClassesPage() {
   };
 
   const handleOpenAdd = () => {
+    createMutation.reset();
+    updateMutation.reset();
     setEditingClass(null);
     setDialogOpen(true);
   };
 
-  const handleOpenEdit = (item: ClassOption) => {
+  const handleOpenEdit = (item: ClassRecord) => {
+    createMutation.reset();
+    updateMutation.reset();
     setEditingClass(item);
     setDialogOpen(true);
   };
 
-  const handleToggleStatus = (item: ClassOption) => {
+  const handleToggleStatus = (item: ClassRecord) => {
     const nextStatus = !item.is_active;
     const actionName = nextStatus ? 'mengaktifkan' : 'menonaktifkan';
     setStatusTarget({ item, nextStatus, actionName });
@@ -114,11 +101,13 @@ export function ClassesPage() {
   const handleConfirmStatus = async (reason: string) => {
     if (!statusTarget) return;
 
-    await classesService.updateClass(statusTarget.item.id, {
-      is_active: statusTarget.nextStatus,
-      change_reason: reason,
+    await updateMutation.mutateAsync({
+      id: statusTarget.item.id,
+      payload: {
+        is_active: statusTarget.nextStatus,
+        change_reason: reason,
+      },
     });
-    await loadClasses();
   };
 
   const handleStatusDialogChange = (open: boolean) => {
@@ -128,20 +117,23 @@ export function ClassesPage() {
   };
 
   const handleSubmitForm = async (values: { nama_kelas: string; tingkat: string; change_reason?: string }) => {
-    setIsSubmitting(true);
-    try {
-      if (editingClass) {
-        await classesService.updateClass(editingClass.id, values);
-        await loadClasses();
-      } else {
-        await classesService.createClass({ nama_kelas: values.nama_kelas, tingkat: values.tingkat });
-        setSearch('');
-        setTingkatFilter('all');
-        setPage(1);
-      }
-    } finally {
-      setIsSubmitting(false);
+    if (editingClass) {
+      await updateMutation.mutateAsync({
+        id: editingClass.id,
+        payload: values,
+      });
+      return;
     }
+
+    await createMutation.mutateAsync({
+      payload: {
+        nama_kelas: values.nama_kelas,
+        tingkat: values.tingkat,
+      },
+    });
+    setSearch('');
+    setTingkatFilter('all');
+    setPage(1);
   };
 
   return (
@@ -170,12 +162,12 @@ export function ClassesPage() {
             placeholder="Cari nama kelas (misal: TKJ 1, AK 5)..."
             value={search}
             onChange={(e) => handleSearchChange(e.target.value)}
-            className="h-11 bg-surface-1 pl-9 text-xs text-ink placeholder:text-ink-tertiary sm:h-9"
+            className="bg-surface-1 pl-9 text-xs text-ink placeholder:text-ink-tertiary"
           />
         </div>
 
         <Select value={tingkatFilter} onValueChange={(val) => val && handleTingkatChange(val)}>
-          <SelectTrigger className="h-11 w-full bg-surface-1 text-xs text-ink sm:h-9 sm:w-40">
+          <SelectTrigger className="w-full bg-surface-1 text-xs text-ink sm:w-40">
             <SelectValue placeholder="Tingkat" />
           </SelectTrigger>
           <SelectContent className="bg-surface-3 border-hairline text-ink">
@@ -188,10 +180,35 @@ export function ClassesPage() {
       </div>
 
       {/* Classes Table */}
-      {isLoading ? (
+      {classesQuery.isPending ? (
         <PageLoader />
+      ) : classesQuery.isError ? (
+        <div
+          className="flex min-h-52 flex-col items-center justify-center gap-3 rounded-lg border border-semantic-danger/30 bg-semantic-danger/5 px-4 text-center"
+          role="alert"
+        >
+          <AlertCircle className="h-8 w-8 text-semantic-danger" aria-hidden="true" />
+          <div>
+            <p className="text-sm font-medium text-ink">Data kelas belum dapat dimuat</p>
+            <p className="mt-1 text-xs text-ink-subtle">{getErrorMessage(classesQuery.error)}</p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => void classesQuery.refetch()}
+            className="border-hairline text-xs text-ink"
+          >
+            Coba lagi
+          </Button>
+        </div>
       ) : (
         <div className="space-y-4">
+          {classesQuery.isFetching && (
+            <p className="text-right text-[11px] text-ink-tertiary" aria-live="polite">
+              Memperbarui data...
+            </p>
+          )}
           {isMobile ? <ClassMobileList classes={classes} onEdit={handleOpenEdit} onToggleStatus={handleToggleStatus} canManage={canManage} /> : <div className="overflow-hidden rounded-lg border border-hairline bg-surface-1">
             <Table>
               <TableHeader className="bg-surface-2/60">
@@ -266,10 +283,10 @@ export function ClassesPage() {
           </div>}
 
           <Pagination
-            page={page}
-            totalPages={totalPages}
-            total={total}
-            pageSize={pageSize}
+            page={classesQuery.data?.page ?? page}
+            totalPages={classesQuery.data?.totalPages ?? 1}
+            total={classesQuery.data?.total ?? 0}
+            pageSize={classesQuery.data?.pageSize ?? pageSize}
             onPageChange={setPage}
           />
         </div>
@@ -282,7 +299,7 @@ export function ClassesPage() {
           onOpenChange={setDialogOpen}
           initialData={editingClass}
           onSubmit={handleSubmitForm}
-          isLoading={isSubmitting}
+          isLoading={createMutation.isPending || updateMutation.isPending}
         />
 
         <ReasonDialog

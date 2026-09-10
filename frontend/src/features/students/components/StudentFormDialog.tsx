@@ -22,7 +22,7 @@ import { StudentFormFields } from './StudentFormFields';
 import { studentSchema, type StudentFormValues } from '../schemas/studentSchema';
 import type { Student } from '../types/students.types';
 import { classesService } from '@/features/classes/api/classes.service';
-import type { ClassOption } from '@/features/classes/types/classes.types';
+import type { ClassSelectorOption } from '@/features/classes/types/classes.types';
 
 interface StudentFormDialogProps {
   open: boolean;
@@ -44,7 +44,7 @@ export function StudentFormDialog({
   const isEditing = Boolean(student);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFilePreview, setSelectedFilePreview] = useState<string | null>(null);
-  const [classOptions, setClassOptions] = useState<ClassOption[]>([]);
+  const [classOptions, setClassOptions] = useState<ClassSelectorOption[]>([]);
   const [classOptionsLoading, setClassOptionsLoading] = useState(false);
   const [classOptionsError, setClassOptionsError] = useState<string | null>(null);
   const [isProcessingImage, setIsProcessingImage] = useState(false);
@@ -235,7 +235,7 @@ export function StudentFormDialog({
               type="button"
               variant="outline"
               onClick={() => handleDialogOpenChange(false)}
-              className="bg-surface-2 border-hairline text-ink text-xs h-9"
+              className="bg-surface-2 border-hairline text-ink text-xs"
             >
               Batal
             </Button>

@@ -21,6 +21,7 @@ export type DashboardApiSummary = {
     izin: number;
     alpha: number;
     totalSiswa: number;
+    totalTercatat: number;
     persentaseHadir: number;
   };
   alat: {
@@ -94,16 +95,15 @@ export class DashboardService {
    */
   async getSummaryForUser(user: JwtPayload): Promise<DashboardApiSummary> {
     if (user.role === 'teacher') {
+      const result = await this.repository.getOperationalSummary();
+      if ('error' in result) {
+        throw new DashboardServiceError(503, 'DASHBOARD_UNAVAILABLE', 'Ringkasan dashboard belum tersedia.');
+      }
+
       return {
         scope: 'operational',
         role: user.role,
-        kas: { saldoTerakhir: 0, pemasukanBulanIni: 0, pengeluaranBulanIni: 0, transaksiTerbaru: [] },
-        absensi: { hadir: 0, sakit: 0, izin: 0, alpha: 0, totalSiswa: 0, persentaseHadir: 0 },
-        alat: { tersedia: 0, dipinjam: 0, maintenance: 0, rusak: 0, totalAlat: 0, overdueCount: 0 },
-        gradeDistribution: {
-          totalSiswaEvaluated: 0,
-          distribution: { A: 0, B: 0, C: 0, D: 0, E: 0 },
-        },
+        ...result.data,
       };
     }
 
@@ -126,6 +126,7 @@ export class DashboardService {
         izin: summary.attendance.izin,
         alpha: summary.attendance.alpha,
         totalSiswa: 1,
+        totalTercatat: summary.attendance.total ?? summary.attendance.hadir + summary.attendance.sakit + summary.attendance.izin + summary.attendance.alpha,
         persentaseHadir: summary.attendance.persentase,
       },
       alat: { tersedia: 0, dipinjam: 0, maintenance: 0, rusak: 0, totalAlat: 0, overdueCount: 0 },

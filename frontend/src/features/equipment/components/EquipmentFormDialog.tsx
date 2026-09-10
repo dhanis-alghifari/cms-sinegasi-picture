@@ -154,7 +154,7 @@ export function EquipmentFormDialog({
               <Input
                 id="kode_alat"
                 placeholder="cth. CAM-001"
-                className={cn('bg-surface-2 border-hairline text-ink text-xs h-9 font-mono uppercase', form.formState.errors.kode_alat && 'border-semantic-danger')}
+                className={cn('bg-surface-2 border-hairline text-ink text-xs font-mono uppercase', form.formState.errors.kode_alat && 'border-semantic-danger')}
                 {...form.register('kode_alat')}
               />
               {form.formState.errors.kode_alat && (
@@ -169,7 +169,7 @@ export function EquipmentFormDialog({
                 value={selectedCategory}
                 onValueChange={(val) => { if (isOneOf(val, EQUIPMENT_CATEGORY_VALUES)) form.setValue('kategori', val); }}
               >
-                <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs h-9">
+                <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs">
                   <SelectValue placeholder="Kategori" />
                 </SelectTrigger>
                 <SelectContent className="bg-surface-3 border-hairline text-ink">
@@ -190,7 +190,7 @@ export function EquipmentFormDialog({
             <Input
               id="nama_alat"
               placeholder="cth. Sony FX3 Cinema Line / Aputure 300d II"
-              className={cn('bg-surface-2 border-hairline text-ink text-xs h-9', form.formState.errors.nama_alat && 'border-semantic-danger')}
+              className={cn('bg-surface-2 border-hairline text-ink text-xs', form.formState.errors.nama_alat && 'border-semantic-danger')}
               {...form.register('nama_alat')}
             />
             {form.formState.errors.nama_alat && (
@@ -206,7 +206,7 @@ export function EquipmentFormDialog({
                 value={selectedCondition}
                 onValueChange={(val) => { if (isOneOf(val, EQUIPMENT_CONDITION_VALUES)) form.setValue('kondisi', val); }}
               >
-                <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs h-9">
+                <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs">
                   <SelectValue placeholder="Pilih kondisi" />
                 </SelectTrigger>
                 <SelectContent className="bg-surface-3 border-hairline text-ink">
@@ -227,7 +227,7 @@ export function EquipmentFormDialog({
                 value={selectedStatus}
                 onValueChange={(val) => { if (isOneOf(val, EQUIPMENT_AVAILABILITY_VALUES)) form.setValue('status', val); }}
               >
-                <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs h-9">
+                <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs">
                   <SelectValue placeholder="Pilih status ketersediaan" />
                 </SelectTrigger>
                 <SelectContent className="bg-surface-3 border-hairline text-ink">
@@ -246,7 +246,7 @@ export function EquipmentFormDialog({
               <Input
                 id="lokasi_penyimpanan"
                 placeholder="cth. Rak A-02 Studio 1"
-                className="bg-surface-2 border-hairline text-ink text-xs h-9"
+              className="bg-surface-2 border-hairline text-ink text-xs"
                 {...form.register('lokasi_penyimpanan')}
               />
             </div>
@@ -257,7 +257,7 @@ export function EquipmentFormDialog({
               <Input
                 id="serial_number"
                 placeholder="cth. SN-8839201"
-                className="bg-surface-2 border-hairline text-ink text-xs h-9 font-mono"
+              className="bg-surface-2 border-hairline text-ink text-xs font-mono"
                 {...form.register('serial_number')}
               />
             </div>
@@ -294,7 +294,7 @@ export function EquipmentFormDialog({
               <Input
                 id="change_reason"
                 placeholder="cth. Perubahan spesifikasi / update lokasi rak penyimpanan"
-                className={cn('bg-surface-2 border-hairline text-ink text-xs h-9', form.formState.errors.change_reason && 'border-semantic-danger')}
+              className={cn('bg-surface-2 border-hairline text-ink text-xs', form.formState.errors.change_reason && 'border-semantic-danger')}
                 {...form.register('change_reason')}
               />
               {form.formState.errors.change_reason && (

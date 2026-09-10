@@ -77,7 +77,7 @@ export function CreateContestEntryForm({
           {...createEntryForm.register('title')}
           placeholder="Contoh: Jejak di Atas Kanvas"
           className={cn(
-            'h-11 bg-surface-1 text-sm',
+            'bg-surface-1 text-sm',
             createEntryForm.formState.errors.title && 'border-semantic-danger',
           )}
         />
@@ -102,7 +102,7 @@ export function CreateContestEntryForm({
             }
           }}
         >
-          <SelectTrigger className="h-11 bg-surface-1 text-sm">
+          <SelectTrigger className="bg-surface-1 text-sm">
             <SelectValue>{selectedWorkTypeLabel}</SelectValue>
           </SelectTrigger>
           <SelectContent className="bg-surface-3 text-ink">

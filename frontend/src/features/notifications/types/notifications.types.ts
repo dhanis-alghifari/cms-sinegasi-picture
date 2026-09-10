@@ -1,17 +1,21 @@
 // src/features/notifications/types/notifications.types.ts
 // Notifications center domain types according to PRD schema
 
-export type NotificationType =
-  | 'cash_debt_overdue'
-  | 'attendance_lock_warning'
-  | 'borrowing_overdue'
-  | 'borrowing_approved'
-  | 'borrowing_rejected'
-  | 'borrowing_submitted'
-  | 'borrowing_handover'
-  | 'borrowing_returned'
-  | 'grade_published'
-  | 'system_announcement';
+export const NOTIFICATION_TYPE_VALUES = [
+  'attendance_correction',
+  'grade_published',
+  'grade_correction',
+  'borrowing_approved',
+  'borrowing_rejected',
+  'borrowing_overdue',
+  'cash_deducted',
+  'cash_dispute_response',
+  'contest_assigned',
+  'system_announcement',
+  'password_reset',
+] as const;
+
+export type NotificationType = typeof NOTIFICATION_TYPE_VALUES[number];
 
 export interface NotificationRecord {
   id: string;

@@ -4,12 +4,12 @@ import { AuditHistoryButton } from '@/features/audit/components/AuditHistoryButt
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { Button } from '@/shared/ui/primitives/button';
 import { StatusBadge } from '@/shared/ui/StatusBadge';
-import type { ClassOption } from '../types/classes.types';
+import type { ClassRecord } from '../types/classes.types';
 
 interface ClassMobileListProps {
-  classes: ClassOption[];
-  onEdit: (item: ClassOption) => void;
-  onToggleStatus: (item: ClassOption) => void;
+  classes: ClassRecord[];
+  onEdit: (item: ClassRecord) => void;
+  onToggleStatus: (item: ClassRecord) => void;
   canManage?: boolean;
 }
 

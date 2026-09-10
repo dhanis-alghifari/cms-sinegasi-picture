@@ -2,6 +2,11 @@
 // Pure TS borrowing & return transactions service
 
 import { apiClient } from '@/shared/api/client';
+import {
+  decodeBorrowingList,
+  decodeBorrowingRecord,
+  decodeBorrowingSummary,
+} from './borrowing.responses';
 import type { PaginatedResponse } from '@/shared/types/common';
 import type {
   BorrowingRecord,
@@ -22,17 +27,17 @@ export const borrowingService = {
     if (params?.borrower_id) query.append('borrower_id', params.borrower_id);
 
     const endpoint = `/api/borrowing${query.toString() ? `?${query.toString()}` : ''}`;
-    return apiClient.get<PaginatedResponse<BorrowingRecord>>(endpoint);
+    return apiClient.getParsed(endpoint, decodeBorrowingList);
   },
 
   getSummary(): Promise<BorrowingSummary> {
-    return apiClient.get<BorrowingSummary>('/api/borrowing/summary');
+    return apiClient.getParsed('/api/borrowing/summary', decodeBorrowingSummary);
   },
 
   createBorrowing(payload: CreateBorrowingPayload): Promise<BorrowingRecord> {
     const { idempotency_key, ...body } = payload;
-    return apiClient.post<BorrowingRecord>('/api/borrowing', body, idempotency_key ? {
-      headers: { 'x-idempotency-key': idempotency_key },
+    return apiClient.postParsed('/api/borrowing', body, decodeBorrowingRecord, idempotency_key ? {
+      idempotencyKey: idempotency_key,
     } : undefined);
   },
 
@@ -40,19 +45,19 @@ export const borrowingService = {
     payload: ApproveRejectPayload,
     changeReason: string,
   ): Promise<BorrowingRecord> {
-    return apiClient.post<BorrowingRecord>(`/api/borrowing/${payload.borrowing_id}/approve-reject`, payload, {
+    return apiClient.postParsed(`/api/borrowing/${payload.borrowing_id}/approve-reject`, payload, decodeBorrowingRecord, {
       changeReason,
     });
   },
 
   handoverBorrowing(id: string, changeReason: string): Promise<BorrowingRecord> {
-    return apiClient.post<BorrowingRecord>(`/api/borrowing/${id}/handover`, {}, {
+    return apiClient.postParsed(`/api/borrowing/${id}/handover`, {}, decodeBorrowingRecord, {
       changeReason,
     });
   },
 
   processReturn(payload: ProcessReturnPayload, changeReason: string): Promise<BorrowingRecord> {
-    return apiClient.post<BorrowingRecord>(`/api/borrowing/${payload.borrowing_id}/return`, payload, {
+    return apiClient.postParsed(`/api/borrowing/${payload.borrowing_id}/return`, payload, decodeBorrowingRecord, {
       changeReason,
     });
   },

@@ -9,9 +9,10 @@ import type { AttendanceSummaryMetrics } from '../types/attendance.types';
 interface AttendanceSummaryCardsProps {
   summary?: AttendanceSummaryMetrics;
   isOwn?: boolean;
+  totalLabel?: string;
 }
 
-export function AttendanceSummaryCards({ summary, isOwn = false }: AttendanceSummaryCardsProps) {
+export function AttendanceSummaryCards({ summary, isOwn = false, totalLabel }: AttendanceSummaryCardsProps) {
   const hadir = summary?.hadir ?? 0;
   const sakit = summary?.sakit ?? 0;
   const izin = summary?.izin ?? 0;
@@ -29,7 +30,7 @@ export function AttendanceSummaryCards({ summary, isOwn = false }: AttendanceSum
             <Users size={14} className="text-primary" />
           </div>
           <div className="text-xl font-bold text-ink tracking-tight">{formatNumber(persentase, { maximumFractionDigits: 1 })}%</div>
-          <p className="text-[10px] text-ink-tertiary mt-0.5">{formatNumber(hadir)} dari {formatNumber(total)} {isOwn ? 'catatan' : 'siswa'}</p>
+          <p className="text-[10px] text-ink-tertiary mt-0.5">{formatNumber(hadir)} dari {formatNumber(total)} {totalLabel ?? (isOwn ? 'catatan' : 'siswa')}</p>
         </CardContent>
       </Card>
 

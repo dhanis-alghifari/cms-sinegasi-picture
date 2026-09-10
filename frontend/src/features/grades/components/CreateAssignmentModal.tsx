@@ -93,7 +93,7 @@ export function CreateAssignmentModal({
             <Input
               id="title"
               placeholder="cth. Practical Test Lighting Studio / Produksi Film Pendek A"
-              className={cn('bg-surface-2 border-hairline text-ink text-xs h-9', form.formState.errors.title && 'border-semantic-danger')}
+              className={cn('bg-surface-2 border-hairline text-ink text-xs', form.formState.errors.title && 'border-semantic-danger')}
               {...form.register('title')}
             />
             {form.formState.errors.title && (
@@ -109,7 +109,7 @@ export function CreateAssignmentModal({
                 value={selectedCategory}
                 onValueChange={(val) => { if (isOneOf(val, ASSIGNMENT_CATEGORY_VALUES)) form.setValue('category', val); }}
               >
-                <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs h-9">
+                <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs">
                   <SelectValue placeholder="Pilih Kategori" />
                 </SelectTrigger>
                 <SelectContent className="bg-surface-3 border-hairline text-ink">
@@ -128,7 +128,7 @@ export function CreateAssignmentModal({
                 value={selectedKelas ?? 'X'}
                 onValueChange={(val) => val && form.setValue('kelas', val)}
               >
-                <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs h-9">
+                <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs">
                   <SelectValue placeholder="Pilih Kelas" />
                 </SelectTrigger>
                 <SelectContent className="bg-surface-3 border-hairline text-ink">
@@ -147,7 +147,7 @@ export function CreateAssignmentModal({
             <Input
               id="date"
               type="date"
-              className="bg-surface-2 border-hairline text-ink text-xs h-9"
+              className="bg-surface-2 border-hairline text-ink text-xs"
               {...form.register('date')}
             />
           </div>

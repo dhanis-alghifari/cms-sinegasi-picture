@@ -2,6 +2,21 @@
 // Pure TS cash management service
 
 import { apiClient } from '@/shared/api/client';
+import {
+  decodeBillingRules,
+  decodeCashDebts,
+  decodeCashIn,
+  decodeCashOut,
+  decodeCashPaymentMethods,
+  decodeCashReport,
+  decodeCashSummary,
+  decodeCashTransactions,
+  decodeCreateDispute,
+  decodeDisputeEvidence,
+  decodeDisputeQuota,
+  decodeDisputes,
+  decodeResolveDispute,
+} from './cash.responses';
 import type { PaginatedResponse } from '@/shared/types/common';
 import type {
   CashTransaction,
@@ -26,7 +41,7 @@ import type {
 
 export const cashService = {
   getSummary(): Promise<CashSummary> {
-    return apiClient.get<CashSummary>('/api/cash/summary');
+    return apiClient.getParsed('/api/cash/summary', decodeCashSummary);
   },
 
   getReport(params: CashReportFilters): Promise<CashReport> {
@@ -35,11 +50,11 @@ export const cashService = {
       end_date: params.end_date,
     });
     if (params.metode_pembayaran) query.set('metode_pembayaran', params.metode_pembayaran);
-    return apiClient.get<CashReport>(`/api/cash/report?${query.toString()}`);
+    return apiClient.getParsed(`/api/cash/report?${query.toString()}`, decodeCashReport);
   },
 
   getPaymentMethods(): Promise<{ success: boolean; data: CashPaymentMethod[] }> {
-    return apiClient.get<{ success: boolean; data: CashPaymentMethod[] }>('/api/cash/payment-methods');
+    return apiClient.getParsed('/api/cash/payment-methods', decodeCashPaymentMethods);
   },
 
   getTransactions(params?: CashTransactionFilters): Promise<PaginatedResponse<CashTransaction>> {
@@ -57,7 +72,7 @@ export const cashService = {
     if (params?.metode_pembayaran) query.append('metode_pembayaran', params.metode_pembayaran);
 
     const endpoint = `/api/cash/transactions${query.toString() ? `?${query.toString()}` : ''}`;
-    return apiClient.get<PaginatedResponse<CashTransaction>>(endpoint);
+    return apiClient.getParsed(endpoint, decodeCashTransactions);
   },
 
   getDebts(params?: { page?: number; pageSize?: number; search?: string }): Promise<PaginatedResponse<DebtRecord>> {
@@ -67,16 +82,16 @@ export const cashService = {
     if (params?.search) query.append('search', params.search);
 
     const endpoint = `/api/cash/debts${query.toString() ? `?${query.toString()}` : ''}`;
-    return apiClient.get<PaginatedResponse<DebtRecord>>(endpoint);
+    return apiClient.getParsed(endpoint, decodeCashDebts);
   },
 
   getBillingRules(): Promise<BillingRule> {
-    return apiClient.get<BillingRule>('/api/cash/billing-rules');
+    return apiClient.getParsed('/api/cash/billing-rules', decodeBillingRules);
   },
 
   // Fast-entry Cash In
   createCashIn(payload: CreateCashInPayload, idempotencyKey: string): Promise<CashInApiResponse> {
-    return apiClient.post<CashInApiResponse>('/api/cash/transactions/in', payload, {
+    return apiClient.postParsed('/api/cash/transactions/in', payload, decodeCashIn, {
       headers: { 'x-idempotency-key': idempotencyKey },
       changeReason: 'Pencatatan transaksi kas masuk',
     });
@@ -84,7 +99,7 @@ export const cashService = {
 
   // Two-Stage Cash Out (checks balance on server side + validates rincian)
   createCashOut(payload: CreateCashOutPayload, idempotencyKey: string): Promise<CashTransaction> {
-    return apiClient.post<CashTransaction>('/api/cash/transactions/out', payload, {
+    return apiClient.postParsed('/api/cash/transactions/out', payload, decodeCashOut, {
       headers: { 'x-idempotency-key': idempotencyKey },
       changeReason: 'Pencatatan transaksi kas keluar',
     });
@@ -92,18 +107,18 @@ export const cashService = {
 
   // Student Dispute with Mandatory Proof Photo
   createDispute(payload: CreateDisputePayload, idempotencyKey: string): Promise<CreateDisputeResponse> {
-    return apiClient.post<CreateDisputeResponse>('/api/cash/disputes', payload, {
+    return apiClient.postParsed('/api/cash/disputes', payload, decodeCreateDispute, {
       idempotencyKey,
       changeReason: 'Pengajuan sanggahan kas',
     });
   },
 
   getDisputeQuota(): Promise<{ success: boolean; data: CashDisputeQuota }> {
-    return apiClient.get<{ success: boolean; data: CashDisputeQuota }>('/api/cash/disputes/quota');
+    return apiClient.getParsed('/api/cash/disputes/quota', decodeDisputeQuota);
   },
 
   getDisputeEvidence(disputeId: string): Promise<{ success: boolean; data: { url: string } }> {
-    return apiClient.get<{ success: boolean; data: { url: string } }>(`/api/cash/disputes/${disputeId}/evidence`);
+    return apiClient.getParsed(`/api/cash/disputes/${disputeId}/evidence`, decodeDisputeEvidence);
   },
 
   getDisputes(params?: { page?: number; pageSize?: number; status?: DisputeStatus; cursor?: string; limit?: number }): Promise<{ success: boolean } & CashDisputeListResponse> {
@@ -114,19 +129,19 @@ export const cashService = {
     if (params?.cursor) query.set('cursor', params.cursor);
     if (params?.limit) query.set('limit', String(params.limit));
     const suffix = query.toString() ? `?${query.toString()}` : '';
-    return apiClient.get<{ success: boolean } & CashDisputeListResponse>(`/api/cash/disputes${suffix}`);
+    return apiClient.getParsed(`/api/cash/disputes${suffix}`, decodeDisputes);
   },
 
   // Resolve/Reject Dispute (Treasurer/Teacher)
   resolveDispute(disputeId: string, input: { status: DisputeStatus; review_note: string; resolution_date?: string; resolution_amount?: number; payment_method_code?: string }, changeReason: string): Promise<{ success: boolean; data: { dispute: CashDispute; resolutionTransactionId?: string; idempotentReplay: boolean } }> {
-    return apiClient.patch(`/api/cash/disputes/${disputeId}`, { ...input, status: input.status === 'resolved' ? 'approved' : input.status }, {
+    return apiClient.patchParsed(`/api/cash/disputes/${disputeId}`, { ...input, status: input.status === 'resolved' ? 'approved' : input.status }, decodeResolveDispute, {
       changeReason,
     });
   },
 
   // Update Global Billing Rules
   updateBillingRules(payload: UpdateBillingRulePayload, changeReason: string): Promise<BillingRule> {
-    return apiClient.put<BillingRule>('/api/cash/billing-rules', payload, {
+    return apiClient.putParsed('/api/cash/billing-rules', payload, decodeBillingRules, {
       changeReason,
     });
   },

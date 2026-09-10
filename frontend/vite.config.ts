@@ -8,6 +8,9 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  build: {
+    manifest: true,
+  },
   server: {
     port: 5173,
     proxy: {

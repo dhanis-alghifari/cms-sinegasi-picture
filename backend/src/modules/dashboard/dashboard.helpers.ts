@@ -1,4 +1,4 @@
-import type { DashboardMemoryState, DashboardSummary } from './dashboard.types.js';
+import type { DashboardMemoryState, DashboardSummary, OperationalDashboardSummary } from './dashboard.types.js';
 
 export function createDashboardMemoryState(): DashboardMemoryState {
   return { summaries: new Map() };
@@ -55,6 +55,40 @@ export function createDefaultDashboardSummary(studentId: string): DashboardSumma
     contestTasks: [
       { namaContest: 'LKS Sinematografi Nasional 2026', role: 'DOP / Editor', status: 'progres' },
     ],
+  };
+}
+
+export function createDefaultOperationalDashboardSummary(): OperationalDashboardSummary {
+  return {
+    reportDate: '2026-09-09',
+    timezone: 'Asia/Jakarta',
+    kas: {
+      saldoTerakhir: 80002,
+      pemasukanBulanIni: 3000,
+      pengeluaranBulanIni: 6000,
+      transaksiTerbaru: [],
+    },
+    absensi: {
+      hadir: 4,
+      sakit: 0,
+      izin: 0,
+      alpha: 0,
+      totalSiswa: 20,
+      totalTercatat: 4,
+      persentaseHadir: 100,
+    },
+    alat: {
+      tersedia: 1,
+      dipinjam: 0,
+      maintenance: 0,
+      rusak: 0,
+      totalAlat: 1,
+      overdueCount: 0,
+    },
+    gradeDistribution: {
+      totalSiswaEvaluated: 5,
+      distribution: { A: 3, B: 1, C: 1, D: 0, E: 0 },
+    },
   };
 }
 

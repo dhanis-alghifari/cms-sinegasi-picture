@@ -1,10 +1,8 @@
 // src/app/providers/AppProviders.tsx
-// Root application providers wrapper — TanStack Query, TooltipProvider, Toaster
+// Root application providers wrapper — TanStack Query and session bootstrap
 
 import { useEffect, useState, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider, MutationCache } from '@tanstack/react-query';
-import { TooltipProvider } from '@/shared/ui/primitives/tooltip';
-import { Toaster } from '@/shared/ui/primitives/toast';
 import { authService } from '@/features/auth/api/auth.service';
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 
@@ -77,11 +75,8 @@ export function AppProviders({ children }: AppProvidersProps) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <AuthSessionBootstrap />
-        {children}
-        <Toaster />
-      </TooltipProvider>
+      <AuthSessionBootstrap />
+      {children}
     </QueryClientProvider>
   );
 }

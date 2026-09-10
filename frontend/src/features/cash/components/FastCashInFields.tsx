@@ -183,7 +183,7 @@ export function FastCashInFields({
               onValueChange={(value) => value && form.setValue('metode_pembayaran', value, { shouldValidate: true, shouldDirty: true })}
               disabled={isPaymentMethodsLoading || paymentMethods.length === 0 || isLoading}
             >
-              <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs min-h-12 h-auto md:h-9 md:min-h-0">
+              <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs">
                 <SelectValue placeholder={isPaymentMethodsLoading ? 'Memuat metode...' : 'Pilih metode pembayaran'} />
               </SelectTrigger>
               <SelectContent className="bg-surface-3 border-hairline text-ink">
@@ -237,7 +237,7 @@ export function FastCashInFields({
             <Input
               id="tanggal"
               type="date"
-              className={cn('bg-surface-2 border-hairline text-ink text-xs min-h-12 h-auto md:h-9 md:min-h-0', form.formState.errors.tanggal && 'border-semantic-danger')}
+              className={cn('bg-surface-2 border-hairline text-ink text-xs', form.formState.errors.tanggal && 'border-semantic-danger')}
               {...form.register('tanggal')}
             />
             {form.formState.errors.tanggal && (
@@ -257,7 +257,7 @@ export function FastCashInFields({
                   id="jumlah"
                   placeholder="5,000"
                   disabled={cashInType === 'iuran_wajib' && paymentMode === 'unpaid'}
-                  className={cn('bg-surface-2 border-hairline text-ink text-xs min-h-12 h-auto md:h-9 md:min-h-0 font-mono', form.formState.errors.jumlah && 'border-semantic-danger')}
+                  className={cn('bg-surface-2 border-hairline text-ink text-xs font-mono', form.formState.errors.jumlah && 'border-semantic-danger')}
                   value={field.value}
                   onChange={(value) => {
                     const amount = value ?? 0;
@@ -289,7 +289,7 @@ export function FastCashInFields({
             <Input
               id="keterangan"
               placeholder="cth. Iuran Kas Mingguan"
-              className="bg-surface-2 border-hairline text-ink text-xs min-h-12 h-auto md:h-9 md:min-h-0"
+              className="bg-surface-2 border-hairline text-ink text-xs"
               {...form.register('keterangan')}
             />
           </div>

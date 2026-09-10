@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import Fastify from 'fastify';
 import jwt from '@fastify/jwt';
 import test from 'node:test';
-import { createDashboardMemoryState } from './dashboard.helpers.js';
+import { createDashboardMemoryState, createDefaultOperationalDashboardSummary } from './dashboard.helpers.js';
 import { createDashboardRepository } from './dashboard.repository.js';
 import { DashboardService } from './dashboard.service.js';
 import dashboardRoutes from './dashboard.routes.js';
@@ -11,8 +11,14 @@ async function createApp() {
   const app = Fastify();
   await app.register(jwt, { secret: 'test-secret-that-is-long-enough' });
   const state = createDashboardMemoryState();
+  const repository = createDashboardRepository(state);
   await app.register(dashboardRoutes, {
-    dashboardService: new DashboardService(createDashboardRepository(state)),
+    dashboardService: new DashboardService({
+      ...repository,
+      async getOperationalSummary() {
+        return { data: createDefaultOperationalDashboardSummary() };
+      },
+    }),
   });
   return app;
 }
@@ -69,6 +75,8 @@ test('role-scoped dashboard returns operational data only to teachers', async (t
   const teacher = await app.inject({ method: 'GET', url: '/api/dashboard/summary', headers: { authorization: `Bearer ${teacherToken}` } });
   assert.equal(teacher.statusCode, 200);
   assert.equal(teacher.json().scope, 'operational');
+  assert.equal(teacher.json().absensi.totalSiswa, 20);
+  assert.equal(teacher.json().gradeDistribution.distribution.A, 3);
 
   const memberToken = app.jwt.sign({ userId: 'member-1', username: 'member', role: 'member', studentId: 'student-42', isFirstLogin: false });
   const member = await app.inject({ method: 'GET', url: '/api/dashboard/summary', headers: { authorization: `Bearer ${memberToken}` } });

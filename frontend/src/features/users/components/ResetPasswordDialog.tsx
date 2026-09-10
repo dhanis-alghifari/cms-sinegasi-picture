@@ -166,7 +166,7 @@ export function ResetPasswordDialog({
               <Input
                 id="change_reason"
                 placeholder="cth. Siswa lupa password / permintaan reset guru"
-                className="bg-surface-2 border-hairline text-ink text-xs h-9"
+                className="bg-surface-2 border-hairline text-ink text-xs"
                 {...form.register('change_reason')}
               />
               {form.formState.errors.change_reason && (

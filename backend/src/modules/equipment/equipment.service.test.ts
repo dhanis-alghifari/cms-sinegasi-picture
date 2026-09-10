@@ -49,15 +49,15 @@ test('equipment service updates condition notes and removes only existing record
     kondisi: 'rusak',
     status: 'maintenance',
     catatan_kerusakan: 'Layar retak setelah pemeriksaan.',
-  }, 'user-1');
+  }, 'user-1', 'Memperbarui kondisi alat');
   assert.equal(updated.kondisi, 'rusak');
   assert.equal(updated.status, 'maintenance');
   assert.equal(updated.catatan_kerusakan, 'Layar retak setelah pemeriksaan.');
 
-  await equipmentService.remove('eq-002');
+  await equipmentService.remove('eq-002', 'user-1', 'Menghapus alat yang tidak digunakan');
   assert.equal(state.equipment.some((item) => item.id === 'eq-002'), false);
   await assert.rejects(
-    equipmentService.remove('missing'),
+    equipmentService.remove('missing', 'user-1', 'Menghapus alat yang tidak ditemukan'),
     (error: unknown) => error instanceof EquipmentServiceError && error.statusCode === 404,
   );
 });

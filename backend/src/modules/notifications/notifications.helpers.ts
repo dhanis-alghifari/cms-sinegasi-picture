@@ -4,15 +4,31 @@ import type {
   NotificationMemoryEntry,
   NotificationMemoryState,
   NotificationRecord,
+  NotificationType,
 } from './notifications.types.js';
 
 export const NOTIFICATIONS_SCHEMA_MESSAGE =
   'Skema notifikasi belum terpasang. Jalankan migration 003_notifications_table.sql dan 015_borrowing_notifications_hardening.sql di Supabase.';
 
-export const notificationTypeMap: Record<string, string> = {
+export const notificationTypeMap: Record<string, NotificationType> = {
+  attendance_correction: 'attendance_correction',
   grade_posted: 'grade_published',
+  grade_correction: 'grade_correction',
+  borrowing_approved: 'borrowing_approved',
+  borrowing_rejected: 'borrowing_rejected',
+  borrowing_overdue: 'borrowing_overdue',
+  cash_deducted: 'cash_deducted',
+  cash_dispute_response: 'cash_dispute_response',
+  contest_assigned: 'contest_assigned',
   system_alert: 'system_announcement',
+  password_reset: 'password_reset',
 };
+
+export function normalizeNotificationType(value: string): NotificationType {
+  const normalized = notificationTypeMap[value];
+  if (!normalized) throw new Error(`Unsupported notification type: ${value}`);
+  return normalized;
+}
 
 export const DEFAULT_NOTIFICATIONS: NotificationMemoryEntry[] = [
   { id: 'notif-001', userId: 'usr-02', type: 'borrowing_approved', title: '✅ Peminjaman Alat Disetujui Guru', body: 'Peminjaman Kamera Sony Alpha A7 III telah disetujui oleh guru pembina.', isRead: false, metadata: { due_at: '2026-08-08' }, createdAt: '2026-08-05T08:00:00.000Z' },
@@ -46,7 +62,7 @@ export function mapNotificationRow(row: NotificationDbRow): NotificationRecord {
   return {
     id: row.id,
     user_id: row.user_id,
-    type: notificationTypeMap[row.type] || row.type,
+    type: normalizeNotificationType(row.type),
     title: row.title,
     message: row.body ?? row.message ?? '',
     link_url: safeLinkUrl(metadata.link_url),
@@ -59,7 +75,7 @@ export function mapMemoryNotification(entry: NotificationMemoryEntry): Notificat
   return {
     id: entry.id,
     user_id: entry.userId,
-    type: notificationTypeMap[entry.type] || entry.type,
+    type: normalizeNotificationType(entry.type),
     title: entry.title,
     message: entry.body,
     link_url: safeLinkUrl(entry.metadata.link_url),

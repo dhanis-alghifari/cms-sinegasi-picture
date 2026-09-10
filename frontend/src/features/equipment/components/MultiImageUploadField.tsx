@@ -153,7 +153,8 @@ export function MultiImageUploadField({
             variant="outline"
             onClick={() => fileInputRef.current?.click()}
             disabled={disabled || isProcessing}
-            className="h-8 border-hairline bg-surface-1 text-ink text-xs"
+            size="sm"
+            className="border-hairline bg-surface-1 text-ink text-xs"
           >
             {isProcessing ? <Loader2 size={14} className="mr-1.5 animate-spin" /> : <Upload size={14} className="mr-1.5" />}
             {isProcessing ? 'Memproses...' : 'Upload Foto'}
@@ -173,14 +174,16 @@ export function MultiImageUploadField({
             }}
             placeholder="Atau tempel URL foto https://..."
             disabled={disabled || isProcessing}
-            className="h-8 flex-1 border-hairline bg-surface-1 text-ink text-xs"
+            density="compact"
+            className="flex-1 border-hairline bg-surface-1 text-ink text-xs"
           />
           <Button
             type="button"
             variant="outline"
             onClick={handleAddUrl}
             disabled={disabled || isProcessing || !urlValue.trim()}
-            className="h-8 border-hairline bg-surface-1 text-ink text-xs"
+            size="sm"
+            className="border-hairline bg-surface-1 text-ink text-xs"
           >
             <Plus size={14} className="mr-1" />
             Tambah URL

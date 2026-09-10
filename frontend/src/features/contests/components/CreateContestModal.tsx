@@ -143,7 +143,7 @@ export function CreateContestModal({
             <Input
               id="nama_lomba"
               placeholder="cth. Festival Film Pelajar Indonesia 2026 / FLS2N Film Pendek"
-              className={cn('h-11 bg-surface-2 border-hairline text-ink text-xs sm:h-9', form.formState.errors.nama_lomba && 'border-semantic-danger')}
+              className={cn('bg-surface-2 border-hairline text-ink text-xs', form.formState.errors.nama_lomba && 'border-semantic-danger')}
               {...form.register('nama_lomba')}
             />
             {form.formState.errors.nama_lomba && (
@@ -154,7 +154,7 @@ export function CreateContestModal({
             {/* Kota */}
             <div className="space-y-1">
               <Label htmlFor="kota" className="text-xs text-ink-muted">Kota <span className="text-semantic-danger" aria-hidden="true">*</span></Label>
-              <Input id="kota" placeholder="cth. Bekasi" className={cn('h-11 bg-surface-2 border-hairline text-ink text-xs sm:h-9', form.formState.errors.kota && 'border-semantic-danger')} {...form.register('kota')} />
+              <Input id="kota" placeholder="cth. Bekasi" className={cn('bg-surface-2 border-hairline text-ink text-xs', form.formState.errors.kota && 'border-semantic-danger')} {...form.register('kota')} />
               {form.formState.errors.kota && <p className="text-semantic-danger text-[10px]">{form.formState.errors.kota.message}</p>}
             </div>
 
@@ -167,7 +167,7 @@ export function CreateContestModal({
                 value={selectedContestScope}
                 onValueChange={(nextScope) => { if (isContestScope(nextScope)) form.setValue('tingkat', nextScope, { shouldDirty: true, shouldValidate: true }); }}
               >
-                <SelectTrigger id="tingkat" className="w-full bg-surface-2 border-hairline text-ink text-xs h-11 sm:h-9">
+                <SelectTrigger id="tingkat" className="w-full bg-surface-2 border-hairline text-ink text-xs">
                   <SelectValue placeholder="Pilih tingkat lomba" />
                 </SelectTrigger>
                 <SelectContent className="bg-surface-3 border-hairline text-ink">
@@ -185,7 +185,7 @@ export function CreateContestModal({
                 value={selectedContestStatus}
                 onValueChange={(nextStatus) => { if (isContestStatus(nextStatus)) form.setValue('status', nextStatus, { shouldDirty: true, shouldValidate: true }); }}
               >
-              <SelectTrigger id="status" className="w-full bg-surface-2 border-hairline text-ink text-xs h-11 sm:h-9">
+                <SelectTrigger id="status" className="w-full bg-surface-2 border-hairline text-ink text-xs">
                   <SelectValue placeholder="Pilih status event" />
                 </SelectTrigger>
                 <SelectContent className="bg-surface-3 border-hairline text-ink">
@@ -199,7 +199,7 @@ export function CreateContestModal({
 
           <div className="space-y-1">
               <Label htmlFor="tahun_event" className="text-xs text-ink-muted">Tahun Event <span className="text-semantic-danger" aria-hidden="true">*</span></Label>
-              <Input id="tahun_event" type="number" inputMode="numeric" min={1900} max={2200} className={cn('h-11 w-full bg-surface-2 border-hairline text-ink text-xs sm:h-9', form.formState.errors.tahun_event && 'border-semantic-danger')} {...form.register('tahun_event', { setValueAs: (value) => value === '' ? undefined : Number(value) })} />
+              <Input id="tahun_event" type="number" inputMode="numeric" min={1900} max={2200} className={cn('w-full bg-surface-2 border-hairline text-ink text-xs', form.formState.errors.tahun_event && 'border-semantic-danger')} {...form.register('tahun_event', { setValueAs: (value) => value === '' ? undefined : Number(value) })} />
               {form.formState.errors.tahun_event && <p className="text-semantic-danger text-[10px]">{form.formState.errors.tahun_event.message}</p>}
           </div>
           </section>
@@ -216,7 +216,7 @@ export function CreateContestModal({
                 id="deadline"
                 type="date"
                 min={getFutureDateInputValue(1)}
-                className="h-11 bg-surface-2 border-hairline text-ink text-xs sm:h-9"
+                className="bg-surface-2 border-hairline text-ink text-xs"
                 {...form.register('deadline')}
               />
               {form.formState.errors.deadline && <p className="text-semantic-danger text-[10px]">{form.formState.errors.deadline.message}</p>}
@@ -227,7 +227,7 @@ export function CreateContestModal({
               <Input
                 id="website_url"
                 placeholder="https://..."
-                className="h-11 bg-surface-2 border-hairline text-ink text-xs sm:h-9"
+                className="bg-surface-2 border-hairline text-ink text-xs"
                 {...form.register('website_url')}
               />
             </div>
@@ -258,7 +258,7 @@ export function CreateContestModal({
                 id="change_reason"
                 aria-required="true"
                 placeholder="Contoh: Memperbarui deadline pendaftaran"
-                className={cn('h-11 bg-surface-1 text-xs sm:h-10', form.formState.errors.change_reason && 'border-semantic-danger')}
+                className={cn('bg-surface-1 text-xs', form.formState.errors.change_reason && 'border-semantic-danger')}
                 {...form.register('change_reason')}
               />
               {form.formState.errors.change_reason && (

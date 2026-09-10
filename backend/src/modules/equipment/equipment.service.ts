@@ -39,6 +39,13 @@ function optionalText(body: EquipmentBody, field: string, maxLength: number): st
   return body[field].trim();
 }
 
+function requiredChangeReason(value: string): string {
+  if (typeof value !== 'string' || value.trim().length < 5 || value.trim().length > 500) {
+    throw new EquipmentServiceError(422, 'CHANGE_REASON_REQUIRED', 'Alasan perubahan wajib diisi (5-500 karakter).');
+  }
+  return value.trim();
+}
+
 function enumValue<T extends string>(body: EquipmentBody, field: string, values: readonly T[]): T {
   const value = requiredText(body, field, 64);
   if (!(values as readonly string[]).includes(value)) {
@@ -49,10 +56,18 @@ function enumValue<T extends string>(body: EquipmentBody, field: string, values:
 
 function mapRepositoryError(error: EquipmentDatabaseError | null, fallbackStatus: number, fallbackMessage: string): EquipmentServiceError {
   const code = error?.code;
+  const message = error?.message || '';
   if (code === 'NOT_FOUND') return new EquipmentServiceError(404, 'EQUIPMENT_NOT_FOUND', 'Alat tidak ditemukan.');
+  if (message === 'EQUIPMENT_NOT_FOUND') return new EquipmentServiceError(404, 'EQUIPMENT_NOT_FOUND', 'Alat tidak ditemukan.');
   if (code === '23505') return new EquipmentServiceError(409, 'EQUIPMENT_CONFLICT', 'Kode alat sudah digunakan.');
   if (code === '23503') return new EquipmentServiceError(409, 'EQUIPMENT_IN_USE', 'Alat masih terikat dengan data peminjaman.');
-  if (['42P01', '42703', 'PGRST205'].includes(code || '')) {
+  if (['EQUIPMENT_UPDATE_ACTOR_FORBIDDEN', 'EQUIPMENT_DELETE_ACTOR_FORBIDDEN'].includes(message)) {
+    return new EquipmentServiceError(403, 'EQUIPMENT_OPERATION_FORBIDDEN', 'Akun tidak berwenang mengubah data peralatan.');
+  }
+  if (message === 'EQUIPMENT_CHANGE_REASON_REQUIRED') {
+    return new EquipmentServiceError(422, 'CHANGE_REASON_REQUIRED', 'Alasan perubahan wajib diisi.');
+  }
+  if (['42P01', '42703', '42883', 'PGRST202', 'PGRST205'].includes(code || '')) {
     return new EquipmentServiceError(503, 'EQUIPMENT_SCHEMA_UNAVAILABLE', 'Skema peralatan belum tersedia. Jalankan migration peralatan terlebih dahulu.');
   }
   return new EquipmentServiceError(fallbackStatus, 'EQUIPMENT_OPERATION_FAILED', fallbackMessage);
@@ -127,9 +142,10 @@ export class EquipmentService {
     return result.data;
   }
 
-  async update(id: string, body: EquipmentBody, actorId: string) {
+  async update(id: string, body: EquipmentBody, actorId: string, changeReason: string) {
     const normalizedId = id.trim();
     if (normalizedId.length === 0 || normalizedId.length > 64) throw new EquipmentServiceError(422, 'INVALID_ID', 'ID alat tidak valid.');
+    const normalizedChangeReason = requiredChangeReason(changeReason);
     const changes: EquipmentUpdateInput['changes'] = {};
     const textFields = ['kode_alat', 'nama_alat', 'lokasi_penyimpanan', 'serial_number', 'deskripsi'] as const;
     const maxLengths: Record<typeof textFields[number], number> = {
@@ -152,31 +168,34 @@ export class EquipmentService {
       changes.foto_url = fotoUrl;
     }
     if (Object.keys(changes).length === 0) throw new EquipmentServiceError(422, 'EMPTY_UPDATE', 'Minimal satu perubahan harus dikirim.');
-    const result = await this.repository.update({ id: normalizedId, changes, actorId });
-    if (result.error || !result.data) throw mapRepositoryError(result.error, 400, 'Gagal memperbarui data peralatan.');
+    const result = await this.repository.update({ id: normalizedId, changes, actorId, changeReason: normalizedChangeReason });
+    if (result.error || !result.data) throw mapRepositoryError(result.error, 500, 'Gagal memperbarui data peralatan.');
     return result.data;
   }
 
-  async updateCondition(id: string, body: EquipmentBody, actorId: string) {
+  async updateCondition(id: string, body: EquipmentBody, actorId: string, changeReason: string) {
     const normalizedId = id.trim();
     if (normalizedId.length === 0 || normalizedId.length > 64) throw new EquipmentServiceError(422, 'INVALID_ID', 'ID alat tidak valid.');
+    const normalizedChangeReason = requiredChangeReason(changeReason);
     const input: EquipmentConditionInput = {
       id: normalizedId,
       kondisi: enumValue(body, 'kondisi', EQUIPMENT_CONDITIONS),
       status: body.status === undefined ? undefined : enumValue(body, 'status', EQUIPMENT_STATUSES),
       catatanKerusakan: optionalText(body, 'catatan_kerusakan', 2000),
       actorId,
+      changeReason: normalizedChangeReason,
     };
     const result = await this.repository.updateCondition(input);
-    if (result.error || !result.data) throw mapRepositoryError(result.error, 400, 'Gagal memperbarui kondisi peralatan.');
+    if (result.error || !result.data) throw mapRepositoryError(result.error, 500, 'Gagal memperbarui kondisi peralatan.');
     return result.data;
   }
 
-  async remove(id: string) {
+  async remove(id: string, actorId: string, changeReason: string) {
     const normalizedId = id.trim();
     if (normalizedId.length === 0 || normalizedId.length > 64) throw new EquipmentServiceError(422, 'INVALID_ID', 'ID alat tidak valid.');
-    const result = await this.repository.remove(normalizedId);
-    if (result.error) throw mapRepositoryError(result.error, 400, 'Gagal menghapus data peralatan.');
+    const normalizedChangeReason = requiredChangeReason(changeReason);
+    const result = await this.repository.remove({ id: normalizedId, actorId, changeReason: normalizedChangeReason });
+    if (result.error) throw mapRepositoryError(result.error, 500, 'Gagal menghapus data peralatan.');
     if (!result.deletedId) throw new EquipmentServiceError(404, 'EQUIPMENT_NOT_FOUND', 'Alat tidak ditemukan.');
     return result.deletedId;
   }

@@ -2,6 +2,13 @@
 // Pure TS user management service
 
 import { apiClient } from '@/shared/api/client';
+import {
+  decodeCreateUserResponse,
+  decodeDeleteUserResponse,
+  decodeResetPasswordResponse,
+  decodeUserList,
+  decodeUserResponse,
+} from './users.responses';
 import type { PaginatedResponse } from '@/shared/types/common';
 import type {
   UserAccount,
@@ -10,7 +17,6 @@ import type {
   UpdateUserPayload,
   ResetPasswordResponse,
   CreateUserResponse,
-  UserResponse,
 } from '../types/users.types';
 
 function newIdempotencyKey(): string {
@@ -29,16 +35,16 @@ export const usersService = {
     if (params?.is_active !== undefined) query.append('is_active', String(params.is_active));
 
     const endpoint = `/api/users${query.toString() ? `?${query.toString()}` : ''}`;
-    return apiClient.get<PaginatedResponse<UserAccount>>(endpoint);
+    return apiClient.getParsed(endpoint, decodeUserList);
   },
 
   async getUserById(id: string): Promise<UserAccount> {
-    const response = await apiClient.get<UserResponse>(`/api/users/${id}`);
+    const response = await apiClient.getParsed(`/api/users/${id}`, decodeUserResponse);
     return response.data;
   },
 
   createUser(payload: CreateUserPayload): Promise<CreateUserResponse> {
-    return apiClient.post<CreateUserResponse>('/api/users', payload);
+    return apiClient.postParsed('/api/users', payload, decodeCreateUserResponse);
   },
 
   async updateUser(
@@ -46,22 +52,23 @@ export const usersService = {
     payload: UpdateUserPayload,
     changeReason: string,
   ): Promise<UserAccount> {
-    const response = await apiClient.put<UserResponse>(`/api/users/${id}`, payload, {
+    const response = await apiClient.putParsed(`/api/users/${id}`, payload, decodeUserResponse, {
       changeReason,
     });
     return response.data;
   },
 
   deleteUser(id: string, changeReason: string): Promise<{ success: boolean; message: string }> {
-    return apiClient.delete<{ success: boolean; message: string }>(`/api/users/${id}`, {
+    return apiClient.deleteParsed(`/api/users/${id}`, decodeDeleteUserResponse, {
       changeReason,
     });
   },
 
   resetPassword(id: string, changeReason: string): Promise<ResetPasswordResponse> {
-    return apiClient.post<ResetPasswordResponse>(
+    return apiClient.postParsed(
       `/api/users/${id}/reset-password`,
       {},
+      decodeResetPasswordResponse,
       { changeReason, idempotencyKey: newIdempotencyKey() },
     );
   },

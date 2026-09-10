@@ -40,13 +40,13 @@ export function GradeFilter({
           placeholder={isOwn ? 'Cari judul tugas atau kegiatan...' : 'Cari nama siswa atau judul tugas...'}
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
-          className="pl-9 bg-surface-1 border-hairline text-ink placeholder:text-ink-tertiary text-xs h-9"
+          className="pl-9 bg-surface-1 border-hairline text-ink placeholder:text-ink-tertiary text-xs"
         />
       </div>
 
       {/* Category Select */}
       <Select value={category} onValueChange={(val) => val !== null && onCategoryChange(val)}>
-        <SelectTrigger className="w-full sm:w-44 bg-surface-1 border-hairline text-ink text-xs h-9">
+        <SelectTrigger className="w-full sm:w-44 bg-surface-1 border-hairline text-ink text-xs">
           <SelectValue placeholder="Kategori Kegiatan" />
         </SelectTrigger>
         <SelectContent className="bg-surface-3 border-hairline text-ink">
@@ -59,7 +59,7 @@ export function GradeFilter({
       </Select>
 
       {!isOwn && <Select value={kelas} onValueChange={(val) => val !== null && onKelasChange(val)}>
-        <SelectTrigger className="w-full sm:w-36 bg-surface-1 border-hairline text-ink text-xs h-9"><SelectValue placeholder="Pilih Kelas" /></SelectTrigger>
+        <SelectTrigger className="w-full sm:w-36 bg-surface-1 border-hairline text-ink text-xs"><SelectValue placeholder="Pilih Kelas" /></SelectTrigger>
         <SelectContent className="bg-surface-3 border-hairline text-ink">
           <SelectItem value="all">Semua Kelas</SelectItem><SelectItem value="X">Kelas X</SelectItem><SelectItem value="XI">Kelas XI</SelectItem><SelectItem value="XII">Kelas XII</SelectItem>
         </SelectContent>

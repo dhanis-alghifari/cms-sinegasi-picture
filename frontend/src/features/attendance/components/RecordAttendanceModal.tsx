@@ -22,7 +22,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { cn } from '@/shared/utils/cn';
 import { isOneOf } from '@/shared/utils/isOneOf';
 import { getErrorMessage } from '@/shared/api/errors';
-import type { ClassOption } from '@/features/classes/types/classes.types';
+import type { ClassSelectorOption } from '@/features/classes/types/classes.types';
 
 import { batchAttendanceSchema, type BatchAttendanceFormValues } from '../schemas/attendanceSchema';
 import { useAttendanceRosterQuery } from '../hooks/useAttendanceQuery';
@@ -32,7 +32,7 @@ import type { AttendanceStatus, RecordAttendanceItem } from '../types/attendance
 interface RecordAttendanceModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  classes: ClassOption[];
+  classes: ClassSelectorOption[];
   onSubmit: (values: { tanggal: string; kelas: string; records: RecordAttendanceItem[] }) => Promise<void>;
   isLoading?: boolean;
   error?: unknown;
@@ -192,12 +192,12 @@ export function RecordAttendanceModal({
             <div className="grid shrink-0 grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label htmlFor="tanggal" className="text-ink-muted text-xs">Tanggal Absensi *</Label>
-                <Input id="tanggal" type="date" className="h-9 bg-surface-2 text-xs text-ink" {...form.register('tanggal')} />
+                <Input id="tanggal" type="date" className="bg-surface-2 text-xs text-ink" {...form.register('tanggal')} />
               </div>
               <div className="space-y-1">
                 <Label className="text-ink-muted text-xs">Pilih Kelas *</Label>
                 <Select value={selectedKelas} onValueChange={(value) => { if (value) handleClassChange(value); }}>
-                  <SelectTrigger className="h-9 bg-surface-2 text-xs text-ink">
+                  <SelectTrigger className="bg-surface-2 text-xs text-ink">
                     <SelectValue placeholder="Pilih Kelas" />
                   </SelectTrigger>
                   <SelectContent className="bg-surface-3 text-ink">
@@ -238,7 +238,7 @@ export function RecordAttendanceModal({
                       </div>
                       <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
                         <Select value={item.status} onValueChange={(value) => { if (isOneOf(value, ATTENDANCE_STATUS_VALUES)) handleStatusChange(student.student_id, value); }}>
-                          <SelectTrigger className="h-8 w-full bg-surface-1 text-xs text-ink sm:w-28"><SelectValue placeholder="Status" /></SelectTrigger>
+                          <SelectTrigger className="w-full bg-surface-1 text-xs text-ink sm:w-28"><SelectValue placeholder="Status" /></SelectTrigger>
                           <SelectContent className="bg-surface-3 text-ink">
                             <SelectItem value="hadir">Hadir</SelectItem>
                             <SelectItem value="sakit">Sakit</SelectItem>
@@ -250,7 +250,7 @@ export function RecordAttendanceModal({
                           placeholder={isNotesRequired ? 'Keterangan wajib*' : 'Catatan opsional'}
                           value={item.keterangan}
                           onChange={(event) => handleKeteranganChange(student.student_id, event.target.value)}
-                          className={cn('h-8 w-full bg-surface-1 text-xs text-ink sm:w-40', isNotesRequired && !item.keterangan && 'border-semantic-warning placeholder:text-semantic-warning')}
+                          className={cn('w-full bg-surface-1 text-xs text-ink sm:w-40', isNotesRequired && !item.keterangan && 'border-semantic-warning placeholder:text-semantic-warning')}
                         />
                       </div>
                     </div>

@@ -2,11 +2,12 @@
 // Root router definition — Constitution: composition of feature routes and layouts only
 // Dependency Direction: App -> Router -> Layouts -> Feature Routes
 
+import { lazy, Suspense } from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { ProtectedRoute } from './ProtectedRoute';
 import { PublicRoute } from './PublicRoute';
 import { FirstLoginRoute } from './FirstLoginRoute';
-import { DashboardLayout } from '@/app/layouts/DashboardLayout';
+import { PageLoader } from '@/shared/ui/LoadingSpinner';
 import { authRoutes, firstLoginRoutes, passwordRoutes } from '@/features/auth/routes';
 import { dashboardRoutes } from '@/features/dashboard/routes';
 import { studentRoutes } from '@/features/students/routes';
@@ -21,6 +22,15 @@ import { notificationRoutes } from '@/features/notifications/routes';
 import { classRoutes } from '@/features/classes/routes';
 import { auditRoutes } from '@/features/audit/routes';
 import { accessControlRoutes } from '@/features/access-control/routes';
+
+// The router module contains route elements alongside the router export.
+// Fast Refresh's component-only rule does not apply to this boundary.
+// eslint-disable-next-line react-refresh/only-export-components
+const LazyDashboardLayout = lazy(() =>
+  import('@/app/layouts/DashboardLayout').then((module) => ({
+    default: module.DashboardLayout,
+  })),
+);
 
 export const router = createBrowserRouter([
   // Public Routes (Auth)
@@ -38,7 +48,11 @@ export const router = createBrowserRouter([
         children: firstLoginRoutes,
       },
       {
-        element: <DashboardLayout />,
+        element: (
+          <Suspense fallback={<PageLoader />}>
+            <LazyDashboardLayout />
+          </Suspense>
+        ),
         children: [
           ...passwordRoutes,
           ...dashboardRoutes,

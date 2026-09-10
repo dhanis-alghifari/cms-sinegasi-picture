@@ -24,7 +24,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
           <p className="text-inverse-ink/70 text-sm">Sistem Manajemen Sinematografi</p>
         </div>
 
-        {children}
+        <main id="main-content">{children}</main>
       </div>
     </div>
   );
