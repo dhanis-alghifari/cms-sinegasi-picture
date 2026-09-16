@@ -1,0 +1,53 @@
+name: Deploy Production Backend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - 'docker-compose.prod.yml'
+
+jobs:
+  # Step 1: Run quality checks before deploying
+  quality-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: cd backend && npm ci
+
+      - name: Type check
+        run: cd backend && npm run typecheck
+
+      - name: Run tests
+        run: cd backend && npm test
+
+      - name: Build
+        run: cd backend && npm run build
+
+  # Step 2: Deploy only if quality checks pass
+  deploy-backend-prod:
+    needs: quality-check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to VPS (Production)
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            cd /opt/sinegasi
+            git fetch origin main
+            git checkout main
+            git pull origin main
+            docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
+            docker image prune -f
+            echo "✅ Production backend deployed successfully"

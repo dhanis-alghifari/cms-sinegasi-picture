@@ -1,1 +1,0 @@
-function e(e,t){return Promise.all(t.map(t=>e.invalidateQueries({queryKey:t,refetchType:`active`})))}export{e as t};

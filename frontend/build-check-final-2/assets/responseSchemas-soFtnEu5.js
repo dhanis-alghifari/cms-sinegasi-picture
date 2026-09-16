@@ -1,1 +1,0 @@
-import{a as e,f as t,l as n}from"./schemas-BC0x7Guc.js";var r=t().nullable().optional().transform(e=>e??void 0),i=t().nullable().optional(),a=n({id:t().min(1),nama:t().optional(),username:t().optional(),role:t().optional(),is_active:e().optional()}).loose();export{i as n,r,a as t};

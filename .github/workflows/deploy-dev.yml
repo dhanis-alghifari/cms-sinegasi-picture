@@ -1,0 +1,27 @@
+name: Deploy Development Backend
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - 'backend/**'
+      - 'docker-compose.dev.yml'
+
+jobs:
+  deploy-backend-dev:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to VPS (Development)
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            cd /opt/sinegasi
+            git fetch origin develop
+            git checkout develop
+            git pull origin develop
+            docker compose -f docker-compose.dev.yml up -d --build --remove-orphans
+            docker image prune -f
+            echo "✅ Development backend deployed successfully"
