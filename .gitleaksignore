@@ -1,0 +1,3 @@
+# Gitleaks ignore file for documentation examples
+3534e70a23a01546e404c804bb1186e3bdb6a562:backend/docs/api-guide.md:curl-auth-header:104
+3534e70a23a01546e404c804bb1186e3bdb6a562:backend/docs/password-reset-runbook.md:curl-auth-header:39
