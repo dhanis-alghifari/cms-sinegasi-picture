@@ -15,7 +15,7 @@ services:
     networks:
       - caddy_net
     labels:
-      caddy: dev-api.sinegasi.com
+      caddy: sinegasi-dev.duckdns.org
       caddy.reverse_proxy: "{{upstreams 5001}}"
 
 networks:
