@@ -5,6 +5,7 @@ import { getAuditRequestContext } from '../../middleware/auditMiddleware.js';
 import { resolveDatabaseUserId } from '../auth/auth.identity.js';
 import { sendServiceError } from '../../shared/http/sendServiceError.js';
 import { authenticatedRouteSchema } from '../../shared/http/schemas/core.schema.js';
+import { mapRequestFields } from '../../shared/http/request-field-mapping.js';
 import {
   contestEntryCreateRouteSchema,
   contestEntryDetailRouteSchema,
@@ -26,6 +27,19 @@ import type {
 
 type AuditInput = { action: string; tableName: string; recordId?: string | null; newValues?: Record<string, unknown> | null; changeReason: string };
 export interface ContestEntriesRoutesOptions { contestEntriesService: ContestEntriesService; persistAuditLog: (request: FastifyRequest, input: AuditInput) => Promise<void>; }
+
+const entryStatuses: Readonly<Record<string, string>> = {
+  in_progress: 'proses_submit', submitted: 'sudah_terkirim', awaiting_announcement: 'menunggu_pengumuman', completed: 'selesai',
+};
+
+function entryInput(input: Record<string, unknown>): Record<string, unknown> {
+  const mapped = mapRequestFields(input, {});
+  return {
+    ...mapped,
+    ...(typeof mapped.status === 'string' ? { status: entryStatuses[mapped.status] ?? mapped.status } : {}),
+    ...(typeof mapped.target_status === 'string' ? { target_status: entryStatuses[mapped.target_status] ?? mapped.target_status } : {}),
+  };
+}
 
 function mutationContext(request: FastifyRequest): ContestEntryMutationContext {
   const audit = getAuditRequestContext(request);
@@ -49,7 +63,7 @@ const contestEntriesRoutes: FastifyPluginAsync<ContestEntriesRoutesOptions> = as
   fastify.get('/api/contests/:contestId/entries', { schema: contestEntryListRouteSchema, preHandler: [authenticate, requireCapability('contests.read')] }, async (request, reply) => {
     try {
       const params = request.params as { contestId: string };
-      return reply.send({ success: true, ...(await options.contestEntriesService.list(params.contestId, (request.query || {}) as ContestEntryListQuery)) });
+      return reply.send({ success: true, ...(await options.contestEntriesService.list(params.contestId, entryInput((request.query || {}) as Record<string, unknown>) as ContestEntryListQuery)) });
     } catch (error) {
       return sendServiceError(error, reply);
     }
@@ -60,7 +74,7 @@ const contestEntriesRoutes: FastifyPluginAsync<ContestEntriesRoutesOptions> = as
       const user = request.user as JwtPayload;
       const actorId = options.contestEntriesService.repositoryIsConfigured() ? await resolveDatabaseUserId(user) : user.userId;
       const params = request.params as { contestId: string };
-      const body = { ...(request.body as CreateContestEntryInput), contest_id: params.contestId };
+      const body = { ...(entryInput(request.body as Record<string, unknown>) as CreateContestEntryInput), contest_id: params.contestId };
       const data = await options.contestEntriesService.create(body, actorId);
       await options.persistAuditLog(request, {
         action: 'INSERT', tableName: 'contest_entries', recordId: data.id,
@@ -87,7 +101,7 @@ const contestEntriesRoutes: FastifyPluginAsync<ContestEntriesRoutesOptions> = as
       const actorId = options.contestEntriesService.repositoryIsConfigured() ? await resolveDatabaseUserId(user) : user.userId;
       const data = await options.contestEntriesService.reserveEvidence(
         (request.params as { id: string }).id,
-        request.body as ReserveContestEvidenceInput,
+        entryInput(request.body as Record<string, unknown>) as ReserveContestEvidenceInput,
         actorId,
       );
       return reply.status(201).send({ success: true, data });
@@ -100,7 +114,7 @@ const contestEntriesRoutes: FastifyPluginAsync<ContestEntriesRoutesOptions> = as
     try {
       const user = request.user as JwtPayload;
       const actorId = options.contestEntriesService.repositoryIsConfigured() ? await resolveDatabaseUserId(user) : user.userId;
-      const body = request.body as TransitionContestEntryInput;
+      const body = entryInput(request.body as Record<string, unknown>) as TransitionContestEntryInput;
       const data = await options.contestEntriesService.transition(
         (request.params as { id: string }).id,
         body,
@@ -119,7 +133,7 @@ const contestEntriesRoutes: FastifyPluginAsync<ContestEntriesRoutesOptions> = as
       const actorId = options.contestEntriesService.repositoryIsConfigured() ? await resolveDatabaseUserId(user) : user.userId;
       const data = await options.contestEntriesService.finalize(
         (request.params as { id: string }).id,
-        request.body as FinalizeContestEntryInput,
+        entryInput(request.body as Record<string, unknown>) as FinalizeContestEntryInput,
         actorId,
         mutationContext(request),
       );

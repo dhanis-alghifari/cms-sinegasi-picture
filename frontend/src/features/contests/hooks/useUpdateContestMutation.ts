@@ -1,4 +1,3 @@
-// src/features/contests/hooks/useUpdateContestMutation.ts
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { QUERY_KEYS } from '@/shared/constants/queryKeys';

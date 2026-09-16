@@ -1,0 +1,7 @@
+# Local files that Orca must copy into every new Git worktree.
+backend/.env
+frontend/.env
+AGENTS.md
+.codex
+.agents
+.ngodingpakeai

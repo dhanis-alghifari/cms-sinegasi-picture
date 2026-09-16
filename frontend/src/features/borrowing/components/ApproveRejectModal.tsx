@@ -1,5 +1,3 @@
-// src/features/borrowing/components/ApproveRejectModal.tsx
-// Modal for approving or rejecting borrowing requests with notes and audit header
 
 import { useEffect } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
@@ -52,6 +50,7 @@ export function ApproveRejectModal({
   });
 
   const selectedAction = useWatch({ control: form.control, name: 'action' });
+  const submitLabel = selectedAction === 'approve' ? 'Simpan Persetujuan' : 'Proses Penolakan';
 
   useEffect(() => {
     if (record) {
@@ -80,7 +79,7 @@ export function ApproveRejectModal({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4 pt-2">
+        <form noValidate onSubmit={handleSubmit} className="space-y-4 pt-2">
           {Boolean(error) && (
             <div role="alert" className="px-3 py-2 rounded bg-semantic-danger/10 border border-semantic-danger/30 text-semantic-danger text-xs">
               {getErrorMessage(error)}
@@ -140,7 +139,6 @@ export function ApproveRejectModal({
             />
           </div>
 
-          {/* Change Reason (Zero Silent Edits Requirement) */}
           <div className="space-y-1 pt-2 border-t border-hairline">
             <Label htmlFor="change_reason" className="text-ink-muted text-xs font-semibold">
               Alasan Keputusan (Audit Header) *
@@ -170,16 +168,7 @@ export function ApproveRejectModal({
                   : 'bg-semantic-danger hover:bg-semantic-danger/80 text-white',
               )}
             >
-              {isLoading ? (
-                <>
-                  <Loader2 size={14} className="animate-spin mr-1.5" />
-                  Memproses...
-                </>
-              ) : selectedAction === 'approve' ? (
-                'Simpan Persetujuan'
-              ) : (
-                'Proses Penolakan'
-              )}
+              {isLoading ? <><Loader2 size={14} className="animate-spin mr-1.5" />Memproses...</> : submitLabel}
             </Button>
           </DialogFooter>
         </form>

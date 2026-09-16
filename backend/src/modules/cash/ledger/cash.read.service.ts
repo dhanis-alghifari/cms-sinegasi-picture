@@ -1,4 +1,4 @@
-import { CASH_SCHEMA_MIGRATION_MESSAGE, isIsoDate, isMissingCashSchemaError, mapCashTransaction, normalizePaymentMethodCode } from '../shared/cash.helpers.js';
+import { CASH_SCHEMA_MIGRATION_MESSAGE, isIsoDate, isMissingCashSchemaError, isUuid, mapCashTransaction, normalizePaymentMethodCode } from '../shared/cash.helpers.js';
 import type { CashReadRepository } from './cash.read.repository.js';
 import type { CashReadScope, CashTransactionQuery } from '../shared/cash.types.js';
 
@@ -34,6 +34,9 @@ export class CashReadService {
     }
     if (query.tanggal_selesai && !isIsoDate(query.tanggal_selesai)) {
       throw new CashReadServiceError(422, 'INVALID_END_DATE', 'Tanggal selesai transaksi tidak valid.');
+    }
+    if (query.student_id && !isUuid(query.student_id)) {
+      throw new CashReadServiceError(422, 'INVALID_STUDENT_ID', 'ID siswa tidak valid.');
     }
     const page = Math.max(1, Number.parseInt(query.page || '1', 10) || 1);
     const pageSize = Math.min(100, Math.max(1, Number.parseInt(query.pageSize || '20', 10) || 20));

@@ -1,6 +1,3 @@
-// src/features/grades/components/BulkGradingModal.tsx
-// Bulk Grading Entry Modal according to PRD Specs:
-// Teacher selects assignment and inputs A-E letter grades for multiple students efficiently
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
@@ -153,6 +150,10 @@ export function BulkGradingModal({
     setStudentPickerOpen(false);
   };
 
+  const handleToggleStudentPicker = () => {
+    setStudentPickerOpen((open) => !open);
+  };
+
   const handleRemoveStudent = (studentId: string) => {
     setSelectedStudentIds((previous) => previous.filter((id) => id !== studentId));
     setGradeMap((previous) => {
@@ -204,32 +205,38 @@ export function BulkGradingModal({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="min-h-0 flex-1 space-y-4 overflow-hidden flex flex-col pt-1">
+        <form noValidate onSubmit={handleSubmit} className="min-h-0 flex-1 space-y-4 overflow-hidden flex flex-col pt-1">
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain pr-1 pb-2">
             <BulkGradingFields
-            form={form}
-            assignmentOptions={assignmentOptions}
-            selectedAssignmentId={selectedAssignmentId}
-            selectedAssignment={selectedAssignment}
-            formatAssignmentLabel={formatAssignmentLabel}
-            onAssignmentChange={handleAssignmentChange}
-            studentPickerRef={studentPickerRef}
-            studentPickerOpen={studentPickerOpen}
-            studentSearch={studentSearch}
-            studentToAdd={studentToAdd}
-            studentToAddId={studentToAddId}
-            availableStudents={availableStudents}
-            eligibleStudents={eligibleStudents}
-            selectedStudents={selectedStudents}
-            onToggleStudentPicker={() => setStudentPickerOpen((open) => !open)}
-            onStudentSearchChange={setStudentSearch}
-            onSelectStudentToAdd={setStudentToAddId}
-            onAddStudent={handleAddStudent}
-            gradeMap={gradeMap}
-            onGradeChange={handleGradeChange}
-            onKeteranganChange={handleKeteranganChange}
-            onRemoveStudent={handleRemoveStudent}
-            error={error}
+              form={form}
+              assignment={{
+                options: assignmentOptions,
+                selectedId: selectedAssignmentId,
+                selected: selectedAssignment,
+                formatLabel: formatAssignmentLabel,
+              }}
+              studentPicker={{
+                ref: studentPickerRef,
+                open: studentPickerOpen,
+                search: studentSearch,
+                selectedToAdd: studentToAdd,
+                selectedToAddId: studentToAddId,
+                available: availableStudents,
+                eligible: eligibleStudents,
+                selected: selectedStudents,
+              }}
+              grades={{ map: gradeMap }}
+              actions={{
+                onAssignmentChange: handleAssignmentChange,
+                onToggleStudentPicker: handleToggleStudentPicker,
+                onStudentSearchChange: setStudentSearch,
+                onSelectStudentToAdd: setStudentToAddId,
+                onAddStudent: handleAddStudent,
+                onGradeChange: handleGradeChange,
+                onKeteranganChange: handleKeteranganChange,
+                onRemoveStudent: handleRemoveStudent,
+              }}
+              error={error}
             />
           </div>
 

@@ -1,10 +1,9 @@
-// src/features/borrowing/components/BorrowingFilter.tsx
-// Filter bar for borrowing page — Search input, Status select
 
 import { Search, X } from 'lucide-react';
 import { Input } from '@/shared/ui/primitives/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/primitives/select';
 import { Button } from '@/shared/ui/primitives/button';
+import { UI_CONSTANTS } from '@/shared/constants/ui';
 
 interface BorrowingFilterProps {
   search: string;
@@ -21,10 +20,14 @@ export function BorrowingFilter({
   onStatusChange,
   onReset,
 }: BorrowingFilterProps) {
-  const hasActiveFilters = Boolean(search || status !== 'all');
+  const hasActiveFilters = Boolean(search || status !== UI_CONSTANTS.ALL_FILTER_VALUE);
+  const handleStatusValueChange = (value: string | null) => {
+    if (value === null) return;
+    onStatusChange(value);
+  };
 
   return (
-    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-4">
+    <div className="grid grid-cols-1 gap-3 mb-4 sm:grid-cols-2 xl:flex xl:items-center">
       {/* Search Input */}
       <div className="relative flex-1">
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-tertiary" />
@@ -38,12 +41,12 @@ export function BorrowingFilter({
       </div>
 
       {/* Status Select */}
-      <Select value={status} onValueChange={(val) => val !== null && onStatusChange(val)}>
-        <SelectTrigger className="w-full sm:w-48 bg-surface-1 border-hairline text-ink text-xs">
+      <Select value={status} onValueChange={handleStatusValueChange}>
+        <SelectTrigger className="w-full xl:w-48 bg-surface-1 border-hairline text-ink text-xs">
           <SelectValue placeholder="Status Peminjaman" />
         </SelectTrigger>
         <SelectContent className="bg-surface-3 border-hairline text-ink">
-          <SelectItem value="all">Semua Status</SelectItem>
+          <SelectItem value={UI_CONSTANTS.ALL_FILTER_VALUE}>Semua Status</SelectItem>
           <SelectItem value="menunggu_persetujuan">Menunggu Persetujuan</SelectItem>
           <SelectItem value="disetujui">Disetujui (Siap Ambil)</SelectItem>
           <SelectItem value="dipinjam">Sedang Dipinjam</SelectItem>

@@ -10,8 +10,8 @@ test('attendance routes keep authenticated list and summary response envelopes',
   let correctionInput: Record<string, unknown> | undefined;
   let listInput: Record<string, unknown> | undefined;
   let summaryInput: Record<string, unknown> | undefined;
+  let batchInput: Record<string, unknown> | undefined;
   const attendanceService = {
-    repositoryIsConfigured: () => false,
     list: async (query: Record<string, unknown>) => {
       listInput = query;
       return {
@@ -49,12 +49,15 @@ test('attendance routes keep authenticated list and summary response envelopes',
       return { hadir: 1, sakit: 0, izin: 0, alpha: 0, total: 1 };
     },
     record: async () => ({ id: 'att-1', status: 'hadir' }),
-    batchRecord: async () => ({
-      data: [{ id: 'att-1', student_id: 'student-1', status: 'hadir' }],
-      total: 1,
-      tanggal: '2026-08-13',
-      kelas: 'X',
-    }),
+    batchRecord: async (input: Record<string, unknown>) => {
+      batchInput = input;
+      return {
+        data: [{ id: 'att-1', student_id: 'student-1', status: 'hadir' }],
+        total: 1,
+        tanggal: '2026-08-13',
+        kelas: 'X',
+      };
+    },
     correct: async (input: Record<string, unknown>) => {
       correctionInput = input;
       return { id: 'att-1', status: 'sakit' };
@@ -62,6 +65,7 @@ test('attendance routes keep authenticated list and summary response envelopes',
   } as any;
   await app.register(attendanceRoutes, {
     attendanceService,
+    requiresDatabaseUserId: false,
     persistAuditLog: async () => undefined,
   });
   t.after(() => app.close());
@@ -88,7 +92,7 @@ test('attendance routes keep authenticated list and summary response envelopes',
 
   const summary = await app.inject({
     method: 'GET',
-    url: '/api/attendance/summary?student_id=student-1&date_from=2026-08-01&date_to=2026-08-31',
+    url: '/api/attendance/summary?student_id=student-1&date_from=2026-08-01&date_to=2026-08-31&class_name=X&status=sick&search=Ari',
     headers,
   });
   assert.equal(summary.statusCode, 200);
@@ -96,8 +100,11 @@ test('attendance routes keep authenticated list and summary response envelopes',
   assert.equal(summaryInput?.student_id, 'student-1');
   assert.equal(summaryInput?.date_from, '2026-08-01');
   assert.equal(summaryInput?.date_to, '2026-08-31');
+  assert.equal(summaryInput?.kelas, 'X');
+  assert.equal(summaryInput?.status, 'sakit');
+  assert.equal(summaryInput?.search, 'Ari');
 
-  const roster = await app.inject({ method: 'GET', url: '/api/attendance/roster?tanggal=2026-08-13&kelas=X&pageSize=10', headers });
+  const roster = await app.inject({ method: 'GET', url: '/api/attendance/roster?date=2026-08-13&class_name=X&pageSize=10', headers });
   assert.equal(roster.statusCode, 200);
   assert.equal(roster.json().data[0].student_id, 'student-1');
 
@@ -106,22 +113,23 @@ test('attendance routes keep authenticated list and summary response envelopes',
     url: '/api/attendance/batch',
     headers,
     payload: {
-      tanggal: '2026-08-13',
-      kelas: 'X',
-      records: [{ student_id: 'student-1', status: 'hadir' }],
+      date: '2026-08-13',
+      class_name: 'X',
+      records: [{ student_id: 'student-1', status: 'present' }],
     },
   });
   assert.equal(batch.statusCode, 201);
   assert.equal(batch.json().total, 1);
+  assert.equal(batchInput?.actorId, 'usr-1');
 
   const legacyBatch = await app.inject({
     method: 'POST',
     url: '/api/attendance',
     headers,
     payload: {
-      tanggal: '2026-08-13',
-      kelas: 'X',
-      records: [{ student_id: 'student-1', status: 'hadir' }],
+      date: '2026-08-13',
+      class_name: 'X',
+      records: [{ student_id: 'student-1', status: 'present' }],
     },
   });
   assert.equal(legacyBatch.statusCode, 201);
@@ -132,9 +140,8 @@ test('attendance routes keep authenticated list and summary response envelopes',
     url: '/api/attendance/att-1/correct',
     headers: { ...headers, 'x-change-reason': 'Surat sakit terlambat diserahkan' },
     payload: {
-      attendance_id: 'att-1',
-      status: 'sakit',
-      keterangan: 'Surat sakit',
+      status: 'sick',
+      notes: 'Surat sakit',
     },
   });
   assert.equal(correction.statusCode, 200);
@@ -148,6 +155,7 @@ test('attendance write route rejects incomplete payloads at the HTTP boundary', 
   await app.register(jwt, { secret: 'test-secret-that-is-long-enough' });
   await app.register(attendanceRoutes, {
     attendanceService: {} as any,
+    requiresDatabaseUserId: false,
     persistAuditLog: async () => undefined,
   });
   t.after(() => app.close());
@@ -169,6 +177,7 @@ test('attendance batch route rejects a payload that does not match the batch con
   await app.register(jwt, { secret: 'test-secret-that-is-long-enough' });
   await app.register(attendanceRoutes, {
     attendanceService: {} as any,
+    requiresDatabaseUserId: false,
     persistAuditLog: async () => undefined,
   });
   t.after(() => app.close());
@@ -180,7 +189,7 @@ test('attendance batch route rejects a payload that does not match the batch con
     method: 'POST',
     url: '/api/attendance/batch',
     headers: { authorization: `Bearer ${token}` },
-    payload: { tanggal: '2026-08-13', kelas: 'X' },
+    payload: { date: '2026-08-13', class_name: 'X' },
   });
   assert.equal(response.statusCode, 400);
 });

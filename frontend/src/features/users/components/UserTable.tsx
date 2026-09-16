@@ -1,5 +1,3 @@
-// src/features/users/components/UserTable.tsx
-// Table displaying system users with role badges, status, and action menu
 
 import { MoreVertical, Edit2, KeyRound, Trash2, UserCheck, UserX, ShieldAlert } from 'lucide-react';
 import {

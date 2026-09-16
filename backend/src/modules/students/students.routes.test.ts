@@ -27,7 +27,7 @@ test('student management keeps secretary guard and account response contract', a
 
   const secretaryToken = app.jwt.sign({ userId: 'secretary-1', username: 'secretary', role: 'secretary', isFirstLogin: false });
   const headers = { authorization: `Bearer ${secretaryToken}` };
-  const created = await app.inject({ method: 'POST', url: '/api/students', headers, payload: { nis: '20260001', nama: 'Budi Santoso', kelas: 'X TKJ 1', peminatan: 'kamera' } });
+  const created = await app.inject({ method: 'POST', url: '/api/students', headers, payload: { student_number: '20260001', name: 'Budi Santoso', class_name: 'X TKJ 1', specialization: 'kamera' } });
   assert.equal(created.statusCode, 201);
   assert.equal(created.json().success, true);
   assert.equal(created.json().account.role, 'member');
@@ -40,7 +40,7 @@ test('student management keeps secretary guard and account response contract', a
   const id = created.json().data.id;
   const updated = await app.inject({
     method: 'PUT', url: `/api/students/${id}`, headers: { ...headers, 'x-change-reason': 'Koreksi nama siswa' },
-    payload: { nama: 'Budi Utama' },
+    payload: { name: 'Budi Utama' },
   });
   assert.equal(updated.statusCode, 200);
   assert.equal(updated.json().nama, 'Budi Utama');
@@ -53,7 +53,7 @@ test('student status changes require teacher capability and options stay bounded
   const teacherToken = app.jwt.sign({ userId: 'teacher-1', username: 'teacher', role: 'teacher', isFirstLogin: false });
   const secretaryHeaders = { authorization: `Bearer ${secretaryToken}` };
   const teacherHeaders = { authorization: `Bearer ${teacherToken}` };
-  const created = await app.inject({ method: 'POST', url: '/api/students', headers: secretaryHeaders, payload: { nis: '20260002', nama: 'Sari', kelas: 'XI AK 1' } });
+  const created = await app.inject({ method: 'POST', url: '/api/students', headers: secretaryHeaders, payload: { student_number: '20260002', name: 'Sari', class_name: 'XI AK 1' } });
   const id = created.json().data.id;
   const denied = await app.inject({ method: 'PUT', url: `/api/students/${id}`, headers: { ...secretaryHeaders, 'x-change-reason': 'Jadikan alumni' }, payload: { is_active: false } });
   assert.equal(denied.statusCode, 403);
@@ -63,4 +63,31 @@ test('student status changes require teacher capability and options stay bounded
   const options = await app.inject({ method: 'GET', url: '/api/students/options?limit=100', headers: teacherHeaders });
   assert.equal(options.statusCode, 200);
   assert.equal(options.json().data.length, 0);
+});
+
+test('cash managers can use the minimal student selector without student administration access', async (t) => {
+  const app = await createApp();
+  t.after(() => app.close());
+  const secretaryToken = app.jwt.sign({ userId: 'secretary-1', username: 'secretary', role: 'secretary', isFirstLogin: false });
+  const treasurerToken = app.jwt.sign({ userId: 'treasurer-1', username: 'treasurer', role: 'treasurer', isFirstLogin: false });
+  const secretaryHeaders = { authorization: `Bearer ${secretaryToken}` };
+  const treasurerHeaders = { authorization: `Bearer ${treasurerToken}` };
+  await app.inject({
+    method: 'POST',
+    url: '/api/students',
+    headers: secretaryHeaders,
+    payload: { student_number: '20260003', name: 'Maya', class_name: 'XI AK 1' },
+  });
+
+  const options = await app.inject({
+    method: 'GET',
+    url: '/api/students/options?q=Maya',
+    headers: treasurerHeaders,
+  });
+  assert.equal(options.statusCode, 200);
+  assert.equal(options.json().data[0].nama, 'Maya');
+  assert.deepEqual(Object.keys(options.json().data[0]).sort(), ['id', 'kelas', 'label', 'nama', 'nis', 'secondaryLabel']);
+
+  const fullStudentList = await app.inject({ method: 'GET', url: '/api/students', headers: treasurerHeaders });
+  assert.equal(fullStudentList.statusCode, 403);
 });

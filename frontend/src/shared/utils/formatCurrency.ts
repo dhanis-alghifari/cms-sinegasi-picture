@@ -1,5 +1,3 @@
-// src/shared/utils/formatCurrency.ts
-// Format monetary values consistently across the application.
 // Display convention: `Rp 3,450,000` and `Rp 10,000.75`.
 
 import { formatNumber, toFiniteNumber, type NumericValue } from './formatNumber';

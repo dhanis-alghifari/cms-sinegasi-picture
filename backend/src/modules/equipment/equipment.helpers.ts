@@ -14,6 +14,8 @@ export const MAX_EQUIPMENT_PHOTO_BYTES = 600 * 1024;
 export const MAX_EQUIPMENT_PHOTOS = 12;
 export const EQUIPMENT_PAGE_SIZE_MAX = 100;
 export const EQUIPMENT_PAGE_MAX = 10_000;
+/** Prevent an unbounded export from exhausting the API or browser tab. */
+export const EQUIPMENT_REPORT_MAX_ITEMS = 2_000;
 
 export const EQUIPMENT_SELECT = [
   'id',
@@ -31,6 +33,7 @@ export const EQUIPMENT_SELECT = [
   'foto_url',
   'deskripsi',
   'catatan_kerusakan',
+  'asset_state',
   'created_at',
   'created_by',
   'updated_at',
@@ -38,7 +41,9 @@ export const EQUIPMENT_SELECT = [
 ].join(',');
 
 export function textValue(value: unknown, fallback = ''): string {
-  return typeof value === 'string' ? value : value == null ? fallback : String(value);
+  if (typeof value === 'string') return value;
+  if (value === null || value === undefined) return fallback;
+  return String(value);
 }
 
 export function mapEquipmentRow(row: EquipmentDbRow, isReserved = false): EquipmentEntry {
@@ -46,7 +51,9 @@ export function mapEquipmentRow(row: EquipmentDbRow, isReserved = false): Equipm
     ? row.fotos.filter((foto): foto is string => typeof foto === 'string' && foto.trim().length > 0)
     : [];
   const legacyFoto = textValue(row.foto_url).trim();
-  const fotoUrls = fotos.length > 0 ? fotos : legacyFoto ? [legacyFoto] : [];
+  let fotoUrls: string[] = [];
+  if (fotos.length > 0) fotoUrls = fotos;
+  else if (legacyFoto) fotoUrls = [legacyFoto];
   const status = textValue(row.status ?? row.availability_status, 'tersedia');
 
   return {
@@ -56,6 +63,7 @@ export function mapEquipmentRow(row: EquipmentDbRow, isReserved = false): Equipm
     kategori: textValue(row.kategori, 'Lainnya'),
     kondisi: textValue(row.kondisi ?? row.physical_condition, 'bagus'),
     status,
+    asset_state: textValue(row.asset_state, 'active'),
     lokasi_penyimpanan: textValue(row.lokasi_penyimpanan) || undefined,
     serial_number: textValue(row.serial_number) || undefined,
     foto_urls: fotoUrls,
@@ -63,6 +71,9 @@ export function mapEquipmentRow(row: EquipmentDbRow, isReserved = false): Equipm
     reservation_status: isReserved && status === 'tersedia' ? 'dipesan' : 'tersedia',
     deskripsi: textValue(row.deskripsi) || undefined,
     catatan_kerusakan: textValue(row.catatan_kerusakan) || undefined,
+    replacement_value: row.replacement_value === null || row.replacement_value === undefined ? undefined : Number(row.replacement_value),
+    replacement_value_currency: textValue(row.replacement_value_currency) || undefined,
+    replacement_value_effective_at: textValue(row.replacement_value_effective_at) || undefined,
     created_at: textValue(row.created_at),
     created_by: textValue(row.created_by) || undefined,
     updated_at: textValue(row.updated_at) || undefined,
@@ -137,7 +148,7 @@ export function validateEquipmentPhotos(value: unknown): { photos?: string[]; me
       const encodedImage = photo.slice(photo.indexOf(',') + 1);
       const decodedBytes = Buffer.from(encodedImage, 'base64').byteLength;
       if (decodedBytes === 0 || decodedBytes > MAX_EQUIPMENT_PHOTO_BYTES) {
-        return { message: 'Ukuran setiap foto setelah dikompres maksimal 600 KB.' };
+        return { message: 'Ukuran setiap foto maksimal 600 KB.' };
       }
     }
   }

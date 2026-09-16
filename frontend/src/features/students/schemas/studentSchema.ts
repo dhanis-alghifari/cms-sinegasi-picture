@@ -1,13 +1,11 @@
-// src/features/students/schemas/studentSchema.ts
-// Zod validation schema for student form
 
 import { z } from 'zod';
 import { PEMINATAN_VALUES } from '../types/students.types';
 
 export const studentSchema = z.object({
-  nis: z.string().min(1, 'NIS wajib diisi').trim(),
-  nama: z.string().min(2, 'Nama minimal 2 karakter').trim(),
-  kelas: z.string().min(1, 'Kelas wajib diisi').trim(),
+  nis: z.string({ error: 'NIS wajib diisi.' }).min(1, 'NIS wajib diisi').trim(),
+  nama: z.string({ error: 'Nama siswa wajib diisi.' }).min(2, 'Nama siswa minimal 2 karakter').trim(),
+  kelas: z.string({ error: 'Kelas wajib dipilih.' }).min(1, 'Kelas wajib dipilih').trim(),
   peminatan: z.enum(PEMINATAN_VALUES).optional(),
   no_telepon: z.string().optional(),
   foto_url: z

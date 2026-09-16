@@ -1,5 +1,3 @@
-// src/features/cash/routes.tsx
-// Cash feature routes
 
 import { lazy, Suspense } from 'react';
 import type { RouteObject } from 'react-router-dom';

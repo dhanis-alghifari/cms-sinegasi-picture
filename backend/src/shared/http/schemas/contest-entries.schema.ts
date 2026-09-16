@@ -20,7 +20,7 @@ export const contestEntryListRouteSchema = {
     properties: {
       page: { type: 'string', pattern: '^[0-9]+$' },
       pageSize: { type: 'string', pattern: '^[0-9]+$' },
-      status: { type: 'string', enum: ['all', 'proses_submit', 'sudah_terkirim', 'menunggu_pengumuman', 'selesai'] },
+      status: { type: 'string', enum: ['all', 'in_progress', 'submitted', 'awaiting_announcement', 'completed'] },
     },
   },
 } as const;
@@ -60,7 +60,7 @@ export const contestEntryTransitionRouteSchema = {
     additionalProperties: false,
     required: ['status', 'change_reason'],
     properties: {
-      status: { type: 'string', enum: ['sudah_terkirim', 'menunggu_pengumuman'] },
+      status: { type: 'string', enum: ['submitted', 'awaiting_announcement'] },
       evidence_id: { type: 'string', minLength: 1, maxLength: 64 },
       change_reason: { type: 'string', minLength: 5, maxLength: 500 },
     },
@@ -74,7 +74,7 @@ export const contestEvidenceUploadRouteSchema = {
     additionalProperties: false,
     required: ['target_status', 'file_name', 'content_type', 'file_size_bytes'],
     properties: {
-      target_status: { type: 'string', enum: ['sudah_terkirim', 'selesai'] },
+      target_status: { type: 'string', enum: ['submitted', 'completed'] },
       file_name: { type: 'string', minLength: 1, maxLength: 255 },
       content_type: { type: 'string', enum: ['image/jpeg', 'image/png', 'image/webp'] },
       file_size_bytes: { type: 'integer', minimum: 1, maximum: 5242880 },

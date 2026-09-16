@@ -1,5 +1,3 @@
-// src/features/auth/pages/LoginPage.tsx
-// Login page — thin orchestration layer (Constitution: Page = composition only)
 // Playbook-09: Login → validate → receive token → store session → protected routes
 
 import { useNavigate } from 'react-router-dom';

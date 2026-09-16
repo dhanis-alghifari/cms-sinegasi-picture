@@ -1,5 +1,3 @@
-// src/features/students/components/StudentTable.tsx
-// Table displaying students with sorting, status badges, and action dropdown menu
 
 import { useState } from "react";
 import { MoreVertical, Edit2, KeyRound, UserCheck, UserX } from "lucide-react";

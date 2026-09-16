@@ -1,5 +1,3 @@
-// src/features/students/hooks/useStudentsQuery.ts
-// TanStack Query hook for students list with filter parameters
 
 import { useQuery } from '@tanstack/react-query';
 import { QUERY_KEYS } from '@/shared/constants/queryKeys';

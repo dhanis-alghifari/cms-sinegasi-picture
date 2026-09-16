@@ -1,16 +1,15 @@
-// src/features/notifications/hooks/useNotificationsQuery.ts
-// TanStack Query hooks for notifications domain with automated polling
 
 import { useQuery } from '@tanstack/react-query';
 import { QUERY_KEYS } from '@/shared/constants/queryKeys';
 import { notificationsService } from '../api/notifications.service';
+import { UI_CONSTANTS } from '@/shared/constants/ui';
 import type { NotificationFilterParams } from '../types/notifications.types';
 
 export function useNotificationsQuery(params?: NotificationFilterParams) {
   return useQuery({
     queryKey: [...QUERY_KEYS.NOTIFICATIONS, params],
     queryFn: () => notificationsService.getNotifications(params),
-    refetchInterval: 30000,
+    refetchInterval: UI_CONSTANTS.NOTIFICATION_POLL_INTERVAL_MS,
   });
 }
 
@@ -18,6 +17,6 @@ export function useUnreadCountQuery() {
   return useQuery({
     queryKey: QUERY_KEYS.NOTIFICATION_UNREAD_COUNT,
     queryFn: () => notificationsService.getUnreadCount(),
-    refetchInterval: 30000, // Poll unread notifications count every 30 seconds
+    refetchInterval: UI_CONSTANTS.NOTIFICATION_POLL_INTERVAL_MS,
   });
 }

@@ -32,6 +32,9 @@ import type { ContestEntriesMemoryState } from '../../modules/contest-entries/co
 import { ContestAchievementsService } from '../../modules/contest-achievements/contest-achievements.service.js';
 import { createContestAchievementsRepository } from '../../modules/contest-achievements/contest-achievements.repository.js';
 import type { ContestAchievementsMemoryState } from '../../modules/contest-achievements/contest-achievements.types.js';
+import { EquipmentRecoveryService } from '../../modules/equipment/equipment.recovery.service.js';
+import { createEquipmentRecoveryRepository } from '../../modules/equipment/equipment.recovery.repository.js';
+import { createEquipmentRecoveryMemoryState } from '../../modules/equipment/equipment.recovery.helpers.js';
 
 export interface CatalogDependencies {
   studentsService: StudentService;
@@ -40,6 +43,7 @@ export interface CatalogDependencies {
   usersService: UsersService;
   notificationsService: NotificationsService;
   equipmentService: EquipmentService;
+  equipmentRecoveryService: EquipmentRecoveryService;
   gradesService: GradesService;
   contestsService: ContestsService;
   contestEntriesService: ContestEntriesService;
@@ -58,6 +62,7 @@ export function createCatalogDependencies(): CatalogDependencies {
   const usersMemoryState = createUsersMemoryState();
   const notificationMemoryState = createNotificationMemoryState();
   const equipmentMemoryState = createEquipmentMemoryState();
+  const equipmentRecoveryMemoryState = createEquipmentRecoveryMemoryState();
   const gradesState: GradesMemoryState = { grades: [], assignments: [] };
   const contestsState: ContestMemoryState = { contests: [], submissions: [] };
   const contestEntriesState: ContestEntriesMemoryState = { works: [], entries: [], statusHistory: [] };
@@ -77,6 +82,7 @@ export function createCatalogDependencies(): CatalogDependencies {
       createNotificationsRepository(supabase, notificationMemoryState),
     ),
     equipmentService: new EquipmentService(createEquipmentRepository(supabase, equipmentMemoryState)),
+    equipmentRecoveryService: new EquipmentRecoveryService(createEquipmentRecoveryRepository(supabase, equipmentRecoveryMemoryState, equipmentMemoryState)),
     gradesService: new GradesService(createGradesRepository(supabase, gradesState)),
     contestsService: new ContestsService(createContestsRepository(supabase, contestsState)),
     contestEntriesService: new ContestEntriesService(createContestEntriesRepository(supabase, contestEntriesState)),

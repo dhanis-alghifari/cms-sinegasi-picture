@@ -1,0 +1,1 @@
+import{i as e,t}from"./formatNumber-CQFtHGL3.js";function n(n){let r=e(n);return r===null?`Rp 0`:`${r<0?`-`:``}Rp ${t(Math.abs(r))}`}export{n as t};

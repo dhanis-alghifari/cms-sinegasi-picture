@@ -1,5 +1,3 @@
-// src/features/dashboard/api/dashboard.service.ts
-// Pure TS dashboard service — fetch dashboard summary from backend
 
 import { z } from 'zod';
 import { apiClient } from '@/shared/api/client';
@@ -146,21 +144,27 @@ function parseGradeDistribution(value: unknown): DashboardSummaryData['gradeDist
   return parsedDistribution;
 }
 
+function parseLatestGrade(value: unknown): StudentPersonalSummary['nilaiTerakhir'] {
+  if (!isRecord(value)) return null;
+
+  const nilai = isGradeLetter(value.nilai) ? value.nilai : 'E';
+  const keterangan = typeof value.keterangan === 'string' ? value.keterangan : undefined;
+
+  return {
+    assignmentTitle: stringValue(value.assignmentTitle),
+    nilai,
+    category: stringValue(value.category),
+    keterangan,
+    tanggal: stringValue(value.tanggal),
+  };
+}
+
 function parseStudentPersonalSummary(value: unknown): DashboardSummaryData['studentPersonal'] {
   if (!isRecord(value)) return undefined;
 
   const attendance = recordValue(value.kehadiran);
   const cash = recordValue(value.kas);
-  const latestGrade = value.nilaiTerakhir;
-  const parsedLatestGrade = isRecord(latestGrade)
-    ? {
-      assignmentTitle: stringValue(latestGrade.assignmentTitle),
-      nilai: isGradeLetter(latestGrade.nilai) ? latestGrade.nilai : 'E',
-      category: stringValue(latestGrade.category),
-      keterangan: typeof latestGrade.keterangan === 'string' ? latestGrade.keterangan : undefined,
-      tanggal: stringValue(latestGrade.tanggal),
-    }
-    : null;
+  const parsedLatestGrade = parseLatestGrade(value.nilaiTerakhir);
 
   const paymentHistory: StudentPersonalSummary['kas']['riwayatPembayaran'] = [];
   if (Array.isArray(cash.riwayatPembayaran)) {

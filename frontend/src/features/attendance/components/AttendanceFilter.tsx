@@ -1,42 +1,51 @@
-// src/features/attendance/components/AttendanceFilter.tsx
-// Filter bar for the daily attendance date, class, status, and search filters.
 
 import { Search, X, Calendar as CalendarIcon } from 'lucide-react';
 import { Input } from '@/shared/ui/primitives/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/primitives/select';
 import { Button } from '@/shared/ui/primitives/button';
+import { UI_CONSTANTS } from '@/shared/constants/ui';
 
 interface AttendanceFilterProps {
-  tanggal: string;
-  onTanggalChange: (value: string) => void;
-  kelas: string;
-  onKelasChange: (value: string) => void;
-  status: string;
-  onStatusChange: (value: string) => void;
-  search: string;
-  onSearchChange: (value: string) => void;
-  onReset: () => void;
-  isOwn?: boolean;
+  filters: {
+    tanggal: string;
+    kelas: string;
+    status: string;
+    search: string;
+  };
+  actions: {
+    onTanggalChange: (value: string) => void;
+    onKelasChange: (value: string) => void;
+    onStatusChange: (value: string) => void;
+    onSearchChange: (value: string) => void;
+    onReset: () => void;
+  };
+  scope?: {
+    isOwn?: boolean;
+  };
 }
 
 export function AttendanceFilter({
-  tanggal,
-  onTanggalChange,
-  kelas,
-  onKelasChange,
-  status,
-  onStatusChange,
-  search,
-  onSearchChange,
-  onReset,
-  isOwn = false,
+  filters,
+  actions,
+  scope,
 }: AttendanceFilterProps) {
-  const hasActiveFilters = Boolean(tanggal || kelas !== 'all' || status !== 'all' || search);
+  const { tanggal, kelas, status, search } = filters;
+  const { onTanggalChange, onKelasChange, onStatusChange, onSearchChange, onReset } = actions;
+  const { isOwn = false } = scope ?? {};
+  const hasActiveFilters = Boolean(tanggal || kelas !== UI_CONSTANTS.ALL_FILTER_VALUE || status !== UI_CONSTANTS.ALL_FILTER_VALUE || search);
+  const handleKelasValueChange = (value: string | null) => {
+    if (value === null) return;
+    onKelasChange(value);
+  };
+  const handleStatusValueChange = (value: string | null) => {
+    if (value === null) return;
+    onStatusChange(value);
+  };
 
   return (
-    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-4">
+    <div className="grid grid-cols-1 gap-3 mb-4 sm:grid-cols-2 xl:flex xl:items-center">
       {/* Date Picker */}
-      <div className="relative w-full sm:w-44">
+      <div className="relative w-full xl:w-44">
         <CalendarIcon size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-tertiary pointer-events-none" />
         <Input
           type="date"
@@ -59,12 +68,12 @@ export function AttendanceFilter({
       </div>}
 
       {/* Kelas Select */}
-      {!isOwn && <Select value={kelas} onValueChange={(val) => val !== null && onKelasChange(val)}>
-        <SelectTrigger className="w-full sm:w-36 bg-surface-1 border-hairline text-ink text-xs">
+      {!isOwn && <Select value={kelas} onValueChange={handleKelasValueChange}>
+        <SelectTrigger className="w-full xl:w-36 bg-surface-1 border-hairline text-ink text-xs">
           <SelectValue placeholder="Pilih Kelas" />
         </SelectTrigger>
         <SelectContent className="bg-surface-3 border-hairline text-ink">
-          <SelectItem value="all">Semua Kelas</SelectItem>
+          <SelectItem value={UI_CONSTANTS.ALL_FILTER_VALUE}>Semua Kelas</SelectItem>
           <SelectItem value="X">Kelas X</SelectItem>
           <SelectItem value="XI">Kelas XI</SelectItem>
           <SelectItem value="XII">Kelas XII</SelectItem>
@@ -72,12 +81,12 @@ export function AttendanceFilter({
       </Select>}
 
       {/* Status Select */}
-      <Select value={status} onValueChange={(val) => val !== null && onStatusChange(val)}>
-        <SelectTrigger className="w-full sm:w-36 bg-surface-1 border-hairline text-ink text-xs">
+      <Select value={status} onValueChange={handleStatusValueChange}>
+        <SelectTrigger className="w-full xl:w-36 bg-surface-1 border-hairline text-ink text-xs">
           <SelectValue placeholder="Status Kehadiran" />
         </SelectTrigger>
         <SelectContent className="bg-surface-3 border-hairline text-ink">
-          <SelectItem value="all">Semua Status</SelectItem>
+          <SelectItem value={UI_CONSTANTS.ALL_FILTER_VALUE}>Semua Status</SelectItem>
           <SelectItem value="hadir">Hadir</SelectItem>
           <SelectItem value="sakit">Sakit</SelectItem>
           <SelectItem value="izin">Izin</SelectItem>

@@ -1,4 +1,3 @@
-// src/features/classes/components/ClassFormDialog.tsx
 
 import { useState, useEffect } from 'react';
 import {
@@ -11,13 +10,7 @@ import {
 import { Button } from '@/shared/ui/primitives/button';
 import { Input } from '@/shared/ui/primitives/input';
 import { Label } from '@/shared/ui/primitives/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/shared/ui/primitives/select';
+import { RadioGroup } from '@/shared/ui/primitives/radio-group';
 import type { ClassRecord } from '../types/classes.types';
 
 interface ClassFormDialogProps {
@@ -97,7 +90,7 @@ export function ClassFormDialog({
           </DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4 pt-2">
+        <form noValidate onSubmit={handleSubmit} className="space-y-4 pt-2">
           {error && (
             <div className="p-2.5 rounded bg-semantic-danger/10 border border-semantic-danger/20 text-semantic-danger text-xs">
               {error}
@@ -118,17 +111,17 @@ export function ClassFormDialog({
           </div>
 
           <div className="space-y-1">
-            <Label className="text-ink-muted text-xs">Tingkat *</Label>
-            <Select value={tingkat} onValueChange={(val) => val && setTingkat(val as 'X' | 'XI' | 'XII')}>
-              <SelectTrigger className="w-full bg-surface-2 border-hairline text-ink text-xs">
-                <SelectValue placeholder="Pilih Tingkat" />
-              </SelectTrigger>
-              <SelectContent className="bg-surface-3 border-hairline text-ink">
-                <SelectItem value="X">Kelas X</SelectItem>
-                <SelectItem value="XI">Kelas XI</SelectItem>
-                <SelectItem value="XII">Kelas XII</SelectItem>
-              </SelectContent>
-            </Select>
+            <RadioGroup
+              name="class-level"
+              legend="Tingkat *"
+              value={tingkat}
+              options={[
+                { value: 'X', label: 'Kelas X' },
+                { value: 'XI', label: 'Kelas XI' },
+                { value: 'XII', label: 'Kelas XII' },
+              ]}
+              onValueChange={setTingkat}
+            />
           </div>
 
           {initialData && <div className="space-y-1">

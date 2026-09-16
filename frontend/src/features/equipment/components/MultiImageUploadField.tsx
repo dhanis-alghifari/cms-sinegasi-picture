@@ -10,15 +10,21 @@ import { compressImageFile, MAX_SOURCE_IMAGE_BYTES } from '@/shared/utils/compre
 import { formatNumber } from '@/shared/utils/formatNumber';
 
 interface MultiImageUploadFieldProps {
-  id: string;
-  label: string;
-  values?: string[];
-  onChange: (values: string[]) => void;
-  error?: string;
-  required?: boolean;
-  minFiles?: number;
-  disabled?: boolean;
-  onProcessingChange?: (isProcessing: boolean) => void;
+  field: {
+    id: string;
+    label: string;
+    values?: string[];
+    onChange: (values: string[]) => void;
+  };
+  validation?: {
+    error?: string;
+    required?: boolean;
+    minFiles?: number;
+  };
+  state?: {
+    disabled?: boolean;
+    onProcessingChange?: (isProcessing: boolean) => void;
+  };
 }
 
 function isSupportedImageUrl(value: string): boolean {
@@ -26,16 +32,18 @@ function isSupportedImageUrl(value: string): boolean {
 }
 
 export function MultiImageUploadField({
-  id,
-  label,
-  values = [],
-  onChange,
-  error,
-  required,
-  minFiles = 3,
-  disabled,
-  onProcessingChange,
+  field,
+  validation,
+  state,
 }: MultiImageUploadFieldProps) {
+  const {
+    id,
+    label,
+    values = [],
+    onChange,
+  } = field;
+  const { error, required, minFiles = 3 } = validation ?? {};
+  const { disabled, onProcessingChange } = state ?? {};
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
@@ -59,7 +67,7 @@ export function MultiImageUploadField({
       return;
     }
 
-    const oversized = files.find((file) => file.size > MAX_SOURCE_IMAGE_BYTES);
+    const oversized = files.find((file) => file.size < 1 || file.size > MAX_SOURCE_IMAGE_BYTES);
     if (oversized) {
       setLocalError('Ukuran setiap foto sumber maksimal 5 MB.');
       event.target.value = '';
@@ -109,6 +117,7 @@ export function MultiImageUploadField({
         id={id}
         type="file"
         accept="image/jpeg,image/png,image/webp"
+        capture="environment"
         multiple
         onChange={handleFileChange}
         disabled={disabled || isProcessing}
@@ -191,7 +200,7 @@ export function MultiImageUploadField({
         </div>
 
         <p className="mt-2 text-[10px] text-ink-tertiary">
-          Foto {formatNumber(values.length)}/{formatNumber(minFiles)} minimum • Disarankan depan, samping, dan atas/belakang • otomatis dikompres maksimal 600 KB per foto.
+          Foto {formatNumber(values.length)}/{formatNumber(minFiles)} minimum • Disarankan depan, samping, dan atas/belakang.
         </p>
       </div>
       {hasError && <p className="text-semantic-danger text-[10px]">{localError || error}</p>}

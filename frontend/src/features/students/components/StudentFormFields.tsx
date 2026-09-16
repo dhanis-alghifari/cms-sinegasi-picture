@@ -1,5 +1,3 @@
-// src/features/students/components/StudentFormFields.tsx
-// Presentational fields for the student create/edit dialog.
 
 import type { ChangeEvent, RefObject } from 'react';
 import { Image as ImageIcon, Upload, X } from 'lucide-react';
@@ -8,6 +6,7 @@ import type { UseFormReturn } from 'react-hook-form';
 import { Button } from '@/shared/ui/primitives/button';
 import { Input } from '@/shared/ui/primitives/input';
 import { Label } from '@/shared/ui/primitives/label';
+import { RadioGroup } from '@/shared/ui/primitives/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/primitives/select';
 import { cn } from '@/shared/utils/cn';
 
@@ -18,33 +17,46 @@ import { isOneOf } from '@/shared/utils/isOneOf';
 
 interface StudentFormFieldsProps {
   form: UseFormReturn<StudentFormValues>;
-  isEditing: boolean;
-  selectedKelas?: string;
-  selectedPeminatan?: Peminatan;
-  activePreview: string | null;
-  fileInputRef: RefObject<HTMLInputElement | null>;
-  classOptions: ClassSelectorOption[];
-  classOptionsLoading: boolean;
-  classOptionsError: string | null;
-  onFileChange: (event: ChangeEvent<HTMLInputElement>) => void;
-  onRemoveImage: () => void;
-  onRetryLoadClasses: () => void | Promise<void>;
+  state: {
+    isEditing: boolean;
+    selectedKelas?: string;
+    selectedPeminatan?: Peminatan;
+    activePreview: string | null;
+  };
+  classes: {
+    options: ClassSelectorOption[];
+    isLoading: boolean;
+    error: string | null;
+    onRetry: () => void | Promise<void>;
+  };
+  image: {
+    fileInputRef: RefObject<HTMLInputElement | null>;
+    onFileChange: (event: ChangeEvent<HTMLInputElement>) => void;
+    onRemove: () => void;
+  };
 }
 
 export function StudentFormFields({
   form,
-  isEditing,
-  selectedKelas,
-  selectedPeminatan,
-  activePreview,
-  fileInputRef,
-  classOptions,
-  classOptionsLoading,
-  classOptionsError,
-  onFileChange,
-  onRemoveImage,
-  onRetryLoadClasses,
+  state,
+  classes,
+  image,
 }: StudentFormFieldsProps) {
+  const { isEditing, selectedKelas, selectedPeminatan, activePreview } = state;
+  const {
+    options: classOptions,
+    isLoading: classOptionsLoading,
+    error: classOptionsError,
+    onRetry: onRetryLoadClasses,
+  } = classes;
+  const { fileInputRef, onFileChange, onRemove: onRemoveImage } = image;
+  const handleClassValueChange = (value: string | null) => {
+    if (!value) return;
+    form.setValue('kelas', value, { shouldValidate: true });
+  };
+  const handleSpecializationChange = (value: string) => {
+    form.setValue('peminatan', isOneOf(value, PEMINATAN_VALUES) ? value : undefined);
+  };
   return (
     <>
           {/* NIS & Nama */}
@@ -84,7 +96,7 @@ export function StudentFormFields({
               <Select
                 value={selectedKelas || ''}
                 disabled={classOptionsLoading || Boolean(classOptionsError)}
-                onValueChange={(val) => val && form.setValue('kelas', val, { shouldValidate: true })}
+                onValueChange={handleClassValueChange}
               >
                 <SelectTrigger
                   className={cn(
@@ -125,20 +137,17 @@ export function StudentFormFields({
             </div>
 
             <div className="space-y-1">
-              <Label className="text-ink-muted text-xs">Peminatan Crew</Label>
-              <Select
+              <RadioGroup
+                name="student-specialization"
+                legend="Peminatan Crew"
                 value={selectedPeminatan ?? ''}
-                onValueChange={(val) => form.setValue('peminatan', isOneOf(val, PEMINATAN_VALUES) ? val : undefined)}
-              >
-                <SelectTrigger className="w-full bg-surface-2 border-hairline text-ink text-xs">
-                  <SelectValue placeholder="Pilih Peminatan" />
-                </SelectTrigger>
-                <SelectContent className="bg-surface-3 border-hairline text-ink">
-                  <SelectItem value="kamera">Kamera</SelectItem>
-                  <SelectItem value="editing">Editing</SelectItem>
-                  <SelectItem value="naskah">Naskah</SelectItem>
-                </SelectContent>
-              </Select>
+                options={[
+                  { value: 'kamera', label: 'Kamera' },
+                  { value: 'editing', label: 'Editing' },
+                  { value: 'naskah', label: 'Naskah' },
+                ]}
+                onValueChange={handleSpecializationChange}
+              />
             </div>
 
             <div className="space-y-1">
@@ -160,6 +169,7 @@ export function StudentFormFields({
               type="file"
               ref={fileInputRef}
               accept="image/jpeg,image/png,image/webp"
+              capture="user"
               onChange={onFileChange}
               className="hidden"
             />
@@ -174,7 +184,7 @@ export function StudentFormFields({
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-semibold text-ink truncate">Foto Profil Terpilih</p>
                   <p className="text-[10px] text-semantic-success truncate">
-                    ✓ Foto sudah dikompres agar aman dikirim ke server
+                    ✓ Foto siap dikirim ke server
                   </p>
                 </div>
                 <Button

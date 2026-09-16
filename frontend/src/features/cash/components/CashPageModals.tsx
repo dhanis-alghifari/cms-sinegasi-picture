@@ -1,5 +1,3 @@
-// src/features/cash/components/CashPageModals.tsx
-// Lazy-loaded modal boundary for the cash page.
 
 import { lazy, Suspense } from 'react';
 
@@ -17,37 +15,45 @@ import type {
   DebtRecord,
 } from '../types/cash.types';
 
+type ModalState = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+};
+
 interface CashPageModalsProps {
-  isTreasurerOrTeacher: boolean;
-  isStudent: boolean;
-  cashInOpen: boolean;
-  setCashInOpen: (open: boolean) => void;
-  handleCashInSubmit: (values: CashInFormValues) => Promise<void>;
-  cashInLoading: boolean;
-  cashInError?: unknown;
-  paymentMethodsError?: unknown;
-  paymentMethods: CashPaymentMethod[];
-  isPaymentMethodsLoading: boolean;
-  cashOutOpen: boolean;
-  setCashOutOpen: (open: boolean) => void;
-  currentBalance: number;
-  handleCashOutSubmit: (values: CashOutFormValues) => Promise<void>;
-  cashOutLoading: boolean;
-  cashOutError?: unknown;
-  rulesOpen: boolean;
-  setRulesOpen: (open: boolean) => void;
-  billingRules?: BillingRule | null;
-  handleBillingRulesSubmit: (values: BillingRulesFormValues) => Promise<void>;
-  billingRulesLoading: boolean;
-  billingRulesError?: unknown;
-  disputeOpen: boolean;
-  setDisputeOpen: (open: boolean) => void;
-  disputeTx: CashTransaction | null;
-  disputeDebt: DebtRecord | null;
-  handleDisputeSubmit: (values: DisputeFormValues) => Promise<void>;
-  disputeLoading: boolean;
-  disputeError?: unknown;
-  disputeQuota?: CashDisputeQuota;
+  access: {
+    isTreasurerOrTeacher: boolean;
+    isStudent: boolean;
+  };
+  cashIn: ModalState & {
+    onSubmit: (values: CashInFormValues) => Promise<void>;
+    isLoading: boolean;
+    error?: unknown;
+    paymentMethodsError?: unknown;
+    paymentMethods: CashPaymentMethod[];
+    isPaymentMethodsLoading: boolean;
+    nominalIuranWajib: number;
+  };
+  cashOut: ModalState & {
+    currentBalance: number;
+    onSubmit: (values: CashOutFormValues) => Promise<void>;
+    isLoading: boolean;
+    error?: unknown;
+  };
+  billingRules: ModalState & {
+    billingRules?: BillingRule | null;
+    onSubmit: (values: BillingRulesFormValues) => Promise<void>;
+    isLoading: boolean;
+    error?: unknown;
+  };
+  dispute: ModalState & {
+    transaction: CashTransaction | null;
+    debt: DebtRecord | null;
+    onSubmit: (values: DisputeFormValues) => Promise<void>;
+    isLoading: boolean;
+    error?: unknown;
+    quota?: CashDisputeQuota;
+  };
 }
 
 const LazyFastCashInModal = lazy(() =>
@@ -64,85 +70,87 @@ const LazyStudentDisputeModal = lazy(() =>
 );
 
 export function CashPageModals({
-  isTreasurerOrTeacher,
-  isStudent,
-  cashInOpen,
-  setCashInOpen,
-  handleCashInSubmit,
-  cashInLoading,
-  cashInError,
-  paymentMethodsError,
-  paymentMethods,
-  isPaymentMethodsLoading,
-  cashOutOpen,
-  setCashOutOpen,
-  currentBalance,
-  handleCashOutSubmit,
-  cashOutLoading,
-  cashOutError,
-  rulesOpen,
-  setRulesOpen,
+  access,
+  cashIn,
+  cashOut,
   billingRules,
-  handleBillingRulesSubmit,
-  billingRulesLoading,
-  billingRulesError,
-  disputeOpen,
-  setDisputeOpen,
-  disputeTx,
-  disputeDebt,
-  handleDisputeSubmit,
-  disputeLoading,
-  disputeError,
-  disputeQuota,
+  dispute,
 }: CashPageModalsProps) {
+  const { isTreasurerOrTeacher, isStudent } = access;
+  const {
+    open: cashInOpen,
+    onOpenChange: setCashInOpen,
+    onSubmit: handleCashInSubmit,
+    isLoading: cashInLoading,
+    error: cashInError,
+    paymentMethodsError,
+    paymentMethods,
+    isPaymentMethodsLoading,
+    nominalIuranWajib,
+  } = cashIn;
+  const {
+    open: cashOutOpen,
+    onOpenChange: setCashOutOpen,
+    currentBalance,
+    onSubmit: handleCashOutSubmit,
+    isLoading: cashOutLoading,
+    error: cashOutError,
+  } = cashOut;
+  const {
+    open: rulesOpen,
+    onOpenChange: setRulesOpen,
+    billingRules: rules,
+    onSubmit: handleBillingRulesSubmit,
+    isLoading: billingRulesLoading,
+    error: billingRulesError,
+  } = billingRules;
+  const {
+    open: disputeOpen,
+    onOpenChange: setDisputeOpen,
+    transaction: disputeTx,
+    debt: disputeDebt,
+    onSubmit: handleDisputeSubmit,
+    isLoading: disputeLoading,
+    error: disputeError,
+    quota: disputeQuota,
+  } = dispute;
+
   return (
       <Suspense fallback={null}>
         {isTreasurerOrTeacher && cashInOpen && (
           <LazyFastCashInModal
-            open={cashInOpen}
-            onOpenChange={setCashInOpen}
-            onSubmit={handleCashInSubmit}
-            isLoading={cashInLoading}
-            error={cashInError}
-            paymentMethodsError={paymentMethodsError}
-            nominalIuranWajib={billingRules?.nominal_iuran_wajib ?? 5000}
-            paymentMethods={paymentMethods}
-            isPaymentMethodsLoading={isPaymentMethodsLoading}
+            dialog={{ open: cashInOpen, onOpenChange: setCashInOpen }}
+            submission={{ onSubmit: handleCashInSubmit, isLoading: cashInLoading, error: cashInError }}
+            options={{
+              paymentMethodsError,
+              nominalIuranWajib,
+              paymentMethods,
+              isPaymentMethodsLoading,
+            }}
           />
         )}
 
         {isTreasurerOrTeacher && cashOutOpen && (
           <LazyTwoStageCashOutModal
-            open={cashOutOpen}
-            onOpenChange={setCashOutOpen}
-            currentBalance={currentBalance}
-            onSubmit={handleCashOutSubmit}
-            isLoading={cashOutLoading}
-            error={cashOutError}
+            dialog={{ open: cashOutOpen, onOpenChange: setCashOutOpen }}
+            balance={currentBalance}
+            submission={{ onSubmit: handleCashOutSubmit, isLoading: cashOutLoading, error: cashOutError }}
           />
         )}
 
         {isTreasurerOrTeacher && rulesOpen && (
           <LazyBillingRulesModal
-            open={rulesOpen}
-            onOpenChange={setRulesOpen}
-            billingRules={billingRules}
-            onSubmit={handleBillingRulesSubmit}
-            isLoading={billingRulesLoading}
-            error={billingRulesError}
+            dialog={{ open: rulesOpen, onOpenChange: setRulesOpen }}
+            rules={rules}
+            submission={{ onSubmit: handleBillingRulesSubmit, isLoading: billingRulesLoading, error: billingRulesError }}
           />
         )}
 
         {isStudent && disputeOpen && (
           <LazyStudentDisputeModal
-            open={disputeOpen}
-            onOpenChange={setDisputeOpen}
-            transaction={disputeTx}
-            debt={disputeDebt}
-            onSubmit={handleDisputeSubmit}
-            isLoading={disputeLoading}
-            error={disputeError}
-            quota={disputeQuota}
+            dialog={{ open: disputeOpen, onOpenChange: setDisputeOpen }}
+            target={{ transaction: disputeTx, debt: disputeDebt, quota: disputeQuota }}
+            submission={{ onSubmit: handleDisputeSubmit, isLoading: disputeLoading, error: disputeError }}
           />
         )}
       </Suspense>

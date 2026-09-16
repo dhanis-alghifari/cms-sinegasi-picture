@@ -22,6 +22,12 @@ function sendError(error: unknown, reply: FastifyReply, notFoundEnvelope = false
   return reply.status(error.statusCode).send({ statusCode: error.statusCode, message: error.message });
 }
 
+function parseNotificationReadFilter(query: { is_read?: string; unread_only?: string }): boolean | undefined {
+  if (query.is_read !== undefined) return query.is_read === 'true';
+  if (query.unread_only === 'true') return false;
+  return undefined;
+}
+
 const notificationsRoutes: FastifyPluginAsync<NotificationsRoutesOptions> = async (fastify, options) => {
   const userIdFor = async (request: FastifyRequest): Promise<string | null> => {
     const user = request.user as JwtPayload;
@@ -48,9 +54,7 @@ const notificationsRoutes: FastifyPluginAsync<NotificationsRoutesOptions> = asyn
     if (!userId) return reply.status(503).send({ statusCode: 503, message: 'Akun login belum terhubung ke users.id database yang valid.' });
     try {
       const query = request.query as { page?: string; pageSize?: string; is_read?: string; unread_only?: string };
-      const isRead = query.is_read !== undefined
-        ? query.is_read === 'true'
-        : query.unread_only === 'true' ? false : undefined;
+      const isRead = parseNotificationReadFilter(query);
       return reply.send({ success: true, ...(await options.notificationsService.list(userId, {
         page: Number(query.page || 1),
         pageSize: Number(query.pageSize || 20),

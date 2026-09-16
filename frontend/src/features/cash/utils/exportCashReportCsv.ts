@@ -1,13 +1,18 @@
-// src/features/cash/utils/exportCashReportCsv.ts
-// CSV export for the cash report.
 
 import type { CashReport } from '../types/cash.types';
 import { formatPaymentMethodLabel } from '@/shared/utils/formatLabels';
+import { getActiveCashReportDays } from './cashReportRows';
 
 function csvCell(value: unknown): string {
   const text = String(value ?? "");
   const safeText = /^[=+\-@]/.test(text) ? `'${text}` : text;
   return `"${safeText.replaceAll('"', '""')}"`;
+}
+
+function getControlStatus(control: CashReport['control']): string {
+  if (!control) return 'Belum tersedia';
+  if (control.is_balanced) return 'Seimbang';
+  return 'Perlu pemeriksaan';
 }
 
 export function exportCashReportCsv(report: CashReport): void {
@@ -34,11 +39,7 @@ export function exportCashReportCsv(report: CashReport): void {
     ["Selisih kontrol", control?.difference ?? ""],
     [
       "Status kontrol",
-      control
-        ? control.is_balanced
-          ? "Seimbang"
-          : "Perlu pemeriksaan"
-        : "Belum tersedia",
+      getControlStatus(control),
     ],
     [],
     ["Ringkasan", "Nilai"],
@@ -57,7 +58,7 @@ export function exportCashReportCsv(report: CashReport): void {
     ]),
     [],
     ["Aktivitas harian", "Pemasukan", "Pengeluaran"],
-    ...report.daily.map((item) => [item.date, item.income, item.expense]),
+    ...getActiveCashReportDays(report.daily).map((item) => [item.date, item.income, item.expense]),
     [],
     [
       "Rincian pemasukan",

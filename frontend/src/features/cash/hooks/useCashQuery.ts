@@ -1,10 +1,9 @@
-// src/features/cash/hooks/useCashQuery.ts
-// TanStack Query hooks for cash domain
 
 import { useQuery } from '@tanstack/react-query';
 import { QUERY_KEYS } from '@/shared/constants/queryKeys';
+import { UI_CONSTANTS } from '@/shared/constants/ui';
 import { cashService } from '../api/cash.service';
-import type { CashReportFilters, CashTransactionFilters, DisputeStatus } from '../types/cash.types';
+import type { CashDebtFilters, CashReportFilters, CashTransactionFilters, DisputeStatus } from '../types/cash.types';
 
 export function useCashSummaryQuery() {
   return useQuery({
@@ -17,7 +16,7 @@ export function useCashPaymentMethodsQuery(enabled = true) {
   return useQuery({
     queryKey: QUERY_KEYS.CASH_PAYMENT_METHODS,
     queryFn: () => cashService.getPaymentMethods(),
-    staleTime: 5 * 60 * 1000,
+    staleTime: UI_CONSTANTS.CASH_PAYMENT_METHODS_STALE_TIME_MS,
     enabled,
   });
 }
@@ -39,7 +38,7 @@ export function useCashReportQuery(params: CashReportFilters, enabled = true) {
 }
 
 export function useCashDebtsQuery(
-  params?: { page?: number; pageSize?: number; search?: string },
+  params?: CashDebtFilters,
   enabled = true,
 ) {
   return useQuery({
@@ -69,7 +68,7 @@ export function useCashDisputeQuotaQuery(enabled = true) {
   return useQuery({
     queryKey: QUERY_KEYS.CASH_DISPUTE_QUOTA,
     queryFn: () => cashService.getDisputeQuota(),
-    staleTime: 30_000,
+    staleTime: UI_CONSTANTS.SHORT_QUERY_STALE_TIME_MS,
     enabled,
   });
 }

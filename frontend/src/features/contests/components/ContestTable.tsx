@@ -1,5 +1,3 @@
-// src/features/contests/components/ContestTable.tsx
-// Table for film contests & festivals displaying name, city, level badge, deadline, entries, and action menu
 
 import { MoreVertical, Edit2, Layers3, ExternalLink, Trophy } from 'lucide-react';
 import {
@@ -20,6 +18,7 @@ import { Button } from '@/shared/ui/primitives/button';
 import { Badge } from '@/shared/ui/primitives/badge';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { formatDateShort } from '@/shared/utils/formatDate';
+import { formatNumber } from '@/shared/utils/formatNumber';
 import { getSafeExternalUrl } from '@/shared/utils/safeUrl';
 import type { Contest } from '../types/contests.types';
 import {
@@ -111,7 +110,7 @@ export function ContestTable({
 
               {/* Submitted Films List */}
               <TableCell className="text-ink-subtle text-xs">
-                {typeof c.entry_count === 'number' && <p className="mb-1 text-[10px] font-semibold text-primary">{c.entry_count} karya di pipeline</p>}
+                {typeof c.entry_count === 'number' && <p className="mb-1 text-[10px] font-semibold text-primary">{formatNumber(c.entry_count)} karya di pipeline</p>}
                 {c.submissions && c.submissions.length > 0 ? (
                   <div className="space-y-1">
                     {c.submissions.map((sub) => (

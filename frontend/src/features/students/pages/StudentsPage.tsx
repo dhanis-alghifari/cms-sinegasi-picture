@@ -1,16 +1,15 @@
-// src/features/students/pages/StudentsPage.tsx
-// Thin orchestration page for Students Management
 
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { Plus } from 'lucide-react';
 
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { ResponsivePageActions } from '@/shared/ui/ResponsivePageActions';
 import { PageLoader } from '@/shared/ui/LoadingSpinner';
+import { QueryErrorState } from '@/shared/ui/QueryErrorState';
 import { Pagination } from '@/shared/ui/Pagination';
-import { ReasonDialog } from '@/shared/ui/ActionDialog';
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import { useDebouncedValue } from '@/shared/hooks/useDebouncedValue';
+import { UI_CONSTANTS } from '@/shared/constants/ui';
 
 import { useStudentsQuery } from '../hooks/useStudentsQuery';
 import { useCreateStudentMutation } from '../hooks/useCreateStudentMutation';
@@ -19,16 +18,30 @@ import { useProvisionStudentAccountMutation } from '../hooks/useProvisionStudent
 import { StudentFilter } from '../components/StudentFilter';
 import { StudentTable } from '../components/StudentTable';
 import { StudentMobileList } from '../components/StudentMobileList';
-import { StudentDetailSheet } from '../components/StudentDetailSheet';
-import { StudentFormDialog } from '../components/StudentFormDialog';
-import { StudentStatusDialog } from '../components/StudentStatusDialog';
-import { StudentAccountCredentialsDialog } from '../components/StudentAccountCredentialsDialog';
 import { PEMINATAN_VALUES } from '../types/students.types';
 import type { Student, StudentAccountCredentials } from '../types/students.types';
 import { isOneOf } from '@/shared/utils/isOneOf';
 import type { StudentFormValues } from '../schemas/studentSchema';
 import { useIsMobile } from '@/shared/hooks/use-mobile';
 import { hasCapability } from '@/shared/auth/capabilities';
+
+const LazyStudentDetailSheet = lazy(() =>
+  import('../components/StudentDetailSheet').then(({ StudentDetailSheet }) => ({ default: StudentDetailSheet })),
+);
+const LazyStudentFormDialog = lazy(() =>
+  import('../components/StudentFormDialog').then(({ StudentFormDialog }) => ({ default: StudentFormDialog })),
+);
+const LazyStudentStatusDialog = lazy(() =>
+  import('../components/StudentStatusDialog').then(({ StudentStatusDialog }) => ({ default: StudentStatusDialog })),
+);
+const LazyStudentAccountCredentialsDialog = lazy(() =>
+  import('../components/StudentAccountCredentialsDialog').then(({ StudentAccountCredentialsDialog }) => ({
+    default: StudentAccountCredentialsDialog,
+  })),
+);
+const LazyReasonDialog = lazy(() =>
+  import('@/shared/ui/ActionDialog').then(({ ReasonDialog }) => ({ default: ReasonDialog })),
+);
 
 export function StudentsPage() {
   const { user } = useAuthStore();
@@ -38,12 +51,12 @@ export function StudentsPage() {
 
   // Filter state
   const [search, setSearch] = useState('');
-  const [kelas, setKelas] = useState('all');
-  const [peminatan, setPeminatan] = useState('all');
+  const [kelas, setKelas] = useState<string>(UI_CONSTANTS.ALL_FILTER_VALUE);
+  const [peminatan, setPeminatan] = useState<string>(UI_CONSTANTS.ALL_FILTER_VALUE);
   const [page, setPage] = useState(1);
-  const pageSize = 10;
+  const pageSize = UI_CONSTANTS.DEFAULT_PAGE_SIZE;
 
-  const debouncedSearch = useDebouncedValue(search, 300);
+  const debouncedSearch = useDebouncedValue(search, UI_CONSTANTS.SEARCH_DEBOUNCE_MS);
 
   // Reset page when filters change
   const handleSearchChange = (val: string) => {
@@ -63,8 +76,8 @@ export function StudentsPage() {
 
   const handleResetFilter = () => {
     setSearch('');
-    setKelas('all');
-    setPeminatan('all');
+    setKelas(UI_CONSTANTS.ALL_FILTER_VALUE);
+    setPeminatan(UI_CONSTANTS.ALL_FILTER_VALUE);
     setPage(1);
   };
 
@@ -79,11 +92,11 @@ export function StudentsPage() {
   const [detailStudent, setDetailStudent] = useState<Student | null>(null);
 
   // Queries & Mutations
-  const { data, isLoading } = useStudentsQuery({
+  const { data, isLoading, isError, error, refetch } = useStudentsQuery({
     page,
     pageSize,
     search: debouncedSearch || undefined,
-    kelas: kelas !== 'all' ? kelas : undefined,
+    kelas: kelas !== UI_CONSTANTS.ALL_FILTER_VALUE ? kelas : undefined,
     peminatan: isOneOf(peminatan, PEMINATAN_VALUES) ? peminatan : undefined,
   });
 
@@ -157,11 +170,36 @@ export function StudentsPage() {
       setCredentialsStudentName(values.nama);
       // Reset filter & page so newly added student immediately appears at the top of the table
       setSearch('');
-      setKelas('all');
-      setPeminatan('all');
+      setKelas(UI_CONSTANTS.ALL_FILTER_VALUE);
+      setPeminatan(UI_CONSTANTS.ALL_FILTER_VALUE);
       setPage(1);
     }
   };
+
+  const studentContent = (() => {
+    if (isLoading) return <PageLoader label="Memuat daftar siswa..." />;
+    if (isError) {
+      return <QueryErrorState title="Daftar siswa belum dapat dimuat" error={error} onRetry={refetch} />;
+    }
+
+    const students = data?.data ?? [];
+    const list = isMobile
+      ? <StudentMobileList students={students} onOpenDetail={setDetailStudent} onEdit={handleOpenEdit} onToggleActive={handleOpenStatusDialog} onProvisionAccount={handleOpenProvisionDialog} canManage={canManage} canManageStatus={canManageStatus} />
+      : <StudentTable students={students} onEdit={handleOpenEdit} onToggleActive={handleOpenStatusDialog} onProvisionAccount={handleOpenProvisionDialog} canManage={canManage} canManageStatus={canManageStatus} />;
+
+    return (
+      <div className="space-y-4">
+        {list}
+        <Pagination
+          page={data?.page ?? page}
+          totalPages={data?.totalPages ?? 1}
+          total={data?.total ?? 0}
+          pageSize={data?.pageSize ?? pageSize}
+          onPageChange={setPage}
+        />
+      </div>
+    );
+  })();
 
   return (
     <div className="mx-auto max-w-7xl space-y-5 px-4 py-5 sm:space-y-6 sm:p-6">
@@ -192,88 +230,69 @@ export function StudentsPage() {
         onReset={handleResetFilter}
       />
 
-      {isLoading ? (
-        <PageLoader />
-      ) : (
-        <div className="space-y-4">
-          {isMobile ? (
-            <StudentMobileList
-              students={data?.data ?? []}
-              onOpenDetail={setDetailStudent}
-              onEdit={handleOpenEdit}
-              onToggleActive={handleOpenStatusDialog}
-              onProvisionAccount={handleOpenProvisionDialog}
-              canManage={canManage}
-              canManageStatus={canManageStatus}
-            />
-          ) : (
-            <StudentTable
-              students={data?.data ?? []}
-              onEdit={handleOpenEdit}
-              onToggleActive={handleOpenStatusDialog}
-              onProvisionAccount={handleOpenProvisionDialog}
-              canManage={canManage}
-              canManageStatus={canManageStatus}
-            />
-          )}
-          <Pagination
-            page={data?.page ?? page}
-            totalPages={data?.totalPages ?? 1}
-            total={data?.total ?? 0}
-            pageSize={data?.pageSize ?? pageSize}
-            onPageChange={setPage}
-          />
-        </div>
-      )}
+      {studentContent}
 
       {canManage && (
-        <>
-          <StudentDetailSheet
-            open={Boolean(detailStudent)}
-            onOpenChange={(open) => { if (!open) setDetailStudent(null); }}
-            student={detailStudent}
-            isMobile={isMobile}
-            onEdit={handleOpenEdit}
-            onToggleActive={handleOpenStatusDialog}
-            onProvisionAccount={handleOpenProvisionDialog}
-            canManage={canManage}
-            canManageStatus={canManageStatus}
-          />
-          <StudentFormDialog
-            open={dialogOpen}
-            onOpenChange={setDialogOpen}
-            student={selectedStudent}
-            onSubmit={handleFormSubmit}
-            isLoading={createMutation.isPending || updateMutation.isPending}
-            error={createMutation.error || updateMutation.error}
-          />
-          <StudentStatusDialog
-            open={statusDialogOpen}
-            onOpenChange={setStatusDialogOpen}
-            student={statusTargetStudent}
-            onSubmit={handleStatusSubmit}
-            isLoading={updateMutation.isPending}
-            error={updateMutation.error}
-          />
-          <ReasonDialog
-            open={Boolean(provisionTargetStudent)}
-            onOpenChange={(open) => { if (!open) setProvisionTargetStudent(null); }}
-            title="Buat Akun Anggota Siswa"
-            description={provisionTargetStudent
-              ? `Buat akun login otomatis untuk ${provisionTargetStudent.nama}? Username akan dibuat dari NIS dan role menjadi Anggota.`
-              : ''}
-            reasonLabel="Alasan Pembuatan Akun *"
-            reasonPlaceholder="Contoh: Melengkapi akun siswa lama"
-            confirmLabel="Buat Akun"
-            onConfirm={handleProvisionSubmit}
-          />
-          <StudentAccountCredentialsDialog
-            open={Boolean(credentials)}
-            onOpenChange={(open) => { if (!open) { setCredentials(null); setCredentialsStudentName(undefined); } }}
-            studentName={credentialsStudentName}
-            credentials={credentials}
-          />
-        </>
+        <Suspense fallback={null}>
+          {detailStudent && (
+            <LazyStudentDetailSheet
+              dialog={{
+                open: true,
+                onOpenChange: (open) => { if (!open) setDetailStudent(null); },
+              }}
+              student={detailStudent}
+              viewport={{ isMobile }}
+              permissions={{ canManage, canManageStatus }}
+              actions={{
+                onEdit: handleOpenEdit,
+                onToggleActive: handleOpenStatusDialog,
+                onProvisionAccount: handleOpenProvisionDialog,
+              }}
+            />
+          )}
+          {dialogOpen && (
+            <LazyStudentFormDialog
+              open
+              onOpenChange={setDialogOpen}
+              student={selectedStudent}
+              onSubmit={handleFormSubmit}
+              isLoading={createMutation.isPending || updateMutation.isPending}
+              error={createMutation.error || updateMutation.error}
+            />
+          )}
+          {statusDialogOpen && (
+            <LazyStudentStatusDialog
+              open
+              onOpenChange={setStatusDialogOpen}
+              student={statusTargetStudent}
+              onSubmit={handleStatusSubmit}
+              isLoading={updateMutation.isPending}
+              error={updateMutation.error}
+            />
+          )}
+          {provisionTargetStudent && (
+            <LazyReasonDialog
+              dialog={{
+                open: true,
+                onOpenChange: (open) => { if (!open) setProvisionTargetStudent(null); },
+              }}
+              content={{
+                title: 'Buat Akun Anggota Siswa',
+                description: `Buat akun login otomatis untuk ${provisionTargetStudent.nama}? Username akan dibuat dari NIS dan role menjadi Anggota.`,
+              }}
+              action={{ confirmLabel: 'Buat Akun', onConfirm: handleProvisionSubmit }}
+              reason={{ label: 'Alasan Pembuatan Akun *', placeholder: 'Contoh: Melengkapi akun siswa lama' }}
+            />
+          )}
+          {credentials && (
+            <LazyStudentAccountCredentialsDialog
+              open
+              onOpenChange={(open) => { if (!open) { setCredentials(null); setCredentialsStudentName(undefined); } }}
+              studentName={credentialsStudentName}
+              credentials={credentials}
+            />
+          )}
+        </Suspense>
       )}
     </div>
   );

@@ -1,5 +1,3 @@
-// src/features/equipment/routes.tsx
-// Equipment feature routes
 
 import { lazy, Suspense } from 'react';
 import type { RouteObject } from 'react-router-dom';

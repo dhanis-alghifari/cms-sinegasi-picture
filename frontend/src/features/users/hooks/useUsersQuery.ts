@@ -1,5 +1,3 @@
-// src/features/users/hooks/useUsersQuery.ts
-// TanStack Query hook for user list
 
 import { useQuery } from '@tanstack/react-query';
 import { QUERY_KEYS } from '@/shared/constants/queryKeys';

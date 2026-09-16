@@ -1,5 +1,3 @@
-// src/features/contests/components/SubmitFilmEntryModal.tsx
-// Modal for submitting student film entry to a contest / recording achievements
 
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -73,6 +71,18 @@ export function SubmitFilmEntryModal({
     onOpenChange(false);
   });
 
+  const handleDirectorValueChange = (value: string | null) => {
+    if (!value) return;
+    form.setValue('sutradara_id', value);
+  };
+
+  const handleAwardStatusValueChange = (value: string | null) => {
+    if (value === null) return;
+    const parsedAwardStatus = awardStatusEnum.safeParse(value);
+    if (!parsedAwardStatus.success) return;
+    form.setValue('award_status', parsedAwardStatus.data);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="bg-surface-1 border-hairline text-ink max-w-lg">
@@ -86,7 +96,7 @@ export function SubmitFilmEntryModal({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4 pt-2">
+        <form noValidate onSubmit={handleSubmit} className="space-y-4 pt-2">
           {Boolean(error) && (
             <div role="alert" className="px-3 py-2 rounded bg-semantic-danger/10 border border-semantic-danger/30 text-semantic-danger text-xs">
               {getErrorMessage(error)}
@@ -113,7 +123,7 @@ export function SubmitFilmEntryModal({
               <Label className="text-ink-muted text-xs">Sutradara / Pembuat Karya *</Label>
               <Select
                 value={selectedDirectorId}
-                onValueChange={(val) => val && form.setValue('sutradara_id', val)}
+                onValueChange={handleDirectorValueChange}
               >
                 <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs">
                   <SelectValue placeholder="Pilih Sutradara">
@@ -135,10 +145,7 @@ export function SubmitFilmEntryModal({
               <Label className="text-ink-muted text-xs">Status Prestasi / Penghargaan *</Label>
               <Select
                 value={selectedAwardStatus}
-                onValueChange={(val) => {
-                  const parsedAwardStatus = awardStatusEnum.safeParse(val);
-                  if (parsedAwardStatus.success) form.setValue('award_status', parsedAwardStatus.data);
-                }}
+                onValueChange={handleAwardStatusValueChange}
               >
                 <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs font-semibold">
                   <SelectValue placeholder="Pilih status penghargaan" />
@@ -155,9 +162,9 @@ export function SubmitFilmEntryModal({
             </div>
           </div>
 
-          {/* Link Video & Link Sertifikat */}
+          {/* Tautan video dan sertifikat */}
           <div className="space-y-1">
-            <Label htmlFor="link_video" className="text-ink-muted text-xs">Link Video / Trailer (YouTube / Drive) *</Label>
+            <Label htmlFor="link_video" className="text-ink-muted text-xs">Tautan Video / Trailer (YouTube / Drive) *</Label>
             <Input
               id="link_video"
               placeholder="https://youtube.com/watch?v=... / https://drive.google.com/..."

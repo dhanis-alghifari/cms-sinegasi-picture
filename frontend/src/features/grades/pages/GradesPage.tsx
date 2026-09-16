@@ -1,5 +1,3 @@
-// src/features/grades/pages/GradesPage.tsx
-// Thin orchestration page for Student Grades & Universal Grading Management
 
 import { useState } from 'react';
 import { ClipboardList, GraduationCap, PlusCircle } from 'lucide-react';
@@ -7,12 +5,14 @@ import { ClipboardList, GraduationCap, PlusCircle } from 'lucide-react';
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { ResponsivePageActions } from '@/shared/ui/ResponsivePageActions';
 import { PageLoader } from '@/shared/ui/LoadingSpinner';
+import { QueryErrorState } from '@/shared/ui/QueryErrorState';
 import { Pagination } from '@/shared/ui/Pagination';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/primitives/tabs';
 
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import { useStudentsQuery } from '@/features/students/hooks/useStudentsQuery';
 import { useDebouncedValue } from '@/shared/hooks/useDebouncedValue';
+import { UI_CONSTANTS } from '@/shared/constants/ui';
 import { useIsMobile } from '@/shared/hooks/use-mobile';
 import { hasCapability } from '@/shared/auth/capabilities';
 import { isOneOf } from '@/shared/utils/isOneOf';
@@ -43,19 +43,19 @@ export function GradesPage() {
 
   // Filters
   const [search, setSearch] = useState('');
-  const [category, setCategory] = useState('all');
-  const [kelas, setKelas] = useState('all');
+  const [category, setCategory] = useState<string>(UI_CONSTANTS.ALL_FILTER_VALUE);
+  const [kelas, setKelas] = useState<string>(UI_CONSTANTS.ALL_FILTER_VALUE);
   const [page, setPage] = useState(1);
-  const pageSize = 10;
+  const pageSize = UI_CONSTANTS.DEFAULT_PAGE_SIZE;
 
   const [assignmentSearch, setAssignmentSearch] = useState('');
-  const [assignmentCategory, setAssignmentCategory] = useState('all');
-  const [assignmentKelas, setAssignmentKelas] = useState('all');
+  const [assignmentCategory, setAssignmentCategory] = useState<string>(UI_CONSTANTS.ALL_FILTER_VALUE);
+  const [assignmentKelas, setAssignmentKelas] = useState<string>(UI_CONSTANTS.ALL_FILTER_VALUE);
   const [assignmentPage, setAssignmentPage] = useState(1);
-  const assignmentPageSize = 10;
+  const assignmentPageSize = UI_CONSTANTS.DEFAULT_PAGE_SIZE;
 
-  const debouncedSearch = useDebouncedValue(search, 300);
-  const debouncedAssignmentSearch = useDebouncedValue(assignmentSearch, 300);
+  const debouncedSearch = useDebouncedValue(search, UI_CONSTANTS.SEARCH_DEBOUNCE_MS);
+  const debouncedAssignmentSearch = useDebouncedValue(assignmentSearch, UI_CONSTANTS.SEARCH_DEBOUNCE_MS);
 
   const handleSearchChange = (val: string) => {
     setSearch(val);
@@ -74,8 +74,8 @@ export function GradesPage() {
 
   const handleResetFilter = () => {
     setSearch('');
-    setCategory('all');
-    setKelas('all');
+    setCategory(UI_CONSTANTS.ALL_FILTER_VALUE);
+    setKelas(UI_CONSTANTS.ALL_FILTER_VALUE);
     setPage(1);
   };
 
@@ -96,8 +96,8 @@ export function GradesPage() {
 
   const handleAssignmentFilterReset = () => {
     setAssignmentSearch('');
-    setAssignmentCategory('all');
-    setAssignmentKelas('all');
+    setAssignmentCategory(UI_CONSTANTS.ALL_FILTER_VALUE);
+    setAssignmentKelas(UI_CONSTANTS.ALL_FILTER_VALUE);
     setAssignmentPage(1);
   };
 
@@ -106,12 +106,18 @@ export function GradesPage() {
   const [bulkOpen, setBulkOpen] = useState(false);
 
   // Queries
-  const { data: gradesData, isLoading: isGradesLoading } = useGradesQuery({
+  const {
+    data: gradesData,
+    isLoading: isGradesLoading,
+    isError: isGradesError,
+    error: gradesError,
+    refetch: refetchGrades,
+  } = useGradesQuery({
     page,
     pageSize,
     search: debouncedSearch || undefined,
     category: isOneOf(category, ASSIGNMENT_CATEGORY_VALUES) ? category : undefined,
-    kelas: kelas !== 'all' ? kelas : undefined,
+    kelas: kelas !== UI_CONSTANTS.ALL_FILTER_VALUE ? kelas : undefined,
     scope: gradeScope,
   });
   const { data: gradeSummary } = useGradeSummaryQuery({
@@ -122,16 +128,18 @@ export function GradesPage() {
   const {
     data: assignmentsData,
     isLoading: isAssignmentsLoading,
+    isError: isAssignmentsError,
     error: assignmentsError,
+    refetch: refetchAssignments,
   } = useAssignmentsQuery({
     page: assignmentPage,
     pageSize: assignmentPageSize,
     search: debouncedAssignmentSearch || undefined,
     category: isOneOf(assignmentCategory, ASSIGNMENT_CATEGORY_VALUES) ? assignmentCategory : undefined,
-    kelas: assignmentKelas !== 'all' ? assignmentKelas : undefined,
+    kelas: assignmentKelas !== UI_CONSTANTS.ALL_FILTER_VALUE ? assignmentKelas : undefined,
     scope: gradeScope,
   });
-  const { data: assignmentOptionsData } = useAssignmentsQuery({ page: 1, pageSize: 1000, scope: 'operational' }, canManageGrades);
+  const { data: assignmentOptionsData } = useAssignmentsQuery({ page: 1, pageSize: UI_CONSTANTS.ASSIGNMENT_OPTIONS_LIMIT, scope: 'operational' }, canManageGrades);
   const { data: studentsData } = useStudentsQuery({ is_active: true }, canManageGrades);
 
   // Mutations
@@ -214,19 +222,27 @@ export function GradesPage() {
           <GradeDistributionStats grades={gradesData?.data ?? []} summary={gradeSummary} isPersonal={isPersonalView} />
 
           <GradeFilter
-            search={search}
-            onSearchChange={handleSearchChange}
-            category={category}
-            onCategoryChange={handleCategoryChange}
-            kelas={kelas}
-            onKelasChange={handleKelasChange}
-            onReset={handleResetFilter}
-            isOwn={isPersonalView}
+            filters={{ search, category, kelas }}
+            actions={{
+              onSearchChange: handleSearchChange,
+              onCategoryChange: handleCategoryChange,
+              onKelasChange: handleKelasChange,
+              onReset: handleResetFilter,
+            }}
+            scope={{ isOwn: isPersonalView }}
           />
 
-          {isGradesLoading ? (
-            <PageLoader />
-          ) : (
+          {isGradesLoading && (
+            <PageLoader label="Memuat rekap nilai..." />
+          )}
+          {isGradesError && (
+            <QueryErrorState
+              title="Rekap nilai belum dapat dimuat"
+              error={gradesError}
+              onRetry={refetchGrades}
+            />
+          )}
+          {!isGradesLoading && !isGradesError && (
             <div className="space-y-4">
               {isMobile ? <GradeMobileList grades={gradesData?.data ?? []} isPersonal={isPersonalView} /> : <GradeTable grades={gradesData?.data ?? []} isPersonal={isPersonalView} />}
               <Pagination
@@ -242,25 +258,31 @@ export function GradesPage() {
 
         <TabsContent value="assignments" className="pt-2">
           <AssignmentFilter
-            search={assignmentSearch}
-            onSearchChange={handleAssignmentSearchChange}
-            category={assignmentCategory}
-            onCategoryChange={handleAssignmentCategoryChange}
-            kelas={assignmentKelas}
-            onKelasChange={handleAssignmentKelasChange}
-            onReset={handleAssignmentFilterReset}
-            isOwn={isPersonalView}
+            filters={{ search: assignmentSearch, category: assignmentCategory, kelas: assignmentKelas }}
+            actions={{
+              onSearchChange: handleAssignmentSearchChange,
+              onCategoryChange: handleAssignmentCategoryChange,
+              onKelasChange: handleAssignmentKelasChange,
+              onReset: handleAssignmentFilterReset,
+            }}
+            scope={{ isOwn: isPersonalView }}
           />
           <AssignmentList
-            assignments={assignmentsData?.data ?? []}
-            isLoading={isAssignmentsLoading}
-            error={assignmentsError}
-            page={assignmentsData?.page ?? assignmentPage}
-            totalPages={assignmentsData?.totalPages ?? 1}
-            total={assignmentsData?.total ?? 0}
-            pageSize={assignmentsData?.pageSize ?? assignmentPageSize}
-            onPageChange={setAssignmentPage}
-            isOwn={isPersonalView}
+            data={{
+              assignments: assignmentsData?.data ?? [],
+              isLoading: isAssignmentsLoading,
+              error: assignmentsError,
+              isError: isAssignmentsError,
+            }}
+            pagination={{
+              page: assignmentsData?.page ?? assignmentPage,
+              totalPages: assignmentsData?.totalPages ?? 1,
+              total: assignmentsData?.total ?? 0,
+              pageSize: assignmentsData?.pageSize ?? assignmentPageSize,
+              onPageChange: setAssignmentPage,
+            }}
+            view={{ isOwn: isPersonalView }}
+            actions={{ onRetry: refetchAssignments }}
           />
         </TabsContent>
       </Tabs>

@@ -1,5 +1,3 @@
-// src/features/cash/components/BillingRulesModal.tsx
-// Global Billing Rules Setting Modal (Nominal Iuran Wajib >= 500)
 
 import { useEffect } from 'react';
 import { Controller, useForm } from 'react-hook-form';
@@ -19,28 +17,31 @@ import { Input } from '@/shared/ui/primitives/input';
 import { Label } from '@/shared/ui/primitives/label';
 import { cn } from '@/shared/utils/cn';
 import { getErrorMessage } from '@/shared/api/errors';
-import { FormattedNumberInput } from './FormattedNumberInput';
+import { FormattedNumberInput } from '@/shared/ui/FormattedNumberInput';
 
 import { billingRulesSchema, type BillingRulesFormValues } from '../schemas/cashSchema';
 import type { BillingRule } from '../types/cash.types';
 
 interface BillingRulesModalProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  billingRules?: BillingRule | null;
-  onSubmit: (values: BillingRulesFormValues) => Promise<void>;
-  isLoading?: boolean;
-  error?: unknown;
+  dialog: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+  };
+  rules?: BillingRule | null;
+  submission: {
+    onSubmit: (values: BillingRulesFormValues) => Promise<void>;
+    isLoading?: boolean;
+    error?: unknown;
+  };
 }
 
 export function BillingRulesModal({
-  open,
-  onOpenChange,
-  billingRules,
-  onSubmit,
-  isLoading,
-  error,
+  dialog,
+  rules: billingRules,
+  submission,
 }: BillingRulesModalProps) {
+  const { open, onOpenChange } = dialog;
+  const { onSubmit, isLoading, error } = submission;
   const form = useForm<BillingRulesFormValues>({
     resolver: zodResolver(billingRulesSchema),
     defaultValues: {
@@ -82,7 +83,7 @@ export function BillingRulesModal({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4 pt-2">
+        <form noValidate onSubmit={handleSubmit} className="space-y-4 pt-2">
           {Boolean(error) && (
             <div role="alert" className="px-3 py-2 rounded bg-semantic-danger/10 border border-semantic-danger/30 text-semantic-danger text-xs">
               {getErrorMessage(error)}

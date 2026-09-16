@@ -279,7 +279,11 @@ const cashReportResponseSchema: z.ZodType<CashReport> = z.object({
   payment_method_breakdown: z.array(reportBreakdownSchema).optional(),
   daily: z.array(reportDailyPointSchema),
   debts: z.array(reportDebtStudentSchema),
-  control: reportControlSchema.optional(),
+  // The database intentionally returns null when a payment-method filter is
+  // active because the ledger control values are only meaningful for the
+  // complete cash ledger. Normalize that response to the optional field used
+  // by the UI instead of rejecting an otherwise valid report.
+  control: reportControlSchema.nullable().optional(),
   income_details: z.array(reportDetailSchema).optional(),
   expense_details: z.array(reportDetailSchema).optional(),
 }).loose().transform(({ period, summary, flow_breakdown, income_breakdown, expense_breakdown, payment_method_breakdown, daily, debts, control, income_details, expense_details }) => ({
@@ -291,7 +295,7 @@ const cashReportResponseSchema: z.ZodType<CashReport> = z.object({
   payment_method_breakdown,
   daily,
   debts,
-  control,
+  control: control ?? undefined,
   income_details,
   expense_details,
 }));

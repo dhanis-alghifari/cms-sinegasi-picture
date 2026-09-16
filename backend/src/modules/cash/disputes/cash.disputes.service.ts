@@ -114,7 +114,7 @@ function mapRepositoryError(error: CashRepositoryError, fallback: string): never
   if (code) throw new CashDisputesServiceError(domainStatus(code), code, ERROR_MESSAGES[code], parseDetails(error));
   if (error?.code === 'DUPLICATE' || error?.code === '23505') throw new CashDisputesServiceError(409, 'DISPUTE_CONFLICT', 'Sanggahan bertabrakan dengan pengajuan lain. Muat ulang data dan coba lagi.');
   if (error?.code === 'NOT_FOUND' || error?.code === 'PGRST116') throw new CashDisputesServiceError(404, 'NOT_FOUND', fallback);
-  throw new CashDisputesServiceError(400, 'DISPUTE_FAILED', fallback);
+  throw new CashDisputesServiceError(500, 'DISPUTE_FAILED', fallback);
 }
 
 export class CashDisputesService {
@@ -133,9 +133,7 @@ export class CashDisputesService {
   ) {
     const transactionId = typeof input.transaction_id === 'string' ? input.transaction_id.trim() : '';
     const debtRecordId = typeof input.debt_record_id === 'string' ? input.debt_record_id.trim() : '';
-    const reason = typeof input.alasan_sanggahan === 'string' && input.alasan_sanggahan.trim()
-      ? input.alasan_sanggahan.trim()
-      : typeof input.reason === 'string' ? input.reason.trim() : '';
+    const reason = normalizeDisputeReason(input);
     const proofUrl = typeof input.bukti_sanggahan_url === 'string' ? input.bukti_sanggahan_url.trim() : '';
     const normalizedIdempotencyKey = idempotencyKey.trim();
 
@@ -235,4 +233,12 @@ export class CashDisputesService {
       hasMore: result.hasMore,
     };
   }
+}
+
+function normalizeDisputeReason(input: CreateCashDisputeInput): string {
+  if (typeof input.alasan_sanggahan === 'string' && input.alasan_sanggahan.trim()) {
+    return input.alasan_sanggahan.trim();
+  }
+  if (typeof input.reason === 'string') return input.reason.trim();
+  return '';
 }

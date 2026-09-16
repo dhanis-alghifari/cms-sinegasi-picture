@@ -1,0 +1,17 @@
+{
+  "name": "Sinegasi CMS - Sistem Manajemen Sekolah",
+  "short_name": "Sinegasi CMS",
+  "description": "Sistem Manajemen Sekolah untuk Komunitas Cinematography Sinegasi",
+  "theme_color": "#010102",
+  "background_color": "#010102",
+  "display": "standalone",
+  "orientation": "portrait",
+  "start_url": "/",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

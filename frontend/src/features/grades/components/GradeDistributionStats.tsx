@@ -1,5 +1,3 @@
-// src/features/grades/components/GradeDistributionStats.tsx
-// Summary cards for grade distribution A-E
 
 import { GraduationCap } from 'lucide-react';
 import { Card, CardContent } from '@/shared/ui/primitives/card';

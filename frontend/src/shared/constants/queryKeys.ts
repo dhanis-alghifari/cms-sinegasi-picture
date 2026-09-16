@@ -1,5 +1,3 @@
-// src/shared/constants/queryKeys.ts
-// Central query key registry — prevents inconsistent cache keys across features
 
 export const QUERY_KEYS = {
   // Auth
@@ -43,13 +41,18 @@ export const QUERY_KEYS = {
   // Equipment
   EQUIPMENT: ['equipment'] as const,
   EQUIPMENT_SUMMARY: ['equipment', 'summary'] as const,
+  EQUIPMENT_REPORT: ['equipment', 'report'] as const,
   EQUIPMENT_DETAIL: (id: string) => ['equipment', id] as const,
+  EQUIPMENT_VALUATIONS: (id: string) => ['equipment', id, 'valuations'] as const,
+  EQUIPMENT_RECOVERY: ['equipment', 'recovery-cases'] as const,
+  EQUIPMENT_CHARGES: ['equipment', 'charges'] as const,
 
   // Borrowings
   BORROWINGS: ['borrowings'] as const,
   BORROWING: ['borrowings'] as const,
   BORROWING_SUMMARY: ['borrowings', 'summary'] as const,
   BORROWING_DETAIL: (id: string) => ['borrowings', id] as const,
+  BORROWING_RETURN_EVIDENCE: (id: string) => ['borrowings', id, 'return-evidence'] as const,
 
   // Contests
   CONTESTS: ['contests'] as const,

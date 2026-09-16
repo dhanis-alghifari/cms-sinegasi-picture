@@ -1,5 +1,3 @@
-// src/features/notifications/api/notifications.service.ts
-// Pure TS notifications service
 
 import { apiClient } from '@/shared/api/client';
 import {

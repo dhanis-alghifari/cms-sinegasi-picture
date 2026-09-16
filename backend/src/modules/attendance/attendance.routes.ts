@@ -11,6 +11,7 @@ import {
   attendanceWriteRouteSchema,
 } from '../../shared/http/schemas/core.schema.js';
 import { sendServiceError } from '../../shared/http/sendServiceError.js';
+import { mapRequestFields, mapRequestRecords } from '../../shared/http/request-field-mapping.js';
 import { AttendanceService, AttendanceServiceError } from './attendance.service.js';
 
 type AuditInput = {
@@ -20,6 +21,31 @@ type AuditInput = {
   newValues?: Record<string, unknown> | null;
   changeReason: string;
 };
+
+const DATABASE_IDENTITY_UNAVAILABLE_MESSAGE = 'Akun login belum terhubung ke users.id database yang valid.';
+
+const attendanceStatuses: Readonly<Record<string, string>> = {
+  present: 'hadir', sick: 'sakit', excused: 'izin', absent: 'alpha', all: 'all',
+};
+
+function attendanceInput(input: Record<string, unknown>): Record<string, unknown> {
+  const mapped = mapRequestFields(input, { date: 'tanggal', class_name: 'kelas', notes: 'keterangan' });
+  const records = mapRequestRecords(mapped.records, { notes: 'keterangan' });
+  return {
+    ...mapped,
+    ...(typeof mapped.status === 'string' ? { status: attendanceStatuses[mapped.status] ?? mapped.status } : {}),
+    records: normalizeAttendanceRecords(records),
+  };
+}
+
+function normalizeAttendanceRecords(records: unknown): unknown {
+  if (!Array.isArray(records)) return records;
+  return records.map((record) => {
+    const item = record as Record<string, unknown>;
+    if (typeof item.status !== 'string') return item;
+    return { ...item, status: attendanceStatuses[item.status] ?? item.status };
+  });
+}
 
 function getChangeReason(request: FastifyRequest, fallback = 'Mencatat absensi massal'): string {
   const header = request.headers['x-change-reason'];
@@ -39,17 +65,34 @@ function logDatabaseFailure(request: FastifyRequest, error: unknown): void {
   }, 'Attendance database operation failed');
 }
 
+async function resolveWriteActorId(
+  request: FastifyRequest,
+  requiresDatabaseUserId: boolean,
+): Promise<string | undefined> {
+  const user = request.user as JwtPayload;
+  if (!requiresDatabaseUserId) return user.userId;
+
+  return (await resolveDatabaseUserId(user)) || undefined;
+}
+
+function databaseIdentityUnavailableError(): AttendanceServiceError {
+  return new AttendanceServiceError(
+    503,
+    'DATABASE_IDENTITY_UNAVAILABLE',
+    DATABASE_IDENTITY_UNAVAILABLE_MESSAGE,
+  );
+}
+
 export interface AttendanceRoutesOptions {
   attendanceService: AttendanceService;
+  requiresDatabaseUserId: boolean;
   persistAuditLog: (request: FastifyRequest, input: AuditInput) => Promise<void>;
 }
 
 const attendanceRoutes: FastifyPluginAsync<AttendanceRoutesOptions> = async (fastify, options) => {
   const recordBatch = async (request: FastifyRequest, body: Record<string, unknown>) => {
-    const databaseUserId = await resolveDatabaseUserId(request.user as JwtPayload);
-    if (!databaseUserId && options.attendanceService.repositoryIsConfigured()) {
-      throw new AttendanceServiceError(503, 'DATABASE_IDENTITY_UNAVAILABLE', 'Akun login belum terhubung ke users.id database yang valid.');
-    }
+    const actorId = await resolveWriteActorId(request, options.requiresDatabaseUserId);
+    if (!actorId) throw databaseIdentityUnavailableError();
     const records = Array.isArray(body.records) ? body.records : [];
     const data = await options.attendanceService.batchRecord({
       tanggal: typeof body.tanggal === 'string' ? body.tanggal : '',
@@ -62,7 +105,7 @@ const attendanceRoutes: FastifyPluginAsync<AttendanceRoutesOptions> = async (fas
           keterangan: typeof item.keterangan === 'string' ? item.keterangan : undefined,
         };
       }),
-      actorId: databaseUserId || (request.user as JwtPayload).userId,
+      actorId,
       changeReason: getChangeReason(request),
     });
     await options.persistAuditLog(request, {
@@ -79,7 +122,7 @@ const attendanceRoutes: FastifyPluginAsync<AttendanceRoutesOptions> = async (fas
     schema: attendanceListRouteSchema,
     preHandler: [authenticate, requireAnyCapability('attendance.read', 'attendance.read.own')],
   }, async (request, reply) => {
-    const query = request.query as Record<string, string | undefined>;
+    const query = attendanceInput(request.query as Record<string, unknown>) as Record<string, string | undefined>;
     const page = Math.max(1, Number.parseInt(query.page || '1', 10) || 1);
     const pageSize = Math.min(100, Math.max(1, Number.parseInt(query.pageSize || '50', 10) || 50));
     const canReadAll = hasCapability((request.user as JwtPayload).role, 'attendance.read');
@@ -97,11 +140,23 @@ const attendanceRoutes: FastifyPluginAsync<AttendanceRoutesOptions> = async (fas
     schema: attendanceSummaryRouteSchema,
     preHandler: [authenticate, requireAnyCapability('attendance.read', 'attendance.read.own')],
   }, async (request, reply) => {
-    const { tanggal, date_from: dateFrom, date_to: dateTo, student_id: requestedStudentId, scope } = request.query as {
+    const {
+      tanggal,
+      date_from: dateFrom,
+      date_to: dateTo,
+      student_id: requestedStudentId,
+      kelas,
+      status,
+      search,
+      scope,
+    } = attendanceInput(request.query as Record<string, unknown>) as {
       tanggal?: string;
       date_from?: string;
       date_to?: string;
       student_id?: string;
+      kelas?: string;
+      status?: string;
+      search?: string;
       scope?: string;
     };
     const user = request.user as JwtPayload;
@@ -114,6 +169,9 @@ const attendanceRoutes: FastifyPluginAsync<AttendanceRoutesOptions> = async (fas
         date_from: dateFrom,
         date_to: dateTo,
         student_id: own ? studentId || undefined : requestedStudentId,
+        kelas,
+        status,
+        search,
       });
       const persentaseKehadiran = summary.total > 0
         ? Math.round((summary.hadir / summary.total) * 100 * 10) / 10
@@ -136,7 +194,7 @@ const attendanceRoutes: FastifyPluginAsync<AttendanceRoutesOptions> = async (fas
     schema: attendanceRosterRouteSchema,
     preHandler: [authenticate, requireCapability('attendance.record')],
   }, async (request, reply) => {
-    const query = request.query as { tanggal: string; kelas: string; page?: string; pageSize?: string };
+    const query = attendanceInput(request.query as Record<string, unknown>) as { tanggal: string; kelas: string; page?: string; pageSize?: string };
     const page = Math.max(1, Number.parseInt(query.page || '1', 10) || 1);
     const pageSize = Math.min(50, Math.max(1, Number.parseInt(query.pageSize || '10', 10) || 10));
     try {
@@ -159,7 +217,7 @@ const attendanceRoutes: FastifyPluginAsync<AttendanceRoutesOptions> = async (fas
     preHandler: [authenticate, requireCapability('attendance.record')],
   }, async (request, reply) => {
     try {
-      const data = await recordBatch(request, (request.body || {}) as Record<string, unknown>);
+      const data = await recordBatch(request, attendanceInput((request.body || {}) as Record<string, unknown>));
       return reply.status(201).send({ success: true, ...data });
     } catch (error) {
       logDatabaseFailure(request, error);
@@ -171,7 +229,7 @@ const attendanceRoutes: FastifyPluginAsync<AttendanceRoutesOptions> = async (fas
     schema: attendanceWriteRouteSchema,
     preHandler: [authenticate, requireCapability('attendance.record')],
   }, async (request, reply) => {
-    const body = (request.body || {}) as Record<string, unknown>;
+    const body = attendanceInput((request.body || {}) as Record<string, unknown>);
     if (Array.isArray(body.records)) {
       try {
         const data = await recordBatch(request, body);
@@ -181,11 +239,11 @@ const attendanceRoutes: FastifyPluginAsync<AttendanceRoutesOptions> = async (fas
         return sendServiceError(error, reply);
       }
     }
-    const databaseUserId = await resolveDatabaseUserId(request.user as JwtPayload);
-    if (!databaseUserId && options.attendanceService.repositoryIsConfigured()) {
-      return reply.status(503).send({ statusCode: 503, message: 'Akun login belum terhubung ke users.id database yang valid.' });
-    }
     try {
+      const actorId = await resolveWriteActorId(request, options.requiresDatabaseUserId);
+      if (!actorId) {
+        return reply.status(503).send({ statusCode: 503, message: DATABASE_IDENTITY_UNAVAILABLE_MESSAGE });
+      }
       const data = await options.attendanceService.record({
         studentId: typeof body.student_id === 'string' ? body.student_id : '',
         tanggal: typeof body.tanggal === 'string' ? body.tanggal : '',
@@ -194,7 +252,7 @@ const attendanceRoutes: FastifyPluginAsync<AttendanceRoutesOptions> = async (fas
         idempotencyKey: typeof (body.idempotency_key || body.idempotencyKey) === 'string'
           ? String(body.idempotency_key || body.idempotencyKey)
           : undefined,
-        actorId: databaseUserId || (request.user as JwtPayload).userId,
+        actorId,
       });
       await options.persistAuditLog(request, {
         action: 'INSERT', tableName: 'attendance', recordId: String(data.id || ''), newValues: data,
@@ -211,18 +269,18 @@ const attendanceRoutes: FastifyPluginAsync<AttendanceRoutesOptions> = async (fas
     preHandler: [authenticate, requireCapability('attendance.correct')],
   }, async (request, reply) => {
     const { attendance_id: attendanceId } = request.params as { attendance_id: string };
-    const body = (request.body || {}) as Record<string, unknown>;
-    const databaseUserId = await resolveDatabaseUserId(request.user as JwtPayload);
-    if (!databaseUserId && options.attendanceService.repositoryIsConfigured()) {
-      return reply.status(503).send({ statusCode: 503, message: 'Akun login belum terhubung ke users.id database yang valid.' });
-    }
+    const body = attendanceInput((request.body || {}) as Record<string, unknown>);
     const changeReason = getChangeReason(request, 'Koreksi status kehadiran siswa');
     try {
+      const actorId = await resolveWriteActorId(request, options.requiresDatabaseUserId);
+      if (!actorId) {
+        return reply.status(503).send({ statusCode: 503, message: DATABASE_IDENTITY_UNAVAILABLE_MESSAGE });
+      }
       const data = await options.attendanceService.correct({
         attendanceId,
         status: typeof body.status === 'string' ? body.status : '',
         keterangan: typeof body.keterangan === 'string' ? body.keterangan : undefined,
-        actorId: databaseUserId || (request.user as JwtPayload).userId,
+        actorId,
         changeReason,
       });
       await options.persistAuditLog(request, {

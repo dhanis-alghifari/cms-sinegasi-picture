@@ -1,4 +1,3 @@
-// Shared numeric formatting for display and numeric form inputs.
 // Display convention: comma for thousands and dot for decimals.
 
 export type NumericValue = number | string | null | undefined;

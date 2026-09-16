@@ -1,0 +1,1 @@
+import{f as e,u as t}from"./cn-DH3v4mcU.js";import{p as n}from"./button-JT3sSSlx.js";var r=e(t(),1),i=r.createContext(void 0);function a(e){let t=r.useContext(i);if(t===void 0&&!e)throw Error(n(69));return t}export{a as t};

@@ -1,10 +1,9 @@
-// src/features/students/components/StudentFilter.tsx
-// Filter bar for students page — Search input, Kelas filter (X, XI, XII), Peminatan filter
 
 import { Search, X } from 'lucide-react';
 import { Input } from '@/shared/ui/primitives/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/primitives/select';
 import { Button } from '@/shared/ui/primitives/button';
+import { UI_CONSTANTS } from '@/shared/constants/ui';
 
 interface StudentFilterProps {
   search: string;
@@ -25,10 +24,18 @@ export function StudentFilter({
   onPeminatanChange,
   onReset,
 }: StudentFilterProps) {
-  const hasActiveFilters = Boolean(search || (kelas && kelas !== 'all') || (peminatan && peminatan !== 'all'));
+  const hasActiveFilters = Boolean(search || (kelas && kelas !== UI_CONSTANTS.ALL_FILTER_VALUE) || (peminatan && peminatan !== UI_CONSTANTS.ALL_FILTER_VALUE));
+  const handleKelasValueChange = (value: string | null) => {
+    if (value === null) return;
+    onKelasChange(value);
+  };
+  const handlePeminatanValueChange = (value: string | null) => {
+    if (value === null) return;
+    onPeminatanChange(value);
+  };
 
   return (
-    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-4">
+    <div className="grid grid-cols-1 gap-3 mb-4 sm:grid-cols-2 xl:flex xl:items-center">
       {/* Search Input */}
       <div className="relative flex-1">
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-tertiary" />
@@ -42,12 +49,12 @@ export function StudentFilter({
       </div>
 
       {/* Kelas Filter (Fokus Kelas X, XI, XII) */}
-      <Select value={kelas} onValueChange={(val) => val !== null && onKelasChange(val)}>
-        <SelectTrigger className="w-full sm:w-36 bg-surface-1 border-hairline text-ink text-xs">
+      <Select value={kelas} onValueChange={handleKelasValueChange}>
+        <SelectTrigger className="w-full xl:w-36 bg-surface-1 border-hairline text-ink text-xs">
           <SelectValue placeholder="Pilih Kelas" />
         </SelectTrigger>
         <SelectContent className="bg-surface-3 border-hairline text-ink">
-          <SelectItem value="all">Semua Kelas</SelectItem>
+          <SelectItem value={UI_CONSTANTS.ALL_FILTER_VALUE}>Semua Kelas</SelectItem>
           <SelectItem value="X">Kelas X</SelectItem>
           <SelectItem value="XI">Kelas XI</SelectItem>
           <SelectItem value="XII">Kelas XII</SelectItem>
@@ -55,12 +62,12 @@ export function StudentFilter({
       </Select>
 
       {/* Peminatan Filter */}
-      <Select value={peminatan} onValueChange={(val) => val !== null && onPeminatanChange(val)}>
+      <Select value={peminatan} onValueChange={handlePeminatanValueChange}>
         <SelectTrigger className="w-full sm:w-40 bg-surface-1 border-hairline text-ink text-xs">
           <SelectValue placeholder="Peminatan" />
         </SelectTrigger>
         <SelectContent className="bg-surface-3 border-hairline text-ink">
-          <SelectItem value="all">Semua Peminatan</SelectItem>
+          <SelectItem value={UI_CONSTANTS.ALL_FILTER_VALUE}>Semua Peminatan</SelectItem>
           <SelectItem value="kamera">Kamera</SelectItem>
           <SelectItem value="editing">Editing</SelectItem>
           <SelectItem value="naskah">Naskah</SelectItem>

@@ -1,5 +1,3 @@
-// src/features/grades/components/GradeTable.tsx
-// Table for student grades displaying student, assignment title, category, grade A-E badge, and date
 
 import {
   Table,

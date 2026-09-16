@@ -9,26 +9,30 @@ import { getErrorMessage } from '@/shared/api/errors';
 import { compressImageFile, MAX_SOURCE_IMAGE_BYTES } from '@/shared/utils/compressImage';
 
 interface ImageUploadFieldProps {
-  id: string;
-  label: string;
-  value?: string;
-  onChange: (value: string) => void;
-  error?: string;
-  required?: boolean;
-  disabled?: boolean;
-  onProcessingChange?: (isProcessing: boolean) => void;
+  field: {
+    id: string;
+    label: string;
+    value?: string;
+    onChange: (value: string) => void;
+  };
+  validation?: {
+    error?: string;
+    required?: boolean;
+  };
+  state?: {
+    disabled?: boolean;
+    onProcessingChange?: (isProcessing: boolean) => void;
+  };
 }
 
 export function ImageUploadField({
-  id,
-  label,
-  value,
-  onChange,
-  error,
-  required,
-  disabled,
-  onProcessingChange,
+  field,
+  validation,
+  state,
 }: ImageUploadFieldProps) {
+  const { id, label, value, onChange } = field;
+  const { error, required } = validation ?? {};
+  const { disabled, onProcessingChange } = state ?? {};
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
@@ -46,7 +50,7 @@ export function ImageUploadField({
       setLocalError('File harus berupa gambar JPEG, PNG, atau WebP.');
       return;
     }
-    if (file.size > MAX_SOURCE_IMAGE_BYTES) {
+    if (file.size < 1 || file.size > MAX_SOURCE_IMAGE_BYTES) {
       setLocalError('Ukuran foto sumber maksimal 5 MB.');
       return;
     }
@@ -77,6 +81,7 @@ export function ImageUploadField({
         ref={fileInputRef}
         type="file"
         accept="image/jpeg,image/png,image/webp"
+        capture="environment"
         onChange={handleFileChange}
         disabled={disabled || isProcessing}
         className="hidden"
@@ -106,7 +111,7 @@ export function ImageUploadField({
               Hapus
             </Button>
           )}
-          <span className="basis-full text-[10px] text-ink-tertiary">JPEG, PNG, WebP; otomatis dikompres maksimal 600 KB.</span>
+          <span className="basis-full text-[10px] text-ink-tertiary">JPEG, PNG, atau WebP. Ukuran sumber maksimal 5 MB.</span>
         </div>
       </div>
       <Input

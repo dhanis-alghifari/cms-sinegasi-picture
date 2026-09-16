@@ -1,5 +1,3 @@
-// src/app/router/ProtectedRoute.tsx
-// Guards authenticated routes — redirects to /login if not authenticated
 // PRD: First-login enforcement — redirects to /ganti-password if is_first_login=true
 
 import { Navigate, Outlet, useLocation } from 'react-router-dom';

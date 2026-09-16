@@ -10,6 +10,7 @@ import {
   classUpdateRouteSchema,
 } from '../../shared/http/schemas/classes.schema.js';
 import { sendServiceError } from '../../shared/http/sendServiceError.js';
+import { mapRequestFields } from '../../shared/http/request-field-mapping.js';
 import { ClassesService } from './classes.service.js';
 import type { ClassCreateInput, ClassUpdateInput } from './classes.types.js';
 
@@ -60,7 +61,9 @@ const classesRoutes: FastifyPluginAsync<ClassesRoutesOptions> = async (fastify, 
     preHandler: [authenticate, requireCapability('classes.read')],
   }, async (request, reply) => {
     try {
-      const query = request.query as { page?: string; pageSize?: string; search?: string; tingkat?: string; is_active?: string };
+      const query = mapRequestFields(request.query as Record<string, unknown>, { level: 'tingkat' }) as {
+        page?: string; pageSize?: string; search?: string; tingkat?: string; is_active?: string;
+      };
       return reply.send({
         success: true,
         ...(await options.classesService.list({
@@ -81,7 +84,8 @@ const classesRoutes: FastifyPluginAsync<ClassesRoutesOptions> = async (fastify, 
     preHandler: [authenticate, requireCapability('classes.manage')],
   }, async (request, reply) => {
     try {
-      const data = await options.classesService.create(requestBody(request) as unknown as ClassCreateInput, await actorIdFor(request));
+      const body = mapRequestFields(requestBody(request), { name: 'nama_kelas', level: 'tingkat' });
+      const data = await options.classesService.create(body as unknown as ClassCreateInput, await actorIdFor(request));
       await options.persistAuditLog(request, {
         action: 'INSERT', tableName: 'classes', recordId: data.id,
         newValues: data as unknown as Record<string, unknown>, changeReason: 'Membuat data kelas baru',
@@ -97,7 +101,7 @@ const classesRoutes: FastifyPluginAsync<ClassesRoutesOptions> = async (fastify, 
     preHandler: [authenticate, requireCapability('classes.manage')],
   }, async (request, reply) => {
     try {
-      const body = requestBody(request);
+      const body = mapRequestFields(requestBody(request), { name: 'nama_kelas', level: 'tingkat' });
       const data = await options.classesService.update(
         (request.params as { id: string }).id,
         body as unknown as ClassUpdateInput,

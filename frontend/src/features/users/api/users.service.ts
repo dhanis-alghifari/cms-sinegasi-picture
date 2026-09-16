@@ -1,5 +1,3 @@
-// src/features/users/api/users.service.ts
-// Pure TS user management service
 
 import { apiClient } from '@/shared/api/client';
 import {
@@ -25,6 +23,11 @@ function newIdempotencyKey(): string {
   return `reset-${Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')}`;
 }
 
+function toUserRequest(payload: CreateUserPayload | UpdateUserPayload) {
+  const { nama: name, ...rest } = payload;
+  return { ...rest, ...(name !== undefined ? { name } : {}) };
+}
+
 export const usersService = {
   getUsers(params?: UserFilterParams): Promise<PaginatedResponse<UserAccount>> {
     const query = new URLSearchParams();
@@ -44,7 +47,7 @@ export const usersService = {
   },
 
   createUser(payload: CreateUserPayload): Promise<CreateUserResponse> {
-    return apiClient.postParsed('/api/users', payload, decodeCreateUserResponse);
+    return apiClient.postParsed('/api/users', toUserRequest(payload), decodeCreateUserResponse);
   },
 
   async updateUser(
@@ -52,7 +55,7 @@ export const usersService = {
     payload: UpdateUserPayload,
     changeReason: string,
   ): Promise<UserAccount> {
-    const response = await apiClient.putParsed(`/api/users/${id}`, payload, decodeUserResponse, {
+    const response = await apiClient.putParsed(`/api/users/${id}`, toUserRequest(payload), decodeUserResponse, {
       changeReason,
     });
     return response.data;

@@ -7,8 +7,14 @@ import { ActorDirectory } from '../shared/actors/actors.repository.js';
 import { collectActorIds, enrichActorReferences } from '../shared/actors/actors.enrichment.js';
 
 type ErrorWithStatus = { statusCode?: number; name?: string };
+type ValidationIssue = { keyword?: string; params?: { missingProperty?: string } };
+type ValidationErrorLike = ErrorWithStatus & { validation?: ValidationIssue[] };
 
 function publicErrorMessage(error: unknown): string {
+  const validation = (error as ValidationErrorLike | null)?.validation;
+  if (validation?.some((issue) => issue.keyword === 'required' && issue.params?.missingProperty === 'evidence_ids')) {
+    return 'Foto kondisi wajib diunggah minimal 2 foto untuk setiap alat yang dikembalikan. Alat hilang tidak wajib difoto.';
+  }
   const statusCode = Number((error as ErrorWithStatus | null)?.statusCode) || 500;
   if (statusCode === 400) return 'Permintaan tidak valid.';
   if (statusCode === 401) return 'Sesi tidak valid atau sudah berakhir.';

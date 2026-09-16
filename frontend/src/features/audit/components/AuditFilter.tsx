@@ -13,6 +13,7 @@ import { AUDIT_ACTION_VALUES } from '../types/audit.types';
 import type { AuditLogFilterParams } from '../types/audit.types';
 import { AUDIT_ACTION_LABELS } from '@/shared/utils/formatLabels';
 import { isOneOf } from '@/shared/utils/isOneOf';
+import { UI_CONSTANTS } from '@/shared/constants/ui';
 
 interface AuditFilterProps {
   value: AuditLogFilterParams;
@@ -23,6 +24,17 @@ interface AuditFilterProps {
 export function AuditFilter({ value, onChange, onReset }: AuditFilterProps) {
   const setValue = (key: keyof AuditLogFilterParams, nextValue: string | undefined) => {
     onChange({ ...value, page: 1, [key]: nextValue || undefined });
+  };
+
+  const handleTableNameValueChange = (nextValue: string | null) => {
+    setValue(
+      'table_name',
+      nextValue && nextValue !== UI_CONSTANTS.ALL_FILTER_VALUE ? nextValue : undefined,
+    );
+  };
+
+  const handleActionValueChange = (nextValue: string | null) => {
+    setValue('action', isOneOf(nextValue, AUDIT_ACTION_VALUES) ? nextValue : undefined);
   };
 
   return (
@@ -44,12 +56,12 @@ export function AuditFilter({ value, onChange, onReset }: AuditFilterProps) {
 
         <div className="space-y-1">
           <Label className="text-ink-muted text-xs">Modul</Label>
-          <Select value={value.table_name ?? 'all'} onValueChange={(next) => setValue('table_name', next && next !== 'all' ? next : undefined)}>
+          <Select value={value.table_name ?? UI_CONSTANTS.ALL_FILTER_VALUE} onValueChange={handleTableNameValueChange}>
             <SelectTrigger className="w-full bg-surface-2 border-hairline text-ink text-xs">
               <SelectValue placeholder="Semua modul" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Semua modul</SelectItem>
+              <SelectItem value={UI_CONSTANTS.ALL_FILTER_VALUE}>Semua modul</SelectItem>
               <SelectItem value="students">Siswa</SelectItem>
               <SelectItem value="classes">Kelas</SelectItem>
               <SelectItem value="attendance">Absensi</SelectItem>
@@ -69,12 +81,12 @@ export function AuditFilter({ value, onChange, onReset }: AuditFilterProps) {
 
         <div className="space-y-1">
           <Label className="text-ink-muted text-xs">Jenis perubahan</Label>
-          <Select value={value.action ?? 'all'} onValueChange={(next) => setValue('action', isOneOf(next, AUDIT_ACTION_VALUES) ? next : undefined)}>
+          <Select value={value.action ?? UI_CONSTANTS.ALL_FILTER_VALUE} onValueChange={handleActionValueChange}>
             <SelectTrigger className="w-full bg-surface-2 border-hairline text-ink text-xs">
               <SelectValue placeholder="Semua perubahan" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Semua perubahan</SelectItem>
+              <SelectItem value={UI_CONSTANTS.ALL_FILTER_VALUE}>Semua perubahan</SelectItem>
               {Object.entries(AUDIT_ACTION_LABELS).map(([action, label]) => (
                 <SelectItem key={action} value={action}>{label}</SelectItem>
               ))}

@@ -1,5 +1,3 @@
-// List of assignments/tasks. This is intentionally separate from GradeTable:
-// an assignment exists before any student has been graded for it.
 
 import { ClipboardList } from 'lucide-react';
 
@@ -7,7 +5,7 @@ import { EmptyState } from '@/shared/ui/EmptyState';
 import { Pagination } from '@/shared/ui/Pagination';
 import { Badge } from '@/shared/ui/primitives/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/primitives/table';
-import { getErrorMessage } from '@/shared/api/errors';
+import { QueryErrorState } from '@/shared/ui/QueryErrorState';
 import { formatDateShort } from '@/shared/utils/formatDate';
 import { formatEnumLabel } from '@/shared/utils/formatLabels';
 import { useIsMobile } from '@/shared/hooks/use-mobile';
@@ -17,28 +15,42 @@ import { AuditHistoryButton } from '@/features/audit/components/AuditHistoryButt
 import { AssignmentMobileList } from './AssignmentMobileList';
 
 interface AssignmentListProps {
-  assignments: Assignment[];
-  isLoading?: boolean;
-  error?: unknown;
-  page: number;
-  totalPages: number;
-  total: number;
-  pageSize: number;
-  onPageChange: (page: number) => void;
-  isOwn?: boolean;
+  data: {
+    assignments: Assignment[];
+    isLoading?: boolean;
+    error?: unknown;
+    isError?: boolean;
+  };
+  pagination: {
+    page: number;
+    totalPages: number;
+    total: number;
+    pageSize: number;
+    onPageChange: (page: number) => void;
+  };
+  view?: {
+    isOwn?: boolean;
+  };
+  actions?: {
+    onRetry?: () => void;
+  };
 }
 
 export function AssignmentList({
-  assignments,
-  isLoading = false,
-  error,
-  page,
-  totalPages,
-  total,
-  pageSize,
-  onPageChange,
-  isOwn = false,
+  data,
+  pagination,
+  view,
+  actions,
 }: AssignmentListProps) {
+  const {
+    assignments,
+    isLoading = false,
+    error,
+    isError = Boolean(error),
+  } = data;
+  const { page, totalPages, total, pageSize, onPageChange } = pagination;
+  const { isOwn = false } = view ?? {};
+  const { onRetry } = actions ?? {};
   const isMobile = useIsMobile();
   return (
     <section className="space-y-3">
@@ -49,15 +61,19 @@ export function AssignmentList({
         </p>
       </div>
 
-      {isLoading ? (
+      {isLoading && (
         <div className="rounded-lg border border-hairline bg-surface-1 px-4 py-10 text-center text-ink-subtle text-sm">
           Memuat daftar tugas...
         </div>
-      ) : error ? (
-        <div className="rounded-lg border border-semantic-danger/30 bg-semantic-danger/10 px-4 py-4 text-semantic-danger text-sm">
-          Gagal memuat daftar tugas: {getErrorMessage(error)}
-        </div>
-      ) : assignments.length === 0 ? (
+      )}
+      {isError && (
+        <QueryErrorState
+          title="Daftar tugas belum dapat dimuat"
+          error={error}
+          onRetry={onRetry}
+        />
+      )}
+      {!isLoading && !isError && assignments.length === 0 && (
         <div className="rounded-lg border border-hairline bg-surface-1">
           <EmptyState
             icon={ClipboardList}
@@ -65,7 +81,8 @@ export function AssignmentList({
             description="Buat tugas atau kegiatan baru agar dapat digunakan untuk penilaian siswa."
           />
         </div>
-      ) : (
+      )}
+      {!isLoading && !isError && assignments.length > 0 && (
         <div className="space-y-4">
           {isMobile ? <AssignmentMobileList assignments={assignments} isOwn={isOwn} /> : <div className="rounded-lg border border-hairline bg-surface-1 overflow-x-auto">
             <Table>

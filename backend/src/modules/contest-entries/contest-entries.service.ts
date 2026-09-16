@@ -59,10 +59,30 @@ function mapRepositoryError(error: unknown, fallback: string): never {
     'CHANGE_REASON_REQUIRED',
   ]);
   if (businessCodes.has(message)) {
-    const statusCode = message === 'CONTEST_ENTRY_ALREADY_EXISTS' ? 409 : message === 'CONTEST_NOT_FOUND' || message === 'WORK_NOT_FOUND' ? 404 : 422;
+    const statusCode = businessErrorStatus(message);
     throw new ContestEntriesServiceError(statusCode, message, entryErrorMessage(error, fallback));
   }
-  throw new ContestEntriesServiceError(code === '23505' ? 409 : ['42P01', '42703', 'PGRST204', 'PGRST205'].includes(code || '') ? 503 : code === 'PGRST116' ? 404 : 400, code === '23505' ? 'CONTEST_ENTRY_ALREADY_EXISTS' : code === 'PGRST116' ? 'CONTEST_ENTRY_NOT_FOUND' : ['42P01', '42703', 'PGRST204', 'PGRST205'].includes(code || '') ? 'CONTEST_ENTRY_SCHEMA_UNAVAILABLE' : 'CONTEST_ENTRY_FAILED', entryErrorMessage(error, fallback));
+  throw new ContestEntriesServiceError(getDatabaseErrorStatus(code), getDatabaseErrorCode(code), entryErrorMessage(error, fallback));
+}
+
+function businessErrorStatus(message: string): number {
+  if (message === 'CONTEST_ENTRY_ALREADY_EXISTS') return 409;
+  if (message === 'CONTEST_NOT_FOUND' || message === 'WORK_NOT_FOUND') return 404;
+  return 422;
+}
+
+function getDatabaseErrorStatus(code: string | undefined): number {
+  if (code === '23505') return 409;
+  if (['42P01', '42703', 'PGRST204', 'PGRST205'].includes(code || '')) return 503;
+  if (code === 'PGRST116') return 404;
+  return 400;
+}
+
+function getDatabaseErrorCode(code: string | undefined): string {
+  if (code === '23505') return 'CONTEST_ENTRY_ALREADY_EXISTS';
+  if (code === 'PGRST116') return 'CONTEST_ENTRY_NOT_FOUND';
+  if (['42P01', '42703', 'PGRST204', 'PGRST205'].includes(code || '')) return 'CONTEST_ENTRY_SCHEMA_UNAVAILABLE';
+  return 'CONTEST_ENTRY_FAILED';
 }
 
 const defaultEvidenceStorage: ContestEvidenceStorage = {

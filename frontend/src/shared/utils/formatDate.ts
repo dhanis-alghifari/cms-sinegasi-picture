@@ -1,5 +1,3 @@
-// src/shared/utils/formatDate.ts
-// Date formatting utilities using Intl (no external library needed)
 
 function toValidDate(value: string | Date): Date | null {
   const parsed = value instanceof Date ? value : new Date(value);

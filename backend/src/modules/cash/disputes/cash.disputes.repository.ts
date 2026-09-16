@@ -85,10 +85,25 @@ function optionalString(value: unknown): string | undefined {
   return value === null || value === undefined || value === '' ? undefined : String(value);
 }
 
+type RelatedRow = Record<string, unknown>;
+
+function relatedValue<T>(
+  primary: RelatedRow | undefined,
+  secondary: RelatedRow | undefined,
+  primaryReader: (row: RelatedRow) => T,
+  secondaryReader: (row: RelatedRow) => T,
+): T | undefined {
+  if (primary) return primaryReader(primary);
+  if (secondary) return secondaryReader(secondary);
+  return undefined;
+}
+
 function mapDispute(row: CashDisputeRow, assumeEvidence = false): CashDisputeRecord {
   const student = Array.isArray(row.students) ? row.students[0] : row.students;
   const transaction = Array.isArray(row.cash_transactions) ? row.cash_transactions[0] : row.cash_transactions;
   const debt = Array.isArray(row.debt_records) ? row.debt_records[0] : row.debt_records;
+  const transactionData = transaction as RelatedRow | undefined;
+  const debtData = debt as RelatedRow | undefined;
   const proofUrl = optionalString(row.bukti_sanggahan_url);
   return {
     id: String(row.id),
@@ -112,9 +127,9 @@ function mapDispute(row: CashDisputeRow, assumeEvidence = false): CashDisputeRec
     updated_by: optionalString(row.updated_by),
     updated_at: optionalString(row.updated_at),
     student_nama: student ? optionalString(student.nama) : undefined,
-    transaction_nominal: transaction ? Number(transaction.nominal || 0) : debt ? Number(debt.amount || 0) : undefined,
-    transaction_tanggal: transaction ? optionalString(transaction.tanggal) : debt ? optionalString(debt.created_at) : undefined,
-    transaction_keterangan: transaction ? optionalString(transaction.keterangan) : debt ? optionalString(debt.keterangan) : undefined,
+    transaction_nominal: relatedValue(transactionData, debtData, (value) => Number(value.nominal || 0), (value) => Number(value.amount || 0)),
+    transaction_tanggal: relatedValue(transactionData, debtData, (value) => optionalString(value.tanggal), (value) => optionalString(value.created_at)),
+    transaction_keterangan: relatedValue(transactionData, debtData, (value) => optionalString(value.keterangan), (value) => optionalString(value.keterangan)),
   };
 }
 
@@ -243,7 +258,7 @@ export function createCashDisputesRepository(client: SupabaseLike, memory: CashD
     async getQuota(studentId) {
       if (!client) return { data: buildMemoryQuota(memoryDisputes, studentId), error: null };
       const { data, error } = await client.rpc('get_cash_dispute_quota', { p_student_id: studentId });
-      return { data: error ? null : mapQuota(Array.isArray(data) ? data[0] : data), error: error || null };
+      return { data: error ? null : mapQuota(normalizeRpcData(data)), error: error || null };
     },
 
     async getEvidence(id, studentId) {

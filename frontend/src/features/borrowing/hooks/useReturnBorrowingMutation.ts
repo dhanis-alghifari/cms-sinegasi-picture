@@ -1,4 +1,3 @@
-// src/features/borrowing/hooks/useReturnBorrowingMutation.ts
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { QUERY_KEYS } from '@/shared/constants/queryKeys';
@@ -29,5 +28,11 @@ export function useReturnBorrowingMutation() {
         QUERY_KEYS.NOTIFICATION_UNREAD_COUNT,
       ]);
     },
+  });
+}
+
+export function useReturnAssessmentPreviewMutation() {
+  return useMutation({
+    mutationFn: borrowingService.previewReturn,
   });
 }

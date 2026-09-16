@@ -4,6 +4,7 @@ import { DEFAULT_FILMS, mapFilmWorkRow, normalizeFilmStatus } from './film-works
 import type { FilmWorkRecord, FilmWorksMemoryState, FilmWorksRepository } from './film-works.types.js';
 
 type SupabaseLike = SupabaseClient | null;
+const FILM_WORK_LIST_LIMIT = 500;
 
 export function createFilmWorksRepository(client: SupabaseLike, state: FilmWorksMemoryState): FilmWorksRepository {
   if (!client && state.films.length === 0) state.films.push(...DEFAULT_FILMS.map((film) => ({ ...film, crew: [...film.crew] })));
@@ -18,7 +19,7 @@ export function createFilmWorksRepository(client: SupabaseLike, state: FilmWorks
         'film_crew(role,students(nama))',
       ].join(','));
       if (normalizedStatus) query = query.eq('status', normalizedStatus);
-      const result = await query.order('tahun_produksi', { ascending: false }).order('id', { ascending: false });
+      const result = await query.order('tahun_produksi', { ascending: false }).order('id', { ascending: false }).limit(FILM_WORK_LIST_LIMIT);
       if (result.error) return { error: result.error };
       return { data: (result.data || []).map((row) => mapFilmWorkRow(row as unknown as DatabaseRow)) };
     },

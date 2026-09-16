@@ -1,5 +1,3 @@
-// src/shared/ui/PageHeader.tsx
-// Reusable page header — title + optional subtitle + right slot for actions
 
 interface PageHeaderProps {
   title: string;

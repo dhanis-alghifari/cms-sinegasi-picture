@@ -1,5 +1,3 @@
-// src/shared/types/common.ts
-// Shared domain types used across features
 
 export interface ApiResponse<T> {
   data: T;

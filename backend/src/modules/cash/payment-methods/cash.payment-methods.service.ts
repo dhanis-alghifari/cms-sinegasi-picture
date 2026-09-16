@@ -13,7 +13,7 @@ export class CashPaymentMethodsServiceError extends Error {
 function mapRepositoryError(error: CashRepositoryError, fallback: string): never {
   if (isMissingCashSchemaError(error)) throw new CashPaymentMethodsServiceError(503, 'CASH_SCHEMA_UNAVAILABLE', CASH_SCHEMA_MIGRATION_MESSAGE);
   if (error?.code === '23505') throw new CashPaymentMethodsServiceError(409, 'PAYMENT_METHOD_EXISTS', 'Code metode pembayaran sudah digunakan.');
-  throw new CashPaymentMethodsServiceError(400, 'PAYMENT_METHOD_FAILED', fallback);
+  throw new CashPaymentMethodsServiceError(500, 'PAYMENT_METHOD_FAILED', fallback);
 }
 
 export class CashPaymentMethodsService {

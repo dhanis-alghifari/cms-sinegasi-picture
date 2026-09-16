@@ -63,8 +63,11 @@ services own validation while route plugins own authentication/RBAC and HTTP
 envelopes. Grades are now extracted as a full vertical slice (grade reads,
 assignment creation, bulk writes, and secretary reports). Contests are also
 split into `contests.routes.ts`, `contests.service.ts`, `contests.repository.ts`,
-`contests.helpers.ts`, and `contests.types.ts`; future assignment and film
-changes should extend the existing `grades` and `film-works` modules.
+`contests.persistence.compatibility.ts`, `contests.helpers.ts`, and
+`contests.types.ts`. The persistence compatibility module owns temporary legacy
+table and column projections; routes and services use the stable contest interface.
+Future assignment and film changes should extend the existing `grades` and
+`film-works` modules.
 The read-only film catalog is now under `modules/film-works`; future film
 mutations should extend that module instead of adding handlers to the
 composition root.
@@ -106,13 +109,13 @@ profile, photo, change-reason, and lifecycle invariants, and the repository
 owns explicit selects, bounded filters, account-provisioning RPCs, and the
 memory adapter. Migration `034_students_query_hardening.sql` adds the list,
 options, class-filter, and trigram indexes.
-The legacy student dashboard summary is isolated in `modules/dashboard`:
+The student dashboard summary is isolated in `modules/dashboard`:
 `dashboard.routes.ts` preserves the existing response envelope and auth/
 ownership guards, `dashboard.service.ts` validates the target identifier, and
-`dashboard.repository.ts` contains the development fixture adapter. It is
-intentionally not given a speculative SQL query because the current payload
-spans several domains without a defined read model; a future view/RPC must be
-designed and benchmarked on staging before replacing the adapter.
+`dashboard.repository.ts` reads the indexed `v_student_dashboard_summary`
+view, the filtered attendance aggregate RPC, and bounded history queries in
+parallel. Tests inject a small Supabase-like client so the database contract is
+verified without requiring a live project.
 
 The audit trail is isolated in `modules/audit`: routes preserve the three
 teacher-only read endpoints, the service validates actions, UUIDs, dates, and

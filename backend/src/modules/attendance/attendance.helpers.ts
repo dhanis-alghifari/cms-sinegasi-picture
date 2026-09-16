@@ -55,7 +55,7 @@ function getStudentRelation(row: DatabaseRow): DatabaseRow {
 }
 
 function nullableString(value: unknown): string | null {
-  return value == null ? null : String(value);
+  return value === null || value === undefined ? null : String(value);
 }
 
 /** Map a PostgREST attendance row into the stable HTTP response contract. */

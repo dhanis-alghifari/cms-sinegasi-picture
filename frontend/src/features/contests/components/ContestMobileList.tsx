@@ -6,6 +6,7 @@ import { Badge } from '@/shared/ui/primitives/badge';
 import { Button } from '@/shared/ui/primitives/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/shared/ui/primitives/dropdown-menu';
 import { formatDateShort } from '@/shared/utils/formatDate';
+import { formatNumber } from '@/shared/utils/formatNumber';
 import { getSafeExternalUrl } from '@/shared/utils/safeUrl';
 
 import type { Contest } from '../types/contests.types';
@@ -34,9 +35,9 @@ export function ContestMobileList({ contests, onEdit, onManageEntries, canManage
             <div className="min-w-0">
               <div className="flex items-start gap-2">
                 <p className="line-clamp-2 text-sm font-semibold text-ink">{contest.nama_lomba}</p>
-                {getSafeExternalUrl(contest.website_url) && <a href={getSafeExternalUrl(contest.website_url)} target="_blank" rel="noreferrer" className="mt-0.5 shrink-0 text-ink-tertiary hover:text-primary" aria-label="Buka website lomba"><ExternalLink size={15} aria-hidden="true" /></a>}
+                {getSafeExternalUrl(contest.website_url) && <a href={getSafeExternalUrl(contest.website_url)} target="_blank" rel="noreferrer" className="inline-flex size-11 shrink-0 items-center justify-center rounded-md text-ink-tertiary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" aria-label="Buka website lomba"><ExternalLink size={15} aria-hidden="true" /></a>}
               </div>
-              <p className="mt-1 truncate text-xs text-ink-tertiary">{contest.kota || 'Kota belum diisi'} · Tahun {contest.tahun_event || '-'}</p>
+              <p className="mt-1 truncate text-xs text-ink-tertiary">{contest.kota || 'Kota belum diisi'} | Tahun {contest.tahun_event || '-'}</p>
             </div>
             <div className="flex shrink-0 items-center gap-1">
               <AuditHistoryButton tableName="contests" recordId={contest.id} />
@@ -55,8 +56,8 @@ export function ContestMobileList({ contests, onEdit, onManageEntries, canManage
             <span className="ml-auto text-xs text-ink-tertiary">Deadline {formatDateShort(contest.deadline)}</span>
           </div>
           <div className="mt-3 rounded-lg bg-surface-2 p-3">
-            <p className="text-[10px] uppercase tracking-wide text-ink-tertiary">Karya submitted</p>
-            {typeof contest.entry_count === 'number' && <p className="mt-1 text-[10px] font-semibold text-primary">{contest.entry_count} karya di pipeline</p>}
+            <p className="text-[10px] uppercase tracking-wide text-ink-tertiary">Karya terkirim</p>
+            {typeof contest.entry_count === 'number' && <p className="mt-1 text-[10px] font-semibold text-primary">{formatNumber(contest.entry_count)} karya di pipeline</p>}
             {contest.submissions && contest.submissions.length > 0 ? <ul className="mt-2 space-y-1.5">{contest.submissions.map((submission) => <li key={submission.id} className="flex min-w-0 items-center gap-2 text-xs"><Layers3 size={14} className="shrink-0 text-primary" aria-hidden="true" /><span className="min-w-0 truncate font-medium text-ink">{submission.judul_film}</span>{submission.award_status !== 'Peserta' && <span className="shrink-0 text-[10px] font-semibold text-semantic-warning"><Trophy size={11} className="mr-0.5 inline" aria-hidden="true" />{submission.award_status}</span>}</li>)}</ul> : <p className="mt-1 text-xs italic text-ink-tertiary">Belum ada karya</p>}
           </div>
         </article>

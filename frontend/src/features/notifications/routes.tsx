@@ -1,5 +1,3 @@
-// src/features/notifications/routes.tsx
-// Notifications feature routes
 
 import { lazy, Suspense } from 'react';
 import type { RouteObject } from 'react-router-dom';

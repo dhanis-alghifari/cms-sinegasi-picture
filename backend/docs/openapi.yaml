@@ -1017,6 +1017,71 @@ paths:
         '409': { description: Borrowing is not ready for return }
         '422': { description: Invalid item conditions or missing change reason }
         '503': { description: Borrowing schema or database identity is not available }
+  /api/borrowing/{borrowing_id}/return-assessment:
+    post:
+      summary: Preview server-authoritative return charges
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: borrowing_id, in: path, required: true, schema: { type: string, maxLength: 128 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BorrowingReturnAssessmentRequest'
+      responses:
+        '200':
+          description: Return assessment preview with separate repair, replacement, and late charges
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, example: true }
+                  data: { $ref: '#/components/schemas/BorrowingReturnAssessmentPreview' }
+        '403': { description: Teacher or equipment team role required }
+        '404': { description: Borrowing not found }
+        '422': { description: Invalid item conditions }
+  /api/borrowing/{borrowing_id}/return-evidence-uploads:
+    post:
+      summary: Reserve a compressed private return-condition photo upload
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: borrowing_id, in: path, required: true, schema: { type: string, maxLength: 128 } }
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BorrowingReturnEvidenceUploadRequest'
+      responses:
+        '201': { description: Signed upload URL and evidence identifier }
+        '403': { description: Borrowing management capability required }
+        '404': { description: Borrowing item not found or not active }
+        '422': { description: Invalid compressed image metadata }
+        '503': { description: Return evidence storage is not configured }
+  /api/borrowing/{borrowing_id}/return-evidence:
+    get:
+      summary: List attached return-condition photos with short-lived access URLs
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: borrowing_id, in: path, required: true, schema: { type: string, maxLength: 128 } }
+      responses:
+        '200': { description: Attached return evidence metadata and signed access URLs }
+        '403': { description: Borrowing read capability required }
+        '503': { description: Return evidence schema or storage is not available }
+  /api/borrowing-return-evidence/{evidence_id}/access:
+    get:
+      summary: Issue a short-lived access URL for attached return evidence
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: evidence_id, in: path, required: true, schema: { type: string, minLength: 36, maxLength: 36 } }
+      responses:
+        '200': { description: Signed evidence access URL }
+        '403': { description: Borrowing read capability required }
+        '404': { description: Attached evidence not found }
   /api/grades:
     get:
       summary: List grades with authoritative personal or operational scope
@@ -1317,7 +1382,8 @@ paths:
         '503': { description: Contest results schema unavailable }
   /api/contest-entries/{id}/results:
     post:
-      summary: Record or replace the normalized results for a contest entry
+      summary: Legacy endpoint; use the contest entry finalize endpoint
+      deprecated: true
       security: [{ bearerAuth: [] }]
       parameters:
         - { name: id, in: path, required: true, schema: { type: string, maxLength: 64 } }
@@ -1330,7 +1396,7 @@ paths:
             schema:
               $ref: '#/components/schemas/ContestResultRequest'
       responses:
-        '200': { description: Contest entry outcome and result rows recorded }
+        '410': { description: Legacy result endpoint disabled; use POST /api/contest-entries/{id}/finalize }
         '403': { description: Contest manage capability required }
         '409': { description: Duplicate result row }
         '422': { description: Invalid outcome, result, or audit reason }
@@ -1407,6 +1473,214 @@ paths:
         '403': { description: Equipment team role required }
         '404': { description: Equipment not found }
         '409': { description: Equipment is still referenced by borrowing data }
+  /api/equipment/{id}/valuations:
+    get:
+      summary: List versioned replacement valuations for equipment
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, minLength: 1, maxLength: 64 } }
+      responses:
+        '200': { description: Replacement valuation history }
+        '401': { description: Unauthenticated }
+    post:
+      summary: Add a replacement valuation snapshot
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, minLength: 1, maxLength: 64 } }
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EquipmentValuationCreateRequest'
+      responses:
+        '201': { description: Replacement valuation created }
+        '403': { description: Equipment team role required }
+        '404': { description: Equipment not found }
+        '422': { description: Invalid valuation }
+  /api/equipment/recovery-cases:
+    get:
+      summary: List active equipment recovery cases
+      parameters:
+        - { name: equipment_id, in: query, required: false, schema: { type: string } }
+        - { name: status, in: query, required: false, schema: { type: string, enum: [active, history, open, in_progress, awaiting_verification, completed, unrepairable, cancelled] } }
+      responses:
+        '200': { description: Recovery cases }
+        '503': { description: Recovery schema is not available }
+  /api/equipment/{id}/recovery-cases:
+    post:
+      summary: Open a repair or replacement case for equipment
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - $ref: '#/components/parameters/ChangeReason'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [recovery_type, reported_condition, change_reason]
+              properties:
+                recovery_type: { type: string, enum: [repair, replacement] }
+                reported_condition: { type: string, enum: [minor_damage, damaged, severely_damaged, under_repair, lost] }
+                assessment_item_id: { type: string }
+                notes: { type: string, maxLength: 2000 }
+                change_reason: { type: string, minLength: 5, maxLength: 500 }
+      responses:
+        '201': { description: Recovery case opened }
+        '409': { description: Equipment cannot be recovered in its current state }
+  /api/equipment/recovery-cases/{caseId}/complete-repair:
+    post:
+      summary: Complete a repair case after photo and functional checklist verification
+      parameters:
+        - { name: caseId, in: path, required: true, schema: { type: string } }
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [inspection_photos, inspection_passed, change_reason]
+              properties:
+                inspection_photos: { type: array, minItems: 2, maxItems: 12, items: { type: string } }
+                inspection_passed: { type: boolean, description: Operator confirms the final functional inspection passed. }
+                actual_cost: { type: number, minimum: 0 }
+                notes: { type: string, maxLength: 2000 }
+                change_reason: { type: string, minLength: 5, maxLength: 500 }
+      responses:
+        '200': { description: Equipment returned to available status }
+        '422': { description: Verification photos are required }
+  /api/equipment/recovery-cases/{caseId}/register-replacement:
+    post:
+      summary: Register a new physical unit as replacement
+      parameters:
+        - { name: caseId, in: path, required: true, schema: { type: string } }
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [equipment_code, name, category, photo_urls, change_reason]
+              properties:
+                equipment_code: { type: string }
+                name: { type: string }
+                category: { type: string, enum: [camera, lens, audio, lighting, accessory, other] }
+                storage_location: { type: string }
+                serial_number: { type: string }
+                photo_urls: { type: array, minItems: 3, maxItems: 12, items: { type: string } }
+                description: { type: string }
+                replacement_value: { type: number, exclusiveMinimum: 0 }
+                change_reason: { type: string, minLength: 5, maxLength: 500 }
+      responses:
+        '201': { description: Replacement unit created and linked }
+  /api/equipment/charges:
+    get:
+      summary: List equipment charge settlements
+      parameters:
+        - { name: student_id, in: query, required: false, schema: { type: string } }
+        - { name: status, in: query, required: false, schema: { type: string, enum: [unpaid, partial, paid, waived] } }
+      responses:
+        '200': { description: Charge settlement rows }
+  /api/equipment/charges/{id}:
+    patch:
+      summary: Legacy endpoint; use the evidence-backed payment endpoint
+      deprecated: true
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [paid_amount, status, change_reason]
+              properties:
+                paid_amount: { type: number, minimum: 0 }
+                status: { type: string, enum: [unpaid, partial, paid, waived] }
+                notes: { type: string, maxLength: 2000 }
+                change_reason: { type: string, minLength: 5, maxLength: 500 }
+      responses:
+        '410': { description: Legacy payment endpoint disabled; use POST /api/equipment/charges/{id}/payments }
+  /api/equipment/charges/{id}/evidence-uploads:
+    post:
+      summary: Reserve a private equipment charge evidence upload
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [evidence_type, file_name, content_type, file_size_bytes]
+              properties:
+                evidence_type: { type: string, enum: [payment, repair, replacement] }
+                file_name: { type: string }
+                content_type: { type: string, enum: [image/jpeg, image/png, image/webp] }
+                file_size_bytes: { type: integer, minimum: 1, maximum: 614400 }
+      responses:
+        '201': { description: Signed private upload reservation }
+  /api/equipment/charges/{id}/payments:
+    post:
+      summary: Record an incremental equipment charge payment with evidence
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - $ref: '#/components/parameters/ChangeReason'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [payment_amount, evidence_ids, change_reason]
+              properties:
+                payment_amount: { type: number, exclusiveMinimum: 0, maximum: 9999999999.99 }
+                evidence_ids: { type: array, minItems: 1, maxItems: 12, items: { type: string } }
+                notes: { type: string, maxLength: 2000 }
+                change_reason: { type: string, minLength: 5, maxLength: 500 }
+      responses:
+        '201': { description: Updated charge settlement }
+  /api/equipment/charges/{id}/evidence:
+    get:
+      summary: List signed URLs for attached charge evidence
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Attached charge evidence }
+  /api/equipment/evidence/{evidenceId}/access:
+    get:
+      summary: Create a short-lived access URL for equipment evidence
+      parameters:
+        - { name: evidenceId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Signed private evidence URL }
+  /api/equipment/report:
+    get:
+      summary: Read a bounded equipment inventory report snapshot
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: search, in: query, required: false, schema: { type: string, maxLength: 100 } }
+        - { name: category, in: query, required: false, schema: { type: string, enum: [camera, lens, audio, lighting, accessory, other] } }
+        - { name: condition, in: query, required: false, schema: { type: string, enum: [good, minor_damage, damaged, severely_damaged, under_repair, lost] } }
+        - { name: status, in: query, required: false, schema: { type: string, enum: [available, borrowed, maintenance] } }
+        - { name: scope, in: query, required: false, schema: { type: string, enum: [all, filtered, attention], default: filtered } }
+        - { name: include_valuation, in: query, required: false, schema: { type: string, enum: ['true', 'false'], default: 'false' } }
+        - { name: include_photos, in: query, required: false, schema: { type: string, enum: ['true', 'false'], default: 'false' } }
+      responses:
+        '200': { description: Inventory summary, breakdowns, attention items, and bounded rows }
+        '401': { description: Unauthenticated }
+        '413': { description: Report exceeds the bounded export size }
+        '503': { description: Equipment schema is not available }
   /api/equipment/{id}/condition:
     patch:
       summary: Update equipment condition and optional damage note
@@ -2028,7 +2302,7 @@ components:
       additionalProperties: false
       required: [item_conditions]
       properties:
-        tanggal_dikembalikan: { type: string, format: date }
+        return_date: { type: string, format: date }
         item_conditions:
           type: array
           minItems: 1
@@ -2036,15 +2310,75 @@ components:
           items:
             type: object
             additionalProperties: false
-            required: [equipment_id, kondisi_kembali]
+            required: [equipment_id, condition]
             properties:
               equipment_id: { type: string, minLength: 1, maxLength: 128 }
-              kondisi_kembali: { type: string, enum: [bagus, sedikit_kerusakan, rusak, rusak_besar, sedang_diperbaiki, hilang] }
-              catatan: { type: string, maxLength: 500 }
-              denda: { type: number, minimum: 0, maximum: 9999999999.99 }
-        catatan_pengembalian: { type: string, maxLength: 500 }
-        total_denda: { type: number, minimum: 0, maximum: 9999999999.99 }
+              condition: { type: string, enum: [good, minor_damage, damaged, severely_damaged, lost] }
+              notes: { type: string, maxLength: 500 }
+              settlement_method: { type: string, enum: [none, repair, replacement] }
+              repair_cost: { type: number, exclusiveMinimum: 0, maximum: 9999999999.99 }
+              evidence_ids:
+                type: array
+                minItems: 2
+                maxItems: 5
+                uniqueItems: true
+                items: { type: string, minLength: 36, maxLength: 36 }
+                description: Required for every condition except lost.
+        return_notes: { type: string, maxLength: 500 }
         change_reason: { type: string, minLength: 5, maxLength: 500 }
+    BorrowingReturnAssessmentRequest:
+      type: object
+      additionalProperties: false
+      required: [item_conditions]
+      properties:
+        return_date: { type: string, format: date }
+        item_conditions:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items:
+            type: object
+            additionalProperties: false
+            required: [equipment_id, condition]
+            properties:
+              equipment_id: { type: string, minLength: 1, maxLength: 128 }
+              condition: { type: string, enum: [good, minor_damage, damaged, severely_damaged, lost] }
+              notes: { type: string, maxLength: 500 }
+              settlement_method: { type: string, enum: [none, repair, replacement] }
+              repair_cost: { type: number, exclusiveMinimum: 0, maximum: 9999999999.99 }
+    BorrowingReturnAssessmentPreview:
+      type: object
+      required: [borrowing_id, return_date, damage_charge, replacement_charge, late_charge, total_charge, items]
+      properties:
+        borrowing_id: { type: string, minLength: 1, maxLength: 128 }
+        return_date: { type: string, format: date }
+        damage_charge: { type: number, minimum: 0, description: Total biaya perbaikan. }
+        replacement_charge: { type: number, minimum: 0, description: Total nilai penggantian unit. }
+        late_charge: { type: number, minimum: 0, description: Denda keterlambatan, if configured. }
+        total_charge: { type: number, minimum: 0 }
+        items:
+          type: array
+          maxItems: 50
+          items:
+            type: object
+            required: [equipment_id, condition, settlement_method, charge]
+            properties:
+              equipment_id: { type: string, minLength: 1, maxLength: 128 }
+              borrowing_item_id: { type: string, nullable: true, maxLength: 128 }
+              condition: { type: string, enum: [good, minor_damage, damaged, severely_damaged, lost] }
+              settlement_method: { type: string, enum: [none, repair, replacement] }
+              replacement_value: { type: number, nullable: true, minimum: 0 }
+              repair_cost: { type: number, nullable: true, minimum: 0 }
+              charge: { type: number, minimum: 0 }
+    BorrowingReturnEvidenceUploadRequest:
+      type: object
+      additionalProperties: false
+      required: [equipment_id, file_name, content_type, file_size_bytes]
+      properties:
+        equipment_id: { type: string, minLength: 1, maxLength: 128 }
+        file_name: { type: string, minLength: 1, maxLength: 255 }
+        content_type: { type: string, enum: [image/jpeg, image/png, image/webp] }
+        file_size_bytes: { type: integer, minimum: 1, maximum: 614400 }
     AssignmentCreateRequest:
       type: object
       additionalProperties: false

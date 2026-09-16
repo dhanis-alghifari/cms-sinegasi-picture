@@ -1,4 +1,3 @@
-// src/shared/api/client.ts
 // Shared HTTP client — Constitution: all requests through service layer, never from UI directly
 // PRD: every mutating request must send x-change-reason header
 
@@ -11,7 +10,6 @@ import {
   ValidationError,
 } from './errors';
 
-// Token storage key
 const TOKEN_KEY = 'sinegasi_token';
 
 export function getToken(): string | null {
@@ -26,8 +24,7 @@ export function removeToken(): void {
   localStorage.removeItem(TOKEN_KEY);
 }
 
-// Core fetch wrapper
-interface RequestOptions extends RequestInit {
+export interface RequestOptions extends RequestInit {
   /** Required by PRD for all mutating requests (POST/PUT/PATCH/DELETE) */
   changeReason?: string;
   idempotencyKey?: string;
@@ -117,7 +114,6 @@ async function requestParsed<T>(
   return decoder(payload);
 }
 
-// HTTP method helpers
 export const apiClient = {
   get<T>(endpoint: string, options?: RequestOptions): Promise<T> {
     return request<T>(endpoint, { method: 'GET', ...options });

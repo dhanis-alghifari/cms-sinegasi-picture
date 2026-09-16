@@ -19,6 +19,7 @@ export type BorrowingReadItem = {
   kondisi_awal: string;
   kondisi_kembali?: string;
   denda_kerusakan?: number;
+  replacement_value?: number;
 };
 
 export type BorrowingReadRecord = {

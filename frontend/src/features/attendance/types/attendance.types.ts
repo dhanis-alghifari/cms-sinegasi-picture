@@ -1,5 +1,3 @@
-// src/features/attendance/types/attendance.types.ts
-// Attendance domain types according to PRD schema
 import type { ActorSummary } from '@/shared/types/common';
 
 export const ATTENDANCE_STATUS_VALUES = ['hadir', 'sakit', 'izin', 'alpha'] as const;
@@ -51,6 +49,9 @@ export interface AttendanceSummaryParams {
   date_from?: string;
   date_to?: string;
   student_id?: string;
+  kelas?: string;
+  status?: AttendanceStatus;
+  search?: string;
   scope?: 'own';
 }
 

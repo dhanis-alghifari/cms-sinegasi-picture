@@ -1,5 +1,3 @@
-// src/features/equipment/components/UpdateConditionDialog.tsx
-// Dialog for reporting damage / updating maintenance status of equipment
 
 import { useEffect, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
@@ -25,7 +23,6 @@ import { isOneOf } from '@/shared/utils/isOneOf';
 
 import { updateConditionSchema, type UpdateConditionFormValues } from '../schemas/equipmentSchema';
 import {
-  EQUIPMENT_AVAILABILITY_VALUES,
   EQUIPMENT_CONDITION_VALUES,
 } from '../types/equipment.types';
 import type { Equipment } from '../types/equipment.types';
@@ -58,7 +55,6 @@ export function UpdateConditionDialog({
   });
 
   const selectedCondition = useWatch({ control: form.control, name: 'kondisi' });
-  const selectedStatus = useWatch({ control: form.control, name: 'status' });
 
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -66,7 +62,7 @@ export function UpdateConditionDialog({
     if (equipment) {
       form.reset({
         kondisi: equipment.kondisi,
-        status: equipment.status,
+        status: equipment.kondisi === 'bagus' ? 'tersedia' : 'maintenance',
         catatan_kerusakan: '',
         change_reason: '',
       });
@@ -88,6 +84,13 @@ export function UpdateConditionDialog({
     }
   });
 
+  const handleConditionValueChange = (value: string | null) => {
+    if (value === null) return;
+    if (!isOneOf(value, EQUIPMENT_CONDITION_VALUES)) return;
+    form.setValue('kondisi', value, { shouldValidate: true });
+    form.setValue('status', value === 'bagus' ? 'tersedia' : 'maintenance', { shouldValidate: true });
+  };
+
   return (
     <Dialog open={open} onOpenChange={handleDialogOpenChange}>
       <DialogContent className="bg-surface-1 border-hairline text-ink max-w-md">
@@ -101,7 +104,7 @@ export function UpdateConditionDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4 pt-2">
+        <form noValidate onSubmit={handleSubmit} className="space-y-4 pt-2">
           {(formError || Boolean(error)) && (
             <div role="alert" className="px-3.5 py-2.5 rounded-md bg-semantic-danger/10 border border-semantic-danger/30 text-semantic-danger text-xs font-medium">
               {formError || getErrorMessage(error)}
@@ -114,7 +117,7 @@ export function UpdateConditionDialog({
               <Label className="text-ink-muted text-xs font-semibold">Kondisi Fisik Baru *</Label>
               <Select
                 value={selectedCondition}
-                onValueChange={(val) => { if (isOneOf(val, EQUIPMENT_CONDITION_VALUES)) form.setValue('kondisi', val); }}
+                onValueChange={handleConditionValueChange}
               >
                 <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs">
                   <SelectValue placeholder="Pilih kondisi baru" />
@@ -130,22 +133,8 @@ export function UpdateConditionDialog({
               </Select>
             </div>
 
-            {/* Status Pinjam Baru */}
-            <div className="space-y-1">
-              <Label className="text-ink-muted text-xs font-semibold">Status Pinjam *</Label>
-              <Select
-                value={selectedStatus}
-                onValueChange={(val) => { if (isOneOf(val, EQUIPMENT_AVAILABILITY_VALUES)) form.setValue('status', val); }}
-              >
-                <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs">
-                  <SelectValue placeholder="Pilih status baru" />
-                </SelectTrigger>
-                <SelectContent className="bg-surface-3 border-hairline text-ink">
-                  <SelectItem value="tersedia">Tersedia</SelectItem>
-                  <SelectItem value="dipinjam">Dipinjam</SelectItem>
-                  <SelectItem value="maintenance">Maintenance</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="rounded-lg border border-hairline bg-surface-2 px-3 py-2 text-xs text-ink-muted">
+              Status otomatis: <strong className="text-ink">{selectedCondition === 'bagus' ? 'Tersedia' : 'Maintenance'}</strong>. Status dipinjam hanya berubah melalui proses serah-terima.
             </div>
           </div>
 
@@ -161,7 +150,6 @@ export function UpdateConditionDialog({
             />
           </div>
 
-          {/* Change Reason (Zero Silent Edits Requirement) */}
           <div className="space-y-1 pt-2 border-t border-hairline">
             <Label htmlFor="change_reason" className="text-ink-muted text-xs font-semibold">
               Alasan Perubahan Kondisi (Audit Header) *
@@ -181,7 +169,7 @@ export function UpdateConditionDialog({
             <Button type="button" variant="outline" onClick={() => handleDialogOpenChange(false)} className="bg-surface-2 border-hairline text-ink text-xs h-9">
               Batal
             </Button>
-            <Button type="submit" disabled={isLoading} className="bg-semantic-warning hover:bg-semantic-warning/80 text-black font-semibold text-xs h-9">
+            <Button type="submit" disabled={isLoading} className="bg-semantic-warning text-white hover:bg-semantic-warning/90 font-semibold text-xs h-9">
               {isLoading ? (
                 <>
                   <Loader2 size={14} className="animate-spin mr-1.5" />

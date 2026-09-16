@@ -1,4 +1,3 @@
-// src/features/classes/types/classes.types.ts
 import type { ActorSummary } from '@/shared/types/common';
 
 export type ClassLevel = 'X' | 'XI' | 'XII' | string;

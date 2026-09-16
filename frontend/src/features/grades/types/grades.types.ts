@@ -1,5 +1,3 @@
-// src/features/grades/types/grades.types.ts
-// Student grades & universal grading domain types according to PRD schema
 import type { ActorSummary } from '@/shared/types/common';
 
 export const GRADE_LETTER_VALUES = ['A', 'B', 'C', 'D', 'E'] as const;

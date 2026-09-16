@@ -1,5 +1,3 @@
-// src/features/equipment/components/EquipmentSummaryStats.tsx
-// Summary cards for equipment catalog metrics
 
 import { Camera, CheckCircle2, PackageCheck, Wrench, AlertTriangle } from 'lucide-react';
 import { Card, CardContent } from '@/shared/ui/primitives/card';
@@ -16,9 +14,10 @@ export function EquipmentSummaryStats({ summary }: EquipmentSummaryStatsProps) {
   const dipinjam = summary?.dipinjam ?? 0;
   const maintenance = summary?.maintenance ?? 0;
   const rusak = summary?.rusak ?? 0;
+  const hilang = summary?.hilang ?? 0;
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
       {/* Total Inventory */}
       <Card className="bg-surface-1 border-hairline shadow-none col-span-2 sm:col-span-1">
         <CardContent className="p-3.5">
@@ -63,14 +62,25 @@ export function EquipmentSummaryStats({ summary }: EquipmentSummaryStatsProps) {
         </CardContent>
       </Card>
 
-      {/* Rusak / Hilang */}
+      {/* Rusak */}
       <Card className="bg-surface-1 border-hairline shadow-none">
         <CardContent className="p-3.5">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-ink-subtle text-[11px] font-medium">Rusak / Hilang</span>
+            <span className="text-ink-subtle text-[11px] font-medium">Rusak</span>
             <AlertTriangle size={14} className="text-semantic-danger" />
           </div>
           <div className="text-xl font-bold text-semantic-danger tracking-tight">{formatNumber(rusak)}</div>
+        </CardContent>
+      </Card>
+
+      {/* Hilang */}
+      <Card className="bg-surface-1 border-hairline shadow-none">
+        <CardContent className="p-3.5">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-ink-subtle text-[11px] font-medium">Hilang</span>
+            <AlertTriangle size={14} className="text-semantic-danger" />
+          </div>
+          <div className="text-xl font-bold text-semantic-danger tracking-tight">{formatNumber(hilang)}</div>
         </CardContent>
       </Card>
     </div>

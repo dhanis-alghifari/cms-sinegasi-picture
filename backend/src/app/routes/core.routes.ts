@@ -17,6 +17,7 @@ export async function registerCoreRoutes(
   });
   await fastify.register(attendanceRoutes, {
     attendanceService: dependencies.attendanceService,
+    requiresDatabaseUserId: dependencies.attendanceRequiresDatabaseUserId,
     persistAuditLog: dependencies.persistAuditLog,
   });
   await fastify.register(auditRoutes, { auditService: dependencies.auditService });

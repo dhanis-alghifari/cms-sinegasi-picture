@@ -44,6 +44,7 @@ export type CashTransactionRecord = {
 export type CashTransactionQuery = {
   tipe?: string;
   search?: string;
+  student_id?: string;
   page?: string;
   pageSize?: string;
   tanggal_mulai?: string;

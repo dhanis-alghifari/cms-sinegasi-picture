@@ -1,5 +1,3 @@
-// src/features/students/types/students.types.ts
-// Student domain types according to PRD schema
 import type { ActorSummary } from '@/shared/types/common';
 
 export const PEMINATAN_VALUES = ['kamera', 'editing', 'naskah'] as const;

@@ -119,7 +119,7 @@ export function BorrowingMobileList({
               </div>
             </div>
             <div className="mt-2 flex items-center justify-between gap-3 text-xs">
-              <span className="text-ink-tertiary">Denda</span>
+              <span className="text-ink-tertiary">Tagihan</span>
               <span className={totalFine > 0 ? 'font-semibold text-semantic-danger' : 'text-ink-tertiary'}>{formatCurrency(totalFine)}</span>
             </div>
           </article>

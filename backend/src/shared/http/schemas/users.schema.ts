@@ -27,10 +27,10 @@ export const userCreateRouteSchema = {
   body: {
     type: 'object',
     additionalProperties: false,
-    required: ['username', 'nama', 'role', 'password'],
+    required: ['username', 'name', 'role', 'password'],
     properties: {
       username: { type: 'string', minLength: 3, maxLength: 30, pattern: '^[a-zA-Z0-9._-]+$' },
-      nama: { type: 'string', minLength: 2, maxLength: 200 },
+      name: { type: 'string', minLength: 2, maxLength: 200 },
       role: { type: 'string', enum: roles.filter((role) => role !== 'member') },
       password: { type: 'string', minLength: 1, maxLength: 128 },
       change_reason: { type: 'string', maxLength: 500 },
@@ -46,7 +46,7 @@ export const userUpdateRouteSchema = {
     minProperties: 1,
     properties: {
       username: { type: 'string', minLength: 3, maxLength: 30, pattern: '^[a-zA-Z0-9._-]+$' },
-      nama: { type: 'string', minLength: 2, maxLength: 200 },
+      name: { type: 'string', minLength: 2, maxLength: 200 },
       role: { type: 'string', enum: roles },
       is_active: { type: 'boolean' },
       change_reason: { type: 'string', minLength: 5, maxLength: 500 },

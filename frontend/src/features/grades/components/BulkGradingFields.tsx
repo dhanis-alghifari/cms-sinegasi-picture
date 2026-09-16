@@ -1,5 +1,3 @@
-// src/features/grades/components/BulkGradingFields.tsx
-// Presentational fields for the bulk grading dialog.
 
 import type { RefObject } from 'react';
 import type { UseFormReturn } from 'react-hook-form';
@@ -29,55 +27,79 @@ type GradeMap = Record<string, { nilai: GradeLetter; keterangan: string }>;
 
 interface BulkGradingFieldsProps {
   form: UseFormReturn<BulkGradingFormValues>;
-  assignmentOptions: Assignment[];
-  selectedAssignmentId: string;
-  selectedAssignment?: Assignment;
-  formatAssignmentLabel: (assignment: Assignment) => string;
-  onAssignmentChange: (value: string | null) => void;
-  studentPickerRef: RefObject<HTMLDivElement | null>;
-  studentPickerOpen: boolean;
-  studentSearch: string;
-  studentToAdd?: BulkGradingStudentOption;
-  studentToAddId: string;
-  availableStudents: BulkGradingStudentOption[];
-  eligibleStudents: BulkGradingStudentOption[];
-  selectedStudents: BulkGradingStudentOption[];
-  onToggleStudentPicker: () => void;
-  onStudentSearchChange: (value: string) => void;
-  onSelectStudentToAdd: (studentId: string) => void;
-  onAddStudent: () => void;
-  gradeMap: GradeMap;
-  onGradeChange: (studentId: string, grade: GradeLetter) => void;
-  onKeteranganChange: (studentId: string, note: string) => void;
-  onRemoveStudent: (studentId: string) => void;
+  assignment: {
+    options: Assignment[];
+    selectedId: string;
+    selected?: Assignment;
+    formatLabel: (assignment: Assignment) => string;
+  };
+  studentPicker: {
+    ref: RefObject<HTMLDivElement | null>;
+    open: boolean;
+    search: string;
+    selectedToAdd?: BulkGradingStudentOption;
+    selectedToAddId: string;
+    available: BulkGradingStudentOption[];
+    eligible: BulkGradingStudentOption[];
+    selected: BulkGradingStudentOption[];
+  };
+  grades: {
+    map: GradeMap;
+  };
+  actions: {
+    onAssignmentChange: (value: string | null) => void;
+    onToggleStudentPicker: () => void;
+    onStudentSearchChange: (value: string) => void;
+    onSelectStudentToAdd: (studentId: string) => void;
+    onAddStudent: () => void;
+    onGradeChange: (studentId: string, grade: GradeLetter) => void;
+    onKeteranganChange: (studentId: string, note: string) => void;
+    onRemoveStudent: (studentId: string) => void;
+  };
   error?: unknown;
 }
 
 export function BulkGradingFields({
   form,
-  assignmentOptions,
-  selectedAssignmentId,
-  selectedAssignment,
-  formatAssignmentLabel,
-  onAssignmentChange,
-  studentPickerRef,
-  studentPickerOpen,
-  studentSearch,
-  studentToAdd,
-  studentToAddId,
-  availableStudents,
-  eligibleStudents,
-  selectedStudents,
-  onToggleStudentPicker,
-  onStudentSearchChange,
-  onSelectStudentToAdd,
-  onAddStudent,
-  gradeMap,
-  onGradeChange,
-  onKeteranganChange,
-  onRemoveStudent,
+  assignment,
+  studentPicker,
+  grades,
+  actions,
   error,
 }: BulkGradingFieldsProps) {
+  const {
+    options: assignmentOptions,
+    selectedId: selectedAssignmentId,
+    selected: selectedAssignment,
+    formatLabel: formatAssignmentLabel,
+  } = assignment;
+  const {
+    ref: studentPickerRef,
+    open: studentPickerOpen,
+    search: studentSearch,
+    selectedToAdd: studentToAdd,
+    selectedToAddId: studentToAddId,
+    available: availableStudents,
+    eligible: eligibleStudents,
+    selected: selectedStudents,
+  } = studentPicker;
+  const { map: gradeMap } = grades;
+  const {
+    onAssignmentChange,
+    onToggleStudentPicker,
+    onStudentSearchChange,
+    onSelectStudentToAdd,
+    onAddStudent,
+    onGradeChange,
+    onKeteranganChange,
+    onRemoveStudent,
+  } = actions;
+
+  const handleGradeValueChange = (studentId: string, value: string | null) => {
+    if (value === null) return;
+    if (!isOneOf(value, GRADE_LETTER_VALUES)) return;
+    onGradeChange(studentId, value);
+  };
   return (
     <>
           {Boolean(error) && (
@@ -161,12 +183,12 @@ export function BulkGradingFields({
                       aria-label="Cari siswa"
                     />
                     <div id="student-picker-list" role="listbox" aria-label="Daftar siswa" className="max-h-44 overflow-y-auto space-y-1">
-                      {availableStudents.length === 0 ? (
+                      {availableStudents.length === 0 && (
                         <p className="text-ink-tertiary text-xs text-center py-4">
                           {eligibleStudents.length === selectedStudents.length ? 'Semua siswa yang sesuai sudah ditambahkan.' : 'Siswa tidak ditemukan.'}
                         </p>
-                      ) : (
-                        availableStudents.map((student) => (
+                      )}
+                      {availableStudents.length > 0 && availableStudents.map((student) => (
                           <button
                             key={student.id}
                             type="button"
@@ -188,8 +210,7 @@ export function BulkGradingFields({
                               {student.id === studentToAddId && <Check size={14} className="shrink-0 text-primary" />}
                             </span>
                           </button>
-                        ))
-                      )}
+                      ))}
                     </div>
                   </div>
                 )}
@@ -211,12 +232,12 @@ export function BulkGradingFields({
 
           {/* Selected student grading list */}
           <div className="min-h-0 flex-1 overflow-y-auto space-y-2 pr-1 border-t border-b border-hairline py-2 my-1">
-            {selectedStudents.length === 0 ? (
+            {selectedStudents.length === 0 && (
               <p className="text-center text-ink-tertiary text-xs py-6 italic">
                 Belum ada siswa yang dipilih untuk dinilai.
               </p>
-            ) : (
-              selectedStudents.map((s) => {
+            )}
+            {selectedStudents.length > 0 && selectedStudents.map((s) => {
                 const item = gradeMap[s.id] ?? { nilai: 'B', keterangan: '' };
 
                 return (
@@ -230,7 +251,7 @@ export function BulkGradingFields({
                       {/* Grade A-E selector */}
                       <Select
                         value={item.nilai}
-                        onValueChange={(val) => { if (isOneOf(val, GRADE_LETTER_VALUES)) onGradeChange(s.id, val); }}
+                        onValueChange={(val) => handleGradeValueChange(s.id, val)}
                       >
                         <SelectTrigger className="w-full bg-surface-1 border-hairline text-ink text-xs font-bold md:w-24">
                           <SelectValue placeholder="Pilih nilai" />
@@ -264,8 +285,7 @@ export function BulkGradingFields({
                     </div>
                   </div>
                 );
-              })
-            )}
+            })}
           </div>
 
     </>

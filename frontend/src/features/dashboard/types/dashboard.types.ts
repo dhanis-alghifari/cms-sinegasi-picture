@@ -1,5 +1,3 @@
-// src/features/dashboard/types/dashboard.types.ts
-// Dashboard domain types according to PRD and 01-dashboard-utama.md
 
 export interface KasSummary {
   saldoTerakhir: number;

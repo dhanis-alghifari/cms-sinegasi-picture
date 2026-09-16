@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useState, type ChangeEvent, type ReactNode } from 'react';
 import { AlertTriangle, Info, Loader2 } from 'lucide-react';
 
 import {
@@ -17,21 +17,40 @@ import { cn } from '@/shared/utils/cn';
 
 type AsyncAction = () => Promise<void> | void;
 
-interface BaseActionDialogProps {
+interface DialogState {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  title: string;
-  description: ReactNode;
-  confirmLabel?: string;
-  cancelLabel?: string;
-  destructive?: boolean;
-  onConfirm: AsyncAction;
 }
 
-interface ReasonDialogProps extends Omit<BaseActionDialogProps, 'onConfirm'> {
-  reasonLabel?: string;
-  reasonPlaceholder?: string;
-  onConfirm: (reason: string) => Promise<void> | void;
+interface DialogContentCopy {
+  title: string;
+  description: ReactNode;
+}
+
+interface ActionDialogProps {
+  dialog: DialogState;
+  content: DialogContentCopy;
+  action: {
+    confirmLabel?: string;
+    cancelLabel?: string;
+    onConfirm: AsyncAction;
+  };
+  destructive?: boolean;
+}
+
+interface ReasonDialogProps {
+  dialog: DialogState;
+  content: DialogContentCopy;
+  action: {
+    confirmLabel?: string;
+    cancelLabel?: string;
+    onConfirm: (reason: string) => Promise<void> | void;
+  };
+  reason?: {
+    label?: string;
+    placeholder?: string;
+  };
+  destructive?: boolean;
 }
 
 function useActionDialogState() {
@@ -55,15 +74,14 @@ function ActionError({ message }: { message: string | null }) {
 }
 
 export function ConfirmDialog({
-  open,
-  onOpenChange,
-  title,
-  description,
-  confirmLabel = 'Konfirmasi',
-  cancelLabel = 'Batal',
+  dialog,
+  content,
+  action,
   destructive = false,
-  onConfirm,
-}: BaseActionDialogProps) {
+}: ActionDialogProps) {
+  const { open, onOpenChange } = dialog;
+  const { title, description } = content;
+  const { confirmLabel = 'Konfirmasi', cancelLabel = 'Batal', onConfirm } = action;
   const { isSubmitting, setIsSubmitting, errorMessage, setErrorMessage } = useActionDialogState();
 
   const handleConfirm = async () => {
@@ -131,17 +149,16 @@ export function ConfirmDialog({
 }
 
 export function ReasonDialog({
-  open,
-  onOpenChange,
-  title,
-  description,
-  confirmLabel = 'Simpan',
-  cancelLabel = 'Batal',
+  dialog,
+  content,
+  action,
+  reason: reasonConfig,
   destructive = false,
-  reasonLabel = 'Alasan *',
-  reasonPlaceholder = 'Masukkan alasan (minimal 5 karakter)...',
-  onConfirm,
 }: ReasonDialogProps) {
+  const { open, onOpenChange } = dialog;
+  const { title, description } = content;
+  const { confirmLabel = 'Simpan', cancelLabel = 'Batal', onConfirm } = action;
+  const { label: reasonLabel = 'Alasan *', placeholder: reasonPlaceholder = 'Masukkan alasan (minimal 5 karakter)...' } = reasonConfig ?? {};
   const [reason, setReason] = useState('');
   const { isSubmitting, setIsSubmitting, errorMessage, setErrorMessage } = useActionDialogState();
 
@@ -176,6 +193,11 @@ export function ReasonDialog({
     }
   };
 
+  const handleReasonChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setReason(event.target.value);
+    if (errorMessage) setErrorMessage(null);
+  };
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="bg-surface-1 border-hairline text-ink max-w-md">
@@ -197,10 +219,7 @@ export function ReasonDialog({
             id="action-reason"
             autoFocus
             value={reason}
-            onChange={(event) => {
-              setReason(event.target.value);
-              if (errorMessage) setErrorMessage(null);
-            }}
+            onChange={handleReasonChange}
             placeholder={reasonPlaceholder}
             disabled={isSubmitting}
             className="bg-surface-2 border-hairline text-ink text-xs h-9"
@@ -238,20 +257,21 @@ export function ReasonDialog({
 }
 
 interface NoticeDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  title: string;
-  description: ReactNode;
-  closeLabel?: string;
+  dialog: DialogState;
+  content: DialogContentCopy;
+  action?: {
+    closeLabel?: string;
+  };
 }
 
 export function NoticeDialog({
-  open,
-  onOpenChange,
-  title,
-  description,
-  closeLabel = 'Tutup',
+  dialog,
+  content,
+  action,
 }: NoticeDialogProps) {
+  const { open, onOpenChange } = dialog;
+  const { title, description } = content;
+  const { closeLabel = 'Tutup' } = action ?? {};
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="bg-surface-1 border-hairline text-ink max-w-md">

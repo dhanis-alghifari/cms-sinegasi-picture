@@ -7,6 +7,7 @@ import { CONTEST_WORK_TYPES, type ContestEntriesMemoryState, type ContestEntries
 
 type SupabaseLike = SupabaseClient | null;
 const ENTRY_SELECT = 'id,contest_id,work_id,pipeline_status,outcome_status,result_label,result_note,submitted_at,completed_at,created_by,created_at,updated_at,media_works(id,title,work_type_code,description,duration_minutes,production_year,primary_asset_url,video_url,created_by,created_at,work_types(code,label))';
+const WORK_TYPE_LIST_LIMIT = 100;
 const WORK_TYPE_LABELS: Record<string, string> = {
   short_film: 'Film Pendek',
   documentary: 'Dokumenter',
@@ -27,18 +28,18 @@ function mapEvidence(row: DatabaseRow): ContestEntryEvidenceRecord {
     id: String(row.id),
     entry_id: String(row.entry_id),
     evidence_type: String(row.evidence_type) as ContestEntryEvidenceRecord['evidence_type'],
-    object_key: row.object_key == null ? null : String(row.object_key),
-    public_url: row.public_url == null ? null : String(row.public_url),
+    object_key: row.object_key === null || row.object_key === undefined ? null : String(row.object_key),
+    public_url: row.public_url === null || row.public_url === undefined ? null : String(row.public_url),
     storage_provider: String(row.storage_provider) as ContestEntryEvidenceRecord['storage_provider'],
-    target_status: row.target_status == null ? null : String(row.target_status) as ContestEntryEvidenceRecord['target_status'],
-    mime_type: row.mime_type == null ? null : String(row.mime_type),
-    file_size_bytes: row.file_size_bytes == null ? null : Number(row.file_size_bytes),
-    original_filename: row.original_filename == null ? null : String(row.original_filename),
+    target_status: row.target_status === null || row.target_status === undefined ? null : String(row.target_status) as ContestEntryEvidenceRecord['target_status'],
+    mime_type: row.mime_type === null || row.mime_type === undefined ? null : String(row.mime_type),
+    file_size_bytes: row.file_size_bytes === null || row.file_size_bytes === undefined ? null : Number(row.file_size_bytes),
+    original_filename: row.original_filename === null || row.original_filename === undefined ? null : String(row.original_filename),
     upload_status: String(row.upload_status) as ContestEntryEvidenceRecord['upload_status'],
-    attached_status: row.attached_status == null ? null : String(row.attached_status) as ContestEntryEvidenceRecord['attached_status'],
-    created_by: row.created_by == null ? null : String(row.created_by),
-    created_at: row.created_at == null ? undefined : String(row.created_at),
-    updated_at: row.updated_at == null ? undefined : String(row.updated_at),
+    attached_status: row.attached_status === null || row.attached_status === undefined ? null : String(row.attached_status) as ContestEntryEvidenceRecord['attached_status'],
+    created_by: row.created_by === null || row.created_by === undefined ? null : String(row.created_by),
+    created_at: row.created_at === null || row.created_at === undefined ? undefined : String(row.created_at),
+    updated_at: row.updated_at === null || row.updated_at === undefined ? undefined : String(row.updated_at),
   };
 }
 
@@ -60,13 +61,14 @@ export function createContestEntriesRepository(client: SupabaseLike, state: Cont
         .select('code,label,sort_order')
         .eq('is_active', true)
         .order('sort_order', { ascending: true })
-        .order('code', { ascending: true });
+        .order('code', { ascending: true })
+        .limit(WORK_TYPE_LIST_LIMIT);
       if (result.error) return { error: result.error };
       return {
         data: (result.data || []).map((row) => ({
           code: String(row.code) as ContestWorkTypeRecord['code'],
           label: String(row.label),
-          sort_order: row.sort_order == null ? undefined : Number(row.sort_order),
+          sort_order: row.sort_order === null || row.sort_order === undefined ? undefined : Number(row.sort_order),
         })),
       };
     },

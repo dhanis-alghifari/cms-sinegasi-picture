@@ -22,7 +22,7 @@ test('contest routes keep role and capability guards', async (t) => {
     method: 'POST',
     url: '/api/contests',
     headers: { authorization: `Bearer ${member}` },
-    payload: { nama: 'Festival', jenis: 'Film', level: 'kota', tanggal: '2026-10-01' },
+    payload: { name: 'Festival', contest_type: 'Film', level: 'city', date: '2026-10-01' },
   });
   assert.equal(deniedCreate.statusCode, 403);
 
@@ -31,12 +31,12 @@ test('contest routes keep role and capability guards', async (t) => {
     url: '/api/contests',
     headers: { authorization: `Bearer ${leader}` },
     payload: {
-      nama_lomba: 'Festival Public Contract',
-      kota: 'Yogyakarta',
-      tingkat: 'jawa_barat',
+      contest_name: 'Festival Public Contract',
+      city: 'Yogyakarta',
+      scope: 'west_java',
       deadline: '2026-12-01',
-      status: 'buka',
-      tahun_event: 2026,
+      status: 'open',
+      event_year: 2026,
       website_url: 'https://example.test/contest',
     },
   });
@@ -48,7 +48,7 @@ test('contest routes keep role and capability guards', async (t) => {
     method: 'PUT',
     url: `/api/contests/${contestId}`,
     headers: { authorization: `Bearer ${leader}` },
-    payload: { kota: 'Bekasi' },
+    payload: { city: 'Bekasi' },
   });
   assert.equal(missingReasonUpdate.statusCode, 422);
   assert.equal(missingReasonUpdate.json().error_code, 'CONTEST_UPDATE_REASON_REQUIRED');
@@ -57,7 +57,7 @@ test('contest routes keep role and capability guards', async (t) => {
     method: 'PUT',
     url: `/api/contests/${contestId}`,
     headers: { authorization: `Bearer ${leader}`, 'x-change-reason': 'Memperbarui kota event' },
-    payload: { kota: 'Bekasi' },
+    payload: { city: 'Bekasi' },
   });
   assert.equal(acceptedUpdate.statusCode, 200);
 
@@ -75,10 +75,10 @@ test('contest routes keep role and capability guards', async (t) => {
     headers: { authorization: `Bearer ${contestTeam}` },
     payload: {
       contest_id: 'cnt-001',
-      judul_film: 'Film Frontend',
-      sutradara_id: 'student-1',
-      link_video: 'https://example.test/video',
-      award_status: 'Peserta',
+      film_title: 'Film Frontend',
+      director_id: 'student-1',
+      video_url: 'https://example.test/video',
+      award_status: 'participant',
     },
   });
   assert.equal(acceptedRichSubmit.statusCode, 201);

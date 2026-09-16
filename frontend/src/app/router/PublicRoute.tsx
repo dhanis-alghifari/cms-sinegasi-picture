@@ -1,5 +1,3 @@
-// src/app/router/PublicRoute.tsx
-// Redirects already-authenticated users away from login page
 
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';

@@ -1,7 +1,7 @@
 import { runtimeConfig } from '../../config/env.js';
 import type { BorrowingDatabaseError } from './borrowing.mutations.types.js';
 
-export const BORROWING_SCHEMA_MIGRATION_MESSAGE = 'Skema detail peminjaman belum terpasang. Jalankan query migration 014_borrowing_items_hardening.sql di Supabase, lalu restart backend.';
+export const BORROWING_SCHEMA_MIGRATION_MESSAGE = 'Skema peminjaman belum lengkap. Jalankan migration 014_borrowing_items_hardening.sql, 060_equipment_valuation_return_assessment.sql, 062_borrowing_return_evidence.sql, dan 063_equipment_recovery_and_charges.sql di Supabase, lalu restart backend.';
 
 export function isIsoDate(value: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
@@ -19,7 +19,8 @@ export function isMissingBorrowingSchemaError(error: BorrowingDatabaseError | nu
   if (code === '42883') return message.includes('create_borrowing_atomic')
     || message.includes('approve_borrowing_atomic')
     || message.includes('handover_borrowing_atomic')
-    || message.includes('return_borrowing_atomic');
+    || message.includes('return_borrowing_atomic')
+    || message.includes('reserve_borrowing_return_evidence_atomic');
   return message.includes('function public.create_borrowing_atomic')
     || message.includes('relation "public.borrowing_items" does not exist');
 }
@@ -35,6 +36,26 @@ export function getBorrowingErrorMessage(error: BorrowingDatabaseError | null | 
 
   if (error?.code === '23505') return 'Peminjaman dengan data yang sama sudah tercatat.';
   const message = typeof error?.message === 'string' ? error.message.trim() : '';
+  if (/return item conditions are required/i.test(message)) return 'Kondisi setiap alat yang dikembalikan wajib diisi.';
+  if (/equipment is not part of the active borrowing/i.test(message)) return 'Alat tidak termasuk dalam peminjaman aktif ini.';
+  if (/invalid return condition/i.test(message)) return 'Kondisi pengembalian alat tidak valid.';
+  if (/good equipment cannot have a settlement charge/i.test(message)) return 'Alat dalam kondisi baik tidak boleh memiliki tagihan.';
+  if (/lost equipment must use replacement settlement/i.test(message)) return 'Alat yang hilang harus menggunakan penyelesaian penggantian.';
+  if (/replacement valuation is missing/i.test(message)) return 'Nilai penggantian alat belum dikonfigurasi.';
+  if (/positive repair cost is required/i.test(message)) return 'Biaya perbaikan wajib diisi dengan nominal lebih dari nol.';
+  if (/invalid settlement method/i.test(message)) return 'Metode penyelesaian tidak valid.';
+  if (/return change reason must contain at least 5 characters/i.test(message)) return 'Alasan pengembalian wajib diisi minimal 5 karakter.';
+  if (/borrowing not found/i.test(message)) return 'Data peminjaman tidak ditemukan.';
+  if (/borrowing is not returnable/i.test(message)) return 'Peminjaman ini belum dapat diproses untuk pengembalian.';
+  if (/every active borrowing item must be assessed/i.test(message)) return 'Semua alat dalam peminjaman aktif wajib diperiksa.';
+  if (/return evidence is required|return_evidence_required|return evidence required/i.test(message)) return 'Foto kondisi wajib diunggah untuk setiap alat yang kembali.';
+  if (/return evidence.*invalid|return_evidence_invalid/i.test(message)) return 'Foto kondisi tidak sesuai dengan alat atau peminjaman ini.';
+  if (/return evidence.*upload incomplete|return_evidence_upload_incomplete/i.test(message)) return 'Unggahan foto kondisi belum selesai atau metadata file tidak sesuai.';
+  if (/return_evidence_file_invalid/i.test(message)) return 'Foto kondisi harus berupa JPG, PNG, atau WebP dengan ukuran maksimal 600 KB.';
+  if (/return_evidence_actor_forbidden/i.test(message)) return 'Akun Anda tidak berwenang mengunggah foto kondisi.';
+  if (/return_evidence_item_invalid/i.test(message)) return 'Alat tidak termasuk dalam peminjaman aktif ini.';
+  if (/student_has_outstanding_equipment_charge/i.test(message)) return 'Peminjam masih memiliki tagihan alat yang belum lunas.';
+  if (/return_evidence_object_key_reused/i.test(message)) return 'Unggahan foto ini sudah dipakai pada peminjaman lain.';
   if (message && !/[{};]/.test(message) && !/\b(SELECT|UPDATE|INSERT|DELETE|FROM|WHERE)\b/i.test(message)) return message;
   return 'Gagal memproses transaksi peminjaman.';
 }
@@ -42,8 +63,10 @@ export function getBorrowingErrorMessage(error: BorrowingDatabaseError | null | 
 export function borrowingMutationStatus(error: BorrowingDatabaseError | null | undefined): number {
   const message = String(error?.message || '').toLowerCase();
   if (error?.code === '23505' || error?.code === 'ALREADY_PROCESSED' || error?.code === 'CONFLICT'
-    || message.includes('tidak tersedia') || message.includes('sudah diproses') || message.includes('dipesan')) return 409;
+    || message.includes('tidak tersedia') || message.includes('sudah diproses') || message.includes('dipesan')
+    || message.includes('student_has_outstanding_equipment_charge')) return 409;
   if (error?.code === 'NOT_FOUND' || error?.code === 'PGRST116' || message.includes('tidak ditemukan')) return 404;
   if (isMissingBorrowingSchemaError(error)) return 503;
+  if (message.includes('return_evidence_') || message.includes('return evidence')) return 422;
   return 400;
 }

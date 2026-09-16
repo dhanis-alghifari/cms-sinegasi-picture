@@ -63,6 +63,11 @@ export function StudentStatusDialog({
     }
   };
 
+  const handleReasonChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setReason(event.target.value);
+    if (formError) setFormError(null);
+  };
+
   return (
     <Dialog open={open} onOpenChange={handleDialogOpenChange}>
       <DialogContent className="bg-surface-1 border-hairline text-ink max-w-md">
@@ -85,7 +90,7 @@ export function StudentStatusDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4 pt-2">
+        <form noValidate onSubmit={handleSubmit} className="space-y-4 pt-2">
           {(formError || Boolean(error)) && (
             <div role="alert" className="px-3.5 py-2.5 rounded-md bg-semantic-danger/10 border border-semantic-danger/30 text-semantic-danger text-xs font-medium">
               {formError || getErrorMessage(error)}
@@ -99,10 +104,7 @@ export function StudentStatusDialog({
             <Textarea
               id="student-status-reason"
               value={reason}
-              onChange={(event) => {
-                setReason(event.target.value);
-                if (formError) setFormError(null);
-              }}
+              onChange={handleReasonChange}
               placeholder={isDeactivating ? 'Contoh: Lulus dan sudah menjadi alumni.' : 'Contoh: Kembali aktif mengikuti kegiatan sekolah.'}
               rows={3}
               disabled={isLoading}

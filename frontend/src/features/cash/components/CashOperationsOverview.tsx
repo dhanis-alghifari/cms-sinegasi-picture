@@ -11,30 +11,54 @@ import { CashSectionError, CashSectionSkeleton } from './CashSectionState';
 import type { CashTransaction } from '../types/cash.types';
 
 interface CashOperationsOverviewProps {
-  transactions: CashTransaction[];
-  isLoading: boolean;
-  error?: unknown;
-  isMobile: boolean;
-  isStudent: boolean;
-  outstandingDebt: number;
-  onDispute?: (transaction: CashTransaction) => void;
-  onRetry: () => void;
-  onViewTransactions: () => void;
-  onViewDebts: () => void;
+  state: {
+    transactions: CashTransaction[];
+    isLoading: boolean;
+    error?: unknown;
+    outstandingDebt: number;
+  };
+  access: {
+    isMobile: boolean;
+    isStudent: boolean;
+  };
+  actions: {
+    onDispute?: (transaction: CashTransaction) => void;
+    onRetry: () => void;
+    onViewTransactions: () => void;
+    onViewDebts: () => void;
+  };
 }
 
 export function CashOperationsOverview({
-  transactions,
-  isLoading,
-  error,
-  isMobile,
-  isStudent,
-  outstandingDebt,
-  onDispute,
-  onRetry,
-  onViewTransactions,
-  onViewDebts,
+  state,
+  access,
+  actions,
 }: CashOperationsOverviewProps) {
+  const { transactions, isLoading, error, outstandingDebt } = state;
+  const { isMobile, isStudent } = access;
+  const { onDispute, onRetry, onViewTransactions, onViewDebts } = actions;
+
+  const transactionContent = (() => {
+    if (isLoading) return <CashSectionSkeleton rows={3} />;
+    if (error) return <CashSectionError error={error} onRetry={onRetry} title="Transaksi terbaru belum tersedia" />;
+    if (transactions.length === 0) {
+      return (
+        <EmptyState
+          title="Belum ada transaksi kas"
+          description="Catat kas masuk atau pengeluaran pertama untuk mulai membangun riwayat kas."
+          action={(
+            <Button type="button" variant="outline" onClick={onViewTransactions} className="min-h-11 text-sm text-ink">
+              Buka riwayat transaksi
+            </Button>
+          )}
+        />
+      );
+    }
+    return isMobile
+      ? <CashTransactionMobileList transactions={transactions} onDispute={onDispute} isStudent={isStudent} />
+      : <CashTransactionTable transactions={transactions} onDispute={onDispute} isStudent={isStudent} />;
+  })();
+
   return (
     <div className="space-y-4">
       {outstandingDebt > 0 && !isStudent && (
@@ -76,33 +100,7 @@ export function CashOperationsOverview({
           </Button>
         </CardHeader>
         <CardContent className="p-4 pt-0 sm:p-5 sm:pt-0">
-          {isLoading ? (
-            <CashSectionSkeleton rows={3} />
-          ) : error ? (
-            <CashSectionError error={error} onRetry={onRetry} title="Transaksi terbaru belum tersedia" />
-          ) : transactions.length === 0 ? (
-            <EmptyState
-              title="Belum ada transaksi kas"
-              description="Catat kas masuk atau pengeluaran pertama untuk mulai membangun riwayat kas."
-              action={(
-                <Button type="button" variant="outline" onClick={onViewTransactions} className="min-h-11 text-sm text-ink">
-                  Buka riwayat transaksi
-                </Button>
-              )}
-            />
-          ) : isMobile ? (
-            <CashTransactionMobileList
-              transactions={transactions}
-              onDispute={onDispute}
-              isStudent={isStudent}
-            />
-          ) : (
-            <CashTransactionTable
-              transactions={transactions}
-              onDispute={onDispute}
-              isStudent={isStudent}
-            />
-          )}
+          {transactionContent}
         </CardContent>
       </Card>
     </div>

@@ -2,6 +2,7 @@ import {
   CASH_SCHEMA_MIGRATION_MESSAGE,
   getBusinessTodayDate,
   isIsoDate,
+  isUuid,
   isMissingCashSchemaError,
   normalizePaymentMethodCode,
 } from '../shared/cash.helpers.js';
@@ -59,6 +60,9 @@ export class CashReportingService {
   }
 
   async listDebts(query: CashDebtQuery, scope: CashReportScope) {
+    if (query.student_id && !isUuid(query.student_id)) {
+      throw new CashReportingServiceError(422, 'INVALID_STUDENT_ID', 'ID siswa tidak valid.');
+    }
     const result = await this.repository.listDebts(query, scope);
     if (result.error || !result.data) mapRepositoryError(result.error, 'Gagal memuat tunggakan kas.');
     return result.data;

@@ -1,5 +1,7 @@
-const MAX_COMPRESSED_IMAGE_BYTES = 600 * 1024;
-const MAX_IMAGE_DIMENSION = 1200;
+export const MAX_COMPRESSED_IMAGE_BYTES = 600 * 1024;
+export const MAX_IMAGE_DIMENSION = 1600;
+const MIN_JPEG_QUALITY = 0.5;
+const MAX_JPEG_QUALITY = 0.88;
 
 export const MAX_SOURCE_IMAGE_BYTES = 5 * 1024 * 1024;
 
@@ -28,7 +30,7 @@ function loadImage(file: File): Promise<HTMLImageElement> {
   });
 }
 
-export async function compressImageFile(file: File): Promise<string> {
+export async function compressImageFileToBlob(file: File): Promise<Blob> {
   const image = await loadImage(file);
   const scale = Math.min(1, MAX_IMAGE_DIMENSION / Math.max(image.naturalWidth, image.naturalHeight));
   const canvas = document.createElement('canvas');
@@ -40,19 +42,41 @@ export async function compressImageFile(file: File): Promise<string> {
 
   context.drawImage(image, 0, 0, canvas.width, canvas.height);
 
-  let quality = 0.82;
+  let low = MIN_JPEG_QUALITY;
+  let high = MAX_JPEG_QUALITY;
   let blob: Blob | null = null;
-  while (quality >= 0.45) {
-    blob = await new Promise<Blob | null>((resolve) => {
+
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    const quality = (low + high) / 2;
+    const candidate = await new Promise<Blob | null>((resolve) => {
       canvas.toBlob(resolve, 'image/jpeg', quality);
     });
-    if (blob && blob.size <= MAX_COMPRESSED_IMAGE_BYTES) break;
-    quality -= 0.1;
+    if (!candidate) continue;
+    if (candidate.size <= MAX_COMPRESSED_IMAGE_BYTES) {
+      blob = candidate;
+      low = quality;
+    } else {
+      high = quality;
+    }
   }
 
   if (!blob || blob.size > MAX_COMPRESSED_IMAGE_BYTES) {
-    throw new Error('Foto terlalu besar setelah dikompres. Pilih foto lain.');
+    throw new Error('Foto terlalu besar untuk diproses. Pilih foto lain.');
   }
 
+  return blob;
+}
+
+export async function compressImageFileToFile(file: File): Promise<File> {
+  const blob = await compressImageFileToBlob(file);
+  const baseName = file.name.replace(/\.[^.]+$/, '') || 'image';
+  return new File([blob], `${baseName}.jpg`, {
+    type: 'image/jpeg',
+    lastModified: Date.now(),
+  });
+}
+
+export async function compressImageFile(file: File): Promise<string> {
+  const blob = await compressImageFileToBlob(file);
   return readBlobAsDataUrl(blob);
 }

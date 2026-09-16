@@ -13,13 +13,17 @@ export const cashTransactionsRouteSchema = {
     type: 'object',
     additionalProperties: false,
     properties: {
-      tipe: { type: 'string', enum: ['masuk', 'keluar'], maxLength: 16 },
+      type: { type: 'string', enum: ['income', 'expense'], maxLength: 16 },
       search: { type: 'string', maxLength: 100 },
+      student_id: {
+        type: 'string',
+        pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+      },
       page: { type: 'string', pattern: '^[0-9]+$' },
       pageSize: { type: 'string', pattern: '^[0-9]+$' },
-      tanggal_mulai: { type: 'string', minLength: 10, maxLength: 10 },
-      tanggal_selesai: { type: 'string', minLength: 10, maxLength: 10 },
-      metode_pembayaran: { type: 'string', maxLength: 40 },
+      start_date: { type: 'string', minLength: 10, maxLength: 10 },
+      end_date: { type: 'string', minLength: 10, maxLength: 10 },
+      payment_method: { type: 'string', maxLength: 40 },
     },
   },
 } as const;
@@ -65,15 +69,14 @@ export const cashInRouteSchema = {
     type: 'object',
     additionalProperties: false,
     properties: {
-      nominal: { type: 'number', minimum: 0, maximum: 9999999999.99 },
-      jumlah: { type: 'number', minimum: 0, maximum: 9999999999.99 },
-      tanggal: { type: 'string', minLength: 10, maxLength: 10 },
-      keterangan: { type: 'string', maxLength: 500 },
-      type: { type: 'string', enum: ['iuran_wajib', 'pemasukan'] },
+      amount: { type: 'number', minimum: 0, maximum: 9999999999.99 },
+      date: { type: 'string', minLength: 10, maxLength: 10 },
+      description: { type: 'string', maxLength: 500 },
+      type: { type: 'string', enum: ['mandatory_fee', 'other_income'] },
       student_id: { type: 'string', maxLength: 64 },
-      foto_bukti_url: { type: 'string', maxLength: MAX_CASH_PROOF_URL_LENGTH },
+      proof_photo_url: { type: 'string', maxLength: MAX_CASH_PROOF_URL_LENGTH },
       idempotency_key: { type: 'string', minLength: 8, maxLength: 128 },
-      metode_pembayaran: { type: ['string', 'null'], maxLength: 40 },
+      payment_method: { type: ['string', 'null'], maxLength: 40 },
     },
   },
 } as const;
@@ -83,12 +86,11 @@ export const cashOutRouteSchema = {
     type: 'object',
     additionalProperties: false,
     properties: {
-      nominal: { type: 'number', exclusiveMinimum: 0, maximum: 9999999999.99 },
-      jumlah: { type: 'number', exclusiveMinimum: 0, maximum: 9999999999.99 },
-      keterangan: { type: 'string', minLength: 1, maxLength: 500 },
-      foto_bukti_url: { type: 'string', maxLength: MAX_CASH_PROOF_URL_LENGTH },
+      amount: { type: 'number', exclusiveMinimum: 0, maximum: 9999999999.99 },
+      description: { type: 'string', minLength: 1, maxLength: 500 },
+      proof_photo_url: { type: 'string', maxLength: MAX_CASH_PROOF_URL_LENGTH },
       idempotency_key: { type: 'string', minLength: 8, maxLength: 128 },
-      metode_pembayaran: { type: 'string', maxLength: 40 },
+      payment_method: { type: 'string', maxLength: 40 },
     },
   },
 } as const;
@@ -100,7 +102,7 @@ export const cashReportRouteSchema = {
     properties: {
       start_date: { type: 'string', minLength: 10, maxLength: 10 },
       end_date: { type: 'string', minLength: 10, maxLength: 10 },
-      metode_pembayaran: { type: 'string', maxLength: 40 },
+      payment_method: { type: 'string', maxLength: 40 },
     },
   },
 } as const;
@@ -111,6 +113,10 @@ export const cashDebtListRouteSchema = {
     additionalProperties: false,
     properties: {
       search: { type: 'string', maxLength: 100 },
+      student_id: {
+        type: 'string',
+        pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+      },
       page: { type: 'string', pattern: '^[0-9]+$' },
       pageSize: { type: 'string', pattern: '^[0-9]+$' },
     },
@@ -122,7 +128,7 @@ export const cashBillingRulesUpdateRouteSchema = {
     type: 'object',
     additionalProperties: false,
     properties: {
-      nominal_iuran_wajib: { type: 'number', minimum: 500, maximum: 9999999999.99 },
+      mandatory_fee_amount: { type: 'number', minimum: 500, maximum: 9999999999.99 },
       holiday_start_date: { type: ['string', 'null'], minLength: 10, maxLength: 10 },
       holiday_end_date: { type: ['string', 'null'], minLength: 10, maxLength: 10 },
       skip_week: { type: 'boolean' },
@@ -142,7 +148,7 @@ export const cashDisputeCreateRouteSchema = {
   body: {
     type: 'object',
     additionalProperties: false,
-    required: ['reason', 'bukti_sanggahan_url'],
+    required: ['reason', 'evidence_url'],
     oneOf: [
       { required: ['transaction_id'], not: { required: ['debt_record_id'] } },
       { required: ['debt_record_id'], not: { required: ['transaction_id'] } },
@@ -151,7 +157,7 @@ export const cashDisputeCreateRouteSchema = {
       transaction_id: { type: 'string', minLength: 1, maxLength: 64 },
       debt_record_id: { type: 'string', minLength: 1, maxLength: 64 },
       reason: { type: 'string', minLength: 10, maxLength: 2000 },
-      bukti_sanggahan_url: { type: 'string', minLength: 1, maxLength: MAX_CASH_PROOF_URL_LENGTH },
+      evidence_url: { type: 'string', minLength: 1, maxLength: MAX_CASH_PROOF_URL_LENGTH },
     },
   },
 } as const;

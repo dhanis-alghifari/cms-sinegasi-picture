@@ -1,5 +1,3 @@
-// src/features/cash/schemas/cashSchema.ts
-// Zod validation schemas for cash & dispute forms according to PRD rules
 
 import { z } from 'zod';
 
@@ -7,20 +5,19 @@ import { z } from 'zod';
 // Keep the client contract aligned with the Fastify cash-proof limit.
 const MAX_CASH_PROOF_URL_LENGTH = 900_000;
 
-const isoDate = z.string().refine((value) => {
+const isoDate = z.string({ error: 'Tanggal transaksi wajib diisi.' }).refine((value) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const parsed = new Date(`${value}T00:00:00.000Z`);
   return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 }, 'Tanggal tidak valid');
 
-// Fast Inbound Cash Form Schema (Bendahara)
 export const cashInSchema = z.object({
-  type: z.enum(['iuran_wajib', 'pemasukan']),
-  payment_mode: z.enum(['pay_now', 'unpaid']),
+  type: z.enum(['iuran_wajib', 'pemasukan'], { error: 'Jenis pemasukan wajib dipilih.' }),
+  payment_mode: z.enum(['pay_now', 'unpaid'], { error: 'Status pembayaran wajib dipilih.' }),
   metode_pembayaran: z.string().trim().optional(),
   student_id: z.string().optional(),
   tanggal: isoDate,
-  jumlah: z.number().finite().min(0, 'Nominal tidak boleh negatif').max(9_999_999_999.99, 'Nominal terlalu besar'),
+  jumlah: z.number({ error: 'Nominal pemasukan wajib diisi.' }).finite().min(0, 'Nominal tidak boleh negatif').max(9_999_999_999.99, 'Nominal terlalu besar'),
   keterangan: z.string().optional(),
   foto_bukti_url: z.string().refine(
     (val) => !val || val.startsWith('http://') || val.startsWith('https://') || val.startsWith('data:image/'),
@@ -46,10 +43,9 @@ export const cashInSchema = z.object({
 
 export type CashInFormValues = z.infer<typeof cashInSchema>;
 
-// Outbound Cash Form Schema (Two-Stage Requirement)
 export const cashOutSchema = z.object({
-  jumlah: z.number().min(1, 'Nominal minimal Rp 1'),
-  keterangan: z.string().min(5, 'Rincian pengeluaran (keterangan detail) wajib diisi minimal 5 karakter'),
+  jumlah: z.number({ error: 'Nominal pengeluaran wajib diisi.' }).min(1, 'Nominal minimal Rp 1'),
+  keterangan: z.string({ error: 'Rincian pengeluaran wajib diisi.' }).min(5, 'Rincian pengeluaran minimal 5 karakter'),
   foto_bukti_url: z.string().refine(
     (val) => !val || val.startsWith('http://') || val.startsWith('https://') || val.startsWith('data:image/'),
     'URL foto tidak valid',
@@ -58,13 +54,12 @@ export const cashOutSchema = z.object({
 
 export type CashOutFormValues = z.infer<typeof cashOutSchema>;
 
-// Student Dispute Form Schema (Wajib Foto Bukti)
 export const disputeSchema = z.object({
   transaction_id: z.string().optional(),
   debt_record_id: z.string().optional(),
-  reason: z.string().min(10, 'Alasan sanggahan minimal 10 karakter'),
-  bukti_sanggahan_url: z.string()
-    .min(1, 'Wajib melampirkan foto bukti pembayaran')
+  reason: z.string({ error: 'Alasan sanggahan wajib diisi.' }).min(10, 'Alasan sanggahan minimal 10 karakter'),
+  bukti_sanggahan_url: z.string({ error: 'Foto bukti pembayaran wajib dilampirkan.' })
+    .min(1, 'Foto bukti pembayaran wajib dilampirkan.')
     .max(MAX_CASH_PROOF_URL_LENGTH, 'Foto terlalu besar. Pilih foto yang lebih kecil.')
     .refine(
       (val) => val.startsWith('http://') || val.startsWith('https://') || val.startsWith('data:image/'),
@@ -78,13 +73,12 @@ export const disputeSchema = z.object({
 
 export type DisputeFormValues = z.infer<typeof disputeSchema>;
 
-// Billing Rules Setting Schema
 export const billingRulesSchema = z.object({
-  nominal_iuran_wajib: z.number().min(500, 'Nominal iuran wajib minimal Rp 500'),
+  nominal_iuran_wajib: z.number({ error: 'Nominal iuran wajib wajib diisi.' }).min(500, 'Nominal iuran wajib minimal Rp 500'),
   holiday_start_date: z.string().optional(),
   holiday_end_date: z.string().optional(),
-  skip_week: z.boolean(),
-  change_reason: z.string().min(5, 'Alasan perubahan iuran minimal 5 karakter'),
+  skip_week: z.boolean({ error: 'Pilihan penagihan wajib ditentukan.' }),
+  change_reason: z.string({ error: 'Alasan perubahan iuran wajib diisi.' }).min(5, 'Alasan perubahan iuran minimal 5 karakter'),
 });
 
 export type BillingRulesFormValues = z.infer<typeof billingRulesSchema>;

@@ -1,5 +1,3 @@
-// src/features/students/components/StudentFormDialog.tsx
-// Dialog form for creating or editing student records with Image File Upload & Preview
 
 import { useCallback, useEffect, useState, useRef } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
@@ -17,6 +15,7 @@ import {
 import { Button } from '@/shared/ui/primitives/button';
 import { getErrorMessage } from '@/shared/api/errors';
 import { compressImageFile, MAX_SOURCE_IMAGE_BYTES } from '@/shared/utils/compressImage';
+import { UI_CONSTANTS } from '@/shared/constants/ui';
 import { StudentFormFields } from './StudentFormFields';
 
 import { studentSchema, type StudentFormValues } from '../schemas/studentSchema';
@@ -70,7 +69,7 @@ export function StudentFormDialog({
 
   useEffect(() => {
     if (!open) return;
-    const timer = window.setTimeout(() => void loadClassOptions(), 0);
+    const timer = window.setTimeout(() => void loadClassOptions(), UI_CONSTANTS.DEFERRED_ACTION_MS);
     return () => window.clearTimeout(timer);
   }, [loadClassOptions, open]);
 
@@ -140,7 +139,7 @@ export function StudentFormDialog({
       setFormError('File harus berupa gambar JPEG, PNG, atau WebP.');
       return;
     }
-    if (file.size > MAX_SOURCE_IMAGE_BYTES) {
+    if (file.size < 1 || file.size > MAX_SOURCE_IMAGE_BYTES) {
       setFormError('Ukuran foto sumber maksimal 5 MB.');
       return;
     }
@@ -208,7 +207,7 @@ export function StudentFormDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4 pt-2">
+        <form noValidate onSubmit={handleSubmit} className="space-y-4 pt-2">
           {(formError || Boolean(error)) && (
             <div role="alert" className="px-3.5 py-2.5 rounded-md bg-semantic-danger/10 border border-semantic-danger/30 text-semantic-danger text-xs font-medium">
               {formError || getErrorMessage(error)}
@@ -217,17 +216,18 @@ export function StudentFormDialog({
 
           <StudentFormFields
             form={form}
-            isEditing={isEditing}
-            selectedKelas={selectedKelas}
-            selectedPeminatan={selectedPeminatan}
-            activePreview={activePreview}
-            fileInputRef={fileInputRef}
-            classOptions={classOptions}
-            classOptionsLoading={classOptionsLoading}
-            classOptionsError={classOptionsError}
-            onFileChange={handleFileChange}
-            onRemoveImage={handleRemoveImage}
-            onRetryLoadClasses={loadClassOptions}
+            state={{ isEditing, selectedKelas, selectedPeminatan, activePreview }}
+            classes={{
+              options: classOptions,
+              isLoading: classOptionsLoading,
+              error: classOptionsError,
+              onRetry: loadClassOptions,
+            }}
+            image={{
+              fileInputRef,
+              onFileChange: handleFileChange,
+              onRemove: handleRemoveImage,
+            }}
           />
 
           <DialogFooter className="pt-2">

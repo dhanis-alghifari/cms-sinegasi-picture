@@ -1,8 +1,8 @@
-// src/features/cash/hooks/useCreateCashInMutation.ts
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { QueryKey } from '@tanstack/react-query';
 import { QUERY_KEYS } from '@/shared/constants/queryKeys';
+import { UI_CONSTANTS } from '@/shared/constants/ui';
 import { invalidateActiveQueries } from '@/shared/api/invalidateActiveQueries';
 import type { PaginatedResponse } from '@/shared/types/common';
 import { formatPaymentMethodLabel } from '@/shared/utils/formatLabels';
@@ -36,7 +36,7 @@ function addOptimisticTransaction(
   if (current.data.some((item) => item.id === transaction.id)) return current;
 
   const page = Number((queryKey[2] as CashTransactionFilters | undefined)?.page || 1);
-  const pageSize = current.pageSize || 10;
+  const pageSize = current.pageSize || UI_CONSTANTS.DEFAULT_PAGE_SIZE;
   const nextTotal = current.total + 1;
   return {
     ...current,

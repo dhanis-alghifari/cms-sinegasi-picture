@@ -1,5 +1,3 @@
-// src/features/dashboard/components/GradeDistributionCard.tsx
-// Dashboard widget — Sebaran Nilai A-E Universal Grading System
 
 import { GraduationCap } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/primitives/card';

@@ -31,9 +31,9 @@ export const attendanceWriteRouteSchema = {
     additionalProperties: false,
     properties: {
       student_id: { type: 'string', minLength: 1, maxLength: 64 },
-      tanggal: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
-      status: { type: 'string', enum: ['hadir', 'sakit', 'izin', 'alpha'] },
-      kelas: { type: 'string', minLength: 1, maxLength: 80 },
+      date: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
+      status: { type: 'string', enum: ['present', 'sick', 'excused', 'absent'] },
+      class_name: { type: 'string', minLength: 1, maxLength: 80 },
       records: {
         type: 'array',
         minItems: 1,
@@ -44,18 +44,18 @@ export const attendanceWriteRouteSchema = {
           required: ['student_id', 'status'],
           properties: {
             student_id: { type: 'string', minLength: 1, maxLength: 64 },
-            status: { type: 'string', enum: ['hadir', 'sakit', 'izin', 'alpha'] },
-            keterangan: { type: 'string', maxLength: 500 },
+            status: { type: 'string', enum: ['present', 'sick', 'excused', 'absent'] },
+            notes: { type: 'string', maxLength: 500 },
           },
         },
       },
-      keterangan: { type: 'string', maxLength: 500 },
+      notes: { type: 'string', maxLength: 500 },
       idempotency_key: { type: 'string', minLength: 8, maxLength: 128 },
       idempotencyKey: { type: 'string', minLength: 8, maxLength: 128 },
     },
     anyOf: [
-      { required: ['student_id', 'tanggal', 'status'] },
-      { required: ['tanggal', 'kelas', 'records'] },
+      { required: ['student_id', 'date', 'status'] },
+      { required: ['date', 'class_name', 'records'] },
     ],
   },
 } as const;
@@ -64,10 +64,10 @@ export const attendanceRosterRouteSchema = {
   querystring: {
     type: 'object',
     additionalProperties: false,
-    required: ['tanggal', 'kelas'],
+    required: ['date', 'class_name'],
     properties: {
-      tanggal: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
-      kelas: { type: 'string', minLength: 1, maxLength: 80 },
+      date: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
+      class_name: { type: 'string', minLength: 1, maxLength: 80 },
       page: { type: 'string', pattern: '^[0-9]+$' },
       pageSize: { type: 'string', pattern: '^[0-9]+$' },
     },
@@ -78,10 +78,10 @@ export const attendanceBatchWriteRouteSchema = {
   body: {
     type: 'object',
     additionalProperties: false,
-    required: ['tanggal', 'kelas', 'records'],
+    required: ['date', 'class_name', 'records'],
     properties: {
-      tanggal: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
-      kelas: { type: 'string', minLength: 1, maxLength: 80 },
+      date: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
+      class_name: { type: 'string', minLength: 1, maxLength: 80 },
       records: {
         type: 'array',
         minItems: 1,
@@ -92,8 +92,8 @@ export const attendanceBatchWriteRouteSchema = {
           required: ['student_id', 'status'],
           properties: {
             student_id: { type: 'string', minLength: 1, maxLength: 64 },
-            status: { type: 'string', enum: ['hadir', 'sakit', 'izin', 'alpha'] },
-            keterangan: { type: 'string', maxLength: 500 },
+            status: { type: 'string', enum: ['present', 'sick', 'excused', 'absent'] },
+            notes: { type: 'string', maxLength: 500 },
           },
         },
       },
@@ -109,11 +109,11 @@ export const attendanceListRouteSchema = {
     additionalProperties: false,
     properties: {
       search: { type: 'string', maxLength: 100 },
-      kelas: { type: 'string', maxLength: 64 },
-      status: { type: 'string', maxLength: 32 },
-      tanggal: { type: 'string', minLength: 10, maxLength: 10 },
-      date_from: { type: 'string', minLength: 10, maxLength: 10 },
-      date_to: { type: 'string', minLength: 10, maxLength: 10 },
+      class_name: { type: 'string', maxLength: 64 },
+      status: { type: 'string', enum: ['all', 'present', 'sick', 'excused', 'absent'] },
+      date: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
+      date_from: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
+      date_to: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
       student_id: { type: 'string', minLength: 1, maxLength: 64 },
       page: { type: 'string', pattern: '^[0-9]+$' },
       pageSize: { type: 'string', pattern: '^[0-9]+$' },
@@ -127,10 +127,13 @@ export const attendanceSummaryRouteSchema = {
     type: 'object',
     additionalProperties: false,
     properties: {
-      tanggal: { type: 'string', minLength: 10, maxLength: 10 },
-      date_from: { type: 'string', minLength: 10, maxLength: 10 },
-      date_to: { type: 'string', minLength: 10, maxLength: 10 },
+      date: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
+      date_from: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
+      date_to: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
       student_id: { type: 'string', minLength: 1, maxLength: 64 },
+      class_name: { type: 'string', maxLength: 64 },
+      status: { type: 'string', enum: ['all', 'present', 'sick', 'excused', 'absent'] },
+      search: { type: 'string', maxLength: 100 },
       scope: { type: 'string', enum: ['own'] },
     },
   },
@@ -151,7 +154,7 @@ export const attendanceCorrectionRouteSchema = {
     required: ['status'],
     properties: {
       status: { type: 'string', minLength: 1, maxLength: 32 },
-      keterangan: { type: 'string', maxLength: 500 },
+      notes: { type: 'string', maxLength: 500 },
     },
   },
 } as const;

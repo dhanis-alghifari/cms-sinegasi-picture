@@ -10,12 +10,12 @@ import { getDisputeAction } from '../utils/disputeState';
 
 interface DebtRecordsMobileListProps {
   debts: DebtRecord[];
-  isStudent?: boolean;
+  isStudent: boolean;
   onDispute?: (debt: DebtRecord) => void;
   disputeQuota?: CashDisputeQuota;
 }
 
-export function DebtRecordsMobileList({ debts, isStudent = false, onDispute, disputeQuota }: DebtRecordsMobileListProps) {
+export function DebtRecordsMobileList({ debts, isStudent, onDispute, disputeQuota }: DebtRecordsMobileListProps) {
   if (debts.length === 0) {
     return (
       <EmptyState

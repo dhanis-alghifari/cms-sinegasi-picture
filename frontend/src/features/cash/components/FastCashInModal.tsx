@@ -1,5 +1,3 @@
-// src/features/cash/components/FastCashInModal.tsx
-// Fast-Entry Cash Inbound Modal for Treasurer
 // PRD Rule: Inbound cash entry is optimized for field speed without mandatory proof upload requirement
 
 import { useEffect, useState } from 'react';
@@ -25,15 +23,21 @@ import type { CashPaymentMethod } from '../types/cash.types';
 import { FastCashInFields } from './FastCashInFields';
 
 interface FastCashInModalProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onSubmit: (values: CashInFormValues) => Promise<void>;
-  isLoading?: boolean;
-  error?: unknown;
-  paymentMethodsError?: unknown;
-  nominalIuranWajib?: number;
-  paymentMethods: CashPaymentMethod[];
-  isPaymentMethodsLoading?: boolean;
+  dialog: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+  };
+  submission: {
+    onSubmit: (values: CashInFormValues) => Promise<void>;
+    isLoading?: boolean;
+    error?: unknown;
+  };
+  options: {
+    paymentMethods: CashPaymentMethod[];
+    paymentMethodsError?: unknown;
+    nominalIuranWajib?: number;
+    isPaymentMethodsLoading?: boolean;
+  };
 }
 
 function getDefaultCashInValues(nominalIuranWajib: number, paymentMethodCode = 'cash'): CashInFormValues {
@@ -50,16 +54,18 @@ function getDefaultCashInValues(nominalIuranWajib: number, paymentMethodCode = '
 }
 
 export function FastCashInModal({
-  open,
-  onOpenChange,
-  onSubmit,
-  isLoading,
-  error,
-  paymentMethodsError,
-  nominalIuranWajib = 5000,
-  paymentMethods,
-  isPaymentMethodsLoading = false,
+  dialog,
+  submission,
+  options,
 }: FastCashInModalProps) {
+  const { open, onOpenChange } = dialog;
+  const { onSubmit, isLoading, error } = submission;
+  const {
+    paymentMethodsError,
+    nominalIuranWajib = 5000,
+    paymentMethods,
+    isPaymentMethodsLoading = false,
+  } = options;
   const [isImageProcessing, setIsImageProcessing] = useState(false);
   const [studentSearch, setStudentSearch] = useState('');
   const [selectedStudentOption, setSelectedStudentOption] = useState<StudentOption | null>(null);
@@ -92,7 +98,7 @@ export function FastCashInModal({
   const inputAmount = useWatch({
     control: form.control,
     name: 'jumlah',
-  }) || 0;
+  }) as number | undefined;
 
   const selectedPaymentMethod = useWatch({
     control: form.control,
@@ -104,9 +110,12 @@ export function FastCashInModal({
     name: 'payment_mode',
   });
 
-  const debtDifference = cashInType === 'iuran_wajib' ? Math.max(0, nominalIuranWajib - inputAmount) : 0;
+  const debtDifference = cashInType === 'iuran_wajib' && inputAmount !== undefined
+    ? Math.max(0, nominalIuranWajib - inputAmount)
+    : 0;
   const proofImage = useWatch({ control: form.control, name: 'foto_bukti_url' });
   const requiresPaymentMethod = cashInType === 'pemasukan' || paymentMode === 'pay_now';
+  const submitLabel = paymentMode === 'unpaid' && cashInType === 'iuran_wajib' ? 'Catat sebagai tunggakan' : 'Catat Kas Masuk';
 
   const handleCashInTypeChange = (value: CashInFormValues['type']) => {
     form.setValue('type', value, { shouldValidate: true, shouldDirty: true });
@@ -153,6 +162,14 @@ export function FastCashInModal({
     onOpenChange(nextOpen);
   };
 
+  const handleStudentChange = (value: string) => {
+    form.setValue('student_id', value, { shouldValidate: true, shouldDirty: true });
+  };
+
+  const handleProofChange = (value: string) => {
+    form.setValue('foto_bukti_url', value, { shouldValidate: true, shouldDirty: true });
+  };
+
   return (
     <Dialog open={open} onOpenChange={handleDialogOpenChange}>
       <DialogContent className="inset-0 top-0 left-0 h-[100dvh] w-full max-h-none max-w-none translate-x-0 translate-y-0 gap-3 overflow-hidden rounded-none border-hairline bg-surface-1 p-4 text-ink md:inset-auto md:top-1/2 md:left-1/2 md:h-[min(85dvh,48rem)] md:max-h-[min(85dvh,48rem)] md:w-[calc(100%-2rem)] md:max-w-md md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-xl">
@@ -166,34 +183,39 @@ export function FastCashInModal({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col overflow-hidden pt-2">
+        <form noValidate onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col overflow-hidden pt-2">
           <div className="min-h-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto overscroll-contain pr-1 pb-2 [scroll-padding-bottom:1rem]">
             <FastCashInFields
-            form={form}
-            error={error}
-            cashInType={cashInType}
-            paymentMode={paymentMode}
-            selectedPaymentMethod={selectedPaymentMethod}
-            selectedStudentId={selectedStudentId}
-            selectedStudentOption={selectedStudentOption}
-            studentOptions={studentOptions}
-            isStudentOptionsLoading={studentOptionsQuery.isFetching}
-            studentOptionsError={studentOptionsQuery.error}
-            nominalIuranWajib={nominalIuranWajib}
-            debtDifference={debtDifference}
-            requiresPaymentMethod={requiresPaymentMethod}
-            proofImage={proofImage}
-            paymentMethods={paymentMethods}
-            paymentMethodsError={paymentMethodsError}
-            isPaymentMethodsLoading={isPaymentMethodsLoading}
-            isLoading={isLoading}
-            onCashInTypeChange={handleCashInTypeChange}
-            onPaymentModeChange={handlePaymentModeChange}
-            onStudentChange={(value) => form.setValue('student_id', value, { shouldValidate: true, shouldDirty: true })}
-            onSelectedStudentOptionChange={setSelectedStudentOption}
-            onStudentSearchChange={setStudentSearch}
-            onProofChange={(value) => form.setValue('foto_bukti_url', value, { shouldValidate: true, shouldDirty: true })}
-            onProcessingChange={setIsImageProcessing}
+              form={form}
+              state={{
+                cashInType,
+                paymentMode,
+                selectedPaymentMethod,
+                selectedStudentId,
+                selectedStudentOption,
+                debtDifference,
+                requiresPaymentMethod,
+                proofImage,
+              }}
+              options={{
+                studentOptions,
+                isStudentOptionsLoading: studentOptionsQuery.isFetching,
+                studentOptionsError: studentOptionsQuery.error,
+                nominalIuranWajib,
+                paymentMethods,
+                paymentMethodsError,
+                isPaymentMethodsLoading,
+              }}
+              feedback={{ isLoading, error }}
+              actions={{
+                onCashInTypeChange: handleCashInTypeChange,
+                onPaymentModeChange: handlePaymentModeChange,
+                onStudentChange: handleStudentChange,
+                onSelectedStudentOptionChange: setSelectedStudentOption,
+                onStudentSearchChange: setStudentSearch,
+                onProofChange: handleProofChange,
+                onProcessingChange: setIsImageProcessing,
+              }}
             />
           </div>
 
@@ -216,9 +238,7 @@ export function FastCashInModal({
                   <Loader2 size={14} className="animate-spin mr-1.5" />
                   Mencatat...
                 </>
-              ) : (
-                paymentMode === 'unpaid' && cashInType === 'iuran_wajib' ? 'Catat sebagai tunggakan' : 'Catat Kas Masuk'
-              )}
+              ) : submitLabel}
             </Button>
           </DialogFooter>
         </form>

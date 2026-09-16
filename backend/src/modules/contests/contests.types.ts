@@ -132,6 +132,46 @@ export interface ContestMemoryState {
   submissions: ContestSubmissionRecord[];
 }
 
+export interface ContestCreatePersistenceInput {
+  nama: string;
+  jenis: string;
+  level: string;
+  tanggal: string;
+  status: string;
+  hasil: string | null;
+  namaLomba?: string | null;
+  penyelenggara?: string | null;
+  kota?: string | null;
+  tingkat?: string | null;
+  deadline?: string | null;
+  tahunEvent?: number | null;
+  statusPublic?: string | null;
+  websiteUrl?: string | null;
+  deskripsi?: string | null;
+  plannedWorkCount?: number | null;
+  academicYear?: string | null;
+  actorId: string | null;
+}
+
+export interface ContestUpdatePersistenceInput {
+  changes: Partial<ContestRecord>;
+  actorId: string | null;
+  changeReason?: string;
+  auditContext?: ContestUpdateAuditContext;
+}
+
+export interface ContestSubmissionPersistenceInput {
+  contestId: string;
+  filmId?: string;
+  judulFilm?: string;
+  sutradaraId?: string;
+  crewMembers?: string[];
+  linkVideo?: string;
+  awardStatus?: string;
+  sertifikatUrl?: string | null;
+  actorId: string | null;
+}
+
 export interface ContestSummary {
   total: number;
   selesai: number;
@@ -166,41 +206,7 @@ export interface ContestRepository {
     };
     data: ContestWinRateRow[];
   } | { error: unknown }>;
-  create(input: {
-    nama: string;
-    jenis: string;
-    level: string;
-    tanggal: string;
-    status: string;
-    hasil: string | null;
-    namaLomba?: string | null;
-    penyelenggara?: string | null;
-    kota?: string | null;
-    tingkat?: string | null;
-    deadline?: string | null;
-    tahunEvent?: number | null;
-    statusPublic?: string | null;
-    websiteUrl?: string | null;
-    deskripsi?: string | null;
-    plannedWorkCount?: number | null;
-    academicYear?: string | null;
-    actorId: string | null;
-  }): Promise<{ data: ContestRecord } | { error: unknown }>;
-  update(id: string, input: {
-    changes: Partial<ContestRecord>;
-    actorId: string | null;
-    changeReason?: string;
-    auditContext?: ContestUpdateAuditContext;
-  }): Promise<{ data: ContestRecord | null } | { error: unknown }>;
-  submit(input: {
-    contestId: string;
-    filmId?: string;
-    judulFilm?: string;
-    sutradaraId?: string;
-    crewMembers?: string[];
-    linkVideo?: string;
-    awardStatus?: string;
-    sertifikatUrl?: string | null;
-    actorId: string | null;
-  }): Promise<{ data: ContestSubmissionRecord } | { error: unknown }>;
+  create(input: ContestCreatePersistenceInput): Promise<{ data: ContestRecord } | { error: unknown }>;
+  update(id: string, input: ContestUpdatePersistenceInput): Promise<{ data: ContestRecord | null } | { error: unknown }>;
+  submit(input: ContestSubmissionPersistenceInput): Promise<{ data: ContestSubmissionRecord } | { error: unknown }>;
 }

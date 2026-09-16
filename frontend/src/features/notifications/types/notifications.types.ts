@@ -1,5 +1,3 @@
-// src/features/notifications/types/notifications.types.ts
-// Notifications center domain types according to PRD schema
 
 export const NOTIFICATION_TYPE_VALUES = [
   'attendance_correction',

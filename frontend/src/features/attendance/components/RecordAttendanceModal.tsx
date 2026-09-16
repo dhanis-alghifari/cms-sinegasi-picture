@@ -1,5 +1,3 @@
-// src/features/attendance/components/RecordAttendanceModal.tsx
-// Batch attendance entry with server-backed 10-row progressive roster loading.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
@@ -22,6 +20,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { cn } from '@/shared/utils/cn';
 import { isOneOf } from '@/shared/utils/isOneOf';
 import { getErrorMessage } from '@/shared/api/errors';
+import { UI_CONSTANTS } from '@/shared/constants/ui';
+import { formatNumber } from '@/shared/utils/formatNumber';
 import type { ClassSelectorOption } from '@/features/classes/types/classes.types';
 
 import { batchAttendanceSchema, type BatchAttendanceFormValues } from '../schemas/attendanceSchema';
@@ -36,6 +36,7 @@ interface RecordAttendanceModalProps {
   onSubmit: (values: { tanggal: string; kelas: string; records: RecordAttendanceItem[] }) => Promise<void>;
   isLoading?: boolean;
   error?: unknown;
+  classOptionsError?: unknown;
 }
 
 const LEVEL_CHOICES = [
@@ -51,6 +52,7 @@ export function RecordAttendanceModal({
   onSubmit,
   isLoading,
   error,
+  classOptionsError,
 }: RecordAttendanceModalProps) {
   const [selectedKelas, setSelectedKelas] = useState('X');
   const [attendanceMap, setAttendanceMap] = useState<Record<string, { status: AttendanceStatus; keterangan: string }>>({});
@@ -68,7 +70,7 @@ export function RecordAttendanceModal({
   const rosterQuery = useAttendanceRosterQuery({
     tanggal: selectedTanggal,
     kelas: selectedKelas,
-    pageSize: 10,
+    pageSize: UI_CONSTANTS.DEFAULT_PAGE_SIZE,
   }, open);
   const students = rosterQuery.data?.pages.flatMap((page) => page.data) ?? [];
   const totalStudents = rosterQuery.data?.pages[0]?.total ?? 0;
@@ -110,6 +112,12 @@ export function RecordAttendanceModal({
     }));
   };
 
+  const handleStudentStatusValueChange = (studentId: string, value: string | null) => {
+    if (value === null) return;
+    if (!isOneOf(value, ATTENDANCE_STATUS_VALUES)) return;
+    handleStatusChange(studentId, value);
+  };
+
   const handleKeteranganChange = (studentId: string, keterangan: string) => {
     setAttendanceMap((prev) => ({
       ...prev,
@@ -130,6 +138,11 @@ export function RecordAttendanceModal({
     setSelectedKelas(value);
     form.setValue('kelas', value, { shouldValidate: true });
     setAttendanceMap({});
+  };
+
+  const handleSelectedClassValueChange = (value: string | null) => {
+    if (!value) return;
+    handleClassChange(value);
   };
 
   const handleSubmit = form.handleSubmit(async (data) => {
@@ -163,6 +176,44 @@ export function RecordAttendanceModal({
     handleClose();
   });
 
+  const rosterContent = (() => {
+    if (rosterQuery.isLoading) {
+      return <div className="flex justify-center py-8"><Loader2 size={20} className="animate-spin text-semantic-success" aria-label="Memuat siswa" /></div>;
+    }
+    if (students.length === 0) {
+      return <p className="py-6 text-center text-xs italic text-ink-tertiary">Tidak ada siswa aktif untuk kelas ini.</p>;
+    }
+    return students.map((student) => {
+      const item = itemFor(student);
+      const isNotesRequired = item.status !== 'hadir';
+      return (
+        <div key={student.student_id} className="flex flex-col items-stretch justify-between gap-2 rounded border border-hairline/60 bg-surface-2/60 p-2.5 sm:flex-row sm:items-center">
+          <div className="min-w-0">
+            <p className="truncate text-xs font-semibold text-ink">{student.nama}</p>
+                        <p className="text-[10px] text-ink-tertiary">{student.nis} · {student.kelas}</p>
+          </div>
+          <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
+            <Select value={item.status} onValueChange={(value) => handleStudentStatusValueChange(student.student_id, value)}>
+              <SelectTrigger className="w-full bg-surface-1 text-xs text-ink sm:w-28"><SelectValue placeholder="Status" /></SelectTrigger>
+              <SelectContent className="bg-surface-3 text-ink">
+                <SelectItem value="hadir">Hadir</SelectItem>
+                <SelectItem value="sakit">Sakit</SelectItem>
+                <SelectItem value="izin">Izin</SelectItem>
+                <SelectItem value="alpha">Alpha</SelectItem>
+              </SelectContent>
+            </Select>
+            <Input
+              placeholder={isNotesRequired ? 'Keterangan wajib*' : 'Catatan opsional'}
+              value={item.keterangan}
+              onChange={(event) => handleKeteranganChange(student.student_id, event.target.value)}
+              className={cn('w-full bg-surface-1 text-xs text-ink sm:w-40', isNotesRequired && !item.keterangan && 'border-semantic-warning placeholder:text-semantic-warning')}
+            />
+          </div>
+        </div>
+      );
+    });
+  })();
+
   return (
     <>
       <Dialog open={open} onOpenChange={handleClose}>
@@ -173,14 +224,19 @@ export function RecordAttendanceModal({
               <DialogTitle className="text-ink text-base font-semibold">Input Absensi Siswa</DialogTitle>
             </div>
             <DialogDescription className="text-ink-subtle text-xs">
-              Data dimuat 10 siswa per batch. Gulir daftar sampai selesai sebelum menyimpan.
+              Data dimuat {UI_CONSTANTS.DEFAULT_PAGE_SIZE} siswa per batch. Gulir daftar sampai selesai sebelum menyimpan.
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col space-y-4 overflow-hidden">
+          <form noValidate onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col space-y-4 overflow-hidden">
             {Boolean(error) && (
               <div role="alert" className="shrink-0 rounded border border-semantic-danger/30 bg-semantic-danger/10 px-3 py-2 text-xs text-semantic-danger">
                 {getErrorMessage(error)}
+              </div>
+            )}
+            {Boolean(classOptionsError) && (
+              <div role="alert" className="shrink-0 rounded border border-semantic-danger/30 bg-semantic-danger/10 px-3 py-2 text-xs text-semantic-danger">
+                Daftar kelas belum dapat dimuat: {getErrorMessage(classOptionsError)}
               </div>
             )}
             {rosterQuery.error && (
@@ -196,7 +252,7 @@ export function RecordAttendanceModal({
               </div>
               <div className="space-y-1">
                 <Label className="text-ink-muted text-xs">Pilih Kelas *</Label>
-                <Select value={selectedKelas} onValueChange={(value) => { if (value) handleClassChange(value); }}>
+                <Select value={selectedKelas} onValueChange={handleSelectedClassValueChange}>
                   <SelectTrigger className="bg-surface-2 text-xs text-ink">
                     <SelectValue placeholder="Pilih Kelas" />
                   </SelectTrigger>
@@ -208,7 +264,7 @@ export function RecordAttendanceModal({
             </div>
 
             <div className="flex shrink-0 items-center justify-between text-[11px] text-ink-muted" aria-live="polite">
-              <span>{loadedStudents} dari {rosterQuery.isLoading ? '…' : totalStudents} siswa dimuat</span>
+              <span>{formatNumber(loadedStudents)} dari {rosterQuery.isLoading ? '…' : formatNumber(totalStudents)} siswa dimuat</span>
               {rosterQuery.isFetchingNextPage && <span className="inline-flex items-center gap-1"><Loader2 size={12} className="animate-spin" />Memuat berikutnya...</span>}
             </div>
 
@@ -222,44 +278,10 @@ export function RecordAttendanceModal({
               }}
               aria-busy={rosterQuery.isLoading || rosterQuery.isFetchingNextPage}
             >
-              {rosterQuery.isLoading ? (
-                <div className="flex justify-center py-8"><Loader2 size={20} className="animate-spin text-semantic-success" aria-label="Memuat siswa" /></div>
-              ) : students.length === 0 ? (
-                <p className="py-6 text-center text-xs italic text-ink-tertiary">Tidak ada siswa aktif untuk kelas ini.</p>
-              ) : (
-                students.map((student) => {
-                  const item = itemFor(student);
-                  const isNotesRequired = item.status !== 'hadir';
-                  return (
-                    <div key={student.student_id} className="flex flex-col items-stretch justify-between gap-2 rounded border border-hairline/60 bg-surface-2/60 p-2.5 sm:flex-row sm:items-center">
-                      <div className="min-w-0">
-                        <p className="truncate text-xs font-semibold text-ink">{student.nama}</p>
-                        <p className="text-[10px] text-ink-tertiary">{student.nis} · {student.kelas}</p>
-                      </div>
-                      <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
-                        <Select value={item.status} onValueChange={(value) => { if (isOneOf(value, ATTENDANCE_STATUS_VALUES)) handleStatusChange(student.student_id, value); }}>
-                          <SelectTrigger className="w-full bg-surface-1 text-xs text-ink sm:w-28"><SelectValue placeholder="Status" /></SelectTrigger>
-                          <SelectContent className="bg-surface-3 text-ink">
-                            <SelectItem value="hadir">Hadir</SelectItem>
-                            <SelectItem value="sakit">Sakit</SelectItem>
-                            <SelectItem value="izin">Izin</SelectItem>
-                            <SelectItem value="alpha">Alpha</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <Input
-                          placeholder={isNotesRequired ? 'Keterangan wajib*' : 'Catatan opsional'}
-                          value={item.keterangan}
-                          onChange={(event) => handleKeteranganChange(student.student_id, event.target.value)}
-                          className={cn('w-full bg-surface-1 text-xs text-ink sm:w-40', isNotesRequired && !item.keterangan && 'border-semantic-warning placeholder:text-semantic-warning')}
-                        />
-                      </div>
-                    </div>
-                  );
-                })
-              )}
+              {rosterContent}
               {rosterQuery.hasNextPage && !rosterQuery.isFetchingNextPage && (
                 <Button type="button" variant="outline" size="sm" onClick={() => void rosterQuery.fetchNextPage()} className="mx-auto flex h-9 gap-1 text-xs">
-                  <ChevronDown size={14} aria-hidden="true" /> Muat 10 siswa lagi
+                  <ChevronDown size={14} aria-hidden="true" /> Muat {UI_CONSTANTS.DEFAULT_PAGE_SIZE} siswa lagi
                 </Button>
               )}
             </div>
@@ -279,10 +301,14 @@ export function RecordAttendanceModal({
       </Dialog>
 
       <NoticeDialog
-        open={Boolean(validationMessage)}
-        onOpenChange={(nextOpen) => { if (!nextOpen) setValidationMessage(null); }}
-        title="Absensi Belum Lengkap"
-        description={validationMessage ?? ''}
+        dialog={{
+          open: Boolean(validationMessage),
+          onOpenChange: (nextOpen) => { if (!nextOpen) setValidationMessage(null); },
+        }}
+        content={{
+          title: 'Absensi Belum Lengkap',
+          description: validationMessage ?? '',
+        }}
       />
     </>
   );

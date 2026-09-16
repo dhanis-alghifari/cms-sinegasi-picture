@@ -1,5 +1,3 @@
-// src/features/borrowing/components/BorrowingSummaryCards.tsx
-// Summary cards for borrowing transactions metrics
 
 import { PackageCheck, Clock, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { Card, CardContent } from '@/shared/ui/primitives/card';

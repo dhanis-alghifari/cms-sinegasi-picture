@@ -1,5 +1,3 @@
-// src/features/dashboard/components/KasSummaryCard.tsx
-// Dashboard widget — Ringkasan Uang Kas
 
 import { Wallet, ArrowDownRight, ArrowUpRight } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/primitives/card';
@@ -14,6 +12,45 @@ interface KasSummaryCardProps {
 export function KasSummaryCard({ data }: KasSummaryCardProps) {
   const saldo = data?.saldoTerakhir ?? 0;
   const transaksi = data?.transaksiTerbaru ?? [];
+  const transactionContent = (() => {
+    if (transaksi.length === 0) {
+      return <p className="text-ink-tertiary text-xs italic">Belum ada transaksi</p>;
+    }
+
+    return (
+      <div className="space-y-2">
+        {transaksi.slice(0, 3).map((item) => (
+          <div
+            key={item.id}
+            className="flex items-center justify-between py-1.5 px-2 rounded-md bg-surface-2/60 text-xs border border-hairline/50"
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              {item.tipe === 'masuk' ? (
+                <ArrowDownRight size={14} className="text-semantic-success shrink-0" />
+              ) : (
+                <ArrowUpRight size={14} className="text-semantic-danger shrink-0" />
+              )}
+              <div className="min-w-0">
+                <p className="text-ink font-medium truncate">{item.keterangan}</p>
+                <p className="text-ink-tertiary text-[10px]">
+                  {formatDateShort(item.tanggal)} {item.studentNama ? `• ${item.studentNama}` : ''}
+                </p>
+              </div>
+            </div>
+            <span
+              className={
+                item.tipe === 'masuk'
+                  ? 'text-semantic-success font-medium shrink-0 ml-2'
+                  : 'text-semantic-danger font-medium shrink-0 ml-2'
+              }
+            >
+              {item.tipe === 'masuk' ? '+' : '-'}{formatCurrency(item.jumlah)}
+            </span>
+          </div>
+        ))}
+      </div>
+    );
+  })();
 
   return (
     <Card className="bg-surface-1 border-hairline shadow-none">
@@ -34,41 +71,7 @@ export function KasSummaryCard({ data }: KasSummaryCardProps) {
             Transaksi Terbaru
           </p>
 
-          {transaksi.length === 0 ? (
-            <p className="text-ink-tertiary text-xs italic">Belum ada transaksi</p>
-          ) : (
-            <div className="space-y-2">
-              {transaksi.slice(0, 3).map((item) => (
-                <div
-                  key={item.id}
-                  className="flex items-center justify-between py-1.5 px-2 rounded-md bg-surface-2/60 text-xs border border-hairline/50"
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    {item.tipe === 'masuk' ? (
-                      <ArrowDownRight size={14} className="text-semantic-success shrink-0" />
-                    ) : (
-                      <ArrowUpRight size={14} className="text-semantic-danger shrink-0" />
-                    )}
-                    <div className="min-w-0">
-                      <p className="text-ink font-medium truncate">{item.keterangan}</p>
-                      <p className="text-ink-tertiary text-[10px]">
-                        {formatDateShort(item.tanggal)} {item.studentNama ? `• ${item.studentNama}` : ''}
-                      </p>
-                    </div>
-                  </div>
-                  <span
-                    className={
-                      item.tipe === 'masuk'
-                        ? 'text-semantic-success font-medium shrink-0 ml-2'
-                        : 'text-semantic-danger font-medium shrink-0 ml-2'
-                    }
-                  >
-                    {item.tipe === 'masuk' ? '+' : '-'}{formatCurrency(item.jumlah)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
+          {transactionContent}
         </div>
       </CardContent>
     </Card>

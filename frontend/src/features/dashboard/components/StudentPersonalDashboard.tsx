@@ -1,5 +1,3 @@
-// src/features/dashboard/components/StudentPersonalDashboard.tsx
-// Dashboard widget — Personal Student Dashboard View (Student Role)
 
 import { UserCheck, Wallet, GraduationCap, ArrowRight, CircleCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';

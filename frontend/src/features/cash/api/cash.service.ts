@@ -1,5 +1,3 @@
-// src/features/cash/api/cash.service.ts
-// Pure TS cash management service
 
 import { apiClient } from '@/shared/api/client';
 import {
@@ -30,6 +28,7 @@ import type {
   DisputeStatus,
   CashTransactionFilters,
   CashReport,
+  CashDebtFilters,
   CashReportFilters,
   CashPaymentMethod,
   CashInApiResponse,
@@ -38,6 +37,62 @@ import type {
   CashDisputeQuota,
   CreateDisputeResponse,
 } from '../types/cash.types';
+
+const transactionTypeValues: Readonly<Record<string, string>> = {
+  masuk: 'income', keluar: 'expense',
+};
+
+const cashInTypeValues: Readonly<Record<string, string>> = {
+  iuran_wajib: 'mandatory_fee', pemasukan: 'other_income',
+};
+
+function toCashInRequest(payload: CreateCashInPayload) {
+  const {
+    jumlah: amount,
+    tanggal: date,
+    keterangan: description,
+    foto_bukti_url: proof_photo_url,
+    metode_pembayaran: payment_method,
+    type,
+    ...rest
+  } = payload;
+  return {
+    ...rest,
+    amount,
+    date,
+    ...(description !== undefined ? { description } : {}),
+    ...(proof_photo_url !== undefined ? { proof_photo_url } : {}),
+    ...(payment_method !== undefined ? { payment_method } : {}),
+    ...(type !== undefined ? { type: cashInTypeValues[type] } : {}),
+  };
+}
+
+function toCashOutRequest(payload: CreateCashOutPayload) {
+  const {
+    jumlah: amount,
+    keterangan: description,
+    foto_bukti_url: proof_photo_url,
+    metode_pembayaran: payment_method,
+    ...rest
+  } = payload;
+  return {
+    ...rest,
+    amount,
+    description,
+    ...(proof_photo_url !== undefined ? { proof_photo_url } : {}),
+    ...(payment_method !== undefined ? { payment_method } : {}),
+  };
+}
+
+function toDisputeRequest(payload: CreateDisputePayload) {
+  const { bukti_sanggahan_url: evidence_url, ...rest } = payload;
+  return { ...rest, evidence_url };
+}
+
+function toBillingRuleRequest(payload: UpdateBillingRulePayload) {
+  const { nominal_iuran_wajib: mandatory_fee_amount, ...rest } = payload;
+  return { ...rest, mandatory_fee_amount };
+}
 
 export const cashService = {
   getSummary(): Promise<CashSummary> {
@@ -49,7 +104,7 @@ export const cashService = {
       start_date: params.start_date,
       end_date: params.end_date,
     });
-    if (params.metode_pembayaran) query.set('metode_pembayaran', params.metode_pembayaran);
+    if (params.metode_pembayaran) query.set('payment_method', params.metode_pembayaran);
     return apiClient.getParsed(`/api/cash/report?${query.toString()}`, decodeCashReport);
   },
 
@@ -62,24 +117,26 @@ export const cashService = {
     if (params?.page) query.append('page', String(params.page));
     if (params?.pageSize) query.append('pageSize', String(params.pageSize));
     if (params?.search) query.append('search', params.search);
-    if (params?.tipe) query.append('tipe', params.tipe);
-    if (params?.tanggal_mulai) query.append('tanggal_mulai', params.tanggal_mulai);
+    if (params?.tipe) query.append('type', transactionTypeValues[params.tipe]);
+    if (params?.student_id) query.append('student_id', params.student_id);
+    if (params?.tanggal_mulai) query.append('start_date', params.tanggal_mulai);
     if (params?.tanggal_selesai) {
       const end = new Date(`${params.tanggal_selesai}T00:00:00.000Z`);
       end.setUTCDate(end.getUTCDate() + 1);
-      query.append('tanggal_selesai', end.toISOString().slice(0, 10));
+      query.append('end_date', end.toISOString().slice(0, 10));
     }
-    if (params?.metode_pembayaran) query.append('metode_pembayaran', params.metode_pembayaran);
+    if (params?.metode_pembayaran) query.append('payment_method', params.metode_pembayaran);
 
     const endpoint = `/api/cash/transactions${query.toString() ? `?${query.toString()}` : ''}`;
     return apiClient.getParsed(endpoint, decodeCashTransactions);
   },
 
-  getDebts(params?: { page?: number; pageSize?: number; search?: string }): Promise<PaginatedResponse<DebtRecord>> {
+  getDebts(params?: CashDebtFilters): Promise<PaginatedResponse<DebtRecord>> {
     const query = new URLSearchParams();
     if (params?.page) query.append('page', String(params.page));
     if (params?.pageSize) query.append('pageSize', String(params.pageSize));
     if (params?.search) query.append('search', params.search);
+    if (params?.student_id) query.append('student_id', params.student_id);
 
     const endpoint = `/api/cash/debts${query.toString() ? `?${query.toString()}` : ''}`;
     return apiClient.getParsed(endpoint, decodeCashDebts);
@@ -89,25 +146,25 @@ export const cashService = {
     return apiClient.getParsed('/api/cash/billing-rules', decodeBillingRules);
   },
 
-  // Fast-entry Cash In
+  // Fast cash-in entry
   createCashIn(payload: CreateCashInPayload, idempotencyKey: string): Promise<CashInApiResponse> {
-    return apiClient.postParsed('/api/cash/transactions/in', payload, decodeCashIn, {
+    return apiClient.postParsed('/api/cash/transactions/in', toCashInRequest(payload), decodeCashIn, {
       headers: { 'x-idempotency-key': idempotencyKey },
       changeReason: 'Pencatatan transaksi kas masuk',
     });
   },
 
-  // Two-Stage Cash Out (checks balance on server side + validates rincian)
+  // Two-stage cash-out entry
   createCashOut(payload: CreateCashOutPayload, idempotencyKey: string): Promise<CashTransaction> {
-    return apiClient.postParsed('/api/cash/transactions/out', payload, decodeCashOut, {
+    return apiClient.postParsed('/api/cash/transactions/out', toCashOutRequest(payload), decodeCashOut, {
       headers: { 'x-idempotency-key': idempotencyKey },
       changeReason: 'Pencatatan transaksi kas keluar',
     });
   },
 
-  // Student Dispute with Mandatory Proof Photo
+  // Student dispute with mandatory proof photo
   createDispute(payload: CreateDisputePayload, idempotencyKey: string): Promise<CreateDisputeResponse> {
-    return apiClient.postParsed('/api/cash/disputes', payload, decodeCreateDispute, {
+    return apiClient.postParsed('/api/cash/disputes', toDisputeRequest(payload), decodeCreateDispute, {
       idempotencyKey,
       changeReason: 'Pengajuan sanggahan kas',
     });
@@ -132,16 +189,16 @@ export const cashService = {
     return apiClient.getParsed(`/api/cash/disputes${suffix}`, decodeDisputes);
   },
 
-  // Resolve/Reject Dispute (Treasurer/Teacher)
+  // Resolve or reject a dispute
   resolveDispute(disputeId: string, input: { status: DisputeStatus; review_note: string; resolution_date?: string; resolution_amount?: number; payment_method_code?: string }, changeReason: string): Promise<{ success: boolean; data: { dispute: CashDispute; resolutionTransactionId?: string; idempotentReplay: boolean } }> {
     return apiClient.patchParsed(`/api/cash/disputes/${disputeId}`, { ...input, status: input.status === 'resolved' ? 'approved' : input.status }, decodeResolveDispute, {
       changeReason,
     });
   },
 
-  // Update Global Billing Rules
+  // Update global billing rules
   updateBillingRules(payload: UpdateBillingRulePayload, changeReason: string): Promise<BillingRule> {
-    return apiClient.putParsed('/api/cash/billing-rules', payload, decodeBillingRules, {
+    return apiClient.putParsed('/api/cash/billing-rules', toBillingRuleRequest(payload), decodeBillingRules, {
       changeReason,
     });
   },

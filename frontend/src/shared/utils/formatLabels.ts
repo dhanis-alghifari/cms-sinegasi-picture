@@ -1,4 +1,3 @@
-// Human-readable labels for technical enum/resource values.
 // These helpers only affect presentation; API values and filter values stay unchanged.
 
 const RESOURCE_LABELS: Record<string, string> = {
@@ -169,7 +168,7 @@ function titleCase(value: string): string {
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-export function formatTechnicalLabel(value: unknown, fallback = '—'): string {
+export function formatTechnicalLabel(value: unknown, fallback = '-'): string {
   const normalized = normalize(value);
   if (!normalized) return fallback;
   return ENUM_LABELS[normalized] ?? STATUS_LABELS[normalized] ?? titleCase(normalized);
@@ -206,7 +205,7 @@ export function formatFieldLabel(value: unknown, fallback = 'Field'): string {
   return FIELD_LABELS[normalized] ?? formatTechnicalLabel(normalized, fallback);
 }
 
-export function formatEnumLabel(value: unknown, fallback = '—'): string {
+export function formatEnumLabel(value: unknown, fallback = '-'): string {
   const normalized = normalize(value);
   if (!normalized) return fallback;
   return ENUM_LABELS[normalized] ?? formatTechnicalLabel(normalized, fallback);
@@ -235,7 +234,7 @@ export function formatSourceLabel(value: unknown, fallback = 'Aplikasi'): string
   return labels[normalized] ?? formatTechnicalLabel(normalized, fallback);
 }
 
-export function formatSelectValueLabel(value: unknown, fallback = '—'): string {
+export function formatSelectValueLabel(value: unknown, fallback = '-'): string {
   const original = normalize(value);
   const normalized = original.toLowerCase();
   if (!normalized) return fallback;

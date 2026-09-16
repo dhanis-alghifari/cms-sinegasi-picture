@@ -1,6 +1,7 @@
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { formatCurrency } from '@/shared/utils/formatCurrency';
 import { formatDateShort } from '@/shared/utils/formatDate';
+import { formatNumber } from '@/shared/utils/formatNumber';
 
 import type { CashReportDebtStudent } from '../types/cash.types';
 
@@ -38,7 +39,7 @@ export function CashReportDebtMobileList({ debts }: CashReportDebtMobileListProp
           </div>
 
           <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-ink-tertiary">
-            <span>{debt.debt_record_count} catatan tunggakan</span>
+            <span>{formatNumber(debt.debt_record_count)} catatan tunggakan</span>
             {debt.oldest_debt_date && (
               <span>Sejak {formatDateShort(debt.oldest_debt_date)}</span>
             )}

@@ -9,11 +9,7 @@ export function toLocalDateString(date: Date): string {
 
 export function normalizeBillingResult(value: unknown): BillingResult {
   const result = (value && typeof value === 'object' ? value : {}) as Record<string, unknown>;
-  const billingWeek = typeof result.billing_week === 'string'
-    ? result.billing_week
-    : typeof result.billingWeek === 'string'
-      ? result.billingWeek
-      : undefined;
+  const billingWeek = getBillingWeek(result);
 
   return {
     studentsBilled: Number(result.students_billed ?? result.studentsBilled ?? 0),
@@ -21,6 +17,12 @@ export function normalizeBillingResult(value: unknown): BillingResult {
     status: String(result.status ?? 'unknown'),
     billingWeek,
   };
+}
+
+function getBillingWeek(result: Record<string, unknown>): string | undefined {
+  if (typeof result.billing_week === 'string') return result.billing_week;
+  if (typeof result.billingWeek === 'string') return result.billingWeek;
+  return undefined;
 }
 
 export const DATABASE_UNAVAILABLE_BILLING_RESULT: BillingResult = {

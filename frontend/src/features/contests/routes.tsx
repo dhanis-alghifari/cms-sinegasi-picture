@@ -1,5 +1,3 @@
-// src/features/contests/routes.tsx
-// Contests feature routes
 
 import { lazy, Suspense } from 'react';
 import type { RouteObject } from 'react-router-dom';

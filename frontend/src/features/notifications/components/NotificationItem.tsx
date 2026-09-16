@@ -1,5 +1,3 @@
-// src/features/notifications/components/NotificationItem.tsx
-// Notification item card component with domain icons and read/unread status
 
 import {
   ClipboardCheck,

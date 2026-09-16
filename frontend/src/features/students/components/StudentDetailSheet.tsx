@@ -6,29 +6,52 @@ import { AuditHistoryButton } from '@/features/audit/components/AuditHistoryButt
 import type { Student } from '../types/students.types';
 
 interface StudentDetailSheetProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+  dialog: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+  };
   student: Student | null;
-  isMobile: boolean;
-  canManage?: boolean;
-  canManageStatus?: boolean;
-  onEdit: (student: Student) => void;
-  onToggleActive: (student: Student) => void;
-  onProvisionAccount?: (student: Student) => void;
+  viewport: {
+    isMobile: boolean;
+  };
+  permissions?: {
+    canManage?: boolean;
+    canManageStatus?: boolean;
+  };
+  actions: {
+    onEdit: (student: Student) => void;
+    onToggleActive: (student: Student) => void;
+    onProvisionAccount?: (student: Student) => void;
+  };
 }
 
 export function StudentDetailSheet({
-  open,
-  onOpenChange,
+  dialog,
   student,
-  isMobile,
-  canManage = true,
-  canManageStatus = false,
-  onEdit,
-  onToggleActive,
-  onProvisionAccount,
+  viewport,
+  permissions,
+  actions,
 }: StudentDetailSheetProps) {
+  const { open, onOpenChange } = dialog;
+  const { isMobile } = viewport;
+  const { canManage = true, canManageStatus = false } = permissions ?? {};
+  const { onEdit, onToggleActive, onProvisionAccount } = actions;
   if (!student) return null;
+
+  const handleEdit = () => {
+    onOpenChange(false);
+    onEdit(student);
+  };
+
+  const handleProvisionAccount = () => {
+    onOpenChange(false);
+    onProvisionAccount?.(student);
+  };
+
+  const handleToggleActive = () => {
+    onOpenChange(false);
+    onToggleActive(student);
+  };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -67,9 +90,9 @@ export function StudentDetailSheet({
         {canManage && (
           <SheetFooter className="border-t border-hairline bg-surface-1 px-4 pb-[env(safe-area-inset-bottom)]">
             <div className="grid grid-cols-2 gap-2">
-              <Button type="button" variant="outline" onClick={() => { onOpenChange(false); onEdit(student); }} className="min-h-11 border-hairline text-ink"><Pencil size={16} className="mr-2" aria-hidden="true" />Edit</Button>
-              {canManageStatus && !student.user_id && onProvisionAccount && <Button type="button" onClick={() => { onOpenChange(false); onProvisionAccount(student); }} className="min-h-11"><KeyRound size={16} className="mr-2" aria-hidden="true" />Buat akun</Button>}
-              {canManageStatus && student.user_id && <Button type="button" variant="outline" onClick={() => { onOpenChange(false); onToggleActive(student); }} className="col-span-2 min-h-11 border-hairline text-ink">{student.is_active ? <><UserX size={16} className="mr-2 text-semantic-warning" aria-hidden="true" />Nonaktifkan sebagai alumni</> : <><UserCheck size={16} className="mr-2 text-semantic-success" aria-hidden="true" />Aktifkan kembali</>}</Button>}
+              <Button type="button" variant="outline" onClick={handleEdit} className="min-h-11 border-hairline text-ink"><Pencil size={16} className="mr-2" aria-hidden="true" />Edit</Button>
+              {canManageStatus && !student.user_id && onProvisionAccount && <Button type="button" onClick={handleProvisionAccount} className="min-h-11"><KeyRound size={16} className="mr-2" aria-hidden="true" />Buat akun</Button>}
+              {canManageStatus && student.user_id && <Button type="button" variant="outline" onClick={handleToggleActive} className="col-span-2 min-h-11 border-hairline text-ink">{student.is_active ? <><UserX size={16} className="mr-2 text-semantic-warning" aria-hidden="true" />Nonaktifkan sebagai alumni</> : <><UserCheck size={16} className="mr-2 text-semantic-success" aria-hidden="true" />Aktifkan kembali</>}</Button>}
             </div>
           </SheetFooter>
         )}

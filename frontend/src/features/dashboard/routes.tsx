@@ -1,5 +1,3 @@
-// src/features/dashboard/routes.tsx
-// Dashboard feature routes
 
 import { lazy, Suspense } from 'react';
 import type { RouteObject } from 'react-router-dom';

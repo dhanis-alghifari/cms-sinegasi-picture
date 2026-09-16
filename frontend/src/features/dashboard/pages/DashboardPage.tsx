@@ -1,5 +1,3 @@
-// src/features/dashboard/pages/DashboardPage.tsx
-// Dashboard Page — Thin orchestration page (Constitution: composition + query integration only)
 
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { PageLoader } from '@/shared/ui/LoadingSpinner';
@@ -16,12 +14,26 @@ export function DashboardPage() {
   const { data, error, isLoading, refetch, isRefetching } = useDashboardQuery();
 
   const isPersonalDashboard = data?.scope === 'personal' || user?.role !== 'teacher';
+  const dashboardContent = (() => {
+    if (error) {
+      return (
+        <div role="alert" className="flex flex-col gap-3 rounded-xl border border-semantic-danger/30 bg-semantic-danger/10 p-4 text-sm text-semantic-danger sm:flex-row sm:items-center sm:justify-between">
+          <span>{getErrorMessage(error)}</span>
+          <Button type="button" variant="outline" size="sm" onClick={() => refetch()} disabled={isRefetching} className="w-full border-semantic-danger/30 bg-surface-1 text-semantic-danger hover:bg-semantic-danger/10 sm:w-auto">
+            Coba lagi
+          </Button>
+        </div>
+      );
+    }
+    if (isLoading) return <PageLoader label="Memuat ringkasan dashboard..." />;
+    return <DashboardOverview data={data} isStudentRole={isPersonalDashboard} />;
+  })();
 
   return (
     <div className="mx-auto max-w-7xl space-y-5 px-4 py-5 sm:space-y-6 sm:p-6">
       <PageHeader
         title={`Selamat Datang, ${user?.nama ?? 'Pengguna'}`}
-        subtitle={`${isPersonalDashboard ? 'Dashboard Pribadi' : 'Dashboard Operasional Guru'} — Peran: ${formatRoleLabel(user?.role, 'Anggota / Siswa')}`}
+        subtitle={`${isPersonalDashboard ? 'Dashboard Pribadi' : 'Dashboard Operasional Guru'}: Peran: ${formatRoleLabel(user?.role, 'Anggota / Siswa')}`}
         actions={
           <Button
             variant="outline"
@@ -36,18 +48,7 @@ export function DashboardPage() {
         }
       />
 
-      {error ? (
-        <div role="alert" className="flex flex-col gap-3 rounded-xl border border-semantic-danger/30 bg-semantic-danger/10 p-4 text-sm text-semantic-danger sm:flex-row sm:items-center sm:justify-between">
-          <span>{getErrorMessage(error)}</span>
-          <Button type="button" variant="outline" size="sm" onClick={() => refetch()} disabled={isRefetching} className="w-full border-semantic-danger/30 bg-surface-1 text-semantic-danger hover:bg-semantic-danger/10 sm:w-auto">
-            Coba lagi
-          </Button>
-        </div>
-      ) : isLoading ? (
-        <PageLoader />
-      ) : (
-        <DashboardOverview data={data} isStudentRole={isPersonalDashboard} />
-      )}
+      {dashboardContent}
     </div>
   );
 }

@@ -1,15 +1,11 @@
-// src/features/cash/components/CashPageTabs.tsx
-// Tab navigation and content for the cash page.
 
 import { lazy, Suspense } from 'react';
 
 import { Pagination } from '@/shared/ui/Pagination';
-import { Button } from '@/shared/ui/primitives/button';
-import { Input } from '@/shared/ui/primitives/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/primitives/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/primitives/tabs';
-import { formatPaymentMethodLabel } from '@/shared/utils/formatLabels';
+import { AnimatedTabs } from '@/shared/ui/motion/animated-tabs';
+import type { ReportPrintFormat } from '@/shared/types/report';
 import type { PaginatedResponse } from '@/shared/types/common';
+import type { StudentOption } from '@/features/students/types/students.types';
 
 import { CashOperationsOverview } from './CashOperationsOverview';
 import { CashSectionError, CashSectionSkeleton } from './CashSectionState';
@@ -29,344 +25,380 @@ import type { CashReportPreset } from '../utils/reportDates';
 
 export type CashView = 'activity' | 'transactions' | 'debts' | 'disputes' | 'report';
 
+function isCashView(value: string): value is CashView {
+  return ['activity', 'transactions', 'debts', 'disputes', 'report'].includes(value);
+}
+
 type CashPageTabsProps = {
-  currentView: CashView;
-  isTreasurerOrTeacher: boolean;
-  isStudent: boolean;
-  isMobile: boolean;
-  pageSize: number;
-  paymentMethods: CashPaymentMethod[];
-  isPaymentMethodsLoading: boolean;
-  paymentMethodsError?: unknown;
-  txData?: PaginatedResponse<CashTransaction>;
-  isTxLoading: boolean;
-  txError?: unknown;
-  txPage: number;
-  onRetryTransactions: () => void;
-  setTxPage: (page: number) => void;
-  tanggalMulai: string;
-  tanggalSelesai: string;
-  metodePembayaran: string;
-  setTanggalMulai: (value: string) => void;
-  setTanggalSelesai: (value: string) => void;
-  setMetodePembayaran: (value: string) => void;
-  debtsData?: PaginatedResponse<DebtRecord>;
-  isDebtsLoading: boolean;
-  debtsError?: unknown;
-  debtsPage: number;
-  onRetryDebts: () => void;
-  setDebtsPage: (page: number) => void;
-  disputeQuota?: CashDisputeQuota;
-  outstandingDebt: number;
-  reportData?: CashReport;
-  isReportLoading: boolean;
-  reportError?: unknown;
-  reportRangeError?: string;
-  reportStartDate: string;
-  reportEndDate: string;
-  reportPaymentMethod: string;
-  setReportStartDate: (value: string) => void;
-  setReportEndDate: (value: string) => void;
-  setReportPaymentMethod: (value: string) => void;
-  handleReportPreset: (days: CashReportPreset) => void;
-  onExportCsv: (report: CashReport) => void;
-  onPrintReport: () => void;
-  onDisputeTransaction: (transaction: CashTransaction) => void;
-  onDisputeDebt: (debt: DebtRecord) => void;
-  setActiveView: (view: CashView) => void;
+  navigation: {
+    currentView: CashView;
+    isTreasurerOrTeacher: boolean;
+    isStudent: boolean;
+    isMobile: boolean;
+    pageSize: number;
+    onChange: (view: CashView) => void;
+  };
+  paymentMethods: {
+    items: CashPaymentMethod[];
+    isLoading: boolean;
+  };
+  transactions: {
+    data?: PaginatedResponse<CashTransaction>;
+    isLoading: boolean;
+    error?: unknown;
+    page: number;
+    onRetry: () => void;
+    onPageChange: (page: number) => void;
+  };
+  transactionFilters: {
+    startDate: string;
+    endDate: string;
+    paymentMethod: string;
+    onStartDateChange: (value: string) => void;
+    onEndDateChange: (value: string) => void;
+    onPaymentMethodChange: (value: string) => void;
+    onReset: () => void;
+  };
+  studentScope: {
+    canFilter: boolean;
+    selectedStudent: StudentOption | null;
+    options: StudentOption[];
+    isLoading: boolean;
+    error?: unknown;
+    onValueChange: (studentId: string) => void;
+    onSelectedStudentChange: (student: StudentOption | null) => void;
+    onSearchChange: (value: string) => void;
+    onClear: () => void;
+    onRetry: () => void;
+  };
+  debts: {
+    data?: PaginatedResponse<DebtRecord>;
+    isLoading: boolean;
+    error?: unknown;
+    page: number;
+    onRetry: () => void;
+    onPageChange: (page: number) => void;
+    outstandingAmount: number;
+  };
+  report: {
+    data?: CashReport;
+    isLoading: boolean;
+    error?: unknown;
+    rangeError?: string;
+    startDate: string;
+    endDate: string;
+    paymentMethod: string;
+    onStartDateChange: (value: string) => void;
+    onEndDateChange: (value: string) => void;
+    onPaymentMethodChange: (value: string) => void;
+    onPreset: (days: CashReportPreset) => void;
+    onExportCsv: (report: CashReport) => void;
+    onPrintPdf: (format: ReportPrintFormat) => void;
+  };
+  actions: {
+    onDisputeTransaction: (transaction: CashTransaction) => void;
+    onDisputeDebt: (debt: DebtRecord) => void;
+    disputeQuota?: CashDisputeQuota;
+  };
 };
 
 const LazyCashReportPanel = lazy(() =>
   import('./CashReportPanel').then(({ CashReportPanel }) => ({ default: CashReportPanel })),
 );
 
+const LazyCashTransactionFilter = lazy(() =>
+  import('./CashTransactionFilter').then(({ CashTransactionFilter }) => ({ default: CashTransactionFilter })),
+);
+
+const LazyCashDebtFilter = lazy(() =>
+  import('./CashDebtFilter').then(({ CashDebtFilter }) => ({ default: CashDebtFilter })),
+);
+
 export function CashPageTabs({
-  currentView,
-  isTreasurerOrTeacher,
-  isStudent,
-  isMobile,
-  pageSize,
-  paymentMethods,
-  isPaymentMethodsLoading,
-  txData,
-  isTxLoading,
-  txError,
-  txPage,
-  onRetryTransactions,
-  setTxPage,
-  tanggalMulai,
-  tanggalSelesai,
-  metodePembayaran,
-  setTanggalMulai,
-  setTanggalSelesai,
-  setMetodePembayaran,
-  debtsData,
-  isDebtsLoading,
-  debtsError,
-  debtsPage,
-  onRetryDebts,
-  setDebtsPage,
-  disputeQuota,
-  outstandingDebt,
-  reportData,
-  isReportLoading,
-  reportError,
-  reportRangeError,
-  reportStartDate,
-  reportEndDate,
-  reportPaymentMethod,
-  setReportStartDate,
-  setReportEndDate,
-  setReportPaymentMethod,
-  handleReportPreset,
-  onExportCsv,
-  onPrintReport,
-  onDisputeTransaction,
-  onDisputeDebt,
-  setActiveView,
+  navigation,
+  paymentMethods: paymentMethodState,
+  transactions: transactionState,
+  transactionFilters,
+  studentScope,
+  debts: debtState,
+  report: reportState,
+  actions,
 }: CashPageTabsProps) {
+  const {
+    currentView,
+    isTreasurerOrTeacher,
+    isStudent,
+    isMobile,
+    pageSize,
+    onChange: setActiveView,
+  } = navigation;
+  const handleViewChange = (value: string) => {
+    if (!isCashView(value)) return;
+    setActiveView(value);
+  };
+  const { items: paymentMethods, isLoading: isPaymentMethodsLoading } = paymentMethodState;
+  const {
+    data: txData,
+    isLoading: isTxLoading,
+    error: txError,
+    page: txPage,
+    onRetry: onRetryTransactions,
+    onPageChange: setTxPage,
+  } = transactionState;
+  const {
+    startDate: tanggalMulai,
+    endDate: tanggalSelesai,
+    paymentMethod: metodePembayaran,
+    onStartDateChange: setTanggalMulai,
+    onEndDateChange: setTanggalSelesai,
+    onPaymentMethodChange: setMetodePembayaran,
+    onReset: onResetTransactionFilters,
+  } = transactionFilters;
+  const {
+    canFilter: canFilterCashHistoryByStudent,
+    selectedStudent: selectedHistoryStudent,
+    options: historyStudentOptions,
+    isLoading: isHistoryStudentOptionsLoading,
+    error: historyStudentOptionsError,
+    onValueChange: onHistoryStudentValueChange,
+    onSelectedStudentChange: onSelectedHistoryStudentChange,
+    onSearchChange: onHistoryStudentSearchChange,
+    onClear: onClearStudentScope,
+    onRetry: onRetryHistoryStudentOptions,
+  } = studentScope;
+  const {
+    data: debtsData,
+    isLoading: isDebtsLoading,
+    error: debtsError,
+    page: debtsPage,
+    onRetry: onRetryDebts,
+    onPageChange: setDebtsPage,
+    outstandingAmount: outstandingDebt,
+  } = debtState;
+  const {
+    data: reportData,
+    isLoading: isReportLoading,
+    error: reportError,
+    rangeError: reportRangeError,
+    startDate: reportStartDate,
+    endDate: reportEndDate,
+    paymentMethod: reportPaymentMethod,
+    onStartDateChange: setReportStartDate,
+    onEndDateChange: setReportEndDate,
+    onPaymentMethodChange: setReportPaymentMethod,
+    onPreset: handleReportPreset,
+    onExportCsv,
+    onPrintPdf: onPrintReport,
+  } = reportState;
+  const { onDisputeTransaction, onDisputeDebt, disputeQuota } = actions;
   const isActivityView = currentView === 'activity';
   const isTransactionsView = currentView === 'transactions';
   const isDebtsView = currentView === 'debts';
   const isDisputesView = currentView === 'disputes';
   const isReportView = currentView === 'report';
 
-  return (
-      <Tabs
-        value={currentView}
-        onValueChange={(value) => setActiveView(value as CashView)}
-        className="w-full"
-      >
-        <TabsList
-          className={`grid min-h-14 w-full gap-1 bg-surface-1 p-2 md:flex md:h-auto md:min-h-0 md:w-fit md:gap-2 md:p-1 ${isTreasurerOrTeacher ? "grid-cols-5" : "grid-cols-3"}`}
-        >
-          {isTreasurerOrTeacher && (
-            <TabsTrigger
-              value="activity"
-              className="min-h-12 min-w-0 flex-1 px-1 text-xs leading-tight md:min-h-9 md:min-w-36 md:flex-none md:whitespace-nowrap md:px-3 data-[state=active]:bg-surface-2 data-[state=active]:text-ink"
-            >
-              <span className="md:hidden">Aktivitas</span>
-              <span className="hidden md:inline">Aktivitas Kas</span>
-            </TabsTrigger>
-          )}
-          <TabsTrigger
-            value="transactions"
-            className="min-h-12 min-w-0 flex-1 px-1 text-xs leading-tight md:min-h-9 md:min-w-40 md:flex-none md:whitespace-nowrap md:px-3 data-[state=active]:bg-surface-2 data-[state=active]:text-ink"
-          >
-            <span className="md:hidden">Transaksi</span>
-            <span className="hidden md:inline">Riwayat Transaksi Kas</span>
-          </TabsTrigger>
-          <TabsTrigger
-            value="debts"
-            className="min-h-12 min-w-0 flex-1 px-1 text-xs leading-tight md:min-h-9 md:min-w-40 md:flex-none md:whitespace-nowrap md:px-3 data-[state=active]:bg-surface-2 data-[state=active]:text-ink"
-          >
-            <span className="md:hidden">Tunggakan</span>
-              <span className="hidden md:inline">{isStudent ? 'Tunggakan Saya' : 'Daftar Tunggakan Siswa'}</span>
-          </TabsTrigger>
-          <TabsTrigger
-            value="disputes"
-            className="min-h-12 min-w-0 flex-1 px-1 text-xs leading-tight md:min-h-9 md:min-w-36 md:flex-none md:whitespace-nowrap md:px-3 data-[state=active]:bg-surface-2 data-[state=active]:text-ink"
-          >
-            <span className="md:hidden">Sanggahan</span>
-            <span className="hidden md:inline">Sanggahan Kas</span>
-          </TabsTrigger>
-          {isTreasurerOrTeacher && (
-            <TabsTrigger
-              value="report"
-              className="min-h-12 min-w-0 flex-1 px-1 text-xs leading-tight md:min-h-9 md:min-w-36 md:flex-none md:whitespace-nowrap md:px-3 data-[state=active]:bg-surface-2 data-[state=active]:text-ink"
-            >
-              <span className="md:hidden">Laporan</span>
-              <span className="hidden md:inline">Laporan Kas</span>
-            </TabsTrigger>
-          )}
-        </TabsList>
+  const handleResetReport = () => {
+    handleReportPreset(30);
+    setReportPaymentMethod('');
+  };
 
+  const handleExportReport = () => {
+    if (reportData) onExportCsv(reportData);
+  };
+
+  const handleTransactionStartDateChange = (value: string) => {
+    setTanggalMulai(value);
+    setTxPage(1);
+  };
+
+  const handleTransactionEndDateChange = (value: string) => {
+    setTanggalSelesai(value);
+    setTxPage(1);
+  };
+
+  const handleTransactionPaymentMethodChange = (value: string) => {
+    setMetodePembayaran(value);
+    setTxPage(1);
+  };
+
+  const transactionContent = (() => {
+    if (isTxLoading) return <CashSectionSkeleton rows={4} />;
+    if (txError) {
+      return <CashSectionError error={txError} title="Riwayat transaksi belum dapat dimuat" onRetry={onRetryTransactions} />;
+    }
+
+    const transactions = txData?.data ?? [];
+    const list = isMobile
+      ? <CashTransactionMobileList transactions={transactions} onDispute={onDisputeTransaction} isStudent={isStudent} disputeQuota={disputeQuota} />
+      : <CashTransactionTable transactions={transactions} onDispute={onDisputeTransaction} isStudent={isStudent} disputeQuota={disputeQuota} />;
+
+    return (
+      <div className="space-y-4">
+        {list}
+        <Pagination
+          page={txData?.page ?? txPage}
+          totalPages={txData?.totalPages ?? 1}
+          total={txData?.total ?? 0}
+          pageSize={pageSize}
+          onPageChange={setTxPage}
+        />
+      </div>
+    );
+  })();
+
+  const debtContent = (() => {
+    if (isDebtsLoading) return <CashSectionSkeleton rows={4} />;
+    if (debtsError) {
+      return <CashSectionError error={debtsError} title="Daftar tunggakan belum dapat dimuat" onRetry={onRetryDebts} />;
+    }
+
+    const debts = debtsData?.data ?? [];
+    const list = isMobile
+      ? <DebtRecordsMobileList debts={debts} isStudent={isStudent} onDispute={onDisputeDebt} disputeQuota={disputeQuota} />
+      : <DebtRecordsTable debts={debts} isStudent={isStudent} onDispute={onDisputeDebt} disputeQuota={disputeQuota} />;
+
+    return (
+      <div className="space-y-4">
+        {list}
+        <Pagination
+          page={debtsData?.page ?? debtsPage}
+          totalPages={debtsData?.totalPages ?? 1}
+          total={debtsData?.total ?? 0}
+          pageSize={pageSize}
+          onPageChange={setDebtsPage}
+        />
+      </div>
+    );
+  })();
+
+  return (
+    <div className="w-full">
+      <AnimatedTabs
+        id="cash-tabs"
+        value={currentView}
+        onValueChange={handleViewChange}
+        ariaLabel="Menu kas"
+        ariaControls="cash-view-panel"
+        className="w-full md:w-fit"
+        tabs={[
+          ...(isTreasurerOrTeacher ? [{ value: 'activity', label: <><span className="md:hidden">Aktivitas</span><span className="hidden md:inline">Aktivitas Kas</span></> }] : []),
+          { value: 'transactions', label: <><span className="md:hidden">Transaksi</span><span className="hidden md:inline">Riwayat Transaksi Kas</span></> },
+          { value: 'debts', label: <><span className="md:hidden">Tunggakan</span><span className="hidden md:inline">{isStudent ? 'Tunggakan Saya' : 'Daftar Tunggakan Siswa'}</span></> },
+          { value: 'disputes', label: <><span className="md:hidden">Sanggahan</span><span className="hidden md:inline">Sanggahan Kas</span></> },
+          ...(isTreasurerOrTeacher ? [{ value: 'report', label: <><span className="md:hidden">Laporan</span><span className="hidden md:inline">Laporan Kas</span></> }] : []),
+        ]}
+      />
+
+      <div id="cash-view-panel" role="tabpanel" aria-labelledby={`cash-tabs-${currentView}`} tabIndex={-1} className="mt-4">
         {isTreasurerOrTeacher && isActivityView && (
-          <TabsContent value="activity" className="mt-4">
+          <div>
             <CashOperationsOverview
-              transactions={txData?.data ?? []}
-              isLoading={isTxLoading}
-              error={txError}
-              isMobile={isMobile}
-              isStudent={isStudent}
-              outstandingDebt={outstandingDebt}
-              onDispute={onDisputeTransaction}
-              onRetry={() => {
-                onRetryTransactions();
+              state={{
+                transactions: txData?.data ?? [],
+                isLoading: isTxLoading,
+                error: txError,
+                outstandingDebt,
               }}
-              onViewTransactions={() => setActiveView("transactions")}
-              onViewDebts={() => setActiveView("debts")}
+              access={{ isMobile, isStudent }}
+              actions={{
+                onDispute: onDisputeTransaction,
+                onRetry: onRetryTransactions,
+                onViewTransactions: () => setActiveView('transactions'),
+                onViewDebts: () => setActiveView('debts'),
+              }}
             />
-          </TabsContent>
+          </div>
         )}
 
         {isTreasurerOrTeacher && isReportView && (
-          <TabsContent value="report" className="mt-4">
+          <div>
             <Suspense fallback={<CashSectionSkeleton rows={2} />}>
               <LazyCashReportPanel
-                report={reportData}
-                isLoading={isReportLoading}
-                error={reportError}
-                startDate={reportStartDate}
-                endDate={reportEndDate}
-                paymentMethodCode={reportPaymentMethod}
-                paymentMethods={paymentMethods}
-                isPaymentMethodsLoading={isPaymentMethodsLoading}
-                rangeError={reportRangeError}
-                onStartDateChange={setReportStartDate}
-                onEndDateChange={setReportEndDate}
-                onPaymentMethodChange={setReportPaymentMethod}
-                onPreset={handleReportPreset}
-                onReset={() => {
-                  handleReportPreset(30);
-                  setReportPaymentMethod("");
+                report={{ data: reportData, isLoading: isReportLoading, error: reportError, rangeError: reportRangeError }}
+                filters={{
+                  startDate: reportStartDate,
+                  endDate: reportEndDate,
+                  paymentMethodCode: reportPaymentMethod,
+                  paymentMethods,
+                  isPaymentMethodsLoading,
+                  onStartDateChange: setReportStartDate,
+                  onEndDateChange: setReportEndDate,
+                  onPaymentMethodChange: setReportPaymentMethod,
+                  onPreset: handleReportPreset,
+                  onReset: handleResetReport,
                 }}
-                onExportCsv={() => {
-                  if (reportData) onExportCsv(reportData);
-                }}
-                onPrintPdf={onPrintReport}
+                actions={{ onExportCsv: handleExportReport, onPrintPdf: onPrintReport }}
               />
             </Suspense>
-          </TabsContent>
+          </div>
         )}
 
         {isTransactionsView && (
-          <TabsContent value="transactions" className="mt-4">
-            <div className="mb-4 grid gap-2 rounded-xl border border-hairline bg-surface-1 p-3 md:flex md:flex-wrap md:items-center">
-              <Input
-                type="date"
-                aria-label="Tanggal mulai transaksi"
-                value={tanggalMulai}
-                onChange={(event) => {
-                  setTanggalMulai(event.target.value);
-                  setTxPage(1);
+          <div>
+            <Suspense fallback={<div className="mb-4 h-28 animate-pulse rounded-xl border border-hairline bg-surface-1" aria-label="Memuat filter transaksi" />}>
+              <LazyCashTransactionFilter
+                filters={{
+                  startDate: tanggalMulai,
+                  endDate: tanggalSelesai,
+                  paymentMethodCode: metodePembayaran,
+                  paymentMethods,
+                  totalTransactions: txData?.total,
                 }}
-                className="text-xs text-ink md:w-44"
-              />
-              <Input
-                type="date"
-                aria-label="Tanggal selesai transaksi"
-                value={tanggalSelesai}
-                min={tanggalMulai || undefined}
-                onChange={(event) => {
-                  setTanggalSelesai(event.target.value);
-                  setTxPage(1);
+                studentScope={{
+                  canFilter: canFilterCashHistoryByStudent,
+                  selectedStudent: selectedHistoryStudent,
+                  options: historyStudentOptions,
+                  isLoading: isHistoryStudentOptionsLoading,
+                  error: historyStudentOptionsError,
                 }}
-                className="text-xs text-ink md:w-44"
-              />
-              <Select
-                value={metodePembayaran || "all"}
-                onValueChange={(value) => {
-                  setMetodePembayaran(value === "all" || !value ? "" : value);
-                  setTxPage(1);
-                }}
-              >
-                <SelectTrigger
-                  className="text-xs text-ink md:w-48"
-                  aria-label="Filter metode pembayaran"
-                >
-                  <SelectValue placeholder="Semua metode" />
-                </SelectTrigger>
-                <SelectContent className="border-hairline bg-surface-3 text-ink">
-                  <SelectItem value="all">Semua metode</SelectItem>
-                  {paymentMethods.map((method) => (
-                    <SelectItem key={method.id} value={method.code}>
-                      {formatPaymentMethodLabel(method.code, method.label)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {(tanggalMulai || tanggalSelesai || metodePembayaran) && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setTanggalMulai("");
-                    setTanggalSelesai("");
-                    setMetodePembayaran("");
-                    setTxPage(1);
-                  }}
-                  className="min-h-12 text-xs text-ink-subtle"
-                >
-                  Reset periode
-                </Button>
-              )}
-            </div>
-            {isTxLoading ? (
-              <CashSectionSkeleton rows={4} />
-            ) : txError ? (
-              <CashSectionError
-                error={txError}
-                title="Riwayat transaksi belum dapat dimuat"
-                onRetry={() => {
-                  onRetryTransactions();
+                actions={{
+                  onStartDateChange: handleTransactionStartDateChange,
+                  onEndDateChange: handleTransactionEndDateChange,
+                  onPaymentMethodChange: handleTransactionPaymentMethodChange,
+                  onStudentValueChange: onHistoryStudentValueChange,
+                  onSelectedStudentChange: onSelectedHistoryStudentChange,
+                  onStudentSearchChange: onHistoryStudentSearchChange,
+                  onReset: onResetTransactionFilters,
+                  onRetryStudentOptions: onRetryHistoryStudentOptions,
                 }}
               />
-            ) : (
-              <div className="space-y-4">
-                {isMobile ? (
-                  <CashTransactionMobileList
-                    transactions={txData?.data ?? []}
-                    onDispute={onDisputeTransaction}
-                    isStudent={isStudent}
-                    disputeQuota={disputeQuota}
-                  />
-                ) : (
-                  <CashTransactionTable
-                    transactions={txData?.data ?? []}
-                    onDispute={onDisputeTransaction}
-                    isStudent={isStudent}
-                    disputeQuota={disputeQuota}
-                  />
-                )}
-                <Pagination
-                  page={txData?.page ?? txPage}
-                  totalPages={txData?.totalPages ?? 1}
-                  total={txData?.total ?? 0}
-                  pageSize={txData?.pageSize ?? pageSize}
-                  onPageChange={setTxPage}
-                />
-              </div>
-            )}
-          </TabsContent>
+            </Suspense>
+            {transactionContent}
+          </div>
         )}
 
         {isDebtsView && (
-          <TabsContent value="debts" className="mt-4">
-            {isDebtsLoading ? (
-              <CashSectionSkeleton rows={4} />
-            ) : debtsError ? (
-              <CashSectionError
-                error={debtsError}
-                title="Daftar tunggakan belum dapat dimuat"
-                onRetry={() => {
-                  onRetryDebts();
-                }}
-              />
-            ) : (
-              <div className="space-y-4">
-                {isMobile ? (
-                  <DebtRecordsMobileList debts={debtsData?.data ?? []} isStudent={isStudent} onDispute={onDisputeDebt} disputeQuota={disputeQuota} />
-                ) : (
-                  <DebtRecordsTable debts={debtsData?.data ?? []} isStudent={isStudent} onDispute={onDisputeDebt} disputeQuota={disputeQuota} />
-                )}
-                <Pagination
-                  page={debtsData?.page ?? debtsPage}
-                  totalPages={debtsData?.totalPages ?? 1}
-                  total={debtsData?.total ?? 0}
-                  pageSize={debtsData?.pageSize ?? pageSize}
-                  onPageChange={setDebtsPage}
+          <div>
+            {canFilterCashHistoryByStudent && (
+              <Suspense fallback={<div className="mb-4 h-28 animate-pulse rounded-xl border border-hairline bg-surface-1" aria-label="Memuat filter tunggakan" />}>
+                <LazyCashDebtFilter
+                  studentScope={{
+                    selectedStudent: selectedHistoryStudent,
+                    options: historyStudentOptions,
+                    isLoading: isHistoryStudentOptionsLoading,
+                    error: historyStudentOptionsError,
+                    totalDebts: debtsData?.total,
+                  }}
+                  actions={{
+                    onValueChange: onHistoryStudentValueChange,
+                    onSelectedStudentChange: onSelectedHistoryStudentChange,
+                    onSearchChange: onHistoryStudentSearchChange,
+                    onClear: onClearStudentScope,
+                    onRetry: onRetryHistoryStudentOptions,
+                  }}
                 />
-              </div>
+              </Suspense>
             )}
-          </TabsContent>
+            {debtContent}
+          </div>
         )}
 
         {isDisputesView && (
-          <TabsContent value="disputes" className="mt-4">
+          <div>
             <CashDisputeQueue reviewer={isTreasurerOrTeacher} />
-          </TabsContent>
+          </div>
         )}
-      </Tabs>
+      </div>
+    </div>
   );
 }

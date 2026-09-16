@@ -30,7 +30,7 @@ test('users routes require teacher role and preserve list/create envelopes', asy
     method: 'POST',
     url: '/api/users',
     headers,
-    payload: { username: 'route_teacher', nama: 'Route Teacher', role: 'teacher', password: 'Strong123' },
+    payload: { username: 'route_teacher', name: 'Route Teacher', role: 'teacher', password: 'Strong123' },
   });
   assert.equal(created.statusCode, 201);
   assert.equal(created.json().success, true);
@@ -51,10 +51,10 @@ test('users routes validate change reasons and reset response', async (t) => {
   const headers = { authorization: `Bearer ${token}` };
   const created = await app.inject({
     method: 'POST', url: '/api/users', headers,
-    payload: { username: 'reset_route', nama: 'Reset Route', role: 'leader', password: 'Strong123' },
+    payload: { username: 'reset_route', name: 'Reset Route', role: 'leader', password: 'Strong123' },
   });
   const id = created.json().data.id;
-  const invalid = await app.inject({ method: 'PUT', url: `/api/users/${id}`, headers, payload: { nama: 'Nama Baru' } });
+  const invalid = await app.inject({ method: 'PUT', url: `/api/users/${id}`, headers, payload: { name: 'Nama Baru' } });
   assert.equal(invalid.statusCode, 422);
 
   const renamed = await app.inject({

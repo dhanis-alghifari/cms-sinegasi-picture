@@ -1,4 +1,3 @@
-// src/features/classes/routes.tsx
 
 import { lazy, Suspense } from 'react';
 import type { RouteObject } from 'react-router-dom';

@@ -1,5 +1,3 @@
-// src/features/borrowing/routes.tsx
-// Borrowing feature routes
 
 import { lazy, Suspense } from 'react';
 import type { RouteObject } from 'react-router-dom';

@@ -1,6 +1,5 @@
 import type { ContestRecord, ContestPublicStatus, ContestScope, ContestStatus } from './contests.types.js';
 import { asDatabaseError } from '../../shared/database/database.types.js';
-import type { DatabaseRow } from '../../shared/database/database.types.js';
 
 export const DEFAULT_CONTESTS: ContestRecord[] = [
   { id: 'cnt-001', nama: 'LKS Sinematografi Provinsi Jawa Tengah 2026', jenis: 'Sinematografi', level: 'provinsi', tanggal: '2026-09-15', status: 'progres', status_public: 'buka', hasil: null },
@@ -146,49 +145,4 @@ export function contestErrorMessage(error: unknown, fallback: string): string {
   if (databaseError?.code === '42P01' || databaseError?.code === '42703' || databaseError?.code === 'PGRST204' || databaseError?.code === 'PGRST205') return 'Skema lomba belum terpasang atau belum dimuat ulang. Jalankan migration contest terlebih dahulu, lalu restart backend.';
   if (databaseError?.message?.trim() && !/[{}]/.test(databaseError.message)) return databaseError.message.trim();
   return fallback;
-}
-
-function nullableText(value: unknown): string | null {
-  return value == null ? null : String(value);
-}
-
-function optionalText(value: unknown): string | undefined {
-  return value == null ? undefined : String(value);
-}
-
-export function mapContestRow(row: DatabaseRow): ContestRecord {
-  const nama = String(row.nama ?? row.nama_lomba ?? '');
-  const jenis = String(row.jenis ?? row.penyelenggara ?? '');
-  const level = String(row.level ?? '');
-  const tanggal = String(row.tanggal ?? row.deadline ?? '');
-  const status = String(row.status ?? 'progres');
-  return {
-    id: String(row.id),
-    nama,
-    jenis,
-    level,
-    tanggal,
-    status,
-    status_public: toPublicContestStatus(status, row.status_public),
-    hasil: nullableText(row.hasil),
-    nama_lomba: String(row.nama_lomba ?? nama),
-    penyelenggara: String(row.penyelenggara ?? jenis),
-    kota: nullableText(row.kota),
-    tingkat: toPublicContestLevel(row.tingkat ?? level),
-    deadline: tanggal,
-    tahun_event: row.tahun_event == null ? null : Number(row.tahun_event),
-    website_url: nullableText(row.website_url),
-    deskripsi: nullableText(row.deskripsi),
-    planned_work_count: row.planned_work_count == null ? null : Number(row.planned_work_count),
-    academic_year: nullableText(row.academic_year),
-    entry_count: row.entry_count == null ? undefined : Number(row.entry_count),
-    piala_url: nullableText(row.piala_url),
-    juara: nullableText(row.juara),
-    kategori_penghargaan: nullableText(row.kategori_penghargaan),
-    catatan: nullableText(row.catatan),
-    created_by: nullableText(row.created_by),
-    created_at: optionalText(row.created_at),
-    updated_by: nullableText(row.updated_by),
-    updated_at: nullableText(row.updated_at),
-  };
 }

@@ -1,5 +1,3 @@
-// src/features/students/routes.tsx
-// Students feature routes
 
 import { lazy, Suspense } from 'react';
 import type { RouteObject } from 'react-router-dom';

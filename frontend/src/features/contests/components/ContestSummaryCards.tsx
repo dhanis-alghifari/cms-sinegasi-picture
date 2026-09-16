@@ -1,5 +1,3 @@
-// src/features/contests/components/ContestSummaryCards.tsx
-// Summary cards for film contests & achievements metrics
 
 import { Trophy, Film, Award, Flame } from 'lucide-react';
 import { Card, CardContent } from '@/shared/ui/primitives/card';

@@ -1,6 +1,3 @@
-// src/features/auth/components/LoginForm.tsx
-// Login form component — React Hook Form + Zod + Shadcn UI
-// Constitution: Form State → React Hook Form + Zod mandatory
 
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -63,7 +60,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
           {/* Username */}
           <div className="space-y-1.5">
             <Label htmlFor="username" className="text-ink-muted text-sm">
-              Username
+              Nama Pengguna
             </Label>
             <Input
               id="username"
@@ -89,14 +86,14 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
           {/* Password */}
           <div className="space-y-1.5">
             <Label htmlFor="password" className="text-ink-muted text-sm">
-              Password
+              Kata Sandi
             </Label>
             <div className="relative">
               <Input
                 id="password"
                 type={showPassword ? 'text' : 'password'}
                 autoComplete="current-password"
-                placeholder="Masukkan password"
+                placeholder="Masukkan kata sandi"
                 aria-invalid={!!form.formState.errors.password}
                 aria-describedby={form.formState.errors.password ? 'password-error' : undefined}
                 className={cn(
@@ -109,7 +106,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
               <button
                 type="button"
                 onClick={() => setShowPassword((v) => !v)}
-                aria-label={showPassword ? 'Sembunyikan password' : 'Tampilkan password'}
+                aria-label={showPassword ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-tertiary hover:text-ink-subtle transition-colors"
               >
                 {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}

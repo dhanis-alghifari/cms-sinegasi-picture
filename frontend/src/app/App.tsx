@@ -1,5 +1,3 @@
-// src/App.tsx
-// Application root component — mounts AppProviders and RouterProvider
 
 import { RouterProvider } from 'react-router-dom';
 import { AppProviders } from '@/app/providers/AppProviders';

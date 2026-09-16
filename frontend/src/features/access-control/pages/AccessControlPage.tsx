@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { AlertCircle, Save, ShieldCheck } from 'lucide-react';
 import { Button } from '@/shared/ui/primitives/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/primitives/card';
+import { Checkbox } from '@/shared/ui/primitives/checkbox';
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { PageLoader } from '@/shared/ui/LoadingSpinner';
 import { useAccessControlMatrixQuery, useUpdateRoleCapabilitiesMutation } from '../hooks/useAccessControlQuery';
@@ -60,7 +61,7 @@ export function AccessControlPage() {
                     const checked = selected.includes(permission);
                     return (
                       <label key={permission} className="flex items-center gap-2 rounded-md border border-hairline px-2.5 py-2 text-xs text-ink-subtle hover:bg-surface-2">
-                        <input type="checkbox" checked={checked} onChange={() => setDrafts((current) => ({ ...current, [role]: checked ? selected.filter((item) => item !== permission) : [...selected, permission] }))} />
+                        <Checkbox checked={checked} onChange={() => setDrafts((current) => ({ ...current, [role]: checked ? selected.filter((item) => item !== permission) : [...selected, permission] }))} aria-label={permissionLabels[permission] ?? permission} />
                         <span>{permissionLabels[permission] ?? permission}</span>
                       </label>
                     );

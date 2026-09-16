@@ -1,5 +1,3 @@
-// src/features/cash/components/FastCashInFields.tsx
-// Form fields for the fast cash-in flow.
 
 import { Controller, type UseFormReturn } from 'react-hook-form';
 import { AlertCircle, Coins, ReceiptText } from 'lucide-react';
@@ -12,7 +10,7 @@ import { getErrorMessage } from '@/shared/api/errors';
 import { formatCurrency } from '@/shared/utils/formatCurrency';
 import { formatPaymentMethodLabel } from '@/shared/utils/formatLabels';
 import { ImageUploadField } from './ImageUploadField';
-import { FormattedNumberInput } from './FormattedNumberInput';
+import { FormattedNumberInput } from '@/shared/ui/FormattedNumberInput';
 import { StudentSearchCombobox } from './StudentSearchCombobox';
 import type { StudentOption } from '@/features/students/types/students.types';
 
@@ -21,59 +19,80 @@ import type { CashPaymentMethod } from '../types/cash.types';
 
 interface FastCashInFieldsProps {
   form: UseFormReturn<CashInFormValues>;
-  cashInType: CashInFormValues['type'];
-  paymentMode: CashInFormValues['payment_mode'];
-  selectedPaymentMethod?: string;
-  selectedStudentId?: string;
-  selectedStudentOption: StudentOption | null;
-  studentOptions: StudentOption[];
-  isStudentOptionsLoading: boolean;
-  studentOptionsError?: unknown;
-  debtDifference: number;
-  requiresPaymentMethod: boolean;
-  proofImage?: string;
-  paymentMethods: CashPaymentMethod[];
-  paymentMethodsError?: unknown;
-  isPaymentMethodsLoading: boolean;
-  nominalIuranWajib: number;
-  isLoading?: boolean;
-  error?: unknown;
-  onCashInTypeChange: (value: CashInFormValues['type']) => void;
-  onPaymentModeChange: (value: CashInFormValues['payment_mode']) => void;
-  onStudentChange: (value: string) => void;
-  onSelectedStudentOptionChange: (option: StudentOption | null) => void;
-  onStudentSearchChange: (value: string) => void;
-  onProofChange: (value: string) => void;
-  onProcessingChange: (value: boolean) => void;
+  state: {
+    cashInType: CashInFormValues['type'];
+    paymentMode: CashInFormValues['payment_mode'];
+    selectedPaymentMethod?: string;
+    selectedStudentId?: string;
+    selectedStudentOption: StudentOption | null;
+    debtDifference: number;
+    requiresPaymentMethod: boolean;
+    proofImage?: string;
+  };
+  options: {
+    studentOptions: StudentOption[];
+    isStudentOptionsLoading: boolean;
+    studentOptionsError?: unknown;
+    paymentMethods: CashPaymentMethod[];
+    paymentMethodsError?: unknown;
+    isPaymentMethodsLoading: boolean;
+    nominalIuranWajib: number;
+  };
+  feedback: {
+    isLoading?: boolean;
+    error?: unknown;
+  };
+  actions: {
+    onCashInTypeChange: (value: CashInFormValues['type']) => void;
+    onPaymentModeChange: (value: CashInFormValues['payment_mode']) => void;
+    onStudentChange: (value: string) => void;
+    onSelectedStudentOptionChange: (option: StudentOption | null) => void;
+    onStudentSearchChange: (value: string) => void;
+    onProofChange: (value: string) => void;
+    onProcessingChange: (value: boolean) => void;
+  };
 }
 
 export function FastCashInFields({
   form,
-  cashInType,
-  paymentMode,
-  selectedPaymentMethod,
-  selectedStudentId,
-  selectedStudentOption,
-  studentOptions,
-  isStudentOptionsLoading,
-  studentOptionsError,
-  debtDifference,
-  requiresPaymentMethod,
-  proofImage,
-  paymentMethods,
-  paymentMethodsError,
-  isPaymentMethodsLoading,
-  nominalIuranWajib,
-  isLoading = false,
-  error,
-  onCashInTypeChange,
-  onPaymentModeChange,
-  onStudentChange,
-  onSelectedStudentOptionChange,
-  onStudentSearchChange,
-  onProofChange,
-  onProcessingChange,
+  state,
+  options,
+  feedback,
+  actions,
 }: FastCashInFieldsProps) {
+  const {
+    cashInType,
+    paymentMode,
+    selectedPaymentMethod,
+    selectedStudentId,
+    selectedStudentOption,
+    debtDifference,
+    requiresPaymentMethod,
+    proofImage,
+  } = state;
+  const {
+    studentOptions,
+    isStudentOptionsLoading,
+    studentOptionsError,
+    paymentMethods,
+    paymentMethodsError,
+    isPaymentMethodsLoading,
+    nominalIuranWajib,
+  } = options;
+  const { isLoading = false, error } = feedback;
+  const {
+    onCashInTypeChange,
+    onPaymentModeChange,
+    onStudentChange,
+    onSelectedStudentOptionChange,
+    onStudentSearchChange,
+    onProofChange,
+    onProcessingChange,
+  } = actions;
+  const handlePaymentMethodValueChange = (value: string | null) => {
+    if (!value) return;
+    form.setValue('metode_pembayaran', value, { shouldValidate: true, shouldDirty: true });
+  };
   return (
     <>
           {Boolean(error) && (
@@ -180,7 +199,7 @@ export function FastCashInFields({
             <Label className="text-ink-muted text-xs">Metode Pembayaran *</Label>
             <Select
               value={selectedPaymentMethod}
-              onValueChange={(value) => value && form.setValue('metode_pembayaran', value, { shouldValidate: true, shouldDirty: true })}
+              onValueChange={handlePaymentMethodValueChange}
               disabled={isPaymentMethodsLoading || paymentMethods.length === 0 || isLoading}
             >
               <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs">
@@ -260,9 +279,8 @@ export function FastCashInFields({
                   className={cn('bg-surface-2 border-hairline text-ink text-xs font-mono', form.formState.errors.jumlah && 'border-semantic-danger')}
                   value={field.value}
                   onChange={(value) => {
-                    const amount = value ?? 0;
-                    field.onChange(value ?? 0);
-                    if (cashInType === 'iuran_wajib' && amount === 0) {
+                    field.onChange(value);
+                    if (cashInType === 'iuran_wajib' && value === 0) {
                       form.setValue('payment_mode', 'unpaid', { shouldValidate: true, shouldDirty: true });
                       form.setValue('metode_pembayaran', undefined, { shouldValidate: true, shouldDirty: true });
                     }
@@ -295,13 +313,9 @@ export function FastCashInFields({
           </div>
 
           <ImageUploadField
-            id="foto_bukti_url"
-            label="Foto Bukti Pembayaran (Opsional)"
-            value={proofImage}
-            onChange={onProofChange}
-            error={form.formState.errors.foto_bukti_url?.message}
-            disabled={isLoading}
-            onProcessingChange={onProcessingChange}
+            field={{ id: 'foto_bukti_url', label: 'Foto Bukti Pembayaran (Opsional)', value: proofImage, onChange: onProofChange }}
+            validation={{ error: form.formState.errors.foto_bukti_url?.message }}
+            state={{ disabled: isLoading, onProcessingChange }}
           />
     </>
   );

@@ -1,5 +1,3 @@
-// src/features/notifications/components/NotificationDropdown.tsx
-// Header notifications dropdown popover with unread badge and quick list
 
 import { Bell, CheckCheck } from 'lucide-react';
 import {
@@ -31,6 +29,36 @@ export function NotificationDropdown() {
 
   const unreadCount = unreadData?.unread_count ?? 0;
   const recentNotifications = notificationsData?.data ?? [];
+  const notificationContent = (() => {
+    if (isNotificationsLoading) {
+      return <p className="py-6 text-center text-xs text-ink-tertiary">Memuat notifikasi...</p>;
+    }
+    if (hasNotificationsError) {
+      return (
+        <div className="px-3 py-6 text-center" role="alert">
+          <p className="text-xs text-ink-subtle">Notifikasi gagal dimuat.</p>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => refetchNotifications()}
+            className="mt-2 h-7 px-2 text-[11px] text-primary"
+          >
+            Coba lagi
+          </Button>
+        </div>
+      );
+    }
+    if (recentNotifications.length === 0) {
+      return <p className="py-6 text-center text-xs italic text-ink-tertiary">Belum ada notifikasi sistem.</p>;
+    }
+    return recentNotifications.map((notification) => (
+      <NotificationItem
+        key={notification.id}
+        notification={notification}
+        onMarkRead={(id) => markReadMutation.mutate(id)}
+      />
+    ));
+  })();
 
   return (
     <DropdownMenu>
@@ -89,35 +117,7 @@ export function NotificationDropdown() {
         </div>
 
         <div className="max-h-80 space-y-1.5 overflow-y-auto p-2">
-          {isNotificationsLoading ? (
-            <p className="py-6 text-center text-xs text-ink-tertiary">
-              Memuat notifikasi...
-            </p>
-          ) : hasNotificationsError ? (
-            <div className="px-3 py-6 text-center" role="alert">
-              <p className="text-xs text-ink-subtle">Notifikasi gagal dimuat.</p>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => refetchNotifications()}
-                className="mt-2 h-7 px-2 text-[11px] text-primary"
-              >
-                Coba lagi
-              </Button>
-            </div>
-          ) : recentNotifications.length === 0 ? (
-            <p className="py-6 text-center text-xs italic text-ink-tertiary">
-              Belum ada notifikasi sistem.
-            </p>
-          ) : (
-            recentNotifications.map((notification) => (
-              <NotificationItem
-                key={notification.id}
-                notification={notification}
-                onMarkRead={(id) => markReadMutation.mutate(id)}
-              />
-            ))
-          )}
+          {notificationContent}
         </div>
 
         <div className="border-t border-hairline bg-surface-2/40 p-2">

@@ -1,5 +1,3 @@
-// src/features/users/types/users.types.ts
-// User management domain types according to PRD schema
 
 import type { ActorSummary, UserRole } from '@/shared/types/common';
 

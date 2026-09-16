@@ -39,7 +39,7 @@ export const classesListRouteSchema = {
     additionalProperties: false,
     properties: {
       search: { type: 'string', maxLength: 100 },
-      tingkat: { type: 'string', enum: ['all', ...classLevels] },
+      level: { type: 'string', enum: ['all', ...classLevels] },
       is_active: { type: 'string', enum: ['all', 'true', 'false'] },
       page: { type: 'string', pattern: '^[0-9]+$' },
       pageSize: { type: 'string', pattern: '^[0-9]+$' },
@@ -53,10 +53,10 @@ export const classCreateRouteSchema = {
   body: {
     type: 'object',
     additionalProperties: false,
-    required: ['nama_kelas', 'tingkat'],
+    required: ['name', 'level'],
     properties: {
-      nama_kelas: { type: 'string', minLength: 1, maxLength: 120 },
-      tingkat: { type: 'string', enum: classLevels },
+      name: { type: 'string', minLength: 1, maxLength: 120 },
+      level: { type: 'string', enum: classLevels },
     },
   },
 } as const;
@@ -68,8 +68,8 @@ export const classUpdateRouteSchema = {
     additionalProperties: false,
     minProperties: 1,
     properties: {
-      nama_kelas: { type: 'string', minLength: 1, maxLength: 120 },
-      tingkat: { type: 'string', enum: classLevels },
+      name: { type: 'string', minLength: 1, maxLength: 120 },
+      level: { type: 'string', enum: classLevels },
       is_active: { type: 'boolean' },
       change_reason: { type: 'string', minLength: 5, maxLength: 500 },
     },

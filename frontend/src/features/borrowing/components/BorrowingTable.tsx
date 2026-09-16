@@ -1,5 +1,3 @@
-// src/features/borrowing/components/BorrowingTable.tsx
-// Table for borrowing transactions with multi-item equipment lists, status badges, overdue alerts, and workflow actions
 
 import { CheckCircle2, ArrowRightLeft, RotateCcw, AlertTriangle } from 'lucide-react';
 import {
@@ -57,7 +55,7 @@ export function BorrowingTable({
             <TableHead className="text-ink-subtle text-xs font-semibold">Keperluan</TableHead>
             <TableHead className="text-ink-subtle text-xs font-semibold">Tgl Pinjam / Rencana Kembali</TableHead>
             <TableHead className="text-ink-subtle text-xs font-semibold">Status Peminjaman</TableHead>
-            <TableHead className="text-ink-subtle text-xs font-semibold">Denda (Jika ada)</TableHead>
+            <TableHead className="text-ink-subtle text-xs font-semibold">Tagihan (Jika ada)</TableHead>
             <TableHead className="text-right text-ink-subtle text-xs font-semibold">Riwayat</TableHead>
             {canManage && <TableHead className="text-right text-ink-subtle text-xs font-semibold">Aksi Workflow</TableHead>}
           </TableRow>
@@ -115,7 +113,7 @@ export function BorrowingTable({
                 </div>
               </TableCell>
 
-              {/* Denda */}
+              {/* Tagihan pengembalian */}
               <TableCell className="text-xs font-mono font-medium">
                 {b.total_denda && b.total_denda > 0 ? (
                   <span className="text-semantic-danger font-bold">{formatCurrency(b.total_denda)}</span>

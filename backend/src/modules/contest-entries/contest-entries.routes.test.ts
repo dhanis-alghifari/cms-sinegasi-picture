@@ -46,14 +46,14 @@ test('contest entry routes expose generic work create, list, and transition flow
     method: 'POST',
     url: `/api/contest-entries/${entryId}/evidence-uploads`,
     headers,
-    payload: { target_status: 'sudah_terkirim', file_name: 'email.png', content_type: 'image/png', file_size_bytes: 128 },
+    payload: { target_status: 'submitted', file_name: 'email.png', content_type: 'image/png', file_size_bytes: 128 },
   });
   assert.equal(reservation.statusCode, 201);
   const transitioned = await app.inject({
     method: 'POST',
     url: `/api/contest-entries/${entryId}/transitions`,
     headers,
-    payload: { status: 'sudah_terkirim', evidence_id: reservation.json().data.evidence_id, change_reason: 'Bukti email diterima' },
+    payload: { status: 'submitted', evidence_id: reservation.json().data.evidence_id, change_reason: 'Bukti email diterima' },
   });
   assert.equal(transitioned.statusCode, 200);
   assert.equal(transitioned.json().data.pipeline_status, 'sudah_terkirim');

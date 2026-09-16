@@ -1,26 +1,35 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { AttendanceService, AttendanceServiceError } from './attendance.service.js';
-import type { AttendanceCorrectionInput, AttendanceRepository } from './attendance.repository.js';
+import type {
+  AttendanceCorrectionInput,
+  AttendancePersistence,
+  AttendanceReadRepository,
+  AttendanceWriteRepository,
+} from './attendance.repository.js';
 
-function repository(overrides: Partial<AttendanceRepository> = {}): AttendanceRepository {
+type PersistenceOverrides = Partial<AttendanceReadRepository & AttendanceWriteRepository>;
+
+function persistence(overrides: PersistenceOverrides = {}): AttendancePersistence {
   return {
-    isConfigured: () => false,
-    list: async () => ({ data: [], count: 0, error: null }),
-    roster: async () => ({ data: [], count: 0, error: null }),
-    summary: async () => ({ data: { hadir: 1, sakit: 0, izin: 0, alpha: 0, total: 1 }, error: null }),
-    record: async (input) => ({ data: { id: 'att-1', ...input }, error: null }),
-    batchRecord: async (input) => ({
-      data: input.records.map((record, index) => ({ id: `att-${index + 1}`, ...record })),
-      error: null,
-    }),
-    correct: async (input) => ({ data: { id: input.attendanceId, ...input }, error: null }),
-    ...overrides,
+    read: {
+      list: overrides.list || (async () => ({ data: [], count: 0, error: null })),
+      roster: overrides.roster || (async () => ({ data: [], count: 0, error: null })),
+      summary: overrides.summary || (async () => ({ data: { hadir: 1, sakit: 0, izin: 0, alpha: 0, total: 1 }, error: null })),
+    },
+    write: {
+      record: overrides.record || (async (input) => ({ data: { id: 'att-1', ...input }, error: null })),
+      batchRecord: overrides.batchRecord || (async (input) => ({
+        data: input.records.map((record, index) => ({ id: `att-${index + 1}`, ...record })),
+        error: null,
+      })),
+      correct: overrides.correct || (async (input) => ({ data: { id: input.attendanceId, ...input }, error: null })),
+    },
   };
 }
 
 test('attendance service applies bounded pagination and calculates total pages', async () => {
-  const service = new AttendanceService(repository({
+  const service = new AttendanceService(persistence({
     list: async () => ({
       data: [{
         id: 'att-1',
@@ -50,7 +59,7 @@ test('attendance service applies bounded pagination and calculates total pages',
 
 test('attendance service creates a deterministic fallback idempotency key', async () => {
   let receivedKey = '';
-  const service = new AttendanceService(repository({
+  const service = new AttendanceService(persistence({
     record: async (input) => {
       receivedKey = input.idempotencyKey;
       return { data: { id: 'att-1' }, error: null };
@@ -61,7 +70,7 @@ test('attendance service creates a deterministic fallback idempotency key', asyn
 });
 
 test('attendance service rejects incomplete records before repository access', async () => {
-  const service = new AttendanceService(repository({
+  const service = new AttendanceService(persistence({
     record: async () => { throw new Error('repository should not be called'); },
   }));
   await assert.rejects(
@@ -71,7 +80,7 @@ test('attendance service rejects incomplete records before repository access', a
 });
 
 test('attendance service returns roster pagination metadata', async () => {
-  const service = new AttendanceService(repository({
+  const service = new AttendanceService(persistence({
     roster: async () => ({
       data: [{ student_id: 'student-1', nis: '001', nama: 'Ari', kelas: 'X TKJ' }],
       count: 11,
@@ -85,7 +94,7 @@ test('attendance service returns roster pagination metadata', async () => {
 });
 
 test('attendance service rejects missing non-present notes before repository access', async () => {
-  const service = new AttendanceService(repository({
+  const service = new AttendanceService(persistence({
     batchRecord: async () => { throw new Error('repository should not be called'); },
   }));
   await assert.rejects(
@@ -102,7 +111,7 @@ test('attendance service rejects missing non-present notes before repository acc
 });
 
 test('attendance service rejects duplicate students before repository access', async () => {
-  const service = new AttendanceService(repository({
+  const service = new AttendanceService(persistence({
     batchRecord: async () => { throw new Error('repository should not be called'); },
   }));
   await assert.rejects(
@@ -121,7 +130,7 @@ test('attendance service rejects duplicate students before repository access', a
 
 test('attendance service delegates a valid batch and returns its count', async () => {
   let received = 0;
-  const service = new AttendanceService(repository({
+  const service = new AttendanceService(persistence({
     batchRecord: async (input) => {
       received = input.records.length;
       return { data: input.records.map((record) => ({ id: 'att-1', ...record })), error: null };
@@ -138,7 +147,7 @@ test('attendance service delegates a valid batch and returns its count', async (
 });
 
 test('attendance service rejects an inverted reporting date range', async () => {
-  const service = new AttendanceService(repository({
+  const service = new AttendanceService(persistence({
     list: async () => { throw new Error('repository should not be called'); },
   }));
 
@@ -155,9 +164,22 @@ test('attendance service rejects an inverted reporting date range', async () => 
   );
 });
 
+test('attendance service rejects impossible calendar dates before repository access', async () => {
+  const service = new AttendanceService(persistence({
+    summary: async () => { throw new Error('repository should not be called'); },
+  }));
+
+  await assert.rejects(
+    service.summary({ tanggal: '2026-02-30' }),
+    (error: unknown) => error instanceof AttendanceServiceError
+      && error.statusCode === 422
+      && error.errorCode === 'INVALID_DATE_FILTER',
+  );
+});
+
 test('attendance service normalizes and forwards correction audit context', async () => {
   let received: AttendanceCorrectionInput | undefined;
-  const service = new AttendanceService(repository({
+  const service = new AttendanceService(persistence({
     correct: async (input) => {
       received = input;
       return { data: { id: input.attendanceId, status: input.status }, error: null };
@@ -182,7 +204,7 @@ test('attendance service normalizes and forwards correction audit context', asyn
 });
 
 test('attendance service rejects a non-present correction without a note', async () => {
-  const service = new AttendanceService(repository({
+  const service = new AttendanceService(persistence({
     correct: async () => { throw new Error('repository should not be called'); },
   }));
 
@@ -200,7 +222,7 @@ test('attendance service rejects a non-present correction without a note', async
 });
 
 test('attendance service maps a missing correction row to 404 and preserves database diagnostics', async () => {
-  const service = new AttendanceService(repository({
+  const service = new AttendanceService(persistence({
     correct: async () => ({
       data: null,
       error: { code: 'P0002', message: 'ATTENDANCE_NOT_FOUND' },

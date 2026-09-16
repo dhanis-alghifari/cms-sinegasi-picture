@@ -4,6 +4,9 @@ import jwt from '@fastify/jwt';
 import test from 'node:test';
 import { createEquipmentMemoryState } from './equipment.helpers.js';
 import { createEquipmentRepository } from './equipment.repository.js';
+import { createEquipmentRecoveryMemoryState } from './equipment.recovery.helpers.js';
+import { createEquipmentRecoveryRepository } from './equipment.recovery.repository.js';
+import { EquipmentRecoveryService } from './equipment.recovery.service.js';
 import { EquipmentService } from './equipment.service.js';
 import equipmentRoutes from './equipment.routes.js';
 
@@ -13,6 +16,7 @@ async function createApp() {
   const state = createEquipmentMemoryState();
   await app.register(equipmentRoutes, {
     equipmentService: new EquipmentService(createEquipmentRepository(null, state)),
+    equipmentRecoveryService: new EquipmentRecoveryService(createEquipmentRecoveryRepository(null, createEquipmentRecoveryMemoryState(), state)),
     persistAuditLog: async () => undefined,
   });
   return app;
@@ -38,6 +42,23 @@ test('equipment routes require authentication and preserve the list envelope', a
   assert.equal(response.json().success, true);
   assert.equal(response.json().pageSize, 2);
   assert.equal(response.json().data.length, 2);
+
+  const report = await app.inject({
+    method: 'GET',
+    url: '/api/equipment/report?scope=all&include_valuation=true',
+    headers: { authorization: `Bearer ${token(app, 'equipment_team')}` },
+  });
+  assert.equal(report.statusCode, 200);
+  assert.equal(report.json().success, true);
+  assert.equal(report.json().data.meta.filters.scope, 'all');
+  assert.equal(report.json().data.items[0].equipment_code, 'AUD-001');
+
+  const deniedReport = await app.inject({
+    method: 'GET',
+    url: '/api/equipment/report',
+    headers: { authorization: `Bearer ${token(app, 'member')}` },
+  });
+  assert.equal(deniedReport.statusCode, 403);
 });
 
 test('equipment mutation routes keep the equipment-team role guard and validate schemas', async (t) => {
@@ -49,8 +70,8 @@ test('equipment mutation routes keep the equipment-team role guard and validate 
     url: '/api/equipment',
     headers: { authorization: `Bearer ${token(app, 'member')}` },
     payload: {
-      kode_alat: 'CAM-DENIED', nama_alat: 'Kamera Ditolak', kategori: 'Kamera', kondisi: 'bagus', status: 'tersedia',
-      foto_urls: ['https://example.test/one.jpg', 'https://example.test/two.jpg', 'https://example.test/three.jpg'],
+      equipment_code: 'CAM-DENIED', name: 'Kamera Ditolak', category: 'camera', condition: 'good', status: 'available',
+      photo_urls: ['https://example.test/one.jpg', 'https://example.test/two.jpg', 'https://example.test/three.jpg'],
     },
   });
   assert.equal(denied.statusCode, 403);
@@ -60,9 +81,63 @@ test('equipment mutation routes keep the equipment-team role guard and validate 
     url: '/api/equipment',
     headers: { authorization: `Bearer ${token(app, 'equipment_team')}` },
     payload: {
-      kode_alat: 'CAM-NEW', nama_alat: 'Kamera Baru', kategori: 'Kamera', kondisi: 'bagus', status: 'tersedia',
-      foto_urls: ['ftp://example.test/one.jpg', 'ftp://example.test/two.jpg', 'ftp://example.test/three.jpg'],
+      equipment_code: 'CAM-NEW', name: 'Kamera Baru', category: 'camera', condition: 'good', status: 'available',
+      photo_urls: ['ftp://example.test/one.jpg', 'ftp://example.test/two.jpg', 'ftp://example.test/three.jpg'],
     },
   });
   assert.equal(invalid.statusCode, 422);
+});
+
+test('recovery routes keep capability guards and require final inspection confirmation', async (t) => {
+  const app = await createApp();
+  t.after(() => app.close());
+
+  const activeCases = await app.inject({
+    method: 'GET',
+    url: '/api/equipment/recovery-cases?status=active',
+    headers: { authorization: `Bearer ${token(app, 'equipment_team')}` },
+  });
+  assert.equal(activeCases.statusCode, 200);
+  assert.deepEqual(activeCases.json().data, []);
+
+  const historyCases = await app.inject({
+    method: 'GET',
+    url: '/api/equipment/recovery-cases?status=history',
+    headers: { authorization: `Bearer ${token(app, 'equipment_team')}` },
+  });
+  assert.equal(historyCases.statusCode, 200);
+  assert.deepEqual(historyCases.json().data, []);
+
+  const denied = await app.inject({
+    method: 'POST',
+    url: '/api/equipment/eq-001/recovery-cases',
+    headers: { authorization: `Bearer ${token(app, 'member')}` },
+    payload: { recovery_type: 'repair', reported_condition: 'damaged', change_reason: 'Membuka kasus servis' },
+  });
+  assert.equal(denied.statusCode, 403);
+
+  const invalid = await app.inject({
+    method: 'POST',
+    url: '/api/equipment/recovery-cases/case-1/complete-repair',
+    headers: { authorization: `Bearer ${token(app, 'equipment_team')}` },
+    payload: { inspection_photos: ['https://example.com/a.jpg', 'https://example.com/b.jpg'], change_reason: 'Verifikasi hasil servis' },
+  });
+  assert.equal(invalid.statusCode, 400);
+
+  const invalidPayment = await app.inject({
+    method: 'POST',
+    url: '/api/equipment/charges/charge-1/payments',
+    headers: { authorization: `Bearer ${token(app, 'equipment_team')}` },
+    payload: { payment_amount: 1000, evidence_ids: [], change_reason: 'Catat pembayaran' },
+  });
+  assert.equal(invalidPayment.statusCode, 400);
+
+  const legacyPayment = await app.inject({
+    method: 'PATCH',
+    url: '/api/equipment/charges/charge-1',
+    headers: { authorization: `Bearer ${token(app, 'equipment_team')}` },
+    payload: { paid_amount: 1000, status: 'paid', change_reason: 'Pembayaran lama' },
+  });
+  assert.equal(legacyPayment.statusCode, 410);
+  assert.equal(legacyPayment.json().error_code, 'CHARGE_PAYMENT_LEGACY_DISABLED');
 });

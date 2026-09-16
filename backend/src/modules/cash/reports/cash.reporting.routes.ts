@@ -9,6 +9,7 @@ import {
 } from '../shared/http/cash.schema.js';
 import { authenticatedRouteSchema } from '../../../shared/http/schemas/core.schema.js';
 import { sendServiceError } from '../../../shared/http/sendServiceError.js';
+import { mapRequestFields } from '../../../shared/http/request-field-mapping.js';
 import { CashReportingService } from './cash.reporting.service.js';
 
 type AuditInput = {
@@ -26,13 +27,17 @@ export interface CashReportingRoutesOptions {
 
 const managerGuard = requireCapability('cash.manage');
 
+function reportingQuery(input: Record<string, unknown>): Record<string, string | undefined> {
+  return mapRequestFields(input, { payment_method: 'metode_pembayaran' }) as Record<string, string | undefined>;
+}
+
 const cashReportingRoutes: FastifyPluginAsync<CashReportingRoutesOptions> = async (fastify, options) => {
   fastify.get('/api/cash/report', {
     schema: cashReportRouteSchema,
     preHandler: [authenticate, requireCapability('cash.read')],
   }, async (request, reply) => {
     try {
-      return reply.send({ success: true, ...(await options.reportingService.getReport(request.query as Record<string, string | undefined>)) });
+      return reply.send({ success: true, ...(await options.reportingService.getReport(reportingQuery(request.query as Record<string, unknown>)) ) });
     } catch (error) {
       return sendServiceError(error, reply);
     }
@@ -44,11 +49,12 @@ const cashReportingRoutes: FastifyPluginAsync<CashReportingRoutesOptions> = asyn
   }, async (request, reply) => {
     const user = request.user as JwtPayload;
     const own = !hasCapability(user.role, 'cash.read');
-    const studentId = own ? await resolveDatabaseStudentId(user) : null;
+    const query = request.query as Record<string, string | undefined>;
+    const studentId = own ? await resolveDatabaseStudentId(user) : query.student_id || null;
     if (own && !studentId) return reply.status(403).send({ success: false, error_code: 'STUDENT_SCOPE_UNAVAILABLE', message: 'Akun member belum terhubung ke data siswa.' });
     const scope = { studentId };
     try {
-      return reply.send({ success: true, ...(await options.reportingService.listDebts(request.query as Record<string, string | undefined>, scope)) });
+      return reply.send({ success: true, ...(await options.reportingService.listDebts(query, scope)) });
     } catch (error) {
       return sendServiceError(error, reply);
     }
@@ -70,7 +76,7 @@ const cashReportingRoutes: FastifyPluginAsync<CashReportingRoutesOptions> = asyn
     schema: cashBillingRulesUpdateRouteSchema,
     preHandler: [authenticate, managerGuard],
   }, async (request, reply) => {
-    const body = (request.body || {}) as Record<string, unknown>;
+    const body = mapRequestFields((request.body || {}) as Record<string, unknown>, { mandatory_fee_amount: 'nominal_iuran_wajib' });
     const user = request.user as JwtPayload;
     const actorId = options.reportingService.repositoryIsConfigured() ? await resolveDatabaseUserId(user) : user.userId;
     if (!actorId) return reply.status(503).send({ statusCode: 503, message: 'Akun login belum terhubung ke users.id database yang valid.' });

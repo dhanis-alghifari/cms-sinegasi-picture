@@ -1,5 +1,3 @@
-// src/features/attendance/routes.tsx
-// Attendance feature routes
 
 import { lazy, Suspense } from 'react';
 import type { RouteObject } from 'react-router-dom';

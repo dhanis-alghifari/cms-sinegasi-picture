@@ -5,13 +5,12 @@ import { FileImage, Loader2, Send, Upload } from 'lucide-react';
 import { getErrorMessage } from '@/shared/api/errors';
 import { Button } from '@/shared/ui/primitives/button';
 import { Label } from '@/shared/ui/primitives/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/primitives/select';
+import { RadioGroup } from '@/shared/ui/primitives/radio-group';
 import { Textarea } from '@/shared/ui/primitives/textarea';
 import { cn } from '@/shared/utils/cn';
 import { isOneOf } from '@/shared/utils/isOneOf';
 
-import { useFinalizeContestEntryMutation } from '../hooks/useFinalizeContestEntryMutation';
-import { useTransitionContestEntryMutation } from '../hooks/useTransitionContestEntryMutation';
+import { useContestEntryPipelineMutation } from '../hooks/useContestEntryPipelineMutation';
 import {
   CONTEST_FINAL_OUTCOME_STATUS_VALUES,
   type ContestEntry,
@@ -34,13 +33,30 @@ interface ContestPipelineUpdateFormProps {
   onClose: () => void;
 }
 
+function updateAwardResultKindRow(
+  resultRow: AwardResultDraft,
+  candidateIndex: number,
+  resultRowIndex: number,
+  resultKind: ContestFinalizeResultKind,
+): AwardResultDraft {
+  if (candidateIndex !== resultRowIndex) return resultRow;
+
+  let position = '';
+  if (resultKind === 'rank') position = resultRow.position || '1';
+
+  return {
+    ...resultRow,
+    result_kind: resultKind,
+    position,
+  };
+}
+
 export function ContestPipelineUpdateForm({
   entry,
   onClose,
 }: ContestPipelineUpdateFormProps) {
   const nextPipelineStatus = getNextPipelineStatus(entry.pipeline_status);
-  const transitionContestEntryMutation = useTransitionContestEntryMutation();
-  const finalizeContestEntryMutation = useFinalizeContestEntryMutation();
+  const contestEntryPipelineMutation = useContestEntryPipelineMutation();
   const [selectedEvidenceFile, setSelectedEvidenceFile] = useState<File | null>(null);
   const [evidencePreviewUrl, setEvidencePreviewUrl] = useState<string | null>(null);
   const [pipelineChangeReason, setPipelineChangeReason] = useState('');
@@ -49,8 +65,8 @@ export function ContestPipelineUpdateForm({
     createEmptyAwardResultDraft(),
   ]);
   const [validationError, setValidationError] = useState<string | null>(null);
-  const requestError = transitionContestEntryMutation.error || finalizeContestEntryMutation.error;
-  const isPipelineSaving = transitionContestEntryMutation.isPending || finalizeContestEntryMutation.isPending;
+  const requestError = contestEntryPipelineMutation.error;
+  const isPipelineSaving = contestEntryPipelineMutation.isPending;
 
   useEffect(() => () => {
     if (evidencePreviewUrl) URL.revokeObjectURL(evidencePreviewUrl);
@@ -105,13 +121,12 @@ export function ContestPipelineUpdateForm({
     resultKind: ContestFinalizeResultKind,
   ) => {
     setAwardResultRows((existingResultRows) => existingResultRows.map(
-      (resultRow, candidateIndex) => candidateIndex === resultRowIndex
-        ? {
-          ...resultRow,
-          result_kind: resultKind,
-          position: resultKind === 'rank' ? resultRow.position || '1' : '',
-        }
-        : resultRow,
+      (resultRow, candidateIndex) => updateAwardResultKindRow(
+        resultRow,
+        candidateIndex,
+        resultRowIndex,
+        resultKind,
+      ),
     ));
   };
 
@@ -139,7 +154,8 @@ export function ContestPipelineUpdateForm({
     setValidationError(null);
     if (nextPipelineStatus === 'selesai') {
       if (!selectedEvidenceFile) return;
-      await finalizeContestEntryMutation.mutateAsync({
+      await contestEntryPipelineMutation.mutateAsync({
+        operation: 'finalize',
         entryId: entry.id,
         evidenceFile: selectedEvidenceFile,
         payload: {
@@ -151,7 +167,8 @@ export function ContestPipelineUpdateForm({
         },
       });
     } else {
-      await transitionContestEntryMutation.mutateAsync({
+      await contestEntryPipelineMutation.mutateAsync({
+        operation: 'transition',
         entryId: entry.id,
         evidenceFile: nextPipelineStatus === 'sudah_terkirim'
           ? selectedEvidenceFile ?? undefined
@@ -163,6 +180,11 @@ export function ContestPipelineUpdateForm({
       });
     }
     onClose();
+  };
+
+  const handleFinalOutcomeValueChange = (value: string) => {
+    if (!isOneOf(value, CONTEST_FINAL_OUTCOME_STATUS_VALUES)) return;
+    setFinalOutcomeStatus(value);
   };
 
   return (
@@ -183,16 +205,9 @@ export function ContestPipelineUpdateForm({
 
       <div className="space-y-1.5">
         <Label className="text-xs text-ink-muted">Status berikutnya</Label>
-        <Select value={nextPipelineStatus} disabled>
-          <SelectTrigger className="bg-surface-1 text-sm">
-            <SelectValue>{getContestEntryStatusLabel(nextPipelineStatus)}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={nextPipelineStatus}>
-              {getContestEntryStatusLabel(nextPipelineStatus)}
-            </SelectItem>
-          </SelectContent>
-        </Select>
+        <div role="status" className="flex min-h-[var(--touch-target-min)] items-center rounded-lg border border-hairline bg-surface-1 px-3 text-sm text-ink md:min-h-9">
+          {getContestEntryStatusLabel(nextPipelineStatus)}
+        </div>
         <p className="text-[11px] text-ink-tertiary">
           Pipeline diperbarui berurutan agar riwayat tetap akurat.
         </p>
@@ -214,13 +229,14 @@ export function ContestPipelineUpdateForm({
               {selectedEvidenceFile?.name ?? 'Pilih screenshot atau foto bukti'}
             </span>
             <span className="text-[11px] text-ink-tertiary">
-              JPG, PNG, atau WebP · maksimal 5 MB
+              JPG, PNG, atau WebP · ukuran sumber maksimal 5 MB
             </span>
           </label>
           <input
             id="contest-evidence"
             type="file"
             accept="image/jpeg,image/png,image/webp"
+            capture="environment"
             className="sr-only"
             onChange={handleEvidenceFileSelected}
           />
@@ -235,27 +251,16 @@ export function ContestPipelineUpdateForm({
       {nextPipelineStatus === 'selesai' && (
         <div className="space-y-4 rounded-xl border border-hairline bg-surface-1 p-4">
           <div className="space-y-1.5">
-            <Label className="text-xs text-ink-muted">Status prestasi *</Label>
-            <Select
+            <RadioGroup
+              name="contest-final-outcome"
+              legend="Status prestasi *"
               value={finalOutcomeStatus}
-              onValueChange={(nextOutcomeStatus) => {
-                if (isOneOf(nextOutcomeStatus, CONTEST_FINAL_OUTCOME_STATUS_VALUES)) {
-                  setFinalOutcomeStatus(nextOutcomeStatus);
-                }
-              }}
-            >
-              <SelectTrigger className="bg-surface-2 text-sm">
-                <SelectValue>
-                  {finalOutcomeStatus === 'awarded'
-                    ? 'Mendapat penghargaan'
-                    : 'Tidak mendapat penghargaan'}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent className="bg-surface-3 text-ink">
-                <SelectItem value="awarded">Mendapat penghargaan</SelectItem>
-                <SelectItem value="not_awarded">Tidak mendapat penghargaan</SelectItem>
-              </SelectContent>
-            </Select>
+              options={[
+                { value: 'awarded', label: 'Mendapat penghargaan' },
+                { value: 'not_awarded', label: 'Tidak mendapat penghargaan' },
+              ]}
+              onValueChange={handleFinalOutcomeValueChange}
+            />
           </div>
 
           {finalOutcomeStatus === 'awarded' && (

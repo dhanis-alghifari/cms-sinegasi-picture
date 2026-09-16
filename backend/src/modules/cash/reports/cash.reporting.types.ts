@@ -25,6 +25,7 @@ export type CashReportQuery = {
 
 export type CashDebtQuery = {
   search?: string;
+  student_id?: string;
   page?: string;
   pageSize?: string;
 };

@@ -20,14 +20,14 @@ test('cash mutation routes keep manager authorization and write response envelop
   const headers = { authorization: `Bearer ${token}`, 'x-idempotency-key': 'cash-in-123' };
   const income = await app.inject({
     method: 'POST', url: '/api/cash/transactions/in', headers,
-    payload: { nominal: 5000, student_id: 'student-1', type: 'iuran_wajib', tanggal: '2026-08-11', metode_pembayaran: 'cash' },
+    payload: { amount: 5000, student_id: 'student-1', type: 'mandatory_fee', date: '2026-08-11', payment_method: 'cash' },
   });
   assert.equal(income.statusCode, 201);
   assert.equal(income.json().result.payment_status, 'paid');
 
   const expense = await app.inject({
     method: 'POST', url: '/api/cash/transactions/out', headers: { authorization: `Bearer ${token}` },
-    payload: { nominal: 1000, keterangan: 'Beli perlengkapan' },
+    payload: { amount: 1000, description: 'Beli perlengkapan' },
   });
   assert.equal(expense.statusCode, 201);
   assert.equal(expense.json().data.id, 'cash-2');
@@ -42,7 +42,7 @@ test('cash mutation routes deny member accounts', async (t) => {
   const token = app.jwt.sign({ userId: 'user-1', username: 'member', role: 'member', isFirstLogin: false });
   const response = await app.inject({
     method: 'POST', url: '/api/cash/transactions/out',
-    headers: { authorization: `Bearer ${token}` }, payload: { nominal: 1000, keterangan: 'Beli perlengkapan' },
+    headers: { authorization: `Bearer ${token}` }, payload: { amount: 1000, description: 'Beli perlengkapan' },
   });
   assert.equal(response.statusCode, 403);
 });

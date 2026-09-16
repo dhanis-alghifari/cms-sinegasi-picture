@@ -38,7 +38,7 @@ test('class admin routes preserve create/update/deactivate envelopes', async (t)
   const headers = { authorization: `Bearer ${token}` };
   const created = await app.inject({
     method: 'POST', url: '/api/admin/classes', headers,
-    payload: { nama_kelas: 'X Film 1', tingkat: 'X' },
+    payload: { name: 'X Film 1', level: 'X' },
   });
   assert.equal(created.statusCode, 201);
   assert.equal(created.json().success, true);
@@ -47,7 +47,7 @@ test('class admin routes preserve create/update/deactivate envelopes', async (t)
   const updated = await app.inject({
     method: 'PUT', url: `/api/admin/classes/${id}`,
     headers: { ...headers, 'x-change-reason': 'Koreksi nama kelas' },
-    payload: { nama_kelas: 'X Film Utama 1' },
+    payload: { name: 'X Film Utama 1' },
   });
   assert.equal(updated.statusCode, 200);
   assert.equal(updated.json().data.nama_kelas, 'X Film Utama 1');

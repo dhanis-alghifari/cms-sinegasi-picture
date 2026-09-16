@@ -1,5 +1,3 @@
-// src/shared/api/errors.ts
-// Shared error handling — consistent across all features
 // Constitution: UI determines how errors are displayed; service layer throws typed errors
 
 export class ApiError extends Error {

@@ -8,6 +8,7 @@ import type {
 
 type SupabaseLike = SupabaseClient | null;
 export type GradesMemoryState = { grades: GradeRecord[]; assignments: AssignmentRecord[] };
+const FILTER_LOOKUP_LIMIT = 5_000;
 export interface GradesRepository {
   isConfigured(): boolean;
   listGrades(query: GradeListQuery): Promise<{ data: { data: GradeRecord[]; total: number; page: number; pageSize: number; totalPages: number } | null; error: DatabaseError | null }>;
@@ -30,6 +31,7 @@ const STUDENT_SUMMARY: StudentGradeSummary[] = [
   { studentId: 'std-002', nama: 'Siti Aminah', kelas: 'XII DKV 1', peminatan: 'editing', predikatA: 2, predikatB: 4, predikatC: 1, predikatDominan: 'B' },
   { studentId: 'std-003', nama: 'Rizky Pratama', kelas: 'XII DKV 2', peminatan: 'naskah', predikatA: 1, predikatB: 2, predikatC: 3, predikatDominan: 'C' },
 ];
+const GRADE_LETTERS = ['A', 'B', 'C', 'D', 'E'] as const;
 
 function pageValues(query: { page?: string; pageSize?: string }, defaultPageSize = 20) {
   const page = Math.max(1, Number.parseInt(query.page || '1', 10) || 1);
@@ -84,7 +86,7 @@ export function createGradesRepository(client: SupabaseLike, state: GradesMemory
       let categoryAssignmentIds: string[] | undefined;
       if (query.category && query.category !== 'all') {
         const assignmentQuery = client.from('assignments').select('id').eq('category', query.category);
-        const assignmentResult = await assignmentQuery;
+        const assignmentResult = await assignmentQuery.limit(FILTER_LOOKUP_LIMIT);
         if (assignmentResult.error) return { data: null, error: assignmentResult.error };
         categoryAssignmentIds = uniqueIds((assignmentResult.data || []).map((row) => row.id));
         if (categoryAssignmentIds.length === 0) return { data: emptyPage(page, pageSize), error: null };
@@ -92,14 +94,14 @@ export function createGradesRepository(client: SupabaseLike, state: GradesMemory
 
       let searchAssignmentIds: string[] | undefined;
       if (search) {
-        const assignmentResult = await client.from('assignments').select('id').or(`title.ilike.%${search}%,deskripsi.ilike.%${search}%`);
+        const assignmentResult = await client.from('assignments').select('id').or(`title.ilike.%${search}%,deskripsi.ilike.%${search}%`).limit(FILTER_LOOKUP_LIMIT);
         if (assignmentResult.error) return { data: null, error: assignmentResult.error };
         searchAssignmentIds = uniqueIds((assignmentResult.data || []).map((row) => row.id));
       }
 
       let classStudentIds: string[] | undefined;
       if (query.kelas && query.kelas !== 'all' && query.scope !== 'own') {
-        const studentResult = await client.from('students').select('id').eq('is_active', true).or(`kelas.eq.${query.kelas},kelas.ilike.${query.kelas} %`);
+        const studentResult = await client.from('students').select('id').eq('is_active', true).or(`kelas.eq.${query.kelas},kelas.ilike.${query.kelas} %`).limit(FILTER_LOOKUP_LIMIT);
         if (studentResult.error) return { data: null, error: studentResult.error };
         classStudentIds = uniqueIds((studentResult.data || []).map((row) => row.id));
         if (classStudentIds.length === 0) return { data: emptyPage(page, pageSize), error: null };
@@ -107,7 +109,7 @@ export function createGradesRepository(client: SupabaseLike, state: GradesMemory
 
       let searchStudentIds: string[] | undefined;
       if (search && query.scope !== 'own') {
-        const studentResult = await client.from('students').select('id').eq('is_active', true).or(`nama.ilike.%${search}%,nis.ilike.%${search}%`);
+        const studentResult = await client.from('students').select('id').eq('is_active', true).or(`nama.ilike.%${search}%,nis.ilike.%${search}%`).limit(FILTER_LOOKUP_LIMIT);
         if (studentResult.error) return { data: null, error: studentResult.error };
         searchStudentIds = uniqueIds((studentResult.data || []).map((row) => row.id));
       }
@@ -186,20 +188,33 @@ export function createGradesRepository(client: SupabaseLike, state: GradesMemory
         const latest = [...rows].sort((a, b) => String(b.updated_at || b.created_at).localeCompare(String(a.updated_at || a.created_at)))[0];
         return { data: { total: rows.length, counts, latest }, error: null };
       }
-      let dbQuery = client.from('grades').select(GRADE_SELECT).eq('status', 'graded');
-      if (query.student_id) dbQuery = dbQuery.eq('student_id', query.student_id);
+      let assignmentIds: string[] | undefined;
       if (query.category && query.category !== 'all') {
-        const assignmentResult = await client.from('assignments').select('id').eq('category', query.category);
+        const assignmentResult = await client.from('assignments').select('id').eq('category', query.category).limit(FILTER_LOOKUP_LIMIT);
         if (assignmentResult.error) return { data: null, error: assignmentResult.error };
-        const assignmentIds = uniqueIds((assignmentResult.data || []).map((row) => row.id));
+        assignmentIds = uniqueIds((assignmentResult.data || []).map((row) => row.id));
         if (assignmentIds.length === 0) return { data: { total: 0, counts }, error: null };
-        dbQuery = dbQuery.in('assignment_id', assignmentIds);
       }
-      const result = await dbQuery.order('updated_at', { ascending: false }).order('id', { ascending: false });
-      if (result.error) return { data: null, error: result.error };
-      const rows = (result.data || []).map((row) => mapGradeRow(row as Record<string, unknown>));
-      rows.forEach((row) => { if (row.nilai in counts) counts[row.nilai] += 1; });
-      return { data: { total: rows.length, counts, latest: rows[0] }, error: null };
+
+      const countResults = await Promise.all(GRADE_LETTERS.map((letter) => {
+        let countQuery = client.from('grades').select('id', { count: 'exact', head: true })
+          .eq('status', 'graded')
+          .eq('nilai', letter);
+        if (query.student_id) countQuery = countQuery.eq('student_id', query.student_id);
+        if (assignmentIds) countQuery = countQuery.in('assignment_id', assignmentIds);
+        return countQuery;
+      }));
+      const failedCount = countResults.find((result) => result.error);
+      if (failedCount?.error) return { data: null, error: failedCount.error };
+      GRADE_LETTERS.forEach((letter, index) => { counts[letter] = countResults[index]?.count ?? 0; });
+
+      let latestQuery = client.from('grades').select(GRADE_SELECT).eq('status', 'graded');
+      if (query.student_id) latestQuery = latestQuery.eq('student_id', query.student_id);
+      if (assignmentIds) latestQuery = latestQuery.in('assignment_id', assignmentIds);
+      const latestResult = await latestQuery.order('updated_at', { ascending: false }).order('id', { ascending: false }).limit(1);
+      if (latestResult.error) return { data: null, error: latestResult.error };
+      const latestRows = (latestResult.data || []).map((row) => mapGradeRow(row as Record<string, unknown>));
+      return { data: { total: GRADE_LETTERS.reduce((sum, letter) => sum + counts[letter], 0), counts, latest: latestRows[0] }, error: null };
     },
     async createAssignment(input) {
       if (!client) {

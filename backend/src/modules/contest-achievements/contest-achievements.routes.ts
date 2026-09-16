@@ -1,18 +1,19 @@
 import type { FastifyPluginAsync } from 'fastify';
-import { authenticate, type JwtPayload } from '../../middleware/authMiddleware.js';
+import { authenticate } from '../../middleware/authMiddleware.js';
 import { requireCapability } from '../../middleware/capabilities.js';
-import { resolveDatabaseUserId } from '../auth/auth.identity.js';
 import { sendServiceError } from '../../shared/http/sendServiceError.js';
 import { contestAchievementListRouteSchema, contestAchievementRecordRouteSchema } from '../../shared/http/schemas/contest-achievements.schema.js';
-import { ContestAchievementsService } from './contest-achievements.service.js';
-import type { ContestAchievementListQuery, RecordContestResultInput } from './contest-achievements.types.js';
+import { ContestAchievementsService, ContestAchievementsServiceError } from './contest-achievements.service.js';
+import { mapRequestFields } from '../../shared/http/request-field-mapping.js';
+import type { ContestAchievementListQuery } from './contest-achievements.types.js';
 
 export interface ContestAchievementsRoutesOptions { contestAchievementsService: ContestAchievementsService; }
 
 const contestAchievementsRoutes: FastifyPluginAsync<ContestAchievementsRoutesOptions> = async (fastify, options) => {
   fastify.get('/api/contest-achievements', { schema: contestAchievementListRouteSchema, preHandler: [authenticate, requireCapability('contests.read')] }, async (request, reply) => {
     try {
-      return reply.send({ success: true, ...(await options.contestAchievementsService.list((request.query || {}) as ContestAchievementListQuery)) });
+      const query = mapRequestFields((request.query || {}) as Record<string, unknown>, { event_year: 'tahun_event' });
+      return reply.send({ success: true, ...(await options.contestAchievementsService.list(query as ContestAchievementListQuery)) });
     } catch (error) {
       return sendServiceError(error, reply);
     }
@@ -20,13 +21,11 @@ const contestAchievementsRoutes: FastifyPluginAsync<ContestAchievementsRoutesOpt
 
   fastify.post('/api/contest-entries/:id/results', { schema: contestAchievementRecordRouteSchema, preHandler: [authenticate, requireCapability('contests.manage')] }, async (request, reply) => {
     try {
-      const user = request.user as JwtPayload;
-      const actorId = options.contestAchievementsService.repositoryIsConfigured() ? await resolveDatabaseUserId(user) : user.userId;
-      const body = request.body as RecordContestResultInput;
-      const headerKey = request.headers['x-idempotency-key'];
-      const idempotencyKey = typeof headerKey === 'string' ? headerKey : body.idempotency_key;
-      const data = await options.contestAchievementsService.record((request.params as { id: string }).id, { ...body, idempotency_key: idempotencyKey }, actorId);
-      return reply.send({ success: true, data });
+      throw new ContestAchievementsServiceError(
+        410,
+        'CONTEST_RESULT_LEGACY_DISABLED',
+        'Endpoint hasil lomba lama sudah tidak digunakan. Selesaikan pipeline karya melalui endpoint finalisasi.',
+      );
     } catch (error) {
       return sendServiceError(error, reply);
     }

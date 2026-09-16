@@ -49,13 +49,26 @@ export function CreateContestEntryForm({
     onClose();
   });
 
+  const handleFormSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    void handleCreateEntrySubmit();
+  };
+
+  const handleWorkTypeValueChange = (value: string | null) => {
+    if (value === null) return;
+    const parsedWorkType = workTypeEnum.safeParse(value);
+    if (!parsedWorkType.success) return;
+    createEntryForm.setValue('work_type_code', parsedWorkType.data, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+  };
+
   return (
     <form
+      noValidate
       className="space-y-4 rounded-xl border border-primary/25 bg-primary/5 p-4"
-      onSubmit={(event) => {
-        event.preventDefault();
-        void handleCreateEntrySubmit();
-      }}
+      onSubmit={handleFormSubmit}
     >
       <div>
         <p className="text-sm font-semibold text-ink">Tambah karya</p>
@@ -92,15 +105,7 @@ export function CreateContestEntryForm({
         <Label className="text-xs text-ink-muted">Jenis karya *</Label>
         <Select
           value={selectedWorkTypeCode}
-          onValueChange={(nextWorkTypeCode) => {
-            const parsedWorkType = workTypeEnum.safeParse(nextWorkTypeCode);
-            if (parsedWorkType.success) {
-              createEntryForm.setValue('work_type_code', parsedWorkType.data, {
-                shouldDirty: true,
-                shouldValidate: true,
-              });
-            }
-          }}
+          onValueChange={handleWorkTypeValueChange}
         >
           <SelectTrigger className="bg-surface-1 text-sm">
             <SelectValue>{selectedWorkTypeLabel}</SelectValue>

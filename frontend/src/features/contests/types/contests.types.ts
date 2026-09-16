@@ -1,5 +1,3 @@
-// src/features/contests/types/contests.types.ts
-// Film Contests & Achievements domain types according to PRD schema
 import type { ActorSummary } from '@/shared/types/common';
 
 export const CONTEST_SCOPE_VALUES = ['bekasi', 'jabodetabek', 'jawa_barat', 'nasional', 'umum'] as const;

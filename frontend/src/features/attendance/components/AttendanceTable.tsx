@@ -1,5 +1,3 @@
-// src/features/attendance/components/AttendanceTable.tsx
-// Table for attendance records with 48h Lock indicator & Teacher correction action
 
 import { Lock, Edit3 } from 'lucide-react';
 import {

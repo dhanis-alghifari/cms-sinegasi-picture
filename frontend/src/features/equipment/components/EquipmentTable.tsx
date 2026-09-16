@@ -1,7 +1,6 @@
-// src/features/equipment/components/EquipmentTable.tsx
 
 import { useState } from 'react';
-import { MoreVertical, Edit2, Wrench, QrCode } from 'lucide-react';
+import { MoreVertical, Edit2, Wrench, QrCode, RefreshCw } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -59,6 +58,7 @@ interface EquipmentTableProps {
   equipment: Equipment[];
   onEdit: (equipment: Equipment) => void;
   onUpdateCondition: (equipment: Equipment) => void;
+  onOpenRecovery?: (equipment: Equipment) => void;
   canManage?: boolean;
 }
 
@@ -66,6 +66,7 @@ export function EquipmentTable({
   equipment,
   onEdit,
   onUpdateCondition,
+  onOpenRecovery,
   canManage = true,
 }: EquipmentTableProps) {
   if (equipment.length === 0) {
@@ -147,6 +148,7 @@ export function EquipmentTable({
                           <Wrench size={14} className="mr-2 text-ink-subtle" />
                           Update Kondisi / Status
                         </DropdownMenuItem>
+                        {onOpenRecovery && eq.kondisi !== 'bagus' && eq.status !== 'dipinjam' && <DropdownMenuItem onClick={() => onOpenRecovery(eq)} className="text-xs cursor-pointer"><RefreshCw size={14} className="mr-2 text-ink-subtle" />Buka tindak lanjut</DropdownMenuItem>}
                       </DropdownMenuContent>
                     </DropdownMenu>
                     </div>

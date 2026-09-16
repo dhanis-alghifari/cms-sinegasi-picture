@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import Fastify from 'fastify';
 import jwt from '@fastify/jwt';
 import test from 'node:test';
-import { createDashboardMemoryState, createDefaultOperationalDashboardSummary } from './dashboard.helpers.js';
+import { createDashboardMemoryState } from './dashboard.helpers.js';
+import { createTestDashboardSummary, createTestOperationalDashboardSummary } from './dashboard.test-fixtures.js';
 import { createDashboardRepository } from './dashboard.repository.js';
 import { DashboardService } from './dashboard.service.js';
 import dashboardRoutes from './dashboard.routes.js';
@@ -11,12 +12,14 @@ async function createApp() {
   const app = Fastify();
   await app.register(jwt, { secret: 'test-secret-that-is-long-enough' });
   const state = createDashboardMemoryState();
+  state.summaries.set('student-42', createTestDashboardSummary('student-42'));
+  state.summaries.set('11111111-1111-4111-8111-111111111111', createTestDashboardSummary('11111111-1111-4111-8111-111111111111'));
   const repository = createDashboardRepository(state);
   await app.register(dashboardRoutes, {
     dashboardService: new DashboardService({
       ...repository,
       async getOperationalSummary() {
-        return { data: createDefaultOperationalDashboardSummary() };
+        return { data: createTestOperationalDashboardSummary() };
       },
     }),
   });
@@ -41,7 +44,7 @@ test('student dashboard summary keeps authentication and response contract', asy
   assert.equal(response.statusCode, 200);
   assert.equal(response.json().success, true);
   assert.equal(response.json().studentId, 'student-42');
-  assert.equal(response.json().profile.nama, 'Budi Santoso');
+  assert.equal(response.json().profile.nama, 'Test Student');
 });
 
 test('student dashboard summary preserves ownership guard for members', async (t) => {

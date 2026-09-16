@@ -97,6 +97,12 @@ function mapMemoryTransaction(transaction: CashMutationTransaction, state: CashM
   });
 }
 
+function getPaymentStatus(outstanding: number, nominal: number): 'unpaid' | 'partial' | 'paid' {
+  if (outstanding <= 0) return 'paid';
+  if (nominal === 0) return 'unpaid';
+  return 'partial';
+}
+
 function buildMemoryCashInResult(
   transaction: CashMutationTransaction | null,
   debt: CashDebtRecord | null,
@@ -109,7 +115,7 @@ function buildMemoryCashInResult(
 ): Record<string, unknown> {
   const outstanding = debt?.status === 'unpaid' ? debt.amount : 0;
   return {
-    payment_status: outstanding > 0 ? (nominal === 0 ? 'unpaid' : 'partial') : 'paid',
+    payment_status: getPaymentStatus(outstanding, nominal),
     already_recorded: alreadyRecorded,
     cash_transaction: transaction ? mapMemoryTransaction(transaction, state) : null,
     debt: debt ? { ...debt, amount: Number(debt.amount) } : null,

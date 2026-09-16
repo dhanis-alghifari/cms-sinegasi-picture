@@ -22,6 +22,17 @@ interface PasswordChangeFormProps {
 
 const fields = ['current_password', 'new_password', 'confirm_password'] as const;
 
+function getPasswordPlaceholder(field: (typeof fields)[number]): string {
+  switch (field) {
+    case 'current_password':
+      return 'Masukkan password saat ini';
+    case 'new_password':
+      return 'Masukkan password baru';
+    default:
+      return 'Ulangi password baru';
+  }
+}
+
 export function PasswordChangeForm({ forced = false, onSuccess, onCancel }: PasswordChangeFormProps) {
   const logout = useAuthStore((state) => state.logout);
   const changePasswordMutation = useChangePasswordMutation();
@@ -101,7 +112,7 @@ export function PasswordChangeForm({ forced = false, onSuccess, onCancel }: Pass
                     type={visibleFields[field] ? 'text' : 'password'}
                     autoComplete={field === 'current_password' ? 'current-password' : 'new-password'}
                     autoFocus={field === 'current_password'}
-                    placeholder={field === 'current_password' ? 'Masukkan password saat ini' : field === 'new_password' ? 'Masukkan password baru' : 'Ulangi password baru'}
+                    placeholder={getPasswordPlaceholder(field)}
                     aria-invalid={!!error}
                     aria-describedby={error ? `${ids[field]}-error` : undefined}
                     className={cn(

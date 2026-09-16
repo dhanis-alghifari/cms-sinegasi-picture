@@ -1,4 +1,4 @@
-import { Edit2, MoreVertical, QrCode, Wrench } from 'lucide-react';
+import { Edit2, MoreVertical, QrCode, Wrench, RefreshCw } from 'lucide-react';
 
 import { AuditHistoryButton } from '@/features/audit/components/AuditHistoryButton';
 import { EmptyState } from '@/shared/ui/EmptyState';
@@ -13,6 +13,7 @@ interface EquipmentMobileListProps {
   equipment: Equipment[];
   onEdit: (equipment: Equipment) => void;
   onUpdateCondition: (equipment: Equipment) => void;
+  onOpenRecovery?: (equipment: Equipment) => void;
   canManage?: boolean;
 }
 
@@ -45,6 +46,7 @@ export function EquipmentMobileList({
   equipment,
   onEdit,
   onUpdateCondition,
+  onOpenRecovery,
   canManage = true,
 }: EquipmentMobileListProps) {
   if (equipment.length === 0) {
@@ -88,6 +90,7 @@ export function EquipmentMobileList({
                             <Wrench size={16} className="mr-2 text-ink-subtle" aria-hidden="true" />
                             Update kondisi/status
                           </DropdownMenuItem>
+                          {onOpenRecovery && item.kondisi !== 'bagus' && item.status !== 'dipinjam' && <DropdownMenuItem onClick={() => onOpenRecovery(item)} className="min-h-11 cursor-pointer text-sm"><RefreshCw size={16} className="mr-2 text-ink-subtle" aria-hidden="true" />Buka tindak lanjut</DropdownMenuItem>}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     )}

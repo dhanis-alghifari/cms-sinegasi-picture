@@ -1,5 +1,3 @@
-// src/features/grades/routes.tsx
-// Grades feature routes
 
 import { lazy, Suspense } from 'react';
 import type { RouteObject } from 'react-router-dom';

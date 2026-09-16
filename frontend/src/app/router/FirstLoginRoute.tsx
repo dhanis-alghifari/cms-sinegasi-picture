@@ -1,4 +1,3 @@
-// First-login-only route. It must remain protected, never public.
 
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';

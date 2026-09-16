@@ -1,17 +1,16 @@
-// src/features/attendance/pages/AttendancePage.tsx
-// Thin orchestration page for Attendance Management
-
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { CalendarCheck } from 'lucide-react';
 
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { ResponsivePageActions } from '@/shared/ui/ResponsivePageActions';
 import { PageLoader } from '@/shared/ui/LoadingSpinner';
 import { Pagination } from '@/shared/ui/Pagination';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/primitives/tabs';
 
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import { useClassOptionsQuery } from '@/features/classes/hooks/useClassOptionsQuery';
 import { useDebouncedValue } from '@/shared/hooks/useDebouncedValue';
+import { UI_CONSTANTS } from '@/shared/constants/ui';
 import { useIsMobile } from '@/shared/hooks/use-mobile';
 import { hasCapability } from '@/shared/auth/capabilities';
 import { isOneOf } from '@/shared/utils/isOneOf';
@@ -24,13 +23,15 @@ import { AttendanceSummaryCards } from '../components/AttendanceSummaryCards';
 import { AttendanceFilter } from '../components/AttendanceFilter';
 import { AttendanceTable } from '../components/AttendanceTable';
 import { AttendanceMobileList } from '../components/AttendanceMobileList';
-import { AttendanceStudentReport } from '../components/AttendanceStudentReport';
-import { RecordAttendanceModal } from '../components/RecordAttendanceModal';
-import { CorrectAttendanceModal } from '../components/CorrectAttendanceModal';
+import { AttendanceQueryError } from '../components/AttendanceQueryError';
 
 import { ATTENDANCE_STATUS_VALUES } from '../types/attendance.types';
 import type { AttendanceRecord, RecordAttendanceItem } from '../types/attendance.types';
 import type { CorrectAttendanceFormValues } from '../schemas/attendanceSchema';
+
+const LazyAttendanceStudentReport = lazy(() => import('../components/AttendanceStudentReport').then(({ AttendanceStudentReport }) => ({ default: AttendanceStudentReport })));
+const LazyRecordAttendanceModal = lazy(() => import('../components/RecordAttendanceModal').then(({ RecordAttendanceModal }) => ({ default: RecordAttendanceModal })));
+const LazyCorrectAttendanceModal = lazy(() => import('../components/CorrectAttendanceModal').then(({ CorrectAttendanceModal }) => ({ default: CorrectAttendanceModal })));
 
 export function AttendancePage() {
   const { user } = useAuthStore();
@@ -43,13 +44,14 @@ export function AttendancePage() {
 
   // Filters
   const [tanggal, setTanggal] = useState(isOwn ? '' : new Date().toISOString().split('T')[0]);
-  const [kelas, setKelas] = useState('all');
-  const [status, setStatus] = useState('all');
+  const [kelas, setKelas] = useState<string>(UI_CONSTANTS.ALL_FILTER_VALUE);
+  const [status, setStatus] = useState<string>(UI_CONSTANTS.ALL_FILTER_VALUE);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
-  const pageSize = 10;
+  const pageSize = UI_CONSTANTS.DEFAULT_PAGE_SIZE;
 
-  const debouncedSearch = useDebouncedValue(search, 300);
+  const debouncedSearch = useDebouncedValue(search, UI_CONSTANTS.SEARCH_DEBOUNCE_MS);
+  const statusFilter = isOneOf(status, ATTENDANCE_STATUS_VALUES) ? status : undefined;
 
   const handleTanggalChange = (val: string) => {
     setTanggal(val);
@@ -73,8 +75,8 @@ export function AttendancePage() {
 
   const handleResetFilter = () => {
     setTanggal(isOwn ? '' : new Date().toISOString().split('T')[0]);
-    setKelas('all');
-    setStatus('all');
+    setKelas(UI_CONSTANTS.ALL_FILTER_VALUE);
+    setStatus(UI_CONSTANTS.ALL_FILTER_VALUE);
     setSearch('');
     setPage(1);
   };
@@ -85,20 +87,26 @@ export function AttendancePage() {
   const [correctRecord, setCorrectRecord] = useState<AttendanceRecord | null>(null);
 
   // Queries
-  const { data: summaryData, isLoading: isSummaryLoading } = useAttendanceSummaryQuery({
+  const summaryQuery = useAttendanceSummaryQuery({
     tanggal: tanggal || undefined,
-    scope: isOwn ? 'own' : undefined,
-  }, view === 'daily');
-  const { data: attendanceData, isLoading: isAttendanceLoading } = useAttendanceQuery({
-    page,
-    pageSize,
-    tanggal,
-    kelas: kelas !== 'all' ? kelas : undefined,
-    status: isOneOf(status, ATTENDANCE_STATUS_VALUES) ? status : undefined,
+    kelas: kelas !== UI_CONSTANTS.ALL_FILTER_VALUE ? kelas : undefined,
+    status: statusFilter,
     search: debouncedSearch || undefined,
     scope: isOwn ? 'own' : undefined,
   }, view === 'daily');
-  const { data: classOptions = [] } = useClassOptionsQuery(canRecord);
+  const attendanceQuery = useAttendanceQuery({
+    page,
+    pageSize,
+    tanggal,
+    kelas: kelas !== UI_CONSTANTS.ALL_FILTER_VALUE ? kelas : undefined,
+    status: statusFilter,
+    search: debouncedSearch || undefined,
+    scope: isOwn ? 'own' : undefined,
+  }, view === 'daily');
+  const classOptionsQuery = useClassOptionsQuery(canRecord && recordOpen);
+  const { data: classOptions = [] } = classOptionsQuery;
+
+  const [hasVisitedStudentReport, setHasVisitedStudentReport] = useState(false);
 
   // Mutations
   const recordMutation = useRecordAttendanceMutation();
@@ -108,6 +116,12 @@ export function AttendancePage() {
   const handleOpenCorrect = (rec: AttendanceRecord) => {
     setCorrectRecord(rec);
     setCorrectOpen(true);
+  };
+
+  const handleViewChange = (nextView: string) => {
+    if (nextView !== 'daily' && nextView !== 'student_report') return;
+    if (nextView === 'student_report') setHasVisitedStudentReport(true);
+    setView(nextView);
   };
 
   const handleRecordSubmit = async (values: {
@@ -136,6 +150,71 @@ export function AttendancePage() {
     });
   };
 
+  const dailySummaryContent = (() => {
+    if (summaryQuery.isPending) return <PageLoader />;
+    if (summaryQuery.isError) {
+      return (
+        <AttendanceQueryError
+          error={summaryQuery.error}
+          title="Ringkasan absensi belum dapat dimuat"
+          onRetry={summaryQuery.refetch}
+        />
+      );
+    }
+    return <AttendanceSummaryCards summary={summaryQuery.data} isOwn={isOwn} totalLabel={tanggal ? undefined : 'catatan'} />;
+  })();
+
+  const dailyAttendanceContent = (() => {
+    if (attendanceQuery.isPending) return <PageLoader />;
+    if (attendanceQuery.isError) {
+      return (
+        <AttendanceQueryError
+          error={attendanceQuery.error}
+          title="Data absensi belum dapat dimuat"
+          onRetry={attendanceQuery.refetch}
+        />
+      );
+    }
+
+    const records = attendanceQuery.data?.data ?? [];
+    const list = isMobile
+      ? <AttendanceMobileList records={records} onCorrect={handleOpenCorrect} isTeacher={canCorrect} />
+      : <AttendanceTable records={records} onCorrect={handleOpenCorrect} isTeacher={canCorrect} />;
+
+    return (
+      <div className="space-y-4">
+        {list}
+        <Pagination
+          page={attendanceQuery.data?.page ?? page}
+          totalPages={attendanceQuery.data?.totalPages ?? 1}
+          total={attendanceQuery.data?.total ?? 0}
+          pageSize={attendanceQuery.data?.pageSize ?? pageSize}
+          onPageChange={setPage}
+        />
+      </div>
+    );
+  })();
+
+  const dailyContent = (
+    <>
+      {dailySummaryContent}
+
+      <AttendanceFilter
+        filters={{ tanggal, kelas, status, search }}
+        actions={{
+          onTanggalChange: handleTanggalChange,
+          onKelasChange: handleKelasChange,
+          onStatusChange: handleStatusChange,
+          onSearchChange: handleSearchChange,
+          onReset: handleResetFilter,
+        }}
+        scope={{ isOwn }}
+      />
+
+      {dailyAttendanceContent}
+    </>
+  );
+
   return (
     <div className="mx-auto max-w-7xl space-y-5 px-4 py-5 sm:space-y-6 sm:p-6">
       <PageHeader
@@ -156,93 +235,51 @@ export function AttendancePage() {
         }
       />
 
-      {!isOwn && canReadStudents && (
-        <div className="flex w-full max-w-xl rounded-xl border border-hairline bg-surface-2 p-1" role="tablist" aria-label="Mode absensi">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={view === 'daily'}
-            onClick={() => setView('daily')}
-            className={`min-h-11 flex-1 rounded-lg px-3 text-xs font-medium transition-colors ${view === 'daily' ? 'bg-surface-1 text-ink shadow-sm' : 'text-ink-subtle hover:text-ink'}`}
-          >
-            Absensi harian
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={view === 'student_report'}
-            onClick={() => setView('student_report')}
-            className={`min-h-11 flex-1 rounded-lg px-3 text-xs font-medium transition-colors ${view === 'student_report' ? 'bg-surface-1 text-ink shadow-sm' : 'text-ink-subtle hover:text-ink'}`}
-          >
-            Rekap siswa
-          </button>
-        </div>
-      )}
-
-      {view === 'student_report' && !isOwn ? (
-        <AttendanceStudentReport canReadStudents={canReadStudents} />
+      {!isOwn && canReadStudents ? (
+        <Tabs value={view} onValueChange={handleViewChange} className="w-full">
+          <TabsList className="w-full max-w-xl">
+            <TabsTrigger value="daily">Absensi harian</TabsTrigger>
+            <TabsTrigger value="student_report">Rekap siswa</TabsTrigger>
+          </TabsList>
+          <TabsContent value="daily" keepMounted className="mt-5 space-y-5 sm:mt-6">
+            {dailyContent}
+          </TabsContent>
+          <TabsContent value="student_report" keepMounted={hasVisitedStudentReport} className="mt-5 sm:mt-6">
+            <Suspense fallback={<PageLoader />}>
+              <LazyAttendanceStudentReport canReadStudents={canReadStudents} isActive={view === 'student_report'} />
+            </Suspense>
+          </TabsContent>
+        </Tabs>
       ) : (
-        <>
-          {/* Summary Cards */}
-          {isSummaryLoading ? <PageLoader /> : <AttendanceSummaryCards summary={summaryData} isOwn={isOwn} totalLabel={tanggal ? undefined : 'catatan'} />}
-
-          {/* Filter */}
-          <AttendanceFilter
-            tanggal={tanggal}
-            onTanggalChange={handleTanggalChange}
-            kelas={kelas}
-            onKelasChange={handleKelasChange}
-            status={status}
-            onStatusChange={handleStatusChange}
-            search={search}
-            onSearchChange={handleSearchChange}
-            onReset={handleResetFilter}
-            isOwn={isOwn}
-          />
-
-          {/* Table */}
-          {isAttendanceLoading ? (
-            <PageLoader />
-          ) : (
-            <div className="space-y-4">
-              {isMobile ? (
-                <AttendanceMobileList records={attendanceData?.data ?? []} onCorrect={handleOpenCorrect} isTeacher={canCorrect} />
-              ) : (
-                <AttendanceTable records={attendanceData?.data ?? []} onCorrect={handleOpenCorrect} isTeacher={canCorrect} />
-              )}
-              <Pagination
-                page={attendanceData?.page ?? page}
-                totalPages={attendanceData?.totalPages ?? 1}
-                total={attendanceData?.total ?? 0}
-                pageSize={attendanceData?.pageSize ?? pageSize}
-                onPageChange={setPage}
-              />
-            </div>
-          )}
-        </>
+        dailyContent
       )}
 
       {/* Modals */}
-      {canRecord && (
-        <RecordAttendanceModal
-          open={recordOpen}
-          onOpenChange={setRecordOpen}
-          classes={classOptions}
-          onSubmit={handleRecordSubmit}
-          isLoading={recordMutation.isPending}
-          error={recordMutation.error}
-        />
+      {canRecord && recordOpen && (
+        <Suspense fallback={null}>
+          <LazyRecordAttendanceModal
+            open={recordOpen}
+            onOpenChange={setRecordOpen}
+            classes={classOptions}
+            onSubmit={handleRecordSubmit}
+            isLoading={recordMutation.isPending}
+            error={recordMutation.error}
+            classOptionsError={classOptionsQuery.error}
+          />
+        </Suspense>
       )}
 
-      {canCorrect && correctRecord && (
-        <CorrectAttendanceModal
-          open={correctOpen}
-          onOpenChange={setCorrectOpen}
-          record={correctRecord}
-          onSubmit={handleCorrectSubmit}
-          isLoading={correctMutation.isPending}
-          error={correctMutation.error}
-        />
+      {canCorrect && correctOpen && correctRecord && (
+        <Suspense fallback={null}>
+          <LazyCorrectAttendanceModal
+            open={correctOpen}
+            onOpenChange={setCorrectOpen}
+            record={correctRecord}
+            onSubmit={handleCorrectSubmit}
+            isLoading={correctMutation.isPending}
+            error={correctMutation.error}
+          />
+        </Suspense>
       )}
     </div>
   );

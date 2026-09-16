@@ -1,5 +1,3 @@
-// src/features/contests/components/CreateContestModal.tsx
-// Dialog form for creating or editing film contest & festival records
 
 import { useEffect } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
@@ -17,6 +15,7 @@ import {
 import { Button } from '@/shared/ui/primitives/button';
 import { Input } from '@/shared/ui/primitives/input';
 import { Label } from '@/shared/ui/primitives/label';
+import { RadioGroup } from '@/shared/ui/primitives/radio-group';
 import { Textarea } from '@/shared/ui/primitives/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/primitives/select';
 import { cn } from '@/shared/utils/cn';
@@ -69,6 +68,18 @@ export function CreateContestModal({
 
   const selectedContestScope = useWatch({ control: form.control, name: 'tingkat' });
   const selectedContestStatus = useWatch({ control: form.control, name: 'status' });
+
+  const handleContestScopeValueChange = (value: string | null) => {
+    if (value === null) return;
+    if (!isContestScope(value)) return;
+    form.setValue('tingkat', value, { shouldDirty: true, shouldValidate: true });
+  };
+
+  const handleContestStatusValueChange = (value: string | null) => {
+    if (value === null) return;
+    if (!isContestStatus(value)) return;
+    form.setValue('status', value, { shouldDirty: true, shouldValidate: true });
+  };
 
   useEffect(() => {
     if (contest) {
@@ -125,7 +136,7 @@ export function CreateContestModal({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleContestFormSubmit} className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-hidden overflow-y-auto overscroll-contain px-0.5 pb-1 pt-1 pr-1 sm:gap-5">
+        <form noValidate onSubmit={handleContestFormSubmit} className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-hidden overflow-y-auto overscroll-contain px-0.5 pb-1 pt-1 pr-1 sm:gap-5">
           {Boolean(error) && (
             <div role="alert" className="shrink-0 rounded border border-semantic-danger/30 bg-semantic-danger/10 px-3 py-2 text-xs text-semantic-danger">
               {getErrorMessage(error)}
@@ -165,7 +176,7 @@ export function CreateContestModal({
               <Select
                 items={CONTEST_SCOPE_OPTIONS}
                 value={selectedContestScope}
-                onValueChange={(nextScope) => { if (isContestScope(nextScope)) form.setValue('tingkat', nextScope, { shouldDirty: true, shouldValidate: true }); }}
+                onValueChange={handleContestScopeValueChange}
               >
                 <SelectTrigger id="tingkat" className="w-full bg-surface-2 border-hairline text-ink text-xs">
                   <SelectValue placeholder="Pilih tingkat lomba" />
@@ -179,21 +190,13 @@ export function CreateContestModal({
             </div>
 
             <div className="space-y-1">
-              <Label htmlFor="status" className="text-xs text-ink-muted">Status Event <span className="text-semantic-danger" aria-hidden="true">*</span></Label>
-              <Select
-                items={CONTEST_STATUS_OPTIONS}
-                value={selectedContestStatus}
-                onValueChange={(nextStatus) => { if (isContestStatus(nextStatus)) form.setValue('status', nextStatus, { shouldDirty: true, shouldValidate: true }); }}
-              >
-                <SelectTrigger id="status" className="w-full bg-surface-2 border-hairline text-ink text-xs">
-                  <SelectValue placeholder="Pilih status event" />
-                </SelectTrigger>
-                <SelectContent className="bg-surface-3 border-hairline text-ink">
-                  {CONTEST_STATUS_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <RadioGroup
+                name="contest-status"
+                legend={<>Status Event <span className="text-semantic-danger" aria-hidden="true">*</span></>}
+                value={selectedContestStatus ?? ''}
+                options={CONTEST_STATUS_OPTIONS}
+                onValueChange={handleContestStatusValueChange}
+              />
             </div>
           </div>
 
@@ -211,7 +214,7 @@ export function CreateContestModal({
             </div>
             <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1">
-              <Label htmlFor="deadline" className="text-xs text-ink-muted">Deadline Pendaftaran <span className="text-semantic-danger" aria-hidden="true">*</span></Label>
+              <Label htmlFor="deadline" className="text-xs text-ink-muted">Batas Waktu Pendaftaran <span className="text-semantic-danger" aria-hidden="true">*</span></Label>
               <Input
                 id="deadline"
                 type="date"

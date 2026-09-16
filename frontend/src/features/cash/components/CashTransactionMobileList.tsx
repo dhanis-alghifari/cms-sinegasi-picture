@@ -14,7 +14,7 @@ import { getDisputeAction } from '../utils/disputeState';
 interface CashTransactionMobileListProps {
   transactions: CashTransaction[];
   onDispute?: (transaction: CashTransaction) => void;
-  isStudent?: boolean;
+  isStudent: boolean;
   disputeQuota?: CashDisputeQuota;
 }
 
@@ -29,7 +29,7 @@ function getDisputeStatus(transaction: CashTransaction) {
 export function CashTransactionMobileList({
   transactions,
   onDispute,
-  isStudent = false,
+  isStudent,
   disputeQuota,
 }: CashTransactionMobileListProps) {
   if (transactions.length === 0) {

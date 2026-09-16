@@ -3,7 +3,8 @@ import type { JwtPayload } from '../../shared/auth/auth.types.js';
 import { asDatabaseError } from '../../shared/database/database.types.js';
 import { borrowingMutationStatus, getBorrowingErrorMessage, isIsoDate, isMissingBorrowingSchemaError } from './borrowing.helpers.js';
 import type { BorrowingMutationsRepository } from './borrowing.mutations.repository.js';
-import type { BorrowingApprovalInput, BorrowingCreateInput, BorrowingReturnInput } from './borrowing.mutations.types.js';
+import { generateR2PrivateAccessUrl, generateR2PrivateUploadUrl, inspectCloudflareR2Object } from '../../services/cloudflareR2Service.js';
+import type { BorrowingApprovalInput, BorrowingCreateInput, BorrowingReturnEvidenceAccessRecord, BorrowingReturnEvidenceStorage, BorrowingReturnEvidenceUploadInput, BorrowingReturnInput } from './borrowing.mutations.types.js';
 
 export class BorrowingMutationsServiceError extends Error {
   constructor(public readonly statusCode: number, public readonly errorCode: string, message: string, public readonly cause?: unknown) {
@@ -38,8 +39,36 @@ function ensureDate(value: unknown, field: string): string {
   return normalized;
 }
 
+const RETURN_CONDITIONS = new Set(['bagus', 'sedikit_kerusakan', 'rusak', 'rusak_besar', 'hilang']);
+const PHYSICAL_RETURN_CONDITIONS = new Set(['bagus', 'sedikit_kerusakan', 'rusak', 'rusak_besar']);
+const ALLOWED_EVIDENCE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const MAX_EVIDENCE_BYTES = 600 * 1024;
+const MIN_RETURN_EVIDENCE_COUNT = 2;
+const MAX_RETURN_EVIDENCE_COUNT = 5;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const defaultReturnEvidenceStorage: BorrowingReturnEvidenceStorage = {
+  createUpload: generateR2PrivateUploadUrl,
+  inspect: inspectCloudflareR2Object,
+  createAccess: generateR2PrivateAccessUrl,
+};
+
+function ensureEvidenceIds(value: unknown): string[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) throw new BorrowingMutationsServiceError(422, 'RETURN_EVIDENCE_INVALID', 'Daftar foto kondisi tidak valid.');
+  if (value.length > MAX_RETURN_EVIDENCE_COUNT) throw new BorrowingMutationsServiceError(422, 'RETURN_EVIDENCE_INVALID', `Maksimal ${MAX_RETURN_EVIDENCE_COUNT} foto kondisi dapat diunggah per alat.`);
+  const ids = value.map((candidate) => nonEmpty(candidate));
+  if (ids.some((candidate) => !candidate || !UUID_PATTERN.test(candidate))) throw new BorrowingMutationsServiceError(422, 'RETURN_EVIDENCE_INVALID', 'ID foto kondisi tidak valid.');
+  const normalized = ids as string[];
+  if (new Set(normalized).size !== normalized.length) throw new BorrowingMutationsServiceError(422, 'RETURN_EVIDENCE_INVALID', 'Foto kondisi tidak boleh duplikat.');
+  return normalized;
+}
+
 export class BorrowingMutationsService {
-  constructor(private readonly repository: BorrowingMutationsRepository) {}
+  constructor(
+    private readonly repository: BorrowingMutationsRepository,
+    private readonly evidenceStorage: BorrowingReturnEvidenceStorage = defaultReturnEvidenceStorage,
+  ) {}
 
   repositoryIsConfigured(): boolean { return this.repository.isConfigured(); }
 
@@ -99,10 +128,144 @@ export class BorrowingMutationsService {
     for (const item of itemConditions) {
       ensureId(item.equipment_id, 'equipment_id');
       if (nonEmpty(item.kondisi_kembali) === null) throw new BorrowingMutationsServiceError(422, 'INVALID_CONDITION', 'Kondisi setiap alat wajib diisi.');
+      if (!RETURN_CONDITIONS.has(item.kondisi_kembali)) throw new BorrowingMutationsServiceError(422, 'INVALID_CONDITION', 'Kondisi pengembalian alat tidak valid.');
+      if (item.settlement_method !== undefined && !['none', 'repair', 'replacement'].includes(item.settlement_method)) throw new BorrowingMutationsServiceError(422, 'INVALID_SETTLEMENT_METHOD', 'Metode penyelesaian tidak valid.');
+      if (item.repair_cost !== undefined && (!Number.isFinite(Number(item.repair_cost)) || Number(item.repair_cost) <= 0)) throw new BorrowingMutationsServiceError(422, 'INVALID_REPAIR_COST', 'Biaya perbaikan harus lebih besar dari 0.');
+      const evidenceIds = ensureEvidenceIds(item.evidence_ids);
+      if (PHYSICAL_RETURN_CONDITIONS.has(item.kondisi_kembali) && evidenceIds.length < MIN_RETURN_EVIDENCE_COUNT) {
+        throw new BorrowingMutationsServiceError(422, 'RETURN_EVIDENCE_REQUIRED', `Minimal ${MIN_RETURN_EVIDENCE_COUNT} foto kondisi wajib diunggah untuk alat yang kembali.`);
+      }
+      await Promise.all(evidenceIds.map((evidenceId) => this.assertReturnEvidenceUploaded(id, item.equipment_id, evidenceId, actorId)));
     }
     const result = await this.repository.returnBorrowing({ borrowingId: id, returnedAt, itemConditions, catatan, actorId, changeReason: reason });
     if (result.error) repositoryFailure(result.error, 'Pengembalian peminjaman gagal diproses.');
     if (!result.data) throw new BorrowingMutationsServiceError(404, 'NOT_FOUND', 'Peminjaman tidak ditemukan.');
     return result.data;
+  }
+
+  async previewReturn(borrowingId: string, input: BorrowingReturnInput) {
+    const id = ensureId(borrowingId, 'borrowing_id');
+    const returnedAt = input.tanggal_dikembalikan ? ensureDate(input.tanggal_dikembalikan, 'tanggal_dikembalikan') : new Date().toISOString().slice(0, 10);
+    const itemConditions = Array.isArray(input.item_conditions) ? input.item_conditions : [];
+    if (itemConditions.length === 0) throw new BorrowingMutationsServiceError(422, 'ITEM_CONDITIONS_REQUIRED', 'Kondisi setiap alat wajib diisi.');
+    if (new Set(itemConditions.map((item) => item.equipment_id)).size !== itemConditions.length) throw new BorrowingMutationsServiceError(422, 'DUPLICATE_EQUIPMENT', 'Kondisi alat tidak boleh duplikat.');
+    for (const item of itemConditions) {
+      ensureId(item.equipment_id, 'equipment_id');
+      if (nonEmpty(item.kondisi_kembali) === null) throw new BorrowingMutationsServiceError(422, 'INVALID_CONDITION', 'Kondisi setiap alat wajib diisi.');
+      if (!RETURN_CONDITIONS.has(item.kondisi_kembali)) throw new BorrowingMutationsServiceError(422, 'INVALID_CONDITION', 'Kondisi pengembalian alat tidak valid.');
+      if (item.settlement_method !== undefined && !['none', 'repair', 'replacement'].includes(item.settlement_method)) throw new BorrowingMutationsServiceError(422, 'INVALID_SETTLEMENT_METHOD', 'Metode penyelesaian tidak valid.');
+    }
+    const result = await this.repository.previewReturn({ borrowingId: id, returnedAt, itemConditions });
+    if (result.error) repositoryFailure(result.error, 'Perhitungan pengembalian gagal.');
+    if (!result.data) throw new BorrowingMutationsServiceError(404, 'NOT_FOUND', 'Peminjaman tidak ditemukan.');
+    return result.data;
+  }
+
+  async reserveReturnEvidence(
+    borrowingId: string,
+    input: BorrowingReturnEvidenceUploadInput,
+    actorId: string,
+  ) {
+    const id = ensureId(borrowingId, 'borrowing_id');
+    const equipmentId = ensureId(input.equipment_id, 'equipment_id');
+    const fileName = ensureId(input.file_name, 'file_name');
+    const contentType = nonEmpty(input.content_type)?.toLowerCase();
+    const fileSizeBytes = Number(input.file_size_bytes);
+    if (!contentType || !ALLOWED_EVIDENCE_TYPES.has(contentType)
+      || !Number.isSafeInteger(fileSizeBytes) || fileSizeBytes < 1 || fileSizeBytes > MAX_EVIDENCE_BYTES) {
+      throw new BorrowingMutationsServiceError(422, 'RETURN_EVIDENCE_FILE_INVALID', 'Foto harus berupa JPG, PNG, atau WebP dengan ukuran maksimal 600 KB.');
+    }
+
+    let upload: ReturnType<BorrowingReturnEvidenceStorage['createUpload']>;
+    try {
+      upload = this.evidenceStorage.createUpload(fileName, `borrowing-return-evidence/${id}/${equipmentId}`);
+    } catch {
+      throw new BorrowingMutationsServiceError(503, 'RETURN_EVIDENCE_STORAGE_UNAVAILABLE', 'Penyimpanan foto kondisi sedang tidak tersedia.');
+    }
+    const result = await this.repository.reserveReturnEvidence({
+      borrowingId: id,
+      equipmentId,
+      objectKey: upload.key,
+      mimeType: contentType,
+      fileSizeBytes,
+      originalFilename: fileName,
+      actorId,
+    });
+    if (result.error) repositoryFailure(result.error, 'Gagal menyiapkan unggahan foto kondisi.');
+    if (!result.data) throw new BorrowingMutationsServiceError(500, 'RETURN_EVIDENCE_UNAVAILABLE', 'Data unggahan foto kondisi tidak tersedia.');
+    return {
+      evidence_id: result.data.id,
+      upload_url: upload.uploadUrl,
+      expires_in_seconds: upload.expiresInSeconds,
+    };
+  }
+
+  private async assertReturnEvidenceUploaded(
+    borrowingId: string,
+    equipmentId: string,
+    evidenceId: string,
+    actorId: string,
+  ) {
+    const result = await this.repository.getReturnEvidence(evidenceId);
+    if (result.error) repositoryFailure(result.error, 'Gagal memeriksa foto kondisi.');
+    const evidence = result.data;
+    if (!evidence || evidence.borrowing_id !== borrowingId || evidence.equipment_id !== equipmentId
+      || evidence.created_by !== actorId || evidence.storage_provider !== 'r2' || evidence.upload_status !== 'pending') {
+      throw new BorrowingMutationsServiceError(422, 'RETURN_EVIDENCE_INVALID', 'Foto kondisi tidak sesuai dengan alat atau peminjaman ini.');
+    }
+    let object: Awaited<ReturnType<BorrowingReturnEvidenceStorage['inspect']>>;
+    try {
+      object = await this.evidenceStorage.inspect(evidence.object_key);
+    } catch {
+      throw new BorrowingMutationsServiceError(503, 'RETURN_EVIDENCE_STORAGE_UNAVAILABLE', 'Foto kondisi belum dapat diverifikasi dari penyimpanan.');
+    }
+    if (!object.exists || (object.contentType && object.contentType.toLowerCase() !== evidence.mime_type.toLowerCase())
+      || (object.contentLength != null && object.contentLength !== evidence.file_size_bytes)) {
+      throw new BorrowingMutationsServiceError(422, 'RETURN_EVIDENCE_UPLOAD_INCOMPLETE', 'Unggahan foto kondisi belum selesai atau ukurannya berubah.');
+    }
+    return evidence;
+  }
+
+  async getReturnEvidenceAccess(evidenceId: string) {
+    const id = ensureId(evidenceId, 'evidence_id');
+    const result = await this.repository.getReturnEvidence(id);
+    if (result.error) repositoryFailure(result.error, 'Gagal memuat foto kondisi.');
+    const evidence = result.data;
+    if (!evidence || evidence.upload_status !== 'attached') {
+      throw new BorrowingMutationsServiceError(404, 'RETURN_EVIDENCE_NOT_FOUND', 'Foto kondisi tidak ditemukan.');
+    }
+    try {
+      const access = this.evidenceStorage.createAccess(evidence.object_key);
+      return { access_url: access.accessUrl, expires_in_seconds: access.expiresInSeconds };
+    } catch {
+      throw new BorrowingMutationsServiceError(503, 'RETURN_EVIDENCE_STORAGE_UNAVAILABLE', 'Foto kondisi sedang tidak dapat dibuka.');
+    }
+  }
+
+  async listReturnEvidence(borrowingId: string): Promise<BorrowingReturnEvidenceAccessRecord[]> {
+    const id = ensureId(borrowingId, 'borrowing_id');
+    const result = await this.repository.listReturnEvidence(id);
+    if (result.error) repositoryFailure(result.error, 'Gagal memuat foto kondisi.');
+    const evidence = result.data || [];
+    try {
+      return evidence.map((item) => {
+        const access = this.evidenceStorage.createAccess(item.object_key);
+        return {
+          evidence_id: item.id,
+          borrowing_id: item.borrowing_id,
+          borrowing_item_id: item.borrowing_item_id,
+          equipment_id: item.equipment_id,
+          assessment_item_id: item.assessment_item_id,
+          original_filename: item.original_filename,
+          mime_type: item.mime_type,
+          file_size_bytes: item.file_size_bytes,
+          created_at: item.created_at,
+          access_url: access.accessUrl,
+          expires_in_seconds: access.expiresInSeconds,
+        };
+      });
+    } catch {
+      throw new BorrowingMutationsServiceError(503, 'RETURN_EVIDENCE_STORAGE_UNAVAILABLE', 'Foto kondisi sedang tidak dapat dibuka.');
+    }
   }
 }

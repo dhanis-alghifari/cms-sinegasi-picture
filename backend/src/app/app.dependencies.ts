@@ -34,6 +34,7 @@ export function createAppDependencies(fastify: FastifyInstance): AppDependencies
     usersService: catalog.usersService,
     notificationsService: catalog.notificationsService,
     equipmentService: catalog.equipmentService,
+    equipmentRecoveryService: catalog.equipmentRecoveryService,
     gradesService: catalog.gradesService,
     contestsService: catalog.contestsService,
     contestEntriesService: catalog.contestEntriesService,

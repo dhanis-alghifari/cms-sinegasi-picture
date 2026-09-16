@@ -3,10 +3,69 @@ import type {
   AttendanceCorrectionInput,
   AttendanceListQuery,
   AttendanceRosterQuery,
-  AttendanceRepository,
+  AttendancePersistence,
   AttendanceSummaryQuery,
   AttendanceWriteInput,
 } from './attendance.repository.js';
+
+function getBatchRecordStatusCode(code: string | undefined): number {
+  if (code === '23505') return 409;
+  if (code === '22023' || code === 'P0001') return 422;
+  return 400;
+}
+
+function getRecordFailure(code: string | undefined): {
+  statusCode: number;
+  errorCode: string;
+  message: string;
+} {
+  if (code === 'IDEMPOTENCY_KEY_REUSED') {
+    return {
+      statusCode: 409,
+      errorCode: 'IDEMPOTENCY_KEY_REUSED',
+      message: 'Kunci permintaan sudah dipakai untuk data presensi yang berbeda.',
+    };
+  }
+  if (code === '23505') {
+    return {
+      statusCode: 409,
+      errorCode: 'ATTENDANCE_ALREADY_RECORDED',
+      message: 'Presensi siswa untuk tanggal tersebut sudah tercatat.',
+    };
+  }
+  return {
+    statusCode: 500,
+    errorCode: 'RECORD_FAILED',
+    message: 'Gagal mencatat presensi siswa.',
+  };
+}
+
+function getCorrectionFailure(code: string | undefined): {
+  statusCode: number;
+  errorCode: string;
+  message: string;
+} {
+  if (['NOT_FOUND', 'P0002', 'PGRST116'].includes(code || '')) {
+    return { statusCode: 404, errorCode: 'ATTENDANCE_NOT_FOUND', message: 'Record absensi tidak ditemukan.' };
+  }
+  if (code === '22023') {
+    return { statusCode: 422, errorCode: 'CORRECTION_FAILED', message: 'Gagal mengoreksi data presensi.' };
+  }
+  if (['PGRST202', '42883', '42P01'].includes(code || '')) {
+    return { statusCode: 503, errorCode: 'CORRECTION_UNAVAILABLE', message: 'Fitur koreksi absensi belum tersedia di database.' };
+  }
+  return { statusCode: 400, errorCode: 'CORRECTION_FAILED', message: 'Gagal mengoreksi data presensi.' };
+}
+
+function isValidIsoDate(value: string): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return false;
+
+  const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+  return date.getUTCFullYear() === Number(match[1])
+    && date.getUTCMonth() === Number(match[2]) - 1
+    && date.getUTCDate() === Number(match[3]);
+}
 
 export class AttendanceServiceError extends Error {
   constructor(
@@ -25,15 +84,11 @@ export class AttendanceServiceError extends Error {
 }
 
 export class AttendanceService {
-  constructor(private readonly repository: AttendanceRepository) {}
-
-  repositoryIsConfigured(): boolean {
-    return this.repository.isConfigured();
-  }
+  constructor(private readonly persistence: AttendancePersistence) {}
 
   async list(query: AttendanceListQuery) {
     this.validateDateFilter(query);
-    const result = await this.repository.list(query);
+    const result = await this.persistence.read.list(query);
     if (result.error) throw new AttendanceServiceError(500, 'LIST_FAILED', 'Gagal memuat data presensi.');
     return {
       data: result.data,
@@ -45,7 +100,7 @@ export class AttendanceService {
   }
 
   async roster(query: AttendanceRosterQuery) {
-    const result = await this.repository.roster(query);
+    const result = await this.persistence.read.roster(query);
     if (result.error) throw new AttendanceServiceError(500, 'ROSTER_FAILED', 'Gagal memuat daftar siswa untuk absensi.');
     return {
       data: result.data,
@@ -58,7 +113,7 @@ export class AttendanceService {
 
   async summary(query: AttendanceSummaryQuery) {
     this.validateDateFilter(query);
-    const result = await this.repository.summary(query);
+    const result = await this.persistence.read.summary(query);
     if (result.error || !result.data) {
       throw new AttendanceServiceError(500, 'SUMMARY_FAILED', 'Gagal memuat ringkasan presensi.');
     }
@@ -69,13 +124,13 @@ export class AttendanceService {
     if (!input.studentId || !input.tanggal || !input.status) {
       throw new AttendanceServiceError(422, 'REQUIRED_FIELDS', 'student_id, tanggal, dan status wajib diisi.');
     }
-    const result = await this.repository.record({
+    const result = await this.persistence.write.record({
       ...input,
       idempotencyKey: input.idempotencyKey || `att-${input.studentId}-${input.tanggal}`,
     });
     if (result.error || !result.data) {
-      const statusCode = result.error?.code === '23505' ? 409 : 400;
-      throw new AttendanceServiceError(statusCode, 'RECORD_FAILED', 'Gagal mencatat presensi siswa.');
+      const failure = getRecordFailure(result.error?.code);
+      throw new AttendanceServiceError(failure.statusCode, failure.errorCode, failure.message);
     }
     return result.data;
   }
@@ -105,13 +160,13 @@ export class AttendanceService {
       }
     }
 
-    const result = await this.repository.batchRecord({
+    const result = await this.persistence.write.batchRecord({
       ...input,
       changeReason: input.changeReason?.trim() || 'Mencatat absensi massal',
     });
     if (result.error || result.data.length !== input.records.length) {
       const code = result.error?.code;
-      const statusCode = code === '23505' ? 409 : ['22023', 'P0001'].includes(code || '') ? 422 : 400;
+      const statusCode = getBatchRecordStatusCode(code);
       throw new AttendanceServiceError(
         statusCode,
         'BATCH_RECORD_FAILED',
@@ -149,7 +204,7 @@ export class AttendanceService {
       throw new AttendanceServiceError(422, 'CHANGE_REASON_REQUIRED', 'Alasan koreksi wajib diisi 5 sampai 500 karakter.');
     }
 
-    const result = await this.repository.correct({
+    const result = await this.persistence.write.correct({
       ...input,
       status,
       keterangan: note,
@@ -157,21 +212,11 @@ export class AttendanceService {
     });
     if (result.error || !result.data) {
       const code = result.error?.code;
-      const statusCode = ['NOT_FOUND', 'P0002', 'PGRST116'].includes(code || '')
-        ? 404
-        : ['22023'].includes(code || '')
-          ? 422
-          : ['PGRST202', '42883', '42P01'].includes(code || '')
-            ? 503
-            : 400;
+      const failure = getCorrectionFailure(code);
       throw new AttendanceServiceError(
-        statusCode,
-        statusCode === 404 ? 'ATTENDANCE_NOT_FOUND' : statusCode === 503 ? 'CORRECTION_UNAVAILABLE' : 'CORRECTION_FAILED',
-        statusCode === 404
-          ? 'Record absensi tidak ditemukan.'
-          : statusCode === 503
-            ? 'Fitur koreksi absensi belum tersedia di database.'
-            : 'Gagal mengoreksi data presensi.',
+        failure.statusCode,
+        failure.errorCode,
+        failure.message,
         result.error
           ? {
               code: result.error.code,
@@ -189,6 +234,16 @@ export class AttendanceService {
     date_from?: string;
     date_to?: string;
   }): void {
+    const dateFields: Array<['tanggal' | 'date_from' | 'date_to', string | undefined]> = [
+      ['tanggal', query.tanggal],
+      ['date_from', query.date_from],
+      ['date_to', query.date_to],
+    ];
+    for (const [field, value] of dateFields) {
+      if (value && !isValidIsoDate(value)) {
+        throw new AttendanceServiceError(422, 'INVALID_DATE_FILTER', `${field} harus berupa tanggal kalender yang valid.`);
+      }
+    }
     if (query.tanggal && (query.date_from || query.date_to)) {
       throw new AttendanceServiceError(422, 'INVALID_DATE_FILTER', 'Gunakan tanggal tunggal atau rentang tanggal, bukan keduanya.');
     }

@@ -4,6 +4,8 @@ import { FileText, Plus } from 'lucide-react';
 import { getErrorMessage } from '@/shared/api/errors';
 import { Button } from '@/shared/ui/primitives/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/shared/ui/primitives/dialog';
+import { formatNumber } from '@/shared/utils/formatNumber';
+import { UI_CONSTANTS } from '@/shared/constants/ui';
 
 import { useContestEntriesQuery } from '../hooks/useContestEntriesQuery';
 import { useContestWorkTypesQuery } from '../hooks/useContestWorkTypesQuery';
@@ -28,7 +30,7 @@ export function ContestEntriesDialog({
 
   const contestEntriesQuery = useContestEntriesQuery(
     contest?.id,
-    { page: 1, pageSize: 50 },
+    { page: 1, pageSize: UI_CONSTANTS.CONTEST_ENTRIES_PAGE_SIZE },
     open,
   );
   const workTypeOptionsQuery = useContestWorkTypesQuery(open);
@@ -50,6 +52,11 @@ export function ContestEntriesDialog({
   };
 
   const handleClosePipelineUpdate = () => {
+    setEntryBeingUpdated(null);
+  };
+
+  const handleToggleCreateForm = () => {
+    setIsCreateFormVisible((isVisible) => !isVisible);
     setEntryBeingUpdated(null);
   };
 
@@ -81,16 +88,13 @@ export function ContestEntriesDialog({
               <p className="mt-0.5 text-xs text-ink-tertiary">
                 {contestEntriesQuery.isLoading
                   ? 'Memuat...'
-                  : (contestEntriesQuery.data?.total ?? 0) + ' karya terdaftar'}
+                  : `${formatNumber(contestEntriesQuery.data?.total ?? 0)} karya terdaftar`}
               </p>
             </div>
             <Button
               type="button"
               size="sm"
-              onClick={() => {
-                setIsCreateFormVisible((isVisible) => !isVisible);
-                setEntryBeingUpdated(null);
-              }}
+              onClick={handleToggleCreateForm}
               className="gap-1.5"
             >
               <Plus size={14} />

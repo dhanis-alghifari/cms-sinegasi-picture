@@ -1,4 +1,3 @@
-// Main responsive application shell. It owns layout/navigation only.
 
 import { useState } from 'react';
 import '@/app/styles/fonts.css';
@@ -62,6 +61,12 @@ export function DashboardLayout() {
 
   return (
     <div className="flex min-h-screen min-h-dvh overflow-hidden bg-canvas">
+      <a
+        href="#main-content"
+        className="sr-only z-50 rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground focus:not-sr-only focus:fixed focus:left-3 focus:top-3"
+      >
+        Lewati ke konten utama
+      </a>
       <aside className="hidden w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground lg:flex">
         <div className="flex h-14 shrink-0 items-center gap-2.5 border-b border-sidebar-border px-4">
           <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-sidebar-primary">
@@ -111,7 +116,7 @@ export function DashboardLayout() {
           <NotificationDropdown />
         </header>
 
-        <main className="min-h-0 flex-1 overflow-y-auto pb-[calc(8.5rem+env(safe-area-inset-bottom))] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] md:pb-[calc(4.5rem+env(safe-area-inset-bottom))] lg:pb-0">
+        <main id="main-content" className="min-h-0 flex-1 overflow-y-auto pb-[calc(8.5rem+env(safe-area-inset-bottom))] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] md:pb-[calc(4.5rem+env(safe-area-inset-bottom))] lg:pb-0">
           <Outlet />
         </main>
       </div>

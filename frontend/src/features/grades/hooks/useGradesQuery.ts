@@ -1,5 +1,3 @@
-// src/features/grades/hooks/useGradesQuery.ts
-// TanStack Query hooks for grades & assignments
 
 import { useQuery } from '@tanstack/react-query';
 import { QUERY_KEYS } from '@/shared/constants/queryKeys';

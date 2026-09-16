@@ -1,6 +1,6 @@
-// src/features/classes/api/classes.service.ts
 
 import { apiClient } from '@/shared/api/client';
+import { UI_CONSTANTS } from '@/shared/constants/ui';
 import { decodeVoidResponse } from '@/shared/api/responseValidation';
 import {
   decodeClass,
@@ -17,8 +17,8 @@ import type {
 } from '../types/classes.types';
 
 export const classesService = {
-  async getOptions(): Promise<ClassSelectorOption[]> {
-    return apiClient.getParsed('/api/options/kelas', decodeClassOptions);
+  async getOptions(options: Pick<RequestInit, 'signal'> = {}): Promise<ClassSelectorOption[]> {
+    return apiClient.getParsed('/api/options/kelas', decodeClassOptions, options);
   },
 
   async getAdminClasses(params?: ClassFilterParams): Promise<PaginatedResponse<ClassRecord>> {
@@ -26,7 +26,7 @@ export const classesService = {
     if (params?.page) query.append('page', String(params.page));
     if (params?.pageSize) query.append('pageSize', String(params.pageSize));
     if (params?.search) query.append('search', params.search);
-    if (params?.tingkat && params.tingkat !== 'all') query.append('tingkat', params.tingkat);
+    if (params?.tingkat && params.tingkat !== UI_CONSTANTS.ALL_FILTER_VALUE) query.append('level', params.tingkat);
     if (params?.is_active !== undefined) query.append('is_active', String(params.is_active));
 
     const endpoint = `/api/admin/classes${query.toString() ? `?${query.toString()}` : ''}`;
@@ -34,12 +34,17 @@ export const classesService = {
   },
 
   async createClass(input: CreateClassInput): Promise<ClassRecord> {
-    const payload = { nama_kelas: input.nama_kelas, tingkat: input.tingkat };
+    const payload = { name: input.nama_kelas, level: input.tingkat };
     return apiClient.postParsed('/api/admin/classes', payload, decodeClass);
   },
 
   async updateClass(id: string, input: UpdateClassInput): Promise<ClassRecord> {
-    return apiClient.putParsed(`/api/admin/classes/${id}`, input, decodeClass, {
+    const { nama_kelas: name, tingkat: level, ...rest } = input;
+    return apiClient.putParsed(`/api/admin/classes/${id}`, {
+      ...rest,
+      ...(name !== undefined ? { name } : {}),
+      ...(level !== undefined ? { level } : {}),
+    }, decodeClass, {
       changeReason: input.change_reason || 'Memperbarui data kelas master',
     });
   },

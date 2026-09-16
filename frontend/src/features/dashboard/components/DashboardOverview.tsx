@@ -1,5 +1,3 @@
-// src/features/dashboard/components/DashboardOverview.tsx
-// Dashboard overview composition — composes individual KPI cards and widgets
 // Constitution: Composition layer combines widgets; receives data via props or query
 
 import { KasSummaryCard } from '../components/KasSummaryCard';

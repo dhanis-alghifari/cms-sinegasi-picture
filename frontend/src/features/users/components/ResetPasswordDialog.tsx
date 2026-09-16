@@ -1,5 +1,3 @@
-// src/features/users/components/ResetPasswordDialog.tsx
-// PRD Sub-feature: Reset Password oleh Guru/Admin
 // Generates temporary password, enforces is_first_login = true, displays temporary password ONCE
 
 import { useState } from 'react';
@@ -16,6 +14,7 @@ import {
   DialogFooter,
 } from '@/shared/ui/primitives/dialog';
 import { Button } from '@/shared/ui/primitives/button';
+import { UI_CONSTANTS } from '@/shared/constants/ui';
 import { Input } from '@/shared/ui/primitives/input';
 import { Label } from '@/shared/ui/primitives/label';
 import { getErrorMessage } from '@/shared/api/errors';
@@ -76,7 +75,7 @@ export function ResetPasswordDialog({
     try {
       const result = await onResetSubmit(userAccount.id, data.change_reason);
       if (!result?.temporary_password) {
-        setFormError('Server tidak mengembalikan password sementara. Jangan tutup dialog; hubungi administrator.');
+        setFormError('Server tidak mengembalikan kata sandi sementara. Jangan tutup dialog; hubungi administrator.');
         return;
       }
       setTempPassword(result.temporary_password);
@@ -92,9 +91,9 @@ export function ResetPasswordDialog({
       if (!navigator.clipboard) throw new Error('Clipboard tidak tersedia.');
       await navigator.clipboard.writeText(tempPassword);
       setCopied(true);
-      window.setTimeout(() => setCopied(false), 2000);
+      window.setTimeout(() => setCopied(false), UI_CONSTANTS.COPY_FEEDBACK_MS);
     } catch {
-      setCopyError('Tidak dapat menyalin otomatis. Pilih password lalu salin secara manual.');
+      setCopyError('Tidak dapat menyalin otomatis. Pilih kata sandi lalu salin secara manual.');
     }
   };
 
@@ -104,14 +103,14 @@ export function ResetPasswordDialog({
         <DialogHeader>
           <div className="flex items-center gap-2 mb-1">
             <KeyRound size={18} className="text-semantic-warning" />
-            <DialogTitle className="text-ink text-base font-semibold">Reset Password User</DialogTitle>
+          <DialogTitle className="text-ink text-base font-semibold">Reset Kata Sandi Pengguna</DialogTitle>
           </div>
           <DialogDescription className="text-ink-subtle text-xs">
             Reset kata sandi akun <strong className="text-ink">@{userAccount?.username}</strong> ({userAccount?.nama}).
           </DialogDescription>
         </DialogHeader>
 
-        {tempPassword ? (
+        {tempPassword && (
           /* Step 2: Show Temporary Password ONCE */
           <div className="space-y-4 py-2">
             <div className="p-3 rounded bg-semantic-warning/15 border border-semantic-warning/30 text-semantic-warning text-xs flex items-start gap-2">
@@ -150,9 +149,10 @@ export function ResetPasswordDialog({
               </Button>
             </DialogFooter>
           </div>
-        ) : (
+        )}
+        {!tempPassword && (
           /* Step 1: Input Change Reason */
-          <form onSubmit={handleSubmit} className="space-y-4 pt-2">
+          <form noValidate onSubmit={handleSubmit} className="space-y-4 pt-2">
             {(formError || Boolean(error)) && (
               <div role="alert" className="px-3.5 py-2.5 rounded-md bg-semantic-danger/10 border border-semantic-danger/30 text-semantic-danger text-xs font-medium">
                 {formError || getErrorMessage(error)}
@@ -161,7 +161,7 @@ export function ResetPasswordDialog({
 
             <div className="space-y-1">
               <Label htmlFor="change_reason" className="text-ink-muted text-xs font-semibold">
-                Alasan Reset Password (Wajib untuk Audit Log) *
+                Alasan Reset Kata Sandi (Wajib untuk Riwayat Audit) *
               </Label>
               <Input
                 id="change_reason"
@@ -178,7 +178,7 @@ export function ResetPasswordDialog({
               <Button type="button" variant="outline" onClick={handleClose} className="bg-surface-2 border-hairline text-ink text-xs h-9">
                 Batal
               </Button>
-              <Button type="submit" disabled={isLoading} className="bg-semantic-warning hover:bg-semantic-warning/80 text-black font-semibold text-xs h-9">
+              <Button type="submit" disabled={isLoading} className="bg-semantic-warning text-white hover:bg-semantic-warning/90 font-semibold text-xs h-9">
                 {isLoading ? (
                   <>
                     <Loader2 size={14} className="animate-spin mr-1.5" />

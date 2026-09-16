@@ -1,6 +1,3 @@
-// src/features/auth/hooks/useLoginMutation.ts
-// TanStack Query mutation for login
-// Constitution: Query/Mutation → Service → HTTP Client
 
 import { useMutation } from '@tanstack/react-query';
 import { authService } from '../api/auth.service';

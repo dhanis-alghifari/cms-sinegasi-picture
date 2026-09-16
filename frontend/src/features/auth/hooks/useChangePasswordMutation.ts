@@ -1,5 +1,3 @@
-// src/features/auth/hooks/useChangePasswordMutation.ts
-// TanStack Query mutation for change password (first-login + regular)
 
 import { useMutation } from '@tanstack/react-query';
 import { authService } from '../api/auth.service';

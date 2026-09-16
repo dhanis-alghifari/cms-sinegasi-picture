@@ -13,12 +13,13 @@ import { AuditMobileList } from '../components/AuditMobileList';
 import { AuditDetailSheet } from '../components/AuditDetailSheet';
 import { useAuditLogsQuery } from '../hooks/useAuditQuery';
 import { useDebouncedValue } from '@/shared/hooks/useDebouncedValue';
+import { UI_CONSTANTS } from '@/shared/constants/ui';
 import { formatResourceLabel } from '@/shared/utils/formatLabels';
 import { formatNumber } from '@/shared/utils/formatNumber';
 import { useIsMobile } from '@/shared/hooks/use-mobile';
 import type { AuditLog, AuditLogFilterParams } from '../types/audit.types';
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = UI_CONSTANTS.AUDIT_PAGE_SIZE;
 
 export function AuditPage() {
   const isMobile = useIsMobile();
@@ -30,7 +31,7 @@ export function AuditPage() {
     record_id: searchParams.get('record_id') || undefined,
   }));
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
-  const debouncedSearch = useDebouncedValue(filters.search ?? '', 300);
+  const debouncedSearch = useDebouncedValue(filters.search ?? '', UI_CONSTANTS.SEARCH_DEBOUNCE_MS);
   const queryParams = useMemo(
     () => ({ ...filters, search: debouncedSearch || undefined }),
     [filters, debouncedSearch],
@@ -42,6 +43,46 @@ export function AuditPage() {
   };
 
   const logs = data?.data ?? [];
+
+  const auditContent = (() => {
+    if (isLoading) return <PageLoader />;
+    if (isError) {
+      return (
+        <div role="alert" className="flex items-start gap-2 rounded-lg border border-semantic-danger/30 bg-semantic-danger/10 p-4 text-semantic-danger text-xs">
+          <AlertCircle size={16} className="mt-0.5 shrink-0" />
+          <div>
+            <p className="font-semibold">Audit trail tidak dapat dimuat.</p>
+            <p className="mt-1">{error instanceof Error ? error.message : 'Periksa migration database dan koneksi backend.'}</p>
+          </div>
+        </div>
+      );
+    }
+    if (logs.length === 0) {
+      return (
+        <EmptyState
+          icon={History}
+          title="Belum ada riwayat perubahan"
+          description="Coba ubah filter atau lakukan perubahan data yang memiliki alasan untuk melihat catatan audit."
+        />
+      );
+    }
+    return (
+      <>
+        <div className="flex items-center justify-between text-xs text-ink-tertiary">
+          <span>{isFetching ? 'Memperbarui data…' : `${formatNumber(data?.total ?? 0)} catatan audit`}</span>
+          <span>Data terbaru berada di urutan paling atas.</span>
+        </div>
+        {isMobile ? <AuditMobileList logs={logs} onDetail={setSelectedLog} /> : <AuditTable logs={logs} onDetail={setSelectedLog} />}
+        <Pagination
+          page={data?.page ?? filters.page ?? 1}
+          totalPages={data?.totalPages ?? 1}
+          total={data?.total ?? 0}
+          pageSize={data?.pageSize ?? PAGE_SIZE}
+          onPageChange={(page) => setFilters((current) => ({ ...current, page }))}
+        />
+      </>
+    );
+  })();
 
   return (
     <div className="mx-auto max-w-[1500px] space-y-5 px-4 py-5 sm:p-6">
@@ -62,38 +103,7 @@ export function AuditPage() {
         </div>
       )}
 
-      {isLoading ? (
-        <PageLoader />
-      ) : isError ? (
-        <div role="alert" className="flex items-start gap-2 rounded-lg border border-semantic-danger/30 bg-semantic-danger/10 p-4 text-semantic-danger text-xs">
-          <AlertCircle size={16} className="mt-0.5 shrink-0" />
-          <div>
-            <p className="font-semibold">Audit trail tidak dapat dimuat.</p>
-            <p className="mt-1">{error instanceof Error ? error.message : 'Periksa migration database dan koneksi backend.'}</p>
-          </div>
-        </div>
-      ) : logs.length === 0 ? (
-        <EmptyState
-          icon={History}
-          title="Belum ada riwayat perubahan"
-          description="Coba ubah filter atau lakukan perubahan data yang memiliki alasan untuk melihat catatan audit."
-        />
-      ) : (
-        <>
-          <div className="flex items-center justify-between text-xs text-ink-tertiary">
-            <span>{isFetching ? 'Memperbarui data…' : `${formatNumber(data?.total ?? 0)} catatan audit`}</span>
-            <span>Data terbaru berada di urutan paling atas.</span>
-          </div>
-          {isMobile ? <AuditMobileList logs={logs} onDetail={setSelectedLog} /> : <AuditTable logs={logs} onDetail={setSelectedLog} />}
-          <Pagination
-            page={data?.page ?? filters.page ?? 1}
-            totalPages={data?.totalPages ?? 1}
-            total={data?.total ?? 0}
-            pageSize={data?.pageSize ?? PAGE_SIZE}
-            onPageChange={(page) => setFilters((current) => ({ ...current, page }))}
-          />
-        </>
-      )}
+      {auditContent}
 
       <AuditDetailSheet log={selectedLog} onOpenChange={(open) => !open && setSelectedLog(null)} />
     </div>

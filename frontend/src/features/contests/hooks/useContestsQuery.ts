@@ -1,5 +1,3 @@
-// src/features/contests/hooks/useContestsQuery.ts
-// TanStack Query hooks for contests domain
 
 import { useQuery } from '@tanstack/react-query';
 import { QUERY_KEYS } from '@/shared/constants/queryKeys';

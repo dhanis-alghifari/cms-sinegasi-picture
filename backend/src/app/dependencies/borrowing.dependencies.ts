@@ -19,7 +19,7 @@ export function createBorrowingDependencies(catalog: CatalogDependencies): Borro
   };
   return {
     borrowingReadService: new BorrowingReadService(
-      createBorrowingReadRepository(supabase, state.borrowings),
+      createBorrowingReadRepository(supabase, state.borrowings, state.equipment),
     ),
     borrowingMutationsService: new BorrowingMutationsService(
       createBorrowingMutationsRepository(supabase, state),

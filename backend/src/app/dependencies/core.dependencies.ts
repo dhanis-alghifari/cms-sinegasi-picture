@@ -5,7 +5,7 @@ import { AuthService } from '../../modules/auth/auth.service.js';
 import { createAuthRepository } from '../../modules/auth/auth.repository.js';
 import { createSupabaseLoginRateLimiter } from '../../modules/auth/loginRateLimiter.js';
 import { AttendanceService } from '../../modules/attendance/attendance.service.js';
-import { createAttendanceRepository } from '../../modules/attendance/attendance.repository.js';
+import { createAttendancePersistence } from '../../modules/attendance/attendance.repository.js';
 import { AuditService } from '../../modules/audit/audit.service.js';
 import { createAuditRepository } from '../../modules/audit/audit.repository.js';
 import { resolveDatabaseUserId } from '../../modules/auth/auth.identity.js';
@@ -25,6 +25,7 @@ export interface CoreDependencies {
   authService: AuthService;
   loginRateLimiter: ReturnType<typeof createSupabaseLoginRateLimiter>;
   attendanceService: AttendanceService;
+  attendanceRequiresDatabaseUserId: boolean;
   auditService: AuditService;
   persistAuditLog: PersistAuditLog;
   overdueService: OverdueService;
@@ -37,7 +38,7 @@ export function createCoreDependencies(fastify: FastifyInstance): CoreDependenci
     createAuthRepository(supabase),
     runtimeConfig.allowDevelopmentAuth,
   );
-  const attendanceService = new AttendanceService(createAttendanceRepository(supabase));
+  const attendanceService = new AttendanceService(createAttendancePersistence(supabase));
   const auditRepository = createAuditRepository(supabase);
   const auditService = new AuditService(auditRepository);
   const persistAuditLog: PersistAuditLog = async (request: FastifyRequest, input: AuditRouteInput) => {
@@ -76,6 +77,7 @@ export function createCoreDependencies(fastify: FastifyInstance): CoreDependenci
     authService,
     loginRateLimiter: createSupabaseLoginRateLimiter(supabase),
     attendanceService,
+    attendanceRequiresDatabaseUserId: supabase !== null,
     auditService,
     persistAuditLog,
     overdueService,

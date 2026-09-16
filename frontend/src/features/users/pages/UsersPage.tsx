@@ -1,20 +1,19 @@
-// src/features/users/pages/UsersPage.tsx
-// Thin orchestration page for User Accounts & Role Management (Teacher/Admin only)
 
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { UserPlus } from 'lucide-react';
 
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { ResponsivePageActions } from '@/shared/ui/ResponsivePageActions';
 import { PageLoader } from '@/shared/ui/LoadingSpinner';
+import { QueryErrorState } from '@/shared/ui/QueryErrorState';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { Pagination } from '@/shared/ui/Pagination';
-import { ReasonDialog } from '@/shared/ui/ActionDialog';
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import { useDebouncedValue } from '@/shared/hooks/useDebouncedValue';
 import { useIsMobile } from '@/shared/hooks/use-mobile';
 import { USER_ROLE_VALUES } from '@/shared/types/common';
 import { isOneOf } from '@/shared/utils/isOneOf';
+import { UI_CONSTANTS } from '@/shared/constants/ui';
 
 import { useUsersQuery } from '../hooks/useUsersQuery';
 import { useCreateUserMutation } from '../hooks/useCreateUserMutation';
@@ -24,10 +23,18 @@ import { useDeleteUserMutation } from '../hooks/useDeleteUserMutation';
 import { UserFilter } from '../components/UserFilter';
 import { UserTable } from '../components/UserTable';
 import { UserMobileList } from '../components/UserMobileList';
-import { UserFormDialog } from '../components/UserFormDialog';
-import { ResetPasswordDialog } from '../components/ResetPasswordDialog';
 import type { UserAccount } from '../types/users.types';
 import type { UserFormValues } from '../schemas/userSchema';
+
+const LazyUserFormDialog = lazy(() =>
+  import('../components/UserFormDialog').then(({ UserFormDialog }) => ({ default: UserFormDialog })),
+);
+const LazyResetPasswordDialog = lazy(() =>
+  import('../components/ResetPasswordDialog').then(({ ResetPasswordDialog }) => ({ default: ResetPasswordDialog })),
+);
+const LazyReasonDialog = lazy(() =>
+  import('@/shared/ui/ActionDialog').then(({ ReasonDialog }) => ({ default: ReasonDialog })),
+);
 
 export function UsersPage() {
   const { user, updateUser: updateAuthUser } = useAuthStore();
@@ -36,12 +43,12 @@ export function UsersPage() {
 
   // Filters
   const [search, setSearch] = useState('');
-  const [role, setRole] = useState('all');
-  const [status, setStatus] = useState('all');
+  const [role, setRole] = useState<string>(UI_CONSTANTS.ALL_FILTER_VALUE);
+  const [status, setStatus] = useState<string>(UI_CONSTANTS.ALL_FILTER_VALUE);
   const [page, setPage] = useState(1);
-  const pageSize = 10;
+  const pageSize = UI_CONSTANTS.DEFAULT_PAGE_SIZE;
 
-  const debouncedSearch = useDebouncedValue(search, 300);
+  const debouncedSearch = useDebouncedValue(search, UI_CONSTANTS.SEARCH_DEBOUNCE_MS);
 
   const handleSearchChange = (val: string) => {
     setSearch(val);
@@ -60,8 +67,8 @@ export function UsersPage() {
 
   const handleResetFilter = () => {
     setSearch('');
-    setRole('all');
-    setStatus('all');
+    setRole(UI_CONSTANTS.ALL_FILTER_VALUE);
+    setStatus(UI_CONSTANTS.ALL_FILTER_VALUE);
     setPage(1);
   };
 
@@ -75,12 +82,12 @@ export function UsersPage() {
   const [deleteTargetUser, setDeleteTargetUser] = useState<UserAccount | null>(null);
 
   // Queries & Mutations
-  const { data, isLoading } = useUsersQuery({
+  const { data, isLoading, isError, error, refetch } = useUsersQuery({
     page,
     pageSize,
     search: debouncedSearch || undefined,
     role: isOneOf(role, USER_ROLE_VALUES) ? role : undefined,
-    is_active: status === 'all' ? undefined : status === 'active',
+    is_active: status === UI_CONSTANTS.ALL_FILTER_VALUE ? undefined : status === 'active',
   });
 
   const createMutation = useCreateUserMutation();
@@ -172,8 +179,8 @@ export function UsersPage() {
         },
       });
       setSearch('');
-      setRole('all');
-      setStatus('all');
+      setRole(UI_CONSTANTS.ALL_FILTER_VALUE);
+      setStatus(UI_CONSTANTS.ALL_FILTER_VALUE);
       setPage(1);
     }
   };
@@ -181,6 +188,31 @@ export function UsersPage() {
   const handleResetPasswordSubmit = async (userId: string, changeReason: string) => {
     return resetMutation.mutateAsync({ id: userId, changeReason });
   };
+
+  const userContent = (() => {
+    if (isLoading) return <PageLoader label="Memuat daftar akun..." />;
+    if (isError) {
+      return <QueryErrorState title="Daftar akun belum dapat dimuat" error={error} onRetry={refetch} />;
+    }
+
+    const users = data?.data ?? [];
+    const list = isMobile
+      ? <UserMobileList users={users} onEdit={handleOpenEdit} onResetPassword={handleOpenReset} onToggleActive={handleToggleActive} onDelete={handleDelete} canManage={isTeacher} />
+      : <UserTable users={users} onEdit={handleOpenEdit} onResetPassword={handleOpenReset} onToggleActive={handleToggleActive} onDelete={handleDelete} canManage={isTeacher} />;
+
+    return (
+      <div className="space-y-4">
+        {list}
+        <Pagination
+          page={data?.page ?? page}
+          totalPages={data?.totalPages ?? 1}
+          total={data?.total ?? 0}
+          pageSize={data?.pageSize ?? pageSize}
+          onPageChange={setPage}
+        />
+      </div>
+    );
+  })();
 
   if (!isTeacher) {
     return (
@@ -220,84 +252,63 @@ export function UsersPage() {
         onReset={handleResetFilter}
       />
 
-      {isLoading ? (
-        <PageLoader />
-      ) : (
-        <div className="space-y-4">
-          {isMobile ? (
-            <UserMobileList
-              users={data?.data ?? []}
-              onEdit={handleOpenEdit}
-              onResetPassword={handleOpenReset}
-              onToggleActive={handleToggleActive}
-              onDelete={handleDelete}
-              canManage={isTeacher}
-            />
-          ) : (
-            <UserTable
-              users={data?.data ?? []}
-              onEdit={handleOpenEdit}
-              onResetPassword={handleOpenReset}
-              onToggleActive={handleToggleActive}
-              onDelete={handleDelete}
-              canManage={isTeacher}
-            />
-          )}
-          <Pagination
-            page={data?.page ?? page}
-            totalPages={data?.totalPages ?? 1}
-            total={data?.total ?? 0}
-            pageSize={data?.pageSize ?? pageSize}
-            onPageChange={setPage}
+      {userContent}
+
+      <Suspense fallback={null}>
+        {formOpen && (
+          <LazyUserFormDialog
+            open
+            onOpenChange={setFormOpen}
+            userAccount={selectedUser}
+            onSubmit={handleFormSubmit}
+            isLoading={createMutation.isPending || updateMutation.isPending}
+            error={createMutation.error || updateMutation.error}
           />
-        </div>
-      )}
-
-      <UserFormDialog
-        open={formOpen}
-        onOpenChange={setFormOpen}
-        userAccount={selectedUser}
-        onSubmit={handleFormSubmit}
-        isLoading={createMutation.isPending || updateMutation.isPending}
-        error={createMutation.error || updateMutation.error}
-      />
-
-      <ResetPasswordDialog
-        open={resetOpen}
-        onOpenChange={setResetOpen}
-        userAccount={resetTargetUser}
-        onResetSubmit={handleResetPasswordSubmit}
-        isLoading={resetMutation.isPending}
-        error={resetMutation.error}
-      />
-
-      <ReasonDialog
-        open={Boolean(activeStatusTarget)}
-        onOpenChange={handleActiveStatusDialogChange}
-        title={activeStatusTarget?.is_active ? 'Nonaktifkan Akun' : 'Aktifkan Akun'}
-        description={activeStatusTarget
-          ? `Masukkan alasan untuk ${activeStatusTarget.is_active ? 'menonaktifkan' : 'mengaktifkan'} akun @${activeStatusTarget.username}.`
-          : ''}
-        reasonLabel="Alasan Perubahan *"
-        reasonPlaceholder="Contoh: Perubahan status keanggotaan pengguna..."
-        confirmLabel={activeStatusTarget?.is_active ? 'Nonaktifkan Akun' : 'Aktifkan Akun'}
-        destructive={Boolean(activeStatusTarget?.is_active)}
-        onConfirm={handleConfirmToggleActive}
-      />
-
-      <ReasonDialog
-        open={Boolean(deleteTargetUser)}
-        onOpenChange={(open) => { if (!open) setDeleteTargetUser(null); }}
-        title="Hapus Akun Operasional"
-        description={deleteTargetUser
-          ? `Akun @${deleteTargetUser.username} akan dihapus permanen. Akun yang terhubung ke siswa tidak dapat dihapus; gunakan status Alumni dari halaman Data Siswa.`
-          : ''}
-        reasonLabel="Alasan Penghapusan *"
-        reasonPlaceholder="Contoh: Akun duplikat dan tidak memiliki histori"
-        confirmLabel="Hapus Akun"
-        destructive
-        onConfirm={handleConfirmDelete}
-      />
+        )}
+        {resetOpen && resetTargetUser && (
+          <LazyResetPasswordDialog
+            open
+            onOpenChange={setResetOpen}
+            userAccount={resetTargetUser}
+            onResetSubmit={handleResetPasswordSubmit}
+            isLoading={resetMutation.isPending}
+            error={resetMutation.error}
+          />
+        )}
+        {activeStatusTarget && (
+          <LazyReasonDialog
+            dialog={{ open: true, onOpenChange: handleActiveStatusDialogChange }}
+            content={{
+              title: activeStatusTarget.is_active ? 'Nonaktifkan Akun' : 'Aktifkan Akun',
+              description: `Masukkan alasan untuk ${activeStatusTarget.is_active ? 'menonaktifkan' : 'mengaktifkan'} akun @${activeStatusTarget.username}.`,
+            }}
+            action={{
+              confirmLabel: activeStatusTarget.is_active ? 'Nonaktifkan Akun' : 'Aktifkan Akun',
+              onConfirm: handleConfirmToggleActive,
+            }}
+            reason={{
+              label: 'Alasan Perubahan *',
+              placeholder: 'Contoh: Perubahan status keanggotaan pengguna...',
+            }}
+            destructive={activeStatusTarget.is_active}
+          />
+        )}
+        {deleteTargetUser && (
+          <LazyReasonDialog
+            dialog={{
+              open: true,
+              onOpenChange: (open) => { if (!open) setDeleteTargetUser(null); },
+            }}
+            content={{
+              title: 'Hapus Akun Operasional',
+              description: `Akun @${deleteTargetUser.username} akan dihapus permanen. Akun yang terhubung ke siswa tidak dapat dihapus; gunakan status Alumni dari halaman Data Siswa.`,
+            }}
+            action={{ confirmLabel: 'Hapus Akun', onConfirm: handleConfirmDelete }}
+            reason={{ label: 'Alasan Penghapusan *', placeholder: 'Contoh: Akun duplikat dan tidak memiliki histori' }}
+            destructive
+          />
+        )}
+      </Suspense>
     </div>
   );
 }

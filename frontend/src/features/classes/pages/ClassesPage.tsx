@@ -1,4 +1,3 @@
-// src/features/classes/pages/ClassesPage.tsx
 
 import { useState } from 'react';
 import { AlertCircle, Plus, Search, Layers, Edit2, Power } from 'lucide-react';
@@ -24,6 +23,7 @@ import {
   TableRow,
 } from '@/shared/ui/primitives/table';
 import { useDebouncedValue } from '@/shared/hooks/useDebouncedValue';
+import { UI_CONSTANTS } from '@/shared/constants/ui';
 import { useIsMobile } from '@/shared/hooks/use-mobile';
 import { ReasonDialog } from '@/shared/ui/ActionDialog';
 import { getErrorMessage } from '@/shared/api/errors';
@@ -42,11 +42,11 @@ export function ClassesPage() {
   const isMobile = useIsMobile();
   const canManage = hasCapability(user, 'classes.manage');
   const [search, setSearch] = useState('');
-  const [tingkatFilter, setTingkatFilter] = useState('all');
+  const [tingkatFilter, setTingkatFilter] = useState<string>(UI_CONSTANTS.ALL_FILTER_VALUE);
   const [page, setPage] = useState(1);
-  const pageSize = 10;
+  const pageSize = UI_CONSTANTS.DEFAULT_PAGE_SIZE;
 
-  const debouncedSearch = useDebouncedValue(search, 300);
+  const debouncedSearch = useDebouncedValue(search, UI_CONSTANTS.SEARCH_DEBOUNCE_MS);
 
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -59,7 +59,7 @@ export function ClassesPage() {
 
   const classesQuery = useClassesQuery({
     search: debouncedSearch || undefined,
-    tingkat: tingkatFilter !== 'all' ? tingkatFilter : undefined,
+    tingkat: tingkatFilter !== UI_CONSTANTS.ALL_FILTER_VALUE ? tingkatFilter : undefined,
     page,
     pageSize,
   });
@@ -76,6 +76,11 @@ export function ClassesPage() {
   const handleTingkatChange = (val: string) => {
     setTingkatFilter(val);
     setPage(1);
+  };
+
+  const handleTingkatFilterChange = (value: string | null) => {
+    if (!value) return;
+    handleTingkatChange(value);
   };
 
   const handleOpenAdd = () => {
@@ -132,7 +137,7 @@ export function ClassesPage() {
       },
     });
     setSearch('');
-    setTingkatFilter('all');
+    setTingkatFilter(UI_CONSTANTS.ALL_FILTER_VALUE);
     setPage(1);
   };
 
@@ -166,12 +171,12 @@ export function ClassesPage() {
           />
         </div>
 
-        <Select value={tingkatFilter} onValueChange={(val) => val && handleTingkatChange(val)}>
+        <Select value={tingkatFilter} onValueChange={handleTingkatFilterChange}>
           <SelectTrigger className="w-full bg-surface-1 text-xs text-ink sm:w-40">
             <SelectValue placeholder="Tingkat" />
           </SelectTrigger>
           <SelectContent className="bg-surface-3 border-hairline text-ink">
-            <SelectItem value="all">Semua Tingkat</SelectItem>
+            <SelectItem value={UI_CONSTANTS.ALL_FILTER_VALUE}>Semua Tingkat</SelectItem>
             <SelectItem value="X">Tingkat X</SelectItem>
             <SelectItem value="XI">Tingkat XI</SelectItem>
             <SelectItem value="XII">Tingkat XII</SelectItem>
@@ -180,9 +185,10 @@ export function ClassesPage() {
       </div>
 
       {/* Classes Table */}
-      {classesQuery.isPending ? (
+      {classesQuery.isPending && (
         <PageLoader />
-      ) : classesQuery.isError ? (
+      )}
+      {classesQuery.isError && (
         <div
           className="flex min-h-52 flex-col items-center justify-center gap-3 rounded-lg border border-semantic-danger/30 bg-semantic-danger/5 px-4 text-center"
           role="alert"
@@ -202,14 +208,16 @@ export function ClassesPage() {
             Coba lagi
           </Button>
         </div>
-      ) : (
+      )}
+      {!classesQuery.isPending && !classesQuery.isError && (
         <div className="space-y-4">
           {classesQuery.isFetching && (
             <p className="text-right text-[11px] text-ink-tertiary" aria-live="polite">
               Memperbarui data...
             </p>
           )}
-          {isMobile ? <ClassMobileList classes={classes} onEdit={handleOpenEdit} onToggleStatus={handleToggleStatus} canManage={canManage} /> : <div className="overflow-hidden rounded-lg border border-hairline bg-surface-1">
+          {isMobile && <ClassMobileList classes={classes} onEdit={handleOpenEdit} onToggleStatus={handleToggleStatus} canManage={canManage} />}
+          {!isMobile && <div className="overflow-hidden rounded-lg border border-hairline bg-surface-1">
             <Table>
               <TableHeader className="bg-surface-2/60">
                 <TableRow className="border-hairline">
@@ -221,15 +229,15 @@ export function ClassesPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {classes.length === 0 ? (
+                {classes.length === 0 && (
                   <TableRow className="border-hairline">
                     <TableCell colSpan={canManage ? 5 : 4} className="py-8 text-center text-ink-tertiary">
                       <Layers className="mx-auto h-8 w-8 text-ink-tertiary mb-2 opacity-50" />
                       Tidak ada kelas yang ditemukan.
                     </TableCell>
                   </TableRow>
-                ) : (
-                  classes.map((cls) => (
+                )}
+                {classes.length > 0 && classes.map((cls) => (
                     <TableRow key={cls.id} className="border-hairline hover:bg-surface-2/40">
                       <TableCell className="text-ink text-xs font-medium">{cls.nama_kelas}</TableCell>
                       <TableCell>
@@ -276,8 +284,7 @@ export function ClassesPage() {
                         </div>
                       </TableCell>}
                     </TableRow>
-                  ))
-                )}
+                  ))}
               </TableBody>
             </Table>
           </div>}
@@ -303,15 +310,20 @@ export function ClassesPage() {
         />
 
         <ReasonDialog
-          open={Boolean(statusTarget)}
-          onOpenChange={handleStatusDialogChange}
-          title={statusTarget ? `${statusTarget.actionName} Kelas` : 'Ubah Status Kelas'}
-          description={statusTarget ? `Masukkan alasan untuk ${statusTarget.actionName} kelas ${statusTarget.item.nama_kelas}.` : ''}
-          reasonLabel="Alasan Perubahan *"
-          reasonPlaceholder="Contoh: Kelas tidak lagi digunakan pada tahun ajaran ini..."
-          confirmLabel={statusTarget?.nextStatus ? 'Aktifkan Kelas' : 'Nonaktifkan Kelas'}
+          dialog={{ open: Boolean(statusTarget), onOpenChange: handleStatusDialogChange }}
+          content={{
+            title: statusTarget ? `${statusTarget.actionName} Kelas` : 'Ubah Status Kelas',
+            description: statusTarget ? `Masukkan alasan untuk ${statusTarget.actionName} kelas ${statusTarget.item.nama_kelas}.` : '',
+          }}
+          action={{
+            confirmLabel: statusTarget?.nextStatus ? 'Aktifkan Kelas' : 'Nonaktifkan Kelas',
+            onConfirm: handleConfirmStatus,
+          }}
+          reason={{
+            label: 'Alasan Perubahan *',
+            placeholder: 'Contoh: Kelas tidak lagi digunakan pada tahun ajaran ini...',
+          }}
           destructive={statusTarget ? !statusTarget.nextStatus : false}
-          onConfirm={handleConfirmStatus}
         />
       </>}
     </div>

@@ -1,5 +1,3 @@
-// src/shared/ui/Pagination.tsx
-// Reusable Pagination component for data tables
 
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/shared/ui/primitives/button';

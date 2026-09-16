@@ -8,6 +8,7 @@ import {
   TableRow,
 } from '@/shared/ui/primitives/table';
 import { formatCurrency } from '@/shared/utils/formatCurrency';
+import { formatNumber } from '@/shared/utils/formatNumber';
 
 import type { CashReportDebtStudent } from '../types/cash.types';
 
@@ -40,7 +41,7 @@ export function CashReportDebtTable({ debts }: CashReportDebtTableProps) {
           <TableRow key={debt.student_id} className="border-hairline">
             <TableCell className="text-xs font-medium text-ink">{debt.student_nama}</TableCell>
             <TableCell className="text-xs text-ink-subtle">{debt.kelas || '-'}</TableCell>
-            <TableCell className="text-right text-xs text-ink-subtle">{debt.debt_record_count}</TableCell>
+            <TableCell className="text-right text-xs text-ink-subtle">{formatNumber(debt.debt_record_count)}</TableCell>
             <TableCell className="text-right text-xs font-semibold text-semantic-danger">
               {formatCurrency(debt.total_debt)}
             </TableCell>

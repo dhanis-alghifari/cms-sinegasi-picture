@@ -1,5 +1,3 @@
-// src/features/borrowing/types/borrowing.types.ts
-// Borrowing & Return management domain types according to PRD schema
 import type { ActorSummary } from '@/shared/types/common';
 
 export const BORROWING_STATUS_VALUES = [
@@ -22,6 +20,7 @@ export interface BorrowedItem {
   kondisi_awal: string;
   kondisi_kembali?: string;
   denda_kerusakan?: number;
+  replacement_value?: number;
 }
 
 export interface BorrowingRecord {
@@ -84,7 +83,11 @@ export interface ApproveRejectPayload {
 export interface ReturnItemCondition {
   equipment_id: string;
   kondisi_kembali: string; // e.g. bagus, sedikit_kerusakan, rusak
-  denda?: number;
+  settlement_method?: 'none' | 'repair' | 'replacement';
+  repair_cost?: number;
+  evidence_urls?: string[];
+  evidence_ids?: string[];
+  catatan?: string;
 }
 
 export interface ProcessReturnPayload {
@@ -92,5 +95,42 @@ export interface ProcessReturnPayload {
   tanggal_dikembalikan: string;
   item_conditions: ReturnItemCondition[];
   catatan_pengembalian?: string;
-  total_denda?: number;
+}
+
+export interface ReturnAssessmentPreview {
+  borrowing_id: string;
+  return_date: string;
+  damage_charge: number;
+  replacement_charge: number;
+  late_charge: number;
+  total_charge: number;
+  items: Array<{
+    equipment_id: string;
+    borrowing_item_id?: string;
+    condition: string;
+    settlement_method: 'none' | 'repair' | 'replacement';
+    replacement_value?: number;
+    repair_cost?: number;
+    charge: number;
+  }>;
+}
+
+export interface ReturnEvidenceUploadReservation {
+  evidence_id: string;
+  upload_url: string;
+  expires_in_seconds: number;
+}
+
+export interface ReturnEvidenceAccessRecord {
+  evidence_id: string;
+  borrowing_id: string;
+  borrowing_item_id: string;
+  equipment_id: string;
+  assessment_item_id?: string;
+  original_filename: string;
+  mime_type: string;
+  file_size_bytes: number;
+  created_at?: string;
+  access_url: string;
+  expires_in_seconds: number;
 }

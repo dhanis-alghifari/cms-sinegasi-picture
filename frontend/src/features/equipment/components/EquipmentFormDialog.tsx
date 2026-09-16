@@ -1,5 +1,3 @@
-// src/features/equipment/components/EquipmentFormDialog.tsx
-// Dialog form for creating or editing equipment records
 
 import { useEffect, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
@@ -18,6 +16,7 @@ import { Button } from '@/shared/ui/primitives/button';
 import { Input } from '@/shared/ui/primitives/input';
 import { Label } from '@/shared/ui/primitives/label';
 import { Textarea } from '@/shared/ui/primitives/textarea';
+import { RadioGroup } from '@/shared/ui/primitives/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/primitives/select';
 import { cn } from '@/shared/utils/cn';
 import { getErrorMessage } from '@/shared/api/errors';
@@ -41,6 +40,12 @@ interface EquipmentFormDialogProps {
   onSubmit: (values: EquipmentFormValues) => Promise<void>;
   isLoading?: boolean;
   error?: unknown;
+}
+
+function getEquipmentPhotoUrls(equipment: Equipment): string[] {
+  if (equipment.foto_urls?.length) return equipment.foto_urls;
+  if (equipment.foto_url) return [equipment.foto_url];
+  return [];
 }
 
 export function EquipmentFormDialog({
@@ -87,7 +92,7 @@ export function EquipmentFormDialog({
         status: equipment.status,
         lokasi_penyimpanan: equipment.lokasi_penyimpanan ?? '',
         serial_number: equipment.serial_number ?? '',
-        foto_urls: equipment.foto_urls?.length ? equipment.foto_urls : equipment.foto_url ? [equipment.foto_url] : [],
+        foto_urls: getEquipmentPhotoUrls(equipment),
         deskripsi: equipment.deskripsi ?? '',
         change_reason: '',
       });
@@ -126,6 +131,24 @@ export function EquipmentFormDialog({
     }
   });
 
+  const handleCategoryValueChange = (value: string | null) => {
+    if (value === null) return;
+    if (!isOneOf(value, EQUIPMENT_CATEGORY_VALUES)) return;
+    form.setValue('kategori', value);
+  };
+
+  const handleConditionValueChange = (value: string | null) => {
+    if (value === null) return;
+    if (!isOneOf(value, EQUIPMENT_CONDITION_VALUES)) return;
+    form.setValue('kondisi', value);
+  };
+
+  const handleAvailabilityValueChange = (value: string | null) => {
+    if (value === null) return;
+    if (!isOneOf(value, EQUIPMENT_AVAILABILITY_VALUES)) return;
+    form.setValue('status', value);
+  };
+
   return (
     <Dialog open={open} onOpenChange={handleDialogOpenChange}>
       <DialogContent className="bg-surface-1 border-hairline text-ink max-w-lg">
@@ -140,7 +163,7 @@ export function EquipmentFormDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4 pt-2">
+        <form noValidate onSubmit={handleSubmit} className="space-y-4 pt-2">
           {(formError || Boolean(error)) && (
             <div role="alert" className="px-3.5 py-2.5 rounded-md bg-semantic-danger/10 border border-semantic-danger/30 text-semantic-danger text-xs font-medium">
               {formError || getErrorMessage(error)}
@@ -148,7 +171,6 @@ export function EquipmentFormDialog({
           )}
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {/* Kode Alat */}
             <div className="space-y-1">
               <Label htmlFor="kode_alat" className="text-ink-muted text-xs">Kode Alat (QR/Barcode) *</Label>
               <Input
@@ -162,12 +184,11 @@ export function EquipmentFormDialog({
               )}
             </div>
 
-            {/* Kategori */}
             <div className="space-y-1">
               <Label className="text-ink-muted text-xs">Kategori *</Label>
               <Select
                 value={selectedCategory}
-                onValueChange={(val) => { if (isOneOf(val, EQUIPMENT_CATEGORY_VALUES)) form.setValue('kategori', val); }}
+                onValueChange={handleCategoryValueChange}
               >
                 <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs">
                   <SelectValue placeholder="Kategori" />
@@ -184,7 +205,6 @@ export function EquipmentFormDialog({
             </div>
           </div>
 
-          {/* Nama Alat */}
           <div className="space-y-1">
             <Label htmlFor="nama_alat" className="text-ink-muted text-xs">Nama Peralatan *</Label>
             <Input
@@ -199,12 +219,11 @@ export function EquipmentFormDialog({
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {/* Kondisi */}
             <div className="space-y-1">
               <Label className="text-ink-muted text-xs">Kondisi Fisik *</Label>
               <Select
                 value={selectedCondition}
-                onValueChange={(val) => { if (isOneOf(val, EQUIPMENT_CONDITION_VALUES)) form.setValue('kondisi', val); }}
+                onValueChange={handleConditionValueChange}
               >
                 <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs">
                   <SelectValue placeholder="Pilih kondisi" />
@@ -220,27 +239,20 @@ export function EquipmentFormDialog({
               </Select>
             </div>
 
-            {/* Status Pinjam */}
-            <div className="space-y-1">
-              <Label className="text-ink-muted text-xs">Status Availability *</Label>
-              <Select
-                value={selectedStatus}
-                onValueChange={(val) => { if (isOneOf(val, EQUIPMENT_AVAILABILITY_VALUES)) form.setValue('status', val); }}
-              >
-                <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs">
-                  <SelectValue placeholder="Pilih status ketersediaan" />
-                </SelectTrigger>
-                <SelectContent className="bg-surface-3 border-hairline text-ink">
-                  <SelectItem value="tersedia">Tersedia</SelectItem>
-                  <SelectItem value="dipinjam">Dipinjam</SelectItem>
-                  <SelectItem value="maintenance">Maintenance</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            <RadioGroup
+              name="equipment-availability"
+              legend="Status Ketersediaan *"
+              value={selectedStatus ?? ''}
+              options={[
+                { value: 'tersedia', label: 'Tersedia' },
+                { value: 'dipinjam', label: 'Dipinjam' },
+                { value: 'maintenance', label: 'Maintenance' },
+              ]}
+              onValueChange={handleAvailabilityValueChange}
+            />
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {/* Lokasi */}
             <div className="space-y-1">
               <Label htmlFor="lokasi_penyimpanan" className="text-ink-muted text-xs">Lokasi Rak / Penyimpanan</Label>
               <Input
@@ -251,7 +263,6 @@ export function EquipmentFormDialog({
               />
             </div>
 
-            {/* Serial Number */}
             <div className="space-y-1">
               <Label htmlFor="serial_number" className="text-ink-muted text-xs">Serial Number (SN)</Label>
               <Input
@@ -264,14 +275,14 @@ export function EquipmentFormDialog({
           </div>
 
           <MultiImageUploadField
-            id="foto_urls"
-            label="Foto Kondisi Alat (Minimal 3 Sudut)"
-            required
-            values={watchedFotoUrls}
-            onChange={(values) => form.setValue('foto_urls', values, { shouldValidate: true, shouldDirty: true })}
-            error={form.formState.errors.foto_urls?.message}
-            disabled={isLoading}
-            onProcessingChange={setIsImageProcessing}
+            field={{
+              id: 'foto_urls',
+              label: 'Foto Kondisi Alat (Minimal 3 Sudut)',
+              values: watchedFotoUrls,
+              onChange: (values) => form.setValue('foto_urls', values, { shouldValidate: true, shouldDirty: true }),
+            }}
+            validation={{ required: true, error: form.formState.errors.foto_urls?.message }}
+            state={{ disabled: isLoading, onProcessingChange: setIsImageProcessing }}
           />
 
           <div className="space-y-1">
@@ -285,7 +296,6 @@ export function EquipmentFormDialog({
             />
           </div>
 
-          {/* Change Reason (Zero Silent Edits Requirement — Wajib hanya saat Edit/Ubah Data) */}
           {isEditing && (
             <div className="space-y-1 pt-2 border-t border-hairline">
               <Label htmlFor="change_reason" className="text-ink-muted text-xs font-semibold">

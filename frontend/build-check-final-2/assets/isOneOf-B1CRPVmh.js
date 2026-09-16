@@ -1,0 +1,1 @@
+function e(e,t){return typeof e==`string`&&t.some(t=>t===e)}export{e as t};

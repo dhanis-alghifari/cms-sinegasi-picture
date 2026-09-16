@@ -1,14 +1,13 @@
-// src/features/dashboard/hooks/useDashboardQuery.ts
-// TanStack Query hook for dashboard summary
 
 import { useQuery } from '@tanstack/react-query';
 import { QUERY_KEYS } from '@/shared/constants/queryKeys';
 import { dashboardService } from '../api/dashboard.service';
+import { UI_CONSTANTS } from '@/shared/constants/ui';
 
 export function useDashboardQuery() {
   return useQuery({
     queryKey: QUERY_KEYS.DASHBOARD_SUMMARY,
     queryFn: () => dashboardService.getSummary(),
-    staleTime: 1000 * 60 * 2, // 2 minutes cache
+    staleTime: UI_CONSTANTS.DASHBOARD_QUERY_STALE_TIME_MS,
   });
 }

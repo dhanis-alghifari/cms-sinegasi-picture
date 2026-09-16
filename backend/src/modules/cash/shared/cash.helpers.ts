@@ -35,6 +35,11 @@ export function isIsoDate(value: unknown): value is string {
   return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 }
 
+export function isUuid(value: unknown): value is string {
+  return typeof value === 'string'
+    && /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(value);
+}
+
 export function getBusinessTodayDate(): string {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit',
@@ -69,13 +74,27 @@ export function formatPaymentMethodLabel(code: unknown, label?: unknown): string
   return (normalizedCode && standardPaymentMethodLabels[normalizedCode]) || normalizedLabel || 'Metode tidak tersedia';
 }
 
+function mapDisputeSummary(dispute: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
+  if (!dispute) return undefined;
+  return {
+    id: dispute.id,
+    transaction_id: dispute.transaction_id,
+    reason: dispute.reason || dispute.alasan_sanggahan,
+    has_evidence: dispute.has_evidence === true || Boolean(dispute.id),
+    attempt_number: Number(dispute.attempt_number || 1),
+    review_note: dispute.review_note,
+    status: dispute.status === 'approved' ? 'resolved' : dispute.status,
+    created_at: dispute.created_at,
+  };
+}
+
 export function mapCashTransaction(row: CashTransactionRecord): Record<string, unknown> {
   const type = row.type === 'pengeluaran' ? 'keluar' : 'masuk';
   const studentValue = row.students;
   const student = Array.isArray(studentValue) ? studentValue[0] : studentValue;
   const paymentMethodValue = row.cash_payment_methods;
   const paymentMethod = Array.isArray(paymentMethodValue) ? paymentMethodValue[0] : paymentMethodValue;
-  const legacyCash = !paymentMethod && row.payment_method_id == null;
+  const legacyCash = !paymentMethod && (row.payment_method_id === null || row.payment_method_id === undefined);
   const paymentMethodCode = paymentMethod?.code || row.payment_method_code || (legacyCash ? 'cash' : undefined);
   const disputeRows = row.cash_disputes;
   const dispute = row.dispute || (Array.isArray(disputeRows)
@@ -99,17 +118,6 @@ export function mapCashTransaction(row: CashTransactionRecord): Record<string, u
     is_billing: row.is_billing === true,
     metode_pembayaran: paymentMethodCode,
     metode_pembayaran_label: paymentMethodCode ? formatPaymentMethodLabel(paymentMethodCode, paymentMethod?.label || row.payment_method_label) : undefined,
-    dispute: dispute
-      ? {
-          id: dispute.id,
-          transaction_id: dispute.transaction_id,
-          reason: dispute.reason || dispute.alasan_sanggahan,
-          has_evidence: dispute.has_evidence === true || Boolean(dispute.id),
-          attempt_number: Number(dispute.attempt_number || 1),
-          review_note: dispute.review_note,
-          status: dispute.status === 'approved' ? 'resolved' : dispute.status,
-          created_at: dispute.created_at,
-        }
-      : undefined,
+    dispute: mapDisputeSummary(dispute),
   };
 }

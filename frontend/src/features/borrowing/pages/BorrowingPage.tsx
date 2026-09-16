@@ -1,19 +1,18 @@
-// src/features/borrowing/pages/BorrowingPage.tsx
-// Thin orchestration page for Borrowing & Return Management
 
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { PackagePlus } from 'lucide-react';
 
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { ResponsivePageActions } from '@/shared/ui/ResponsivePageActions';
 import { PageLoader } from '@/shared/ui/LoadingSpinner';
+import { QueryErrorState } from '@/shared/ui/QueryErrorState';
 import { Pagination } from '@/shared/ui/Pagination';
-import { ConfirmDialog } from '@/shared/ui/ActionDialog';
 
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import { useStudentsQuery } from '@/features/students/hooks/useStudentsQuery';
 import { useEquipmentQuery } from '@/features/equipment/hooks/useEquipmentQuery';
 import { useDebouncedValue } from '@/shared/hooks/useDebouncedValue';
+import { UI_CONSTANTS } from '@/shared/constants/ui';
 import { useIsMobile } from '@/shared/hooks/use-mobile';
 import { hasCapability } from '@/shared/auth/capabilities';
 import { isOneOf } from '@/shared/utils/isOneOf';
@@ -28,13 +27,24 @@ import { BorrowingSummaryCards } from '../components/BorrowingSummaryCards';
 import { BorrowingFilter } from '../components/BorrowingFilter';
 import { BorrowingTable } from '../components/BorrowingTable';
 import { BorrowingMobileList } from '../components/BorrowingMobileList';
-import { CreateBorrowingModal } from '../components/CreateBorrowingModal';
-import { ApproveRejectModal } from '../components/ApproveRejectModal';
-import { ProcessReturnModal } from '../components/ProcessReturnModal';
 
 import { BORROWING_STATUS_VALUES } from '../types/borrowing.types';
 import type { BorrowingRecord, ReturnItemCondition } from '../types/borrowing.types';
 import type { CreateBorrowingFormValues, ApproveRejectFormValues } from '../schemas/borrowingSchema';
+
+const LazyApproveRejectModal = lazy(() =>
+  import('../components/ApproveRejectModal').then(({ ApproveRejectModal }) => ({ default: ApproveRejectModal })),
+);
+const LazyConfirmDialog = lazy(() =>
+  import('@/shared/ui/ActionDialog').then(({ ConfirmDialog }) => ({ default: ConfirmDialog })),
+);
+
+const LazyCreateBorrowingModal = lazy(() =>
+  import('../components/CreateBorrowingModal').then(({ CreateBorrowingModal }) => ({ default: CreateBorrowingModal })),
+);
+const LazyProcessReturnModal = lazy(() =>
+  import('../components/ProcessReturnModal').then(({ ProcessReturnModal }) => ({ default: ProcessReturnModal })),
+);
 
 export function BorrowingPage() {
   const { user } = useAuthStore();
@@ -43,13 +53,12 @@ export function BorrowingPage() {
   const canApprove = canManage;
   const canHandoverOrReturn = canManage;
 
-  // Filters
   const [search, setSearch] = useState('');
-  const [status, setStatus] = useState('all');
+  const [status, setStatus] = useState<string>(UI_CONSTANTS.ALL_FILTER_VALUE);
   const [page, setPage] = useState(1);
-  const pageSize = 10;
+  const pageSize = UI_CONSTANTS.DEFAULT_PAGE_SIZE;
 
-  const debouncedSearch = useDebouncedValue(search, 300);
+  const debouncedSearch = useDebouncedValue(search, UI_CONSTANTS.SEARCH_DEBOUNCE_MS);
 
   const handleSearchChange = (val: string) => {
     setSearch(val);
@@ -63,12 +72,12 @@ export function BorrowingPage() {
 
   const handleResetFilter = () => {
     setSearch('');
-    setStatus('all');
+    setStatus(UI_CONSTANTS.ALL_FILTER_VALUE);
     setPage(1);
   };
 
-  // Modals
   const [createOpen, setCreateOpen] = useState(false);
+  const shouldLoadCreateFormOptions = canManage && createOpen;
 
   const [approveRejectOpen, setApproveRejectOpen] = useState(false);
   const [approveRejectRecord, setApproveRejectRecord] = useState<BorrowingRecord | null>(null);
@@ -77,9 +86,20 @@ export function BorrowingPage() {
   const [returnRecord, setReturnRecord] = useState<BorrowingRecord | null>(null);
   const [handoverTarget, setHandoverTarget] = useState<BorrowingRecord | null>(null);
 
-  // Queries
-  const { data: summaryData, isLoading: isSummaryLoading } = useBorrowingSummaryQuery();
-  const { data: borrowingData, isLoading: isBorrowingLoading } = useBorrowingQuery({
+  const {
+    data: summaryData,
+    isLoading: isSummaryLoading,
+    isError: isSummaryError,
+    error: summaryError,
+    refetch: refetchSummary,
+  } = useBorrowingSummaryQuery();
+  const {
+    data: borrowingData,
+    isLoading: isBorrowingLoading,
+    isError: isBorrowingError,
+    error: borrowingError,
+    refetch: refetchBorrowing,
+  } = useBorrowingQuery({
     page,
     pageSize,
     search: debouncedSearch || undefined,
@@ -87,16 +107,32 @@ export function BorrowingPage() {
     borrower_id: user?.role === 'member' ? user.studentId : undefined,
   });
 
-  const { data: studentsData } = useStudentsQuery({ is_active: true, page: 1, pageSize: 100 });
-  const { data: equipmentData } = useEquipmentQuery({ status: 'tersedia', page: 1, pageSize: 100 });
+  const {
+    data: studentsData,
+    isLoading: isStudentsLoading,
+    isError: isStudentsError,
+    error: studentsError,
+    refetch: refetchStudents,
+  } = useStudentsQuery(
+    { is_active: true, page: 1, pageSize: UI_CONSTANTS.ATTENDANCE_ROSTER_PAGE_SIZE },
+    shouldLoadCreateFormOptions,
+  );
+  const {
+    data: equipmentData,
+    isLoading: isEquipmentOptionsLoading,
+    isError: isEquipmentOptionsError,
+    error: equipmentOptionsError,
+    refetch: refetchEquipmentOptions,
+  } = useEquipmentQuery(
+    { status: 'tersedia', page: 1, pageSize: UI_CONSTANTS.ATTENDANCE_ROSTER_PAGE_SIZE },
+    shouldLoadCreateFormOptions,
+  );
 
-  // Mutations
   const createMutation = useCreateBorrowingMutation();
   const approveRejectMutation = useApproveRejectBorrowingMutation();
   const handoverMutation = useHandoverBorrowingMutation();
   const returnMutation = useReturnBorrowingMutation();
 
-  // Handlers
   const handleOpenApproveReject = (rec: BorrowingRecord) => {
     setApproveRejectRecord(rec);
     setApproveRejectOpen(true);
@@ -153,7 +189,6 @@ export function BorrowingPage() {
     tanggal_dikembalikan: string;
     item_conditions: ReturnItemCondition[];
     catatan_pengembalian?: string;
-    total_denda?: number;
     change_reason: string;
   }) => {
     await returnMutation.mutateAsync({
@@ -162,17 +197,49 @@ export function BorrowingPage() {
         tanggal_dikembalikan: values.tanggal_dikembalikan,
         item_conditions: values.item_conditions,
         catatan_pengembalian: values.catatan_pengembalian,
-        total_denda: values.total_denda,
       },
       changeReason: values.change_reason,
     });
   };
 
+  const summaryContent = (() => {
+    if (isSummaryLoading) return <PageLoader label="Memuat ringkasan peminjaman..." />;
+    if (isSummaryError) {
+      return <QueryErrorState title="Ringkasan peminjaman belum dapat dimuat" error={summaryError} onRetry={refetchSummary} />;
+    }
+    return <BorrowingSummaryCards summary={summaryData} />;
+  })();
+
+  const borrowingContent = (() => {
+    if (isBorrowingLoading) return <PageLoader label="Memuat daftar peminjaman..." />;
+    if (isBorrowingError) {
+      return <QueryErrorState title="Daftar peminjaman belum dapat dimuat" error={borrowingError} onRetry={refetchBorrowing} />;
+    }
+
+    const borrowings = borrowingData?.data ?? [];
+    const list = isMobile
+      ? <BorrowingMobileList borrowings={borrowings} onApproveReject={handleOpenApproveReject} onHandover={handleHandover} onReturn={handleOpenReturn} canManage={canManage} canApprove={canApprove} canHandoverOrReturn={canHandoverOrReturn} />
+      : <BorrowingTable borrowings={borrowings} onApproveReject={handleOpenApproveReject} onHandover={handleHandover} onReturn={handleOpenReturn} canManage={canManage} canApprove={canApprove} canHandoverOrReturn={canHandoverOrReturn} />;
+
+    return (
+      <div className="space-y-4">
+        {list}
+        <Pagination
+          page={borrowingData?.page ?? page}
+          totalPages={borrowingData?.totalPages ?? 1}
+          total={borrowingData?.total ?? 0}
+          pageSize={borrowingData?.pageSize ?? pageSize}
+          onPageChange={setPage}
+        />
+      </div>
+    );
+  })();
+
   return (
     <div className="mx-auto max-w-7xl space-y-5 px-4 py-5 sm:space-y-6 sm:p-6">
       <PageHeader
         title="Transaksi Peminjaman &amp; Pengembalian Alat"
-        subtitle="Alur persetujuan peminjaman, penyerahan barang, pemeriksaan fisik pengembalian, dan kalkulasi denda keterlambatan."
+        subtitle="Alur persetujuan peminjaman, penyerahan barang, pemeriksaan fisik pengembalian, serta tagihan perbaikan dan penggantian."
         actions={
           <ResponsivePageActions
             actions={[{
@@ -185,10 +252,8 @@ export function BorrowingPage() {
         }
       />
 
-      {/* Summary Cards */}
-      {isSummaryLoading ? <PageLoader /> : <BorrowingSummaryCards summary={summaryData} />}
+      {summaryContent}
 
-      {/* Filter */}
       <BorrowingFilter
         search={search}
         onSearchChange={handleSearchChange}
@@ -197,86 +262,66 @@ export function BorrowingPage() {
         onReset={handleResetFilter}
       />
 
-      {/* Table */}
-      {isBorrowingLoading ? (
-        <PageLoader />
-      ) : (
-        <div className="space-y-4">
-          {isMobile ? (
-            <BorrowingMobileList
-              borrowings={borrowingData?.data ?? []}
-              onApproveReject={handleOpenApproveReject}
-              onHandover={handleHandover}
-              onReturn={handleOpenReturn}
-              canManage={canManage}
-              canApprove={canApprove}
-              canHandoverOrReturn={canHandoverOrReturn}
-            />
-          ) : (
-            <BorrowingTable
-              borrowings={borrowingData?.data ?? []}
-              onApproveReject={handleOpenApproveReject}
-              onHandover={handleHandover}
-              onReturn={handleOpenReturn}
-              canManage={canManage}
-              canApprove={canApprove}
-              canHandoverOrReturn={canHandoverOrReturn}
-            />
-          )}
-          <Pagination
-            page={borrowingData?.page ?? page}
-            totalPages={borrowingData?.totalPages ?? 1}
-            total={borrowingData?.total ?? 0}
-            pageSize={borrowingData?.pageSize ?? pageSize}
-            onPageChange={setPage}
+      {borrowingContent}
+
+      {canManage && createOpen && (
+        <Suspense fallback={null}>
+          <LazyCreateBorrowingModal
+            dialog={{ open: createOpen, onOpenChange: setCreateOpen }}
+            options={{
+              students: studentsData?.data ?? [],
+              studentsLoading: isStudentsLoading,
+              studentsError: isStudentsError ? studentsError : undefined,
+              equipmentList: equipmentData?.data ?? [],
+              equipmentLoading: isEquipmentOptionsLoading,
+              equipmentError: isEquipmentOptionsError ? equipmentOptionsError : undefined,
+            }}
+            submission={{ onSubmit: handleCreateSubmit, isLoading: createMutation.isPending, error: createMutation.error }}
+            actions={{ onRetryStudents: refetchStudents, onRetryEquipment: refetchEquipmentOptions }}
           />
-        </div>
+        </Suspense>
       )}
 
-      {/* Modals */}
-      {canManage && <CreateBorrowingModal
-          open={createOpen}
-          onOpenChange={setCreateOpen}
-          students={studentsData?.data ?? []}
-          equipmentList={equipmentData?.data ?? []}
-          onSubmit={handleCreateSubmit}
-          isLoading={createMutation.isPending}
-          error={createMutation.error}
-        />}
-
       {canManage && (
-        <>
-          <ApproveRejectModal
-            open={approveRejectOpen}
-            onOpenChange={setApproveRejectOpen}
-            record={approveRejectRecord}
-            onSubmit={handleApproveRejectSubmit}
-            isLoading={approveRejectMutation.isPending}
-            error={approveRejectMutation.error}
-          />
-
-          <ProcessReturnModal
-            open={returnOpen}
-            onOpenChange={setReturnOpen}
-            record={returnRecord}
-            onSubmit={handleReturnSubmit}
-            isLoading={returnMutation.isPending}
-            error={returnMutation.error}
-          />
-
-          {canHandoverOrReturn && (
-            <ConfirmDialog
-              open={Boolean(handoverTarget)}
-              onOpenChange={handleHandoverDialogChange}
-              title="Serahkan Alat"
-              description={handoverTarget
-                ? `Serahkan barang untuk peminjaman atas nama ${handoverTarget.borrower_nama}? Status alat akan berubah menjadi sedang dipinjam.`
-                : ''}
-              confirmLabel="Serahkan Alat"
-              onConfirm={handleConfirmHandover}
+        <Suspense fallback={null}>
+          {approveRejectOpen && approveRejectRecord && (
+            <LazyApproveRejectModal
+              open
+              onOpenChange={setApproveRejectOpen}
+              record={approveRejectRecord}
+              onSubmit={handleApproveRejectSubmit}
+              isLoading={approveRejectMutation.isPending}
+              error={approveRejectMutation.error}
             />
           )}
-        </>
+
+          {returnOpen && (
+            <Suspense fallback={null}>
+              <LazyProcessReturnModal
+                key={returnRecord?.id ?? 'return-modal'}
+                open={returnOpen}
+                onOpenChange={setReturnOpen}
+                record={returnRecord}
+                onSubmit={handleReturnSubmit}
+                isLoading={returnMutation.isPending}
+                error={returnMutation.error}
+              />
+            </Suspense>
+          )}
+
+          {canHandoverOrReturn && handoverTarget && (
+            <LazyConfirmDialog
+              dialog={{ open: true, onOpenChange: handleHandoverDialogChange }}
+              content={{
+                title: 'Serahkan Alat',
+                description: handoverTarget
+                  ? `Serahkan barang untuk peminjaman atas nama ${handoverTarget.borrower_nama}? Status alat akan berubah menjadi sedang dipinjam.`
+                  : '',
+              }}
+              action={{ confirmLabel: 'Serahkan Alat', onConfirm: handleConfirmHandover }}
+            />
+          )}
+        </Suspense>
       )}
     </div>
   );

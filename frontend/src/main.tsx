@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './app/styles/index.css'
+import './shared/validation/zodErrorMessages'
 import App from './app/App'
 import { RootErrorBoundary } from './app/components/RootErrorBoundary'
 

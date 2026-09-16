@@ -1,5 +1,3 @@
-// src/features/attendance/components/CorrectAttendanceModal.tsx
-// Teacher Correction Modal for 48h Locked Attendance Records
 // PRD Rule: Only Teacher (Guru Pembina) can correct attendance records locked after 48 hours, requiring mandatory change_reason audit log
 
 import { useEffect } from 'react';
@@ -74,6 +72,12 @@ export function CorrectAttendanceModal({
     onOpenChange(false);
   });
 
+  const handleStatusValueChange = (value: string | null) => {
+    if (value === null) return;
+    if (!isOneOf(value, ATTENDANCE_STATUS_VALUES)) return;
+    form.setValue('status', value);
+  };
+
   // The modal can be mounted before a record is selected. Do not format an
   // empty date or render a correction form without a target record.
   if (!record) return null;
@@ -91,7 +95,7 @@ export function CorrectAttendanceModal({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4 pt-2">
+        <form noValidate onSubmit={handleSubmit} className="space-y-4 pt-2">
           {Boolean(error) && (
             <div role="alert" className="px-3 py-2 rounded bg-semantic-danger/10 border border-semantic-danger/30 text-semantic-danger text-xs">
               {getErrorMessage(error)}
@@ -112,9 +116,7 @@ export function CorrectAttendanceModal({
             <Label className="text-ink-muted text-xs font-semibold">Status Kehadiran Baru *</Label>
             <Select
               value={selectedStatus}
-              onValueChange={(val) => {
-                if (isOneOf(val, ATTENDANCE_STATUS_VALUES)) form.setValue('status', val);
-              }}
+              onValueChange={handleStatusValueChange}
             >
               <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs">
                 <SelectValue placeholder="Pilih status kehadiran" />

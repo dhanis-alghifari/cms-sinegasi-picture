@@ -1,5 +1,3 @@
-// src/features/cash/types/cash.types.ts
-// Cash & Debt domain types according to PRD schema
 import type { ActorSummary, PaginatedResponse } from '@/shared/types/common';
 
 export type TransactionType = 'masuk' | 'keluar';
@@ -186,9 +184,17 @@ export interface CashTransactionFilters {
   pageSize?: number;
   search?: string;
   tipe?: TransactionType;
+  student_id?: string;
   tanggal_mulai?: string;
   tanggal_selesai?: string;
   metode_pembayaran?: string;
+}
+
+export interface CashDebtFilters {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  student_id?: string;
 }
 
 export interface CashReportFilters {

@@ -1,5 +1,3 @@
-// src/features/dashboard/components/AlatStatusCard.tsx
-// Dashboard widget — Status Alat Sinematografi
 
 import { Camera, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/primitives/card';

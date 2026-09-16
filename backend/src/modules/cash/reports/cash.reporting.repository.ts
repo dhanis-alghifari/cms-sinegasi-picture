@@ -73,6 +73,12 @@ function optionalString(value: unknown): string | undefined {
   return value === null || value === undefined || value === '' ? undefined : String(value);
 }
 
+function formatIncomeLabel(key: string): string {
+  if (key === 'iuran_wajib') return 'Iuran wajib';
+  if (key === 'pemasukan') return 'Pemasukan lain-lain';
+  return key;
+}
+
 function mapDebt(row: CashDebtRow): CashDebtRecord {
   const student = Array.isArray(row.students) ? row.students[0] : row.students;
   const dispute = [...(row.cash_disputes ?? [])].sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')) || String(b.id || '').localeCompare(String(a.id || '')))[0];
@@ -221,7 +227,7 @@ function buildMemoryReport(
     payment_method_breakdown: Array.from(paymentGroups.entries()).map(([key, value]) => ({ key, label: value.label, total: value.total, count: value.count })).sort((a, b) => b.total - a.total),
     income_breakdown: Array.from(incomeGroups.entries()).map(([key, value]) => ({
       key,
-      label: key === 'iuran_wajib' ? 'Iuran wajib' : key === 'pemasukan' ? 'Pemasukan lain-lain' : key,
+      label: formatIncomeLabel(key),
       total: value.total,
       count: value.count,
     })).sort((a, b) => b.total - a.total),
@@ -233,7 +239,7 @@ function buildMemoryReport(
         id: transaction.id,
         date: transaction.tanggal,
         type: transaction.type,
-        label: transaction.type === 'iuran_wajib' ? 'Iuran wajib' : transaction.type === 'pemasukan' ? 'Pemasukan lain-lain' : transaction.type,
+        label: formatIncomeLabel(transaction.type),
         amount: Number(transaction.nominal || 0),
         note: transaction.keterangan,
         student_id: transaction.student_id,

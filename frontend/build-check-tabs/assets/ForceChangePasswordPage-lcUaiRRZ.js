@@ -1,0 +1,1 @@
+import{l as e}from"./cn-DH3v4mcU.js";import{L as t}from"./index-D6LwzsPD.js";import{t as n}from"./PasswordChangeForm-DgBwFaGP.js";import{t as r}from"./AuthLayout-Bf7lFJGV.js";var i=e();function a(){let e=t();return(0,i.jsx)(r,{children:(0,i.jsx)(n,{forced:!0,onSuccess:()=>e(`/dashboard`,{replace:!0})})})}export{a as ForceChangePasswordPage};

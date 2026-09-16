@@ -1,5 +1,3 @@
-// src/features/auth/types/auth.types.ts
-// Auth domain types
 
 import type { UserRole } from '@/shared/types/common';
 import type { Capability } from '@/shared/auth/capabilities';

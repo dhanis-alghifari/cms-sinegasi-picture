@@ -14,6 +14,7 @@ const migrationNames = [
   '024_cash_unpaid_atomic.sql',
   '045_cash_dispute_schema_compatibility.sql',
   '046_cash_dispute_monthly_quota.sql',
+  '066_cash_migration_history_rls.sql',
 ] as const;
 
 type MigrationName = (typeof migrationNames)[number];
@@ -123,6 +124,14 @@ const migrationProbes: Record<MigrationName, MigrationProbe> = {
       AND to_regclass('public.uq_cash_disputes_active_transaction') IS NOT NULL
       AND to_regclass('public.uq_cash_disputes_active_debt') IS NOT NULL
       AS complete
+  `),
+  '066_cash_migration_history_rls.sql': (client) => schemaProbe(client, `
+    SELECT EXISTS (
+      SELECT 1
+      FROM pg_class
+      WHERE oid = to_regclass('public.cash_migration_history')
+        AND relrowsecurity = TRUE
+    ) AS complete
   `),
 };
 

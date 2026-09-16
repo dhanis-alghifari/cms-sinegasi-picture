@@ -27,7 +27,7 @@
 
   /* Hairline borders */
   --color-hairline: #d4ddd6;
-  --color-hairline-strong: #b9c8bd;
+  --color-hairline-strong: #748d7a;
   --color-hairline-tertiary: #9caf9f;
 
   /* Primary accent — emerald, reserved for action and focus */
@@ -43,7 +43,7 @@
   --color-ink: #14201a;
   --color-ink-muted: #33423a;
   --color-ink-subtle: #52635a;
-  --color-ink-tertiary: #708076;
+  --color-ink-tertiary: #5f6f65;
 
   /* Inverse (for inverse CTA) */
   --color-inverse-canvas: #0d1511;
@@ -101,7 +101,7 @@
   --surface-3: #e5ebe6;
   --surface-4: #dce5de;
   --hairline: #d4ddd6;
-  --hairline-strong: #b9c8bd;
+  --hairline-strong: #748d7a;
   --hairline-tertiary: #9caf9f;
   --primary: #0b6b42;
   --primary-hover: #075532;
@@ -111,7 +111,8 @@
   --ink: #14201a;
   --ink-muted: #33423a;
   --ink-subtle: #52635a;
-  --ink-tertiary: #708076;
+  --ink-tertiary: #5f6f65;
+  --control-border: #748d7a;
   --inverse-canvas: #0d1511;
   --inverse-surface-1: #101a14;
   --inverse-ink: #f3f7f4;
@@ -212,9 +213,8 @@
   [data-slot="tabs-list"] {
     width: 100%;
     min-height: var(--control-height-mobile);
-    max-height: 6rem;
-    overflow-x: hidden;
-    overflow-y: hidden;
+    overflow-x: auto;
+    overflow-y: visible;
   }
 
   [data-slot="tabs-trigger"] {
@@ -223,5 +223,59 @@
     white-space: normal;
     text-align: center;
     line-height: 1.15;
+  }
+}
+
+[data-slot="input"].border-hairline:not(.border-semantic-danger),
+[data-slot="select-trigger"].border-hairline:not(.border-semantic-danger),
+[data-slot="textarea"].border-hairline:not(.border-semantic-danger) {
+  border-color: var(--control-border);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  :where(
+    button:not(:disabled):not([aria-disabled="true"]),
+    a[href],
+    summary,
+    label[for],
+    input:not(:disabled)[type="checkbox"],
+    input:not(:disabled)[type="radio"],
+    input:not(:disabled)[type="range"],
+    [role="button"]:not([aria-disabled="true"]):not([data-disabled]),
+    [role="tab"]:not([aria-disabled="true"]):not([data-disabled]),
+    [role="menuitem"]:not([aria-disabled="true"]):not([data-disabled]),
+    [role="menuitemcheckbox"]:not([aria-disabled="true"]):not([data-disabled]),
+    [role="menuitemradio"]:not([aria-disabled="true"]):not([data-disabled]),
+    [role="option"]:not([aria-disabled="true"]):not([data-disabled]),
+    [role="switch"]:not([aria-disabled="true"]):not([data-disabled]),
+    [role="checkbox"]:not([aria-disabled="true"]):not([data-disabled]),
+    [role="radio"]:not([aria-disabled="true"]):not([data-disabled]),
+    [role="combobox"]:not([aria-disabled="true"]):not([data-disabled])
+  ) {
+    cursor: pointer;
+  }
+}
+
+@media (hover: none), (pointer: coarse) {
+  :where(
+    button,
+    a[href],
+    summary,
+    label[for],
+    input[type="checkbox"],
+    input[type="radio"],
+    input[type="range"],
+    [role="button"],
+    [role="tab"],
+    [role="menuitem"],
+    [role="menuitemcheckbox"],
+    [role="menuitemradio"],
+    [role="option"],
+    [role="switch"],
+    [role="checkbox"],
+    [role="radio"],
+    [role="combobox"]
+  ) {
+    -webkit-tap-highlight-color: color-mix(in srgb, var(--primary) 18%, transparent);
   }
 }

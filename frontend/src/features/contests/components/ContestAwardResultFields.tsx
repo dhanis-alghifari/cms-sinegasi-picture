@@ -128,6 +128,11 @@ function ContestAwardResultRow({
     onResultKindChange,
     onResultPositionChange,
   } = useContestAwardResultFieldsContext();
+  const handleResultKindValueChange = (value: string | null) => {
+    if (value === null) return;
+    if (!isOneOf(value, CONTEST_FINALIZE_RESULT_KIND_VALUES)) return;
+    onResultKindChange(resultRowIndex, value);
+  };
 
   return (
     <div className="space-y-3 rounded-lg border border-hairline bg-surface-2 p-3">
@@ -165,11 +170,7 @@ function ContestAwardResultRow({
           <Label className="text-xs text-ink-muted">Jenis hasil *</Label>
           <Select
             value={resultRow.result_kind}
-            onValueChange={(nextResultKind) => {
-              if (isOneOf(nextResultKind, CONTEST_FINALIZE_RESULT_KIND_VALUES)) {
-                onResultKindChange(resultRowIndex, nextResultKind);
-              }
-            }}
+            onValueChange={handleResultKindValueChange}
           >
             <SelectTrigger className="bg-surface-1 text-sm">
               <SelectValue>{getContestFinalizeResultKindLabel(resultRow.result_kind)}</SelectValue>

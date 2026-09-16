@@ -14,7 +14,7 @@ export const contestAchievementListRouteSchema = {
       result_kind: { type: 'string', enum: ['rank', 'top_n', 'special_award', 'finalist', 'nominee', 'honorable_mention', 'other'] },
       position: { type: 'string', pattern: '^[0-9]+$' },
       outcome_status: { type: 'string', enum: ['pending', 'awarded', 'not_awarded'] },
-      tahun_event: { type: 'string', pattern: '^[0-9]{4}$' },
+      event_year: { type: 'string', pattern: '^[0-9]{4}$' },
       page: { type: 'string', pattern: '^[0-9]+$' },
       pageSize: { type: 'string', pattern: '^[0-9]+$' },
     },

@@ -1,7 +1,3 @@
-// src/features/borrowing/components/CreateBorrowingModal.tsx
-// Modal for submitting equipment borrowing request
-// Multi-item selection from available equipment catalog with mandatory change_reason audit field
-
 import { useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -22,6 +18,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { cn } from '@/shared/utils/cn';
 import { getErrorMessage } from '@/shared/api/errors';
 import { formatNumber } from '@/shared/utils/formatNumber';
+import { formatCurrency } from '@/shared/utils/formatCurrency';
+import { useEquipmentChargesQuery } from '@/features/equipment/hooks/useEquipmentRecovery';
 
 import { createBorrowingSchema, type CreateBorrowingFormValues } from '../schemas/borrowingSchema';
 
@@ -41,13 +39,27 @@ interface EquipmentOption {
 }
 
 interface CreateBorrowingModalProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  students: StudentOption[];
-  equipmentList: EquipmentOption[];
-  onSubmit: (values: CreateBorrowingFormValues) => Promise<void>;
-  isLoading?: boolean;
-  error?: unknown;
+  dialog: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+  };
+  options: {
+    students: StudentOption[];
+    studentsLoading?: boolean;
+    studentsError?: unknown;
+    equipmentList: EquipmentOption[];
+    equipmentLoading?: boolean;
+    equipmentError?: unknown;
+  };
+  submission: {
+    onSubmit: (values: CreateBorrowingFormValues) => Promise<void>;
+    isLoading?: boolean;
+    error?: unknown;
+  };
+  actions: {
+    onRetryStudents?: () => void;
+    onRetryEquipment?: () => void;
+  };
 }
 
 function getDefaultReturnDate(): string {
@@ -57,14 +69,22 @@ function getDefaultReturnDate(): string {
 }
 
 export function CreateBorrowingModal({
-  open,
-  onOpenChange,
-  students,
-  equipmentList,
-  onSubmit,
-  isLoading,
-  error,
+  dialog,
+  options,
+  submission,
+  actions,
 }: CreateBorrowingModalProps) {
+  const { open, onOpenChange } = dialog;
+  const {
+    students,
+    studentsLoading,
+    studentsError,
+    equipmentList,
+    equipmentLoading,
+    equipmentError,
+  } = options;
+  const { onSubmit, isLoading, error } = submission;
+  const { onRetryStudents, onRetryEquipment } = actions;
   const [selectedEquipmentIds, setSelectedEquipmentIds] = useState<string[]>([]);
   const [equipmentSearch, setEquipmentSearch] = useState('');
 
@@ -88,6 +108,13 @@ export function CreateBorrowingModal({
 
   const selectedBorrowerId = useWatch({ control: form.control, name: 'borrower_id' });
   const selectedBorrower = students.find((student) => student.id === selectedBorrowerId);
+  const chargesQuery = useEquipmentChargesQuery(selectedBorrowerId, open);
+  const outstandingCharge = (chargesQuery.data || []).reduce((total, charge) => total + Math.max(0, charge.amount - charge.paid_amount), 0);
+
+  const handleBorrowerValueChange = (value: string | null) => {
+    if (!value) return;
+    form.setValue('borrower_id', value);
+  };
 
   const toggleEquipmentSelect = (id: string) => {
     let nextIds: string[];
@@ -112,6 +139,46 @@ export function CreateBorrowingModal({
     handleClose();
   });
 
+  const equipmentContent = (() => {
+    if (equipmentLoading) return <p className="text-center text-ink-tertiary text-xs py-4">Memuat alat yang tersedia...</p>;
+    if (availableEquipment.length === 0) {
+      return (
+        <p className="text-center text-ink-tertiary text-xs py-4 italic">
+          {equipmentError ? 'Daftar alat belum dapat dimuat. Gunakan tombol Coba lagi di atas.' : 'Tidak ada peralatan yang sedang tersedia untuk dipinjam saat ini.'}
+        </p>
+      );
+    }
+    return availableEquipment.map((eq) => {
+      const isSelected = selectedEquipmentIds.includes(eq.id);
+      return (
+        <button
+          type="button"
+          aria-pressed={isSelected}
+          key={eq.id}
+          onClick={() => toggleEquipmentSelect(eq.id)}
+          className={cn(
+            'w-full text-left p-2 rounded border text-xs cursor-pointer flex items-center justify-between transition-colors',
+            isSelected
+              ? 'bg-primary/15 border-primary text-ink'
+              : 'bg-surface-1 border-hairline text-ink-subtle hover:text-ink',
+          )}
+        >
+          <div className="min-w-0 flex-1">
+            <span className="font-mono font-bold text-primary text-[11px]">{eq.kode_alat}</span>
+            <span className="ml-2">{eq.nama_alat}</span>
+            <span className="ml-1 text-[10px] text-ink-tertiary">({eq.kategori})</span>
+          </div>
+
+          {isSelected && (
+            <div className="w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center">
+              <Check size={12} />
+            </div>
+          )}
+        </button>
+      );
+    });
+  })();
+
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-h-[85dvh] max-w-xl overflow-hidden border-hairline bg-surface-1 text-ink">
@@ -125,20 +192,31 @@ export function CreateBorrowingModal({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="min-h-0 flex-1 space-y-4 overflow-hidden flex flex-col pt-1">
+        <form noValidate onSubmit={handleSubmit} className="min-h-0 flex-1 space-y-4 overflow-hidden flex flex-col pt-1">
           {Boolean(error) && (
             <div role="alert" className="px-3 py-2 rounded bg-semantic-danger/10 border border-semantic-danger/30 text-semantic-danger text-xs shrink-0">
               {getErrorMessage(error)}
             </div>
           )}
+          {Boolean(studentsError || equipmentError) && (
+            <div role="alert" className="shrink-0 space-y-1 rounded border border-semantic-danger/30 bg-semantic-danger/10 px-3 py-2 text-xs text-semantic-danger">
+              <p>Data peminjam atau alat belum berhasil dimuat.</p>
+              {Boolean(studentsError) && <p className="text-[10px]">Peminjam: {getErrorMessage(studentsError)} <button type="button" className="ml-1 underline" onClick={onRetryStudents}>Coba lagi</button></p>}
+              {Boolean(equipmentError) && <p className="text-[10px]">Alat: {getErrorMessage(equipmentError)} <button type="button" className="ml-1 underline" onClick={onRetryEquipment}>Coba lagi</button></p>}
+            </div>
+          )}
+          {(studentsLoading || equipmentLoading) && !studentsError && !equipmentError && (
+            <p className="shrink-0 rounded border border-hairline bg-surface-2 px-3 py-2 text-xs text-ink-muted">Memuat data peminjam dan alat...</p>
+          )}
+          {selectedBorrowerId && chargesQuery.isError && <p role="alert" className="shrink-0 rounded border border-semantic-warning/30 bg-semantic-warning/10 px-3 py-2 text-xs text-semantic-warning">Status tagihan siswa belum dapat diperiksa. Coba lagi sebelum mengirim pengajuan.</p>}
+          {selectedBorrowerId && !chargesQuery.isError && outstandingCharge > 0 && <p role="alert" className="shrink-0 rounded border border-semantic-warning/30 bg-semantic-warning/10 px-3 py-2 text-xs text-semantic-warning">Siswa ini masih memiliki tagihan alat {formatCurrency(outstandingCharge)}. Tagihan perlu dilunasi sebelum ajuan berikutnya disetujui.</p>}
 
           <div className="grid grid-cols-1 gap-3 shrink-0 sm:grid-cols-2">
-            {/* Peminjam */}
             <div className="space-y-1">
               <Label className="text-ink-muted text-xs">Pilih Peminjam (Siswa) *</Label>
               <Select
                 value={selectedBorrowerId}
-                onValueChange={(val) => val && form.setValue('borrower_id', val)}
+                onValueChange={handleBorrowerValueChange}
               >
                 <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs">
                   <SelectValue placeholder="Pilih Siswa">
@@ -158,7 +236,6 @@ export function CreateBorrowingModal({
               )}
             </div>
 
-            {/* Keperluan */}
             <div className="space-y-1">
               <Label htmlFor="keperluan" className="text-ink-muted text-xs">Keperluan Produksi *</Label>
               <Input
@@ -174,7 +251,6 @@ export function CreateBorrowingModal({
           </div>
 
           <div className="grid grid-cols-1 gap-3 shrink-0 sm:grid-cols-2">
-            {/* Tanggal Pinjam */}
             <div className="space-y-1">
               <Label htmlFor="tanggal_pinjam" className="text-ink-muted text-xs">Tanggal Pinjam *</Label>
               <Input
@@ -188,7 +264,6 @@ export function CreateBorrowingModal({
               )}
             </div>
 
-            {/* Rencana Kembali */}
             <div className="space-y-1">
               <Label htmlFor="rencana_kembali" className="text-ink-muted text-xs">Rencana Pengembalian *</Label>
               <Input
@@ -203,7 +278,6 @@ export function CreateBorrowingModal({
             </div>
           </div>
 
-          {/* Equipment Multi-Selector List */}
           <div className="space-y-1.5 flex-1 overflow-hidden flex flex-col">
             <div className="flex items-center justify-between">
               <Label className="text-ink-muted text-xs font-semibold">Pilih Peralatan Tersedia *</Label>
@@ -232,41 +306,7 @@ export function CreateBorrowingModal({
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto space-y-1.5 pr-1 border border-hairline rounded p-2 bg-surface-2/40">
-              {availableEquipment.length === 0 ? (
-                <p className="text-center text-ink-tertiary text-xs py-4 italic">
-                  Tidak ada peralatan yang sedang tersedia untuk dipinjam saat ini.
-                </p>
-              ) : (
-                availableEquipment.map((eq) => {
-                  const isSelected = selectedEquipmentIds.includes(eq.id);
-                  return (
-                      <button
-                      type="button"
-                      aria-pressed={isSelected}
-                      key={eq.id}
-                      onClick={() => toggleEquipmentSelect(eq.id)}
-                      className={cn(
-                        'w-full text-left p-2 rounded border text-xs cursor-pointer flex items-center justify-between transition-colors',
-                        isSelected
-                          ? 'bg-primary/15 border-primary text-ink'
-                          : 'bg-surface-1 border-hairline text-ink-subtle hover:text-ink',
-                      )}
-                    >
-                      <div className="min-w-0 flex-1">
-                        <span className="font-mono font-bold text-primary text-[11px]">{eq.kode_alat}</span>
-                        <span className="ml-2">{eq.nama_alat}</span>
-                        <span className="ml-1 text-[10px] text-ink-tertiary">({eq.kategori})</span>
-                      </div>
-
-                      {isSelected && (
-                        <div className="w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center">
-                          <Check size={12} />
-                        </div>
-                      )}
-                    </button>
-                  );
-                })
-              )}
+              {equipmentContent}
             </div>
             {form.formState.errors.equipment_ids && (
               <p className="text-semantic-danger text-[10px]">{form.formState.errors.equipment_ids.message}</p>

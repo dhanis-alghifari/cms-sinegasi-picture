@@ -1,5 +1,3 @@
-// src/features/auth/routes.tsx
-// Auth feature routes — Constitution: each feature owns its routes.tsx
 
 import { lazy, Suspense } from 'react';
 import type { RouteObject } from 'react-router-dom';

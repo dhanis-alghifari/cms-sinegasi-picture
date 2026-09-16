@@ -1,5 +1,3 @@
-// src/features/attendance/components/AttendanceSummaryCards.tsx
-// Summary cards for attendance metrics
 
 import { CheckCircle2, AlertCircle, Clock, XCircle, Users } from 'lucide-react';
 import { Card, CardContent } from '@/shared/ui/primitives/card';

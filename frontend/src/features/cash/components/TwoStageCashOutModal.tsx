@@ -1,5 +1,3 @@
-// src/features/cash/components/TwoStageCashOutModal.tsx
-// Two-Stage Outbound Cash Modal according to PRD Specs:
 // Tahap 1: Input Nominal & Validate against current balance (No negative balance)
 // Tahap 2: Input Detailed Description for accountability
 
@@ -23,27 +21,30 @@ import { cn } from '@/shared/utils/cn';
 import { getErrorMessage } from '@/shared/api/errors';
 import { formatCurrency } from '@/shared/utils/formatCurrency';
 import { ImageUploadField } from './ImageUploadField';
-import { FormattedNumberInput } from './FormattedNumberInput';
+import { FormattedNumberInput } from '@/shared/ui/FormattedNumberInput';
 
 import { cashOutSchema, type CashOutFormValues } from '../schemas/cashSchema';
 
 interface TwoStageCashOutModalProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  currentBalance: number;
-  onSubmit: (values: CashOutFormValues) => Promise<void>;
-  isLoading?: boolean;
-  error?: unknown;
+  dialog: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+  };
+  balance: number;
+  submission: {
+    onSubmit: (values: CashOutFormValues) => Promise<void>;
+    isLoading?: boolean;
+    error?: unknown;
+  };
 }
 
 export function TwoStageCashOutModal({
-  open,
-  onOpenChange,
-  currentBalance,
-  onSubmit,
-  isLoading,
-  error,
+  dialog,
+  balance: currentBalance,
+  submission,
 }: TwoStageCashOutModalProps) {
+  const { open, onOpenChange } = dialog;
+  const { onSubmit, isLoading, error } = submission;
   const [step, setStep] = useState<1 | 2>(1);
   const [isImageProcessing, setIsImageProcessing] = useState(false);
 
@@ -86,6 +87,13 @@ export function TwoStageCashOutModal({
     handleClose();
   });
 
+  const submitButtonContent = isLoading ? (
+    <>
+      <Loader2 size={14} className="animate-spin mr-1.5" />
+      Menyimpan...
+    </>
+  ) : 'Simpan Pengeluaran';
+
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="bg-surface-1 border-hairline text-ink max-w-md">
@@ -93,7 +101,7 @@ export function TwoStageCashOutModal({
           <div className="flex items-center gap-2 mb-1">
             <ArrowUpRight size={18} className="text-semantic-danger" />
             <DialogTitle className="text-ink text-base font-semibold">
-              Input Pengeluaran Kas — {step === 1 ? 'Tahap 1: Nominal' : 'Tahap 2: Rincian'}
+              Input Pengeluaran Kas: {step === 1 ? 'Tahap 1: Nominal' : 'Tahap 2: Rincian'}
             </DialogTitle>
           </div>
           <DialogDescription className="text-ink-subtle text-xs">
@@ -114,7 +122,7 @@ export function TwoStageCashOutModal({
           </span>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4 pt-1">
+        <form noValidate onSubmit={handleSubmit} className="space-y-4 pt-1">
           {Boolean(error) && (
             <div role="alert" className="px-3 py-2 rounded bg-semantic-danger/10 border border-semantic-danger/30 text-semantic-danger text-xs">
               {getErrorMessage(error)}
@@ -187,13 +195,14 @@ export function TwoStageCashOutModal({
               </div>
 
               <ImageUploadField
-                id="foto_bukti_url"
-                label="Foto Bukti Pengeluaran (Opsional)"
-                value={proofImage}
-                onChange={(value) => form.setValue('foto_bukti_url', value, { shouldValidate: true, shouldDirty: true })}
-                error={form.formState.errors.foto_bukti_url?.message}
-                disabled={isLoading}
-                onProcessingChange={setIsImageProcessing}
+                field={{
+                  id: 'foto_bukti_url',
+                  label: 'Foto Bukti Pengeluaran (Opsional)',
+                  value: proofImage,
+                  onChange: (value) => form.setValue('foto_bukti_url', value, { shouldValidate: true, shouldDirty: true }),
+                }}
+                validation={{ error: form.formState.errors.foto_bukti_url?.message }}
+                state={{ disabled: isLoading, onProcessingChange: setIsImageProcessing }}
               />
 
             </div>
@@ -226,14 +235,7 @@ export function TwoStageCashOutModal({
                   disabled={isLoading || isImageProcessing}
                   className="bg-semantic-danger hover:bg-semantic-danger/80 text-white text-xs h-9 font-medium"
                 >
-                  {isLoading ? (
-                    <>
-                      <Loader2 size={14} className="animate-spin mr-1.5" />
-                      Menyimpan...
-                    </>
-                  ) : (
-                    'Simpan Pengeluaran'
-                  )}
+                  {submitButtonContent}
                 </Button>
               </>
             )}

@@ -1,10 +1,8 @@
-// src/shared/hooks/useDebouncedValue.ts
-// Custom hook for debouncing fast-changing values (e.g., search inputs)
-// Constitution: Custom hooks with single responsibility + memory safe cleanup
 
 import { useState, useEffect } from 'react';
+import { UI_CONSTANTS } from '@/shared/constants/ui';
 
-export function useDebouncedValue<T>(value: T, delayMs = 300): T {
+export function useDebouncedValue<T>(value: T, delayMs = UI_CONSTANTS.SEARCH_DEBOUNCE_MS): T {
   const [debouncedValue, setDebouncedValue] = useState<T>(value);
 
   useEffect(() => {

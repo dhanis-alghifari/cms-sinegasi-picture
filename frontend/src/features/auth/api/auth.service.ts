@@ -1,6 +1,3 @@
-// src/features/auth/api/auth.service.ts
-// Auth HTTP service — pure TS, no React, no JSX
-// Constitution: Service layer only — Page → Query/Mutation → Service → HTTP Client
 
 import { apiClient, setToken, removeToken } from '@/shared/api/client';
 import type { LoginRequest, LoginResponse, ChangePasswordRequest, ChangePasswordResponse, AuthUser } from '../types/auth.types';

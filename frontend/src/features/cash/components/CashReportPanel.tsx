@@ -1,13 +1,18 @@
+import { useState } from 'react';
 import { FileSpreadsheet, Printer } from 'lucide-react';
 
 import { getErrorMessage } from '@/shared/api/errors';
+import { UI_CONSTANTS } from '@/shared/constants/ui';
 import { formatCurrency } from '@/shared/utils/formatCurrency';
 import { formatNumber } from '@/shared/utils/formatNumber';
 import { formatDateShort } from '@/shared/utils/formatDate';
 import { formatPaymentMethodLabel } from '@/shared/utils/formatLabels';
 import { useIsMobile } from '@/shared/hooks/use-mobile';
+import type { ReportPrintFormat } from '@/shared/types/report';
 import { Button } from '@/shared/ui/primitives/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/ui/primitives/card';
+import { ReportFormatSelector } from '@/shared/ui/report/ReportFormatSelector';
+import { ReportPreviewDialog } from '@/shared/ui/report/ReportPreviewDialog';
 
 import type { CashPaymentMethod, CashReport, CashReportDailyPoint } from '../types/cash.types';
 import { CashReportDailyPrintTable } from './CashReportDailyPrintTable';
@@ -16,24 +21,33 @@ import { CashReportDebtMobileList } from './CashReportDebtMobileList';
 import { CashReportDetailTable } from './CashReportDetailTable';
 import { CashReportDetailMobileList } from './CashReportDetailMobileList';
 import { CashReportFilter } from './CashReportFilter';
+import { CashReportPreview } from './CashReportPreview';
+import { getActiveCashReportDays } from '../utils/cashReportRows';
+import type { CashReportPreset } from '../utils/reportDates';
 
 interface CashReportPanelProps {
-  report?: CashReport;
-  isLoading: boolean;
-  error?: unknown;
-  startDate: string;
-  endDate: string;
-  paymentMethodCode: string;
-  paymentMethods: CashPaymentMethod[];
-  isPaymentMethodsLoading?: boolean;
-  rangeError?: string;
-  onStartDateChange: (value: string) => void;
-  onEndDateChange: (value: string) => void;
-  onPaymentMethodChange: (value: string) => void;
-  onPreset: (days: 7 | 30 | 90) => void;
-  onReset: () => void;
-  onExportCsv: () => void;
-  onPrintPdf: () => void;
+  report: {
+    data?: CashReport;
+    isLoading: boolean;
+    error?: unknown;
+    rangeError?: string;
+  };
+  filters: {
+    startDate: string;
+    endDate: string;
+    paymentMethodCode: string;
+    paymentMethods: CashPaymentMethod[];
+    isPaymentMethodsLoading?: boolean;
+    onStartDateChange: (value: string) => void;
+    onEndDateChange: (value: string) => void;
+    onPaymentMethodChange: (value: string) => void;
+    onPreset: (days: CashReportPreset) => void;
+    onReset: () => void;
+  };
+  actions: {
+    onExportCsv: () => void;
+    onPrintPdf: (format: ReportPrintFormat) => void;
+  };
 }
 
 function BreakdownRows({
@@ -74,23 +88,24 @@ function BreakdownRows({
 }
 
 export function CashReportPanel({
-  report,
-  isLoading,
-  error,
-  startDate,
-  endDate,
-  paymentMethodCode,
-  paymentMethods,
-  isPaymentMethodsLoading = false,
-  rangeError,
-  onStartDateChange,
-  onEndDateChange,
-  onPaymentMethodChange,
-  onPreset,
-  onReset,
-  onExportCsv,
-  onPrintPdf,
+  report: reportState,
+  filters,
+  actions,
 }: CashReportPanelProps) {
+  const { data: report, isLoading, error, rangeError } = reportState;
+  const {
+    startDate,
+    endDate,
+    paymentMethodCode,
+    paymentMethods,
+    isPaymentMethodsLoading = false,
+    onStartDateChange,
+    onEndDateChange,
+    onPaymentMethodChange,
+    onPreset,
+    onReset,
+  } = filters;
+  const { onExportCsv, onPrintPdf } = actions;
   const isMobile = useIsMobile();
   const summary = report?.summary;
   const control = report?.control;
@@ -99,27 +114,79 @@ export function CashReportPanel({
   const flowTotal = income + expense || 1;
   const incomePercent = Math.round((income / flowTotal) * 100);
   const daily = report?.daily ?? [];
-  const latestDaily = daily.slice(-14);
-  const maxDaily = Math.max(...latestDaily.flatMap((item) => [item.income, item.expense]), 1);
+  const activeDaily = getActiveCashReportDays(daily);
+  const visibleDaily = getActiveCashReportDays(daily.slice(-14));
+  const maxDaily = Math.max(...visibleDaily.flatMap((item) => [item.income, item.expense]), 1);
   const incomeDetails = report?.income_details ?? [];
   const expenseDetails = report?.expense_details ?? [];
+  const [printFormat, setPrintFormat] = useState<ReportPrintFormat>('a4');
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+
+  const controlContent = (() => {
+    if (!control) {
+      const unavailableLabel = paymentMethodCode
+        ? 'Kontrol saldo hanya tersedia saat semua metode pembayaran dipilih.'
+        : 'Kontrol saldo belum tersedia. Jalankan migration laporan kas terbaru.';
+      return <p className="text-ink-tertiary">{unavailableLabel}</p>;
+    }
+
+    const balanceStatusLabel = control.is_balanced
+      ? '✓ Ledger seimbang'
+      : '⚠ Perlu pemeriksaan ledger';
+    const balanceStatusClass = control.is_balanced
+      ? 'font-semibold text-semantic-success'
+      : 'font-semibold text-semantic-danger';
+
+    return (
+      <>
+        <ControlRow label="Saldo awal periode" value={control.opening_balance} />
+        <ControlRow label="Saldo akhir diharapkan" value={control.expected_closing_balance} />
+        <ControlRow label="Saldo akhir ledger" value={control.closing_balance} />
+        <ControlRow label="Selisih" value={control.difference} />
+        <p className={balanceStatusClass}>{balanceStatusLabel}</p>
+      </>
+    );
+  })();
+
+  const debtReportContent = (() => {
+    if (!report) {
+      return null;
+    }
+    if (report.debts.length === 0) {
+      return <p className="px-4 pb-5 text-center text-xs text-ink-tertiary">Tidak ada siswa menunggak pada periode ini.</p>;
+    }
+    return isMobile
+      ? <CashReportDebtMobileList debts={report.debts} />
+      : <CashReportDebtTable debts={report.debts} />;
+  })();
+
+  const handlePrintPreview = () => {
+    setIsPreviewOpen(false);
+    window.setTimeout(() => onPrintPdf(printFormat), UI_CONSTANTS.DEFERRED_ACTION_MS);
+  };
 
   return (
     <div id="cash-report-print" className="space-y-4">
-      <CashReportFilter
-        report={report}
-        startDate={startDate}
-        endDate={endDate}
-        paymentMethodCode={paymentMethodCode}
-        paymentMethods={paymentMethods}
-        isPaymentMethodsLoading={isPaymentMethodsLoading}
-        rangeError={rangeError}
-        onStartDateChange={onStartDateChange}
-        onEndDateChange={onEndDateChange}
-        onPaymentMethodChange={onPaymentMethodChange}
-        onPreset={onPreset}
-        onReset={onReset}
-      />
+      <div className="cash-report-screen-only">
+        <CashReportFilter
+          report={report}
+          filter={{
+            startDate,
+            endDate,
+            paymentMethodCode,
+            paymentMethods,
+            isPaymentMethodsLoading,
+            rangeError,
+          }}
+          actions={{
+            onStartDateChange,
+            onEndDateChange,
+            onPaymentMethodChange,
+            onPreset,
+            onReset,
+          }}
+        />
+      </div>
 
       {isLoading && (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label="Memuat laporan">
@@ -153,14 +220,20 @@ export function CashReportPanel({
               <p className="text-xs text-ink-subtle">
                 {formatNumber(summary?.transaction_count ?? 0)} transaksi • {formatNumber(summary?.delinquent_students ?? 0)} siswa menunggak • {formatNumber(summary?.debt_record_count ?? 0)} catatan tunggakan
               </p>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap items-end gap-2">
+                <ReportFormatSelector
+                  name="cash-report-format"
+                  value={printFormat}
+                  onValueChange={setPrintFormat}
+                  className="min-w-40"
+                />
                 <Button type="button" variant="outline" onClick={onExportCsv} className="min-h-12 border-hairline bg-surface-2 text-xs text-ink-subtle hover:text-ink md:h-8 md:min-h-0">
                   <FileSpreadsheet size={14} className="mr-1.5 text-semantic-success" />
-                  Unduh Excel (CSV)
+                  Unduh CSV
                 </Button>
-                <Button type="button" variant="outline" onClick={onPrintPdf} className="min-h-12 border-hairline bg-surface-2 text-xs text-ink-subtle hover:text-ink md:h-8 md:min-h-0">
+                <Button type="button" variant="outline" onClick={() => setIsPreviewOpen(true)} className="min-h-12 border-hairline bg-surface-2 text-xs text-ink-subtle hover:text-ink md:h-8 md:min-h-0">
                   <Printer size={14} className="mr-1.5" />
-                  Cetak / Simpan PDF
+                  Pratinjau / Cetak PDF
                 </Button>
               </div>
             </div>
@@ -207,19 +280,7 @@ export function CashReportPanel({
                   <CardDescription className="text-xs text-ink-subtle">Saldo awal + net arus kas dibandingkan dengan saldo ledger.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2 text-xs">
-                  {control ? (
-                    <>
-                      <ControlRow label="Saldo awal periode" value={control.opening_balance} />
-                      <ControlRow label="Saldo akhir diharapkan" value={control.expected_closing_balance} />
-                      <ControlRow label="Saldo akhir ledger" value={control.closing_balance} />
-                      <ControlRow label="Selisih" value={control.difference} />
-                      <p className={control.is_balanced ? 'font-semibold text-semantic-success' : 'font-semibold text-semantic-danger'}>
-                        {control.is_balanced ? '✓ Ledger seimbang' : '⚠ Perlu pemeriksaan ledger'}
-                      </p>
-                    </>
-                  ) : (
-                    <p className="text-ink-tertiary">Kontrol saldo belum tersedia. Jalankan migration laporan kas terbaru.</p>
-                  )}
+                  {controlContent}
                 </CardContent>
               </Card>
             </div>
@@ -239,15 +300,15 @@ export function CashReportPanel({
             <Card className="border-hairline bg-surface-1">
               <CardHeader>
                 <CardTitle className="text-sm text-ink">Aktivitas harian kas</CardTitle>
-                <CardDescription className="text-xs text-ink-subtle">Layar menampilkan 14 hari terakhir; hasil cetak dan CSV mencakup seluruh {report.period.days} hari.</CardDescription>
+                <CardDescription className="text-xs text-ink-subtle">Layar menampilkan hari yang memiliki aktivitas dalam 14 hari terakhir; hasil cetak dan CSV mencakup seluruh {report.period.days} hari.</CardDescription>
               </CardHeader>
               <CardContent>
-                {daily.length === 0 ? (
-                  <p className="py-8 text-center text-xs text-ink-tertiary">Belum ada aktivitas pada periode ini.</p>
-                ) : (
-                  <>
-                    <div className="cash-report-screen-only space-y-2">
-                      {latestDaily.map((item) => (
+                <div className="cash-report-screen-only">
+                  {visibleDaily.length === 0 ? (
+                    <p className="py-8 text-center text-xs text-ink-tertiary">Belum ada aktivitas pada 14 hari terakhir.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {visibleDaily.map((item) => (
                         <DailyBarRow key={item.date} item={item} maxDaily={maxDaily} />
                       ))}
                       <div className="flex gap-4 pt-2 text-[10px] text-ink-tertiary">
@@ -255,11 +316,11 @@ export function CashReportPanel({
                         <span><i className="mr-1 inline-block h-2 w-2 rounded-full bg-semantic-danger" />Keluar</span>
                       </div>
                     </div>
-                    <div className="cash-report-print-only hidden">
-                      <CashReportDailyPrintTable rows={daily} />
-                    </div>
-                  </>
-                )}
+                  )}
+                </div>
+                <div className="cash-report-print-only hidden">
+                  <CashReportDailyPrintTable rows={activeDaily} />
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -271,13 +332,7 @@ export function CashReportPanel({
                 <CardDescription className="text-xs text-ink-subtle">Tunggakan belum lunas yang dibuat pada periode laporan, bukan saldo historis sebelum periode.</CardDescription>
               </CardHeader>
               <CardContent className="p-0">
-                {report.debts.length === 0 ? (
-                  <p className="px-4 pb-5 text-center text-xs text-ink-tertiary">Tidak ada siswa menunggak pada periode ini.</p>
-                ) : isMobile ? (
-                  <CashReportDebtMobileList debts={report.debts} />
-                ) : (
-                  <CashReportDebtTable debts={report.debts} />
-                )}
+                {debtReportContent}
               </CardContent>
             </Card>
           </div>
@@ -303,6 +358,25 @@ export function CashReportPanel({
           </div>
         </>
       )}
+      {report && !rangeError && !isLoading && !error && (
+        <ReportPreviewDialog
+          dialog={{
+            open: isPreviewOpen,
+            onOpenChange: setIsPreviewOpen,
+          }}
+          document={{
+            format: printFormat,
+            title: "Pratinjau laporan kas",
+            description: "Periksa ukuran halaman sebelum mencetak atau menyimpan PDF.",
+            pageClass: "cash-report-page",
+          }}
+          actions={{
+            onPrint: handlePrintPreview,
+          }}
+        >
+          <CashReportPreview report={report} activeDaily={activeDaily} />
+        </ReportPreviewDialog>
+      )}
     </div>
   );
 }
@@ -324,7 +398,7 @@ function DailyBarRow({ item, maxDaily }: { item: CashReportDailyPoint; maxDaily:
         <div className="h-1.5 rounded-full bg-semantic-success/80" style={{ width: `${Math.max((item.income / maxDaily) * 100, item.income ? 3 : 0)}%` }} />
         <div className="h-1.5 rounded-full bg-semantic-danger/80" style={{ width: `${Math.max((item.expense / maxDaily) * 100, item.expense ? 3 : 0)}%` }} />
       </div>
-      <span className="text-right text-ink-subtle">{formatCurrency(item.income + item.expense)}</span>
+      <span className="text-right text-ink-subtle">{formatCurrency(item.income - item.expense)}</span>
     </div>
   );
 }

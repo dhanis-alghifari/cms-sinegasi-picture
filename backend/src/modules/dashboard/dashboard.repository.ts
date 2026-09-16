@@ -5,9 +5,8 @@ import type {
   DashboardSummary,
   OperationalDashboardSummary,
 } from './dashboard.types.js';
-import { createDefaultDashboardSummary } from './dashboard.helpers.js';
 
-/** Database-backed member read model with a deterministic local fallback. */
+/** Database-backed member read model. */
 type DatabaseRow = Record<string, unknown>;
 type SupabaseLike = SupabaseClient | null;
 
@@ -24,32 +23,91 @@ function asString(value: unknown, fallback = ''): string {
   return value === null || value === undefined ? fallback : String(value);
 }
 
-function statusCount(rows: DatabaseRow[], status: string): number {
-  return rows.filter((row) => asString(row.status).toLowerCase() === status).length;
+function paymentStatus(hasLatestPayment: boolean, totalTunggakan: number): string {
+  if (hasLatestPayment) return 'tercatat';
+  if (totalTunggakan > 0) return 'belum lunas';
+  return 'belum ada pembayaran';
+}
+
+type AttendanceSummary = {
+  hadir: number;
+  sakit: number;
+  izin: number;
+  alpha: number;
+  total: number;
+};
+
+const attendanceStatuses = ['hadir', 'sakit', 'izin', 'alpha'] as const;
+
+function parseAttendanceSummary(value: unknown): AttendanceSummary | null {
+  const row = Array.isArray(value) ? value[0] : value;
+  if (!isRecord(row)) return null;
+  return {
+    hadir: asNumber(row.hadir),
+    sakit: asNumber(row.sakit),
+    izin: asNumber(row.izin),
+    alpha: asNumber(row.alpha),
+    total: asNumber(row.total),
+  };
+}
+
+function isMissingAttendanceSummaryFunction(error: unknown): boolean {
+  const candidate = error as { code?: unknown; message?: unknown } | null;
+  const code = typeof candidate?.code === 'string' ? candidate.code : '';
+  const message = typeof candidate?.message === 'string' ? candidate.message : '';
+  return ['PGRST202', 'PGRST205', '42883', '42P01'].includes(code)
+    || message.includes('get_attendance_summary_filtered');
+}
+
+type AttendanceSummaryResult =
+  | { data: AttendanceSummary; error?: never }
+  | { data?: never; error: unknown };
+
+async function readAttendanceSummary(client: SupabaseClient, studentId: string): Promise<AttendanceSummaryResult> {
+  const aggregate = await client.rpc('get_attendance_summary_filtered', {
+    p_student_id: studentId,
+    p_date_from: null,
+    p_date_to: null,
+    p_kelas: null,
+    p_status: null,
+    p_search: null,
+  });
+  if (!aggregate.error) {
+    const summary = parseAttendanceSummary(aggregate.data);
+    if (summary) return { data: summary };
+    return { error: new Error('Attendance summary RPC returned an invalid payload.') };
+  }
+  if (!isMissingAttendanceSummaryFunction(aggregate.error)) return { error: aggregate.error };
+
+  const countResults = await Promise.all(attendanceStatuses.map((status) => (
+    client.from('attendance').select('id', { count: 'exact', head: true })
+      .eq('student_id', studentId)
+      .eq('status', status)
+  )));
+  const failed = countResults.find((result) => result.error);
+  if (failed?.error) return { error: failed.error };
+  const counts = countResults.map((result) => result.count ?? 0);
+  const [hadir, sakit, izin, alpha] = counts;
+  return { data: { hadir, sakit, izin, alpha, total: counts.reduce((sum, count) => sum + count, 0) } };
 }
 
 async function readDatabaseSummary(client: SupabaseClient, studentId: string): Promise<{ data: DashboardSummary } | { error: unknown }> {
-  const [studentResult, attendanceResult, debtResult, transactionResult, gradeResult] = await Promise.all([
-    client.from('students').select('id,nama,nis,kelas,peminatan,foto_url').eq('id', studentId).maybeSingle(),
-    client.from('attendance').select('status').eq('student_id', studentId),
-    client.from('debt_records').select('amount,status,created_at').eq('student_id', studentId).order('created_at', { ascending: false }),
+  const [studentResult, attendanceResult, transactionResult, gradeResult] = await Promise.all([
+    client.from('v_student_dashboard_summary').select('student_id,nama,nis,kelas,peminatan,foto_url,total_tunggakan').eq('student_id', studentId).maybeSingle(),
+    readAttendanceSummary(client, studentId),
     client.from('cash_transactions').select('id,type,nominal,keterangan,tanggal,created_at,is_billing').eq('student_id', studentId).eq('type', 'iuran_wajib').order('tanggal', { ascending: false }).order('created_at', { ascending: false }).limit(10),
     client.from('grades').select('id,nilai,keterangan,updated_at,created_at,assignments(title,category,due_date)').eq('student_id', studentId).order('updated_at', { ascending: false }).limit(10),
   ]);
-  const failed = [studentResult, attendanceResult, debtResult, transactionResult, gradeResult].find((result) => result.error);
-  if (failed?.error) return { error: failed.error };
+  const failed = [studentResult, attendanceResult, transactionResult, gradeResult].find((result) => 'error' in result && result.error);
+  if (failed && 'error' in failed && failed.error) return { error: failed.error };
+  if ('error' in attendanceResult) return { error: attendanceResult.error };
 
   const student = (studentResult.data ?? {}) as DatabaseRow;
-  const attendanceRows = (attendanceResult.data ?? []) as DatabaseRow[];
-  const debtRows = (debtResult.data ?? []) as DatabaseRow[];
+  const attendance = attendanceResult.data;
   const transactions = (transactionResult.data ?? []) as DatabaseRow[];
   const grades = (gradeResult.data ?? []) as DatabaseRow[];
-  const hadir = statusCount(attendanceRows, 'hadir');
-  const sakit = statusCount(attendanceRows, 'sakit');
-  const izin = statusCount(attendanceRows, 'izin');
-  const alpha = statusCount(attendanceRows, 'alpha');
-  const totalAttendance = attendanceRows.length;
-  const totalTunggakan = debtRows.filter((row) => asString(row.status).toLowerCase() !== 'paid').reduce((sum, row) => sum + asNumber(row.amount), 0);
+  const totalTunggakan = asNumber(student.total_tunggakan);
+  const totalAttendance = attendance.total;
   const payments = transactions.filter((row) => asNumber(row.nominal) > 0);
   const latestPayment = payments[0];
 
@@ -65,14 +123,18 @@ async function readDatabaseSummary(client: SupabaseClient, studentId: string): P
         waliKelas: '',
       },
       attendance: {
-        persentase: totalAttendance === 0 ? 0 : (hadir / totalAttendance) * 100,
-        hadir, sakit, izin, alpha, total: totalAttendance,
+        persentase: totalAttendance === 0 ? 0 : (attendance.hadir / totalAttendance) * 100,
+        hadir: attendance.hadir,
+        sakit: attendance.sakit,
+        izin: attendance.izin,
+        alpha: attendance.alpha,
+        total: totalAttendance,
       },
       cash: {
         totalTunggakan,
         totalDibayar: payments.reduce((sum, row) => sum + asNumber(row.nominal), 0),
         jumlahPembayaran: payments.length,
-        statusPembayaranTerakhir: latestPayment ? 'tercatat' : (totalTunggakan > 0 ? 'belum lunas' : 'belum ada pembayaran'),
+        statusPembayaranTerakhir: paymentStatus(Boolean(latestPayment), totalTunggakan),
         riwayat: payments.slice(0, 5).map((row) => ({
           id: asString(row.id),
           nominal: asNumber(row.nominal),
@@ -117,10 +179,9 @@ export function createDashboardRepository(state: DashboardMemoryState, client: S
       if (client) return readDatabaseSummary(client, studentId);
       const existing = state.summaries.get(studentId);
       if (existing) return { data: { ...existing, studentId } };
-
-      const summary = createDefaultDashboardSummary(studentId);
-      state.summaries.set(studentId, summary);
-      return { data: { ...summary, studentId } };
+      return {
+        error: new Error('Supabase client or an explicit test summary is required for the personal dashboard.'),
+      };
     },
     async getOperationalSummary() {
       if (client) return readOperationalDashboardSummary(client);

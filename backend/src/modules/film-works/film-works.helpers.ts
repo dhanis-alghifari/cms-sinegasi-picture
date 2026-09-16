@@ -34,18 +34,25 @@ function nullableTextValue(value: unknown): string | null {
   return value == null ? null : String(value);
 }
 
+function asDatabaseRow(value: unknown): DatabaseRow {
+  if (value && typeof value === 'object') return value as DatabaseRow;
+  return {};
+}
+
+function mapCrewMember(memberValue: unknown): { nama: string; role: string } {
+  const member = asDatabaseRow(memberValue);
+  const students = asDatabaseRow(member.students);
+  return {
+    nama: String(students.nama ?? member.nama ?? ''),
+    role: String(member.role ?? ''),
+  };
+}
+
 export function mapFilmWorkRow(row: DatabaseRow): FilmWorkRecord {
   const crewRows = Array.isArray(row.film_crew) ? row.film_crew as unknown[] : [];
-  const crew = crewRows.length > 0
-    ? crewRows.map((memberValue) => {
-      const member = memberValue && typeof memberValue === 'object' ? memberValue as DatabaseRow : {};
-      const students = member.students && typeof member.students === 'object' ? member.students as DatabaseRow : {};
-      return {
-      nama: String(students.nama ?? member.nama ?? ''),
-      role: String(member.role ?? ''),
-      };
-    }).filter((member: { nama: string; role: string }) => member.nama || member.role)
-    : [];
+  const crew = crewRows
+    .map(mapCrewMember)
+    .filter((member) => member.nama || member.role);
   return {
     id: String(row.id), judul: String(row.judul ?? ''), durasiMenit: row.durasi_menit == null ? null : Number(row.durasi_menit),
     genre: nullableTextValue(row.genre), sinopsis: nullableTextValue(row.sinopsis), tahunProduksi: Number(row.tahun_produksi ?? 0),

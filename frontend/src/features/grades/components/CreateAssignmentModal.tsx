@@ -1,5 +1,3 @@
-// src/features/grades/components/CreateAssignmentModal.tsx
-// Modal for creating evaluation assignments / crew film projects / events
 
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -67,6 +65,17 @@ export function CreateAssignmentModal({
     onOpenChange(false);
   });
 
+  const handleCategoryValueChange = (value: string | null) => {
+    if (value === null) return;
+    if (!isOneOf(value, ASSIGNMENT_CATEGORY_VALUES)) return;
+    form.setValue('category', value);
+  };
+
+  const handleClassValueChange = (value: string | null) => {
+    if (!value) return;
+    form.setValue('kelas', value);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="bg-surface-1 border-hairline text-ink max-w-md">
@@ -80,7 +89,7 @@ export function CreateAssignmentModal({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4 pt-2">
+        <form noValidate onSubmit={handleSubmit} className="space-y-4 pt-2">
           {Boolean(error) && (
             <div role="alert" className="px-3 py-2 rounded bg-semantic-danger/10 border border-semantic-danger/30 text-semantic-danger text-xs">
               {getErrorMessage(error)}
@@ -107,7 +116,7 @@ export function CreateAssignmentModal({
               <Label className="text-ink-muted text-xs">Kategori *</Label>
               <Select
                 value={selectedCategory}
-                onValueChange={(val) => { if (isOneOf(val, ASSIGNMENT_CATEGORY_VALUES)) form.setValue('category', val); }}
+                onValueChange={handleCategoryValueChange}
               >
                 <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs">
                   <SelectValue placeholder="Pilih Kategori" />
@@ -126,7 +135,7 @@ export function CreateAssignmentModal({
               <Label className="text-ink-muted text-xs">Target Kelas</Label>
               <Select
                 value={selectedKelas ?? 'X'}
-                onValueChange={(val) => val && form.setValue('kelas', val)}
+                onValueChange={handleClassValueChange}
               >
                 <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs">
                   <SelectValue placeholder="Pilih Kelas" />

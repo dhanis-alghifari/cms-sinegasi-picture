@@ -22,7 +22,7 @@ test('cash dispute routes enforce ownership and manager resolution', async (t) =
   t.after(() => app.close());
   const treasurer = app.jwt.sign({ userId: 'usr-1', username: 'treasurer', role: 'treasurer', isFirstLogin: false });
   const teacher = app.jwt.sign({ userId: 'usr-2', username: 'teacher', role: 'teacher', isFirstLogin: false });
-  const create = await app.inject({ method: 'POST', url: '/api/cash/disputes', headers: { authorization: `Bearer ${treasurer}`, 'x-idempotency-key': 'route-key-001' }, payload: { transaction_id: 'tx-1', reason: 'Nominal belum sesuai catatan', bukti_sanggahan_url: proofUrl } });
+  const create = await app.inject({ method: 'POST', url: '/api/cash/disputes', headers: { authorization: `Bearer ${treasurer}`, 'x-idempotency-key': 'route-key-001' }, payload: { transaction_id: 'tx-1', reason: 'Nominal belum sesuai catatan', evidence_url: proofUrl } });
   assert.equal(create.statusCode, 201);
   assert.equal(created, true);
   const resolve = await app.inject({ method: 'PATCH', url: '/api/cash/disputes/dispute-1', headers: { authorization: `Bearer ${teacher}` }, payload: { status: 'resolved', review_note: 'Bukti telah diverifikasi' } });

@@ -1,6 +1,3 @@
-// src/app/router/index.tsx
-// Root router definition — Constitution: composition of feature routes and layouts only
-// Dependency Direction: App -> Router -> Layouts -> Feature Routes
 
 import { lazy, Suspense } from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';

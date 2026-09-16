@@ -1,7 +1,3 @@
-// src/features/auth/hooks/useAuthStore.ts
-// Zustand auth store — client-side session state
-// Holds: user, isAuthenticated
-// Constitution: Global UI state (auth) → Provider/Context or Zustand store
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';

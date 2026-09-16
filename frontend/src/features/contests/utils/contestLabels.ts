@@ -165,16 +165,19 @@ export function getContestResultDisplayLabel(
   position?: number | null,
 ): string {
   if (kind === 'rank' && position) {
-    return title.toLowerCase() === `juara ${position}`.toLowerCase()
-      ? title
-      : `Juara ${position}${title ? ` · ${title}` : ''}`;
+    if (title.toLowerCase() === `juara ${position}`.toLowerCase()) return title;
+    return formatContestResultTitle(`Juara ${position}`, title);
   }
   if (kind === 'top_n' && position) {
-    return title.toLowerCase() === `${position} besar`.toLowerCase()
-      ? title
-      : `${position} besar${title ? ` · ${title}` : ''}`;
+    if (title.toLowerCase() === `${position} besar`.toLowerCase()) return title;
+    return formatContestResultTitle(`${position} besar`, title);
   }
   return title;
+}
+
+function formatContestResultTitle(prefix: string, title: string): string {
+  if (!title) return prefix;
+  return `${prefix} · ${title}`;
 }
 
 export function isContestStatus(value: string | null | undefined): value is ContestStatus {

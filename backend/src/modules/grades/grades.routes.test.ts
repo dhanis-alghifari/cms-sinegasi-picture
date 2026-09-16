@@ -47,13 +47,13 @@ test('grades own scope ignores caller supplied student and class filters', async
   const ownStudentId = '11111111-1111-1111-1111-111111111111';
   const member = app.jwt.sign({ userId: 'member-1', username: 'member', role: 'member', studentId: ownStudentId, isFirstLogin: false });
 
-  const grades = await app.inject({ method: 'GET', url: '/api/grades?scope=operational&student_id=22222222-2222-2222-2222-222222222222&kelas=XII', headers: { authorization: `Bearer ${member}` } });
+  const grades = await app.inject({ method: 'GET', url: '/api/grades?scope=operational&student_id=22222222-2222-2222-2222-222222222222&class_name=XII', headers: { authorization: `Bearer ${member}` } });
   assert.equal(grades.statusCode, 200);
   assert.equal(gradeQuery?.student_id, ownStudentId);
   assert.equal(gradeQuery?.scope, 'own');
   assert.equal(gradeQuery?.kelas, undefined);
 
-  const assignments = await app.inject({ method: 'GET', url: '/api/grades/assignments?scope=operational&kelas=XII', headers: { authorization: `Bearer ${member}` } });
+  const assignments = await app.inject({ method: 'GET', url: '/api/grades/assignments?scope=operational&class_name=XII', headers: { authorization: `Bearer ${member}` } });
   assert.equal(assignments.statusCode, 200);
   assert.equal(assignmentQuery?.student_id, ownStudentId);
   assert.equal(assignmentQuery?.scope, 'own');

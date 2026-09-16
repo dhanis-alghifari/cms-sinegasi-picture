@@ -44,7 +44,7 @@ export function mapAchievementRepositoryError(error: unknown, fallback: string):
     'CONTEST_RESULT_NOT_FOUND',
   ]);
   if (business.has(message)) {
-    const status = message === 'CONTEST_RESULT_IDEMPOTENCY_REUSED' ? 409 : message === 'CONTEST_RESULT_ACTOR_FORBIDDEN' ? 403 : message === 'CONTEST_RESULT_NOT_FOUND' ? 404 : 422;
+    const status = achievementErrorStatus(message);
     return fail(status, message, fallback);
   }
   if (message === 'CONTEST_RESULT_IDEMPOTENCY_REPLAY') return fail(200, message, fallback);
@@ -53,6 +53,13 @@ export function mapAchievementRepositoryError(error: unknown, fallback: string):
     return fail(503, 'CONTEST_RESULT_SCHEMA_UNAVAILABLE', 'Skema hasil prestasi belum terpasang atau belum dimuat ulang.');
   }
   return fail(400, 'CONTEST_RESULT_FAILED', message && !/[{}]/.test(message) ? message : fallback);
+}
+
+function achievementErrorStatus(message: string): number {
+  if (message === 'CONTEST_RESULT_IDEMPOTENCY_REUSED') return 409;
+  if (message === 'CONTEST_RESULT_ACTOR_FORBIDDEN') return 403;
+  if (message === 'CONTEST_RESULT_NOT_FOUND') return 404;
+  return 422;
 }
 
 function fail(statusCode: number, errorCode: string, message: string): never {

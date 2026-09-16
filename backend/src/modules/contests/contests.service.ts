@@ -103,6 +103,53 @@ function publicContract(input: ContestCreateInput | ContestUpdateInput): boolean
     || input.status === 'proses_penjurian';
 }
 
+function getEventYear(input: ContestCreateInput, isPublicContract: boolean): number {
+  if (isPublicContract) return requiredYear(input.tahun_event);
+  if (input.tahun_event == null) return Number(optionalAcademicYear(input.academic_year));
+  return requiredYear(input.tahun_event);
+}
+
+function getCreateErrorStatus(error: unknown): number {
+  const code = databaseErrorCode(error);
+  if (code === '23505') return 409;
+  if (code === '22023') return 422;
+  if (isMissingSchemaError(error)) return 503;
+  return 400;
+}
+
+function getCreateErrorCode(error: unknown): string {
+  const code = databaseErrorCode(error);
+  if (isMissingSchemaError(error)) return 'CONTEST_SCHEMA_UNAVAILABLE';
+  if (code === '22023') return 'INVALID_DEADLINE';
+  return 'CONTEST_CREATE_FAILED';
+}
+
+function getUpdateErrorStatus(error: unknown, errorCode: string | undefined, rpcErrorCode?: string): number {
+  const validationCodes = ['22023', '22P02', '22007'];
+  if (validationCodes.includes(errorCode || '') || ['CONTEST_UPDATE_REASON_INVALID', 'CONTEST_UPDATE_EMPTY', 'CONTEST_UPDATE_FIELD_INVALID'].includes(rpcErrorCode || '')) return 422;
+  if (rpcErrorCode === 'CONTEST_UPDATE_ACTOR_FORBIDDEN') return 403;
+  if (rpcErrorCode === 'CONTEST_UPDATE_NOT_FOUND') return 404;
+  if (isMissingSchemaError(error)) return 503;
+  return 400;
+}
+
+function getUpdateErrorCode(error: unknown, errorCode: string | undefined, rpcErrorCode?: string): string {
+  if (isMissingSchemaError(error)) return 'CONTEST_SCHEMA_UNAVAILABLE';
+  if (rpcErrorCode) return rpcErrorCode;
+  if (errorCode === '22023') return 'INVALID_DEADLINE';
+  return 'CONTEST_UPDATE_FAILED';
+}
+
+function getSubmitErrorStatus(error: unknown): number {
+  if (databaseErrorCode(error) === '23505') return 409;
+  if (isMissingSchemaError(error)) return 503;
+  return 400;
+}
+
+function getSubmitErrorCode(error: unknown): string {
+  return isMissingSchemaError(error) ? 'CONTEST_SCHEMA_UNAVAILABLE' : 'CONTEST_SUBMISSION_FAILED';
+}
+
 export class ContestsService {
   constructor(private readonly repository: ContestRepository) {}
   repositoryIsConfigured(): boolean { return this.repository.isConfigured(); }
@@ -151,9 +198,7 @@ export class ContestsService {
     const kota = isPublicContract
       ? requiredText(input.kota, 'kota', 120)
       : cleanText(input.kota, 120);
-    const tahunEvent = isPublicContract
-      ? requiredYear(input.tahun_event)
-      : input.tahun_event == null ? Number(optionalAcademicYear(input.academic_year)) : requiredYear(input.tahun_event);
+    const tahunEvent = getEventYear(input, isPublicContract);
     if (!actorId && this.repositoryIsConfigured()) {
       throw new ContestsServiceError(503, 'DATABASE_IDENTITY_UNAVAILABLE', 'Akun login belum terhubung ke users.id database yang valid.');
     }
@@ -179,8 +224,8 @@ export class ContestsService {
     });
     if ('error' in result) {
       throw new ContestsServiceError(
-        databaseErrorCode(result.error) === '23505' ? 409 : databaseErrorCode(result.error) === '22023' ? 422 : isMissingSchemaError(result.error) ? 503 : 400,
-        isMissingSchemaError(result.error) ? 'CONTEST_SCHEMA_UNAVAILABLE' : databaseErrorCode(result.error) === '22023' ? 'INVALID_DEADLINE' : 'CONTEST_CREATE_FAILED',
+        getCreateErrorStatus(result.error),
+        getCreateErrorCode(result.error),
         contestErrorMessage(result.error, 'Gagal menambahkan lomba baru.'),
       );
     }
@@ -259,8 +304,8 @@ export class ContestsService {
         CONTEST_UPDATE_REASON_INVALID: 'Alasan perubahan wajib diisi minimal 5 karakter.',
       };
       throw new ContestsServiceError(
-        errorCode === '22023' || errorCode === '22P02' || errorCode === '22007' || rpcErrorCode === 'CONTEST_UPDATE_REASON_INVALID' || rpcErrorCode === 'CONTEST_UPDATE_EMPTY' || rpcErrorCode === 'CONTEST_UPDATE_FIELD_INVALID' ? 422 : rpcErrorCode === 'CONTEST_UPDATE_ACTOR_FORBIDDEN' ? 403 : rpcErrorCode === 'CONTEST_UPDATE_NOT_FOUND' ? 404 : isMissingSchemaError(result.error) ? 503 : 400,
-        isMissingSchemaError(result.error) ? 'CONTEST_SCHEMA_UNAVAILABLE' : rpcErrorCode || (errorCode === '22023' ? 'INVALID_DEADLINE' : 'CONTEST_UPDATE_FAILED'),
+        getUpdateErrorStatus(result.error, errorCode, rpcErrorCode),
+        getUpdateErrorCode(result.error, errorCode, rpcErrorCode),
         (rpcErrorCode && rpcErrorMessage[rpcErrorCode]) || contestErrorMessage(result.error, 'Gagal memperbarui data lomba.'),
       );
     }
@@ -294,8 +339,8 @@ export class ContestsService {
     });
     if ('error' in result) {
       throw new ContestsServiceError(
-        databaseErrorCode(result.error) === '23505' ? 409 : isMissingSchemaError(result.error) ? 503 : 400,
-        isMissingSchemaError(result.error) ? 'CONTEST_SCHEMA_UNAVAILABLE' : 'CONTEST_SUBMISSION_FAILED',
+        getSubmitErrorStatus(result.error),
+        getSubmitErrorCode(result.error),
         contestErrorMessage(result.error, 'Gagal mendaftarkan film ke lomba.'),
       );
     }

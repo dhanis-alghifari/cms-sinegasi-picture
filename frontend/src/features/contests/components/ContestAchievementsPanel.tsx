@@ -3,11 +3,13 @@ import { Search, Trophy } from 'lucide-react';
 
 import { getErrorMessage } from '@/shared/api/errors';
 import { useDebouncedValue } from '@/shared/hooks/useDebouncedValue';
+import { UI_CONSTANTS } from '@/shared/constants/ui';
 import { Pagination } from '@/shared/ui/Pagination';
 import { Badge } from '@/shared/ui/primitives/badge';
 import { Button } from '@/shared/ui/primitives/button';
 import { Input } from '@/shared/ui/primitives/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/primitives/select';
+import { formatNumber } from '@/shared/utils/formatNumber';
 
 import { useContestAchievementsQuery } from '../hooks/useContestAchievementsQuery';
 import type { ContestOutcomeStatus, ContestResultKind } from '../types/contests.types';
@@ -23,18 +25,18 @@ import {
 
 export function ContestAchievementsPanel() {
   const [searchTerm, setSearchTerm] = useState('');
-  const [resultKindFilter, setResultKindFilter] = useState<ContestResultKind | 'all'>('all');
-  const [outcomeFilter, setOutcomeFilter] = useState<ContestOutcomeStatus | 'all'>('all');
+  const [resultKindFilter, setResultKindFilter] = useState<ContestResultKind | 'all'>(UI_CONSTANTS.ALL_FILTER_VALUE);
+  const [outcomeFilter, setOutcomeFilter] = useState<ContestOutcomeStatus | 'all'>(UI_CONSTANTS.ALL_FILTER_VALUE);
   const [positionFilter, setPositionFilter] = useState('');
   const [page, setPage] = useState(1);
-  const debouncedSearchTerm = useDebouncedValue(searchTerm, 300);
+  const debouncedSearchTerm = useDebouncedValue(searchTerm, UI_CONSTANTS.SEARCH_DEBOUNCE_MS);
   const achievementsQuery = useContestAchievementsQuery({
     search: debouncedSearchTerm || undefined,
-    result_kind: resultKindFilter === 'all' ? undefined : resultKindFilter,
-    outcome_status: outcomeFilter === 'all' ? undefined : outcomeFilter,
+    result_kind: resultKindFilter === UI_CONSTANTS.ALL_FILTER_VALUE ? undefined : resultKindFilter,
+    outcome_status: outcomeFilter === UI_CONSTANTS.ALL_FILTER_VALUE ? undefined : outcomeFilter,
     position: positionFilter ? Number(positionFilter) : undefined,
     page,
-    pageSize: 10,
+    pageSize: UI_CONSTANTS.DEFAULT_PAGE_SIZE,
   });
   const achievementRows = achievementsQuery.data?.data ?? [];
 
@@ -44,12 +46,12 @@ export function ContestAchievementsPanel() {
   };
 
   const handleResultKindFilterChange = (nextResultKind: string | null) => {
-    setResultKindFilter(isContestResultKind(nextResultKind) ? nextResultKind : 'all');
+    setResultKindFilter(isContestResultKind(nextResultKind) ? nextResultKind : UI_CONSTANTS.ALL_FILTER_VALUE);
     setPage(1);
   };
 
   const handleOutcomeFilterChange = (nextOutcome: string | null) => {
-    setOutcomeFilter(isContestOutcomeStatus(nextOutcome) ? nextOutcome : 'all');
+    setOutcomeFilter(isContestOutcomeStatus(nextOutcome) ? nextOutcome : UI_CONSTANTS.ALL_FILTER_VALUE);
     setPage(1);
   };
 
@@ -60,8 +62,8 @@ export function ContestAchievementsPanel() {
 
   const resetAchievementFilters = () => {
     setSearchTerm('');
-    setResultKindFilter('all');
-    setOutcomeFilter('all');
+    setResultKindFilter(UI_CONSTANTS.ALL_FILTER_VALUE);
+    setOutcomeFilter(UI_CONSTANTS.ALL_FILTER_VALUE);
     setPositionFilter('');
     setPage(1);
   };
@@ -81,7 +83,7 @@ export function ContestAchievementsPanel() {
             Cari berdasarkan nama lomba, karya, kategori, Juara 3, 10 besar, atau penghargaan khusus.
           </p>
         </div>
-        <p className="text-xs text-ink-tertiary">{achievementsQuery.data?.total ?? 0} catatan</p>
+        <p className="text-xs text-ink-tertiary">{formatNumber(achievementsQuery.data?.total ?? 0)} catatan</p>
       </div>
 
       <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_180px_180px_110px_auto]">
@@ -98,7 +100,7 @@ export function ContestAchievementsPanel() {
         </label>
 
         <Select
-          items={[{ value: 'all', label: 'Semua jenis hasil' }, ...CONTEST_RESULT_KIND_OPTIONS]}
+          items={[{ value: UI_CONSTANTS.ALL_FILTER_VALUE, label: 'Semua jenis hasil' }, ...CONTEST_RESULT_KIND_OPTIONS]}
           value={resultKindFilter}
           onValueChange={handleResultKindFilterChange}
         >
@@ -106,7 +108,7 @@ export function ContestAchievementsPanel() {
             <SelectValue placeholder="Jenis hasil" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Semua jenis hasil</SelectItem>
+            <SelectItem value={UI_CONSTANTS.ALL_FILTER_VALUE}>Semua jenis hasil</SelectItem>
             {CONTEST_RESULT_KIND_OPTIONS.map((resultKindOption) => (
               <SelectItem key={resultKindOption.value} value={resultKindOption.value}>
                 {resultKindOption.label}
@@ -116,7 +118,7 @@ export function ContestAchievementsPanel() {
         </Select>
 
         <Select
-          items={[{ value: 'all', label: 'Semua status' }, ...CONTEST_OUTCOME_STATUS_OPTIONS]}
+          items={[{ value: UI_CONSTANTS.ALL_FILTER_VALUE, label: 'Semua status' }, ...CONTEST_OUTCOME_STATUS_OPTIONS]}
           value={outcomeFilter}
           onValueChange={handleOutcomeFilterChange}
         >
@@ -124,7 +126,7 @@ export function ContestAchievementsPanel() {
             <SelectValue placeholder="Status hasil" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Semua status</SelectItem>
+            <SelectItem value={UI_CONSTANTS.ALL_FILTER_VALUE}>Semua status</SelectItem>
             {CONTEST_OUTCOME_STATUS_OPTIONS.map((outcomeOption) => (
               <SelectItem key={outcomeOption.value} value={outcomeOption.value}>
                 {outcomeOption.label}
@@ -147,19 +149,22 @@ export function ContestAchievementsPanel() {
         </Button>
       </div>
 
-      {achievementsQuery.isLoading ? (
+      {achievementsQuery.isLoading && (
         <div className="rounded-lg border border-dashed border-hairline px-4 py-12 text-center text-xs text-ink-tertiary">
           Memuat rekap prestasi...
         </div>
-      ) : achievementsQuery.error ? (
+      )}
+      {achievementsQuery.error && (
         <div role="alert" className="rounded-lg border border-semantic-danger/30 bg-semantic-danger/10 px-4 py-4 text-xs text-semantic-danger">
           {getErrorMessage(achievementsQuery.error)}
         </div>
-      ) : achievementRows.length === 0 ? (
+      )}
+      {!achievementsQuery.isLoading && !achievementsQuery.error && achievementRows.length === 0 && (
         <div className="rounded-lg border border-dashed border-hairline px-4 py-12 text-center text-xs text-ink-tertiary">
           Belum ada hasil yang cocok dengan filter.
         </div>
-      ) : (
+      )}
+      {!achievementsQuery.isLoading && !achievementsQuery.error && achievementRows.length > 0 && (
         <div className="space-y-2">
           {achievementRows.map((achievementRow) => (
             <article
@@ -198,7 +203,7 @@ export function ContestAchievementsPanel() {
             page={achievementsQuery.data?.page ?? page}
             totalPages={achievementsQuery.data?.totalPages ?? 1}
             total={achievementsQuery.data?.total ?? 0}
-            pageSize={achievementsQuery.data?.pageSize ?? 10}
+            pageSize={achievementsQuery.data?.pageSize ?? UI_CONSTANTS.DEFAULT_PAGE_SIZE}
             onPageChange={setPage}
           />
         </div>

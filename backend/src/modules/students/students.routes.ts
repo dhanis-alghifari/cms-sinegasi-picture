@@ -5,7 +5,7 @@ import {
   clearAuthStateCache,
   type JwtPayload,
 } from '../../middleware/authMiddleware.js';
-import { requireCapability } from '../../middleware/capabilities.js';
+import { requireAnyCapability, requireCapability } from '../../middleware/capabilities.js';
 import {
   studentCreateRouteSchema,
   studentIdRouteSchema,
@@ -15,6 +15,7 @@ import {
   studentUpdateRouteSchema,
 } from '../../shared/http/schemas/students.schema.js';
 import { sendServiceError } from '../../shared/http/sendServiceError.js';
+import { mapRequestFields } from '../../shared/http/request-field-mapping.js';
 import { StudentNotFoundError, StudentService } from './students.service.js';
 import type { StudentCreateInput, StudentUpdateInput } from './students.types.js';
 
@@ -44,6 +45,25 @@ function reasonFrom(request: FastifyRequest, body: Record<string, unknown>, fall
   return typeof value === 'string' && value.trim() ? value.trim() : fallback;
 }
 
+function studentStatusMetadata(isActive: boolean): { operation: string } {
+  return { operation: isActive ? 'student_reactivate' : 'student_alumni' };
+}
+
+const specializations: Readonly<Record<string, string>> = {
+  camera: 'kamera', editing: 'editing', screenwriting: 'naskah', all: 'all',
+};
+
+function studentInput(input: Record<string, unknown>): Record<string, unknown> {
+  const mapped = mapRequestFields(input, {
+    student_number: 'nis', name: 'nama', class_name: 'kelas', specialization: 'peminatan',
+    phone_number: 'no_telepon', photo_url: 'foto_url',
+  });
+  return {
+    ...mapped,
+    ...(typeof mapped.peminatan === 'string' ? { peminatan: specializations[mapped.peminatan] ?? mapped.peminatan } : {}),
+  };
+}
+
 const studentRoutes: FastifyPluginAsync<StudentRoutesOptions> = async (fastify, options) => {
   const actorIdFor = async (request: FastifyRequest): Promise<string | null> => {
     const user = request.user as JwtPayload;
@@ -52,7 +72,7 @@ const studentRoutes: FastifyPluginAsync<StudentRoutesOptions> = async (fastify, 
 
   fastify.get('/api/students/options', {
     schema: studentsOptionsRouteSchema,
-    preHandler: [authenticate, requireCapability('students.read')],
+    preHandler: [authenticate, requireAnyCapability('students.read', 'cash.manage')],
   }, async (request, reply) => {
     try {
       const query = request.query as { q?: string; limit?: string; active?: string };
@@ -71,10 +91,12 @@ const studentRoutes: FastifyPluginAsync<StudentRoutesOptions> = async (fastify, 
 
   fastify.get('/api/students', {
     schema: studentsListRouteSchema,
-    preHandler: [authenticate, requireCapability('students.read')],
+    preHandler: [authenticate, requireAnyCapability('students.read', 'borrowing.manage')],
   }, async (request, reply) => {
     try {
-      const query = request.query as { search?: string; kelas?: string; peminatan?: string; is_active?: string; page?: string; pageSize?: string };
+      const query = studentInput(request.query as Record<string, unknown>) as {
+        search?: string; kelas?: string; peminatan?: string; is_active?: string; page?: string; pageSize?: string;
+      };
       return reply.send({
         success: true,
         ...(await options.studentsService.list({
@@ -108,7 +130,7 @@ const studentRoutes: FastifyPluginAsync<StudentRoutesOptions> = async (fastify, 
     preHandler: [authenticate, requireCapability('students.manage')],
   }, async (request, reply) => {
     try {
-      const body = bodyOf(request);
+      const body = studentInput(bodyOf(request));
       const result = await options.studentsService.create(body as unknown as StudentCreateInput, await actorIdFor(request));
       const reason = reasonFrom(request, body, 'Menambahkan siswa dan membuat akun anggota');
       await options.persistAuditLog(request, {
@@ -136,7 +158,7 @@ const studentRoutes: FastifyPluginAsync<StudentRoutesOptions> = async (fastify, 
     preHandler: [authenticate, requireCapability('students.manage')],
   }, async (request, reply) => {
     try {
-      const body = bodyOf(request);
+      const body = studentInput(bodyOf(request));
       const reason = reasonFrom(request, body, 'Membuat akun anggota untuk siswa');
       const result = await options.studentsService.provisionAccount((request.params as { id: string }).id, await actorIdFor(request), reason);
       await options.persistAuditLog(request, {
@@ -160,7 +182,7 @@ const studentRoutes: FastifyPluginAsync<StudentRoutesOptions> = async (fastify, 
     preHandler: [authenticate, requireCapability('students.manage')],
   }, async (request, reply) => {
     try {
-      const body = bodyOf(request);
+      const body = studentInput(bodyOf(request));
       const user = request.user as JwtPayload;
       const result = await options.studentsService.update(
         (request.params as { id: string }).id,
@@ -169,12 +191,13 @@ const studentRoutes: FastifyPluginAsync<StudentRoutesOptions> = async (fastify, 
         reasonFrom(request, body, ''),
         user.role === 'teacher',
       );
-      if (result.data.is_active !== result.previous.is_active) clearAuthStateCache(result.data.user_id);
+      const statusChanged = result.data.is_active !== result.previous.is_active;
+      if (statusChanged) clearAuthStateCache(result.data.user_id);
       await options.persistAuditLog(request, {
         action: 'UPDATE', tableName: 'students', recordId: result.data.id,
         oldValues: result.previous as unknown as Record<string, unknown>, newValues: result.data as unknown as Record<string, unknown>,
         changeReason: reasonFrom(request, body, 'Memperbarui data siswa'),
-        metadata: result.data.is_active !== result.previous.is_active ? { operation: result.data.is_active ? 'student_reactivate' : 'student_alumni' } : undefined,
+        metadata: statusChanged ? studentStatusMetadata(result.data.is_active) : undefined,
       });
       return reply.send(result.data);
     } catch (error) {

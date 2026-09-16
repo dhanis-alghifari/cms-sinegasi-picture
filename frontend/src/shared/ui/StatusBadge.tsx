@@ -1,5 +1,3 @@
-// src/shared/ui/StatusBadge.tsx
-// Shared status badge: semantic colors for any feature.
 
 import { Badge } from '@/shared/ui/primitives/badge';
 import { cn } from '@/shared/utils/cn';

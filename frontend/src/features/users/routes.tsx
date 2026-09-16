@@ -1,5 +1,3 @@
-// src/features/users/routes.tsx
-// User management feature routes
 
 import { lazy, Suspense } from 'react';
 import type { RouteObject } from 'react-router-dom';

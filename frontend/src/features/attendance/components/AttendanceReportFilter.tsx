@@ -10,21 +10,25 @@ import type { AttendanceReportPreset } from '../types/attendance.types';
 import { getAttendanceReportPresetLabel } from '../utils/attendanceReportDates';
 
 interface AttendanceReportFilterProps {
-  studentOptions: StudentOption[];
-  selectedStudent: StudentOption | null;
-  studentId: string;
-  preset: AttendanceReportPreset;
-  dateFrom: string;
-  dateTo: string;
-  isStudentOptionsLoading?: boolean;
-  rangeError?: string;
-  onStudentChange: (studentId: string) => void;
-  onSelectedStudentChange: (student: StudentOption | null) => void;
-  onStudentSearchChange: (value: string) => void;
-  onPresetChange: (preset: Exclude<AttendanceReportPreset, 'custom'>) => void;
-  onDateFromChange: (value: string) => void;
-  onDateToChange: (value: string) => void;
-  onReset: () => void;
+  state: {
+    studentOptions: StudentOption[];
+    selectedStudent: StudentOption | null;
+    studentId: string;
+    preset: AttendanceReportPreset;
+    dateFrom: string;
+    dateTo: string;
+    isStudentOptionsLoading?: boolean;
+    rangeError?: string;
+  };
+  actions: {
+    onStudentChange: (studentId: string) => void;
+    onSelectedStudentChange: (student: StudentOption | null) => void;
+    onStudentSearchChange: (value: string) => void;
+    onPresetChange: (preset: Exclude<AttendanceReportPreset, 'custom'>) => void;
+    onDateFromChange: (value: string) => void;
+    onDateToChange: (value: string) => void;
+    onReset: () => void;
+  };
 }
 
 const PRESETS: Array<Exclude<AttendanceReportPreset, 'custom'>> = [
@@ -36,22 +40,28 @@ const PRESETS: Array<Exclude<AttendanceReportPreset, 'custom'>> = [
 ];
 
 export function AttendanceReportFilter({
-  studentOptions,
-  selectedStudent,
-  studentId,
-  preset,
-  dateFrom,
-  dateTo,
-  isStudentOptionsLoading = false,
-  rangeError,
-  onStudentChange,
-  onSelectedStudentChange,
-  onStudentSearchChange,
-  onPresetChange,
-  onDateFromChange,
-  onDateToChange,
-  onReset,
+  state,
+  actions,
 }: AttendanceReportFilterProps) {
+  const {
+    studentOptions,
+    selectedStudent,
+    studentId,
+    preset,
+    dateFrom,
+    dateTo,
+    isStudentOptionsLoading = false,
+    rangeError,
+  } = state;
+  const {
+    onStudentChange,
+    onSelectedStudentChange,
+    onStudentSearchChange,
+    onPresetChange,
+    onDateFromChange,
+    onDateToChange,
+    onReset,
+  } = actions;
   return (
     <Card className="border-hairline bg-surface-1">
       <CardHeader className="pb-3">

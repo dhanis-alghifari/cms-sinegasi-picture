@@ -11,6 +11,7 @@ import {
 } from '@/shared/ui/primitives/dialog';
 import { Button } from '@/shared/ui/primitives/button';
 import { Label } from '@/shared/ui/primitives/label';
+import { UI_CONSTANTS } from '@/shared/constants/ui';
 import type { StudentAccountCredentials } from '../types/students.types';
 
 interface StudentAccountCredentialsDialogProps {
@@ -35,7 +36,7 @@ export function StudentAccountCredentialsDialog({
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
-      window.setTimeout(() => setCopied(false), 1800);
+      window.setTimeout(() => setCopied(false), UI_CONSTANTS.CREDENTIAL_COPY_FEEDBACK_MS);
     } catch {
       setCopied(false);
     }

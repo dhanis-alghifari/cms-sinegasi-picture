@@ -1,5 +1,3 @@
-// src/app/providers/AppProviders.tsx
-// Root application providers wrapper — TanStack Query and session bootstrap
 
 import { useEffect, useState, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider, MutationCache } from '@tanstack/react-query';

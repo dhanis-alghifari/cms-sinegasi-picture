@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { decodeDataEnvelope, decodePaginatedResponse, decodeWithSchema } from '@/shared/api/responseValidation';
 import { actorSummarySchema, optionalTextSchema } from '@/shared/api/responseSchemas';
-import { BORROWING_STATUS_VALUES, type BorrowingRecord, type BorrowingSummary, type BorrowedItem } from '../types/borrowing.types';
+import { BORROWING_STATUS_VALUES, type BorrowingRecord, type BorrowingSummary, type BorrowedItem, type ReturnAssessmentPreview, type ReturnEvidenceAccessRecord, type ReturnEvidenceUploadReservation } from '../types/borrowing.types';
 
 const optionalNumber = z.number().nullable().optional().transform((value) => value ?? undefined);
 const borrowingStatusSchema = z.enum(BORROWING_STATUS_VALUES);
@@ -16,6 +16,7 @@ const borrowedItemSchema: z.ZodType<BorrowedItem> = z.object({
   kondisi_awal: z.string().min(1),
   kondisi_kembali: optionalTextSchema,
   denda_kerusakan: optionalNumber,
+  replacement_value: optionalNumber,
 }).loose();
 
 const borrowingRecordSchema: z.ZodType<BorrowingRecord> = z.object({
@@ -55,3 +56,47 @@ const borrowingSummarySchema: z.ZodType<BorrowingSummary> = z.object({
 export const decodeBorrowingList = decodePaginatedResponse(borrowingRecordSchema);
 export const decodeBorrowingSummary = decodeWithSchema(borrowingSummarySchema);
 export const decodeBorrowingRecord = decodeDataEnvelope(borrowingRecordSchema);
+
+const returnAssessmentPreviewSchema: z.ZodType<ReturnAssessmentPreview> = z.object({
+  borrowing_id: z.string().min(1),
+  return_date: z.string().min(1),
+  damage_charge: z.number().nonnegative(),
+  replacement_charge: z.number().nonnegative().default(0),
+  late_charge: z.number().nonnegative(),
+  total_charge: z.number().nonnegative(),
+  items: z.array(z.object({
+    equipment_id: z.string().min(1),
+    borrowing_item_id: optionalTextSchema,
+    condition: z.string().min(1),
+    settlement_method: z.enum(['none', 'repair', 'replacement']),
+    replacement_value: optionalNumber,
+    repair_cost: optionalNumber,
+    charge: z.number().nonnegative(),
+  }).loose()),
+}).loose();
+
+export const decodeReturnAssessmentPreview = decodeDataEnvelope(returnAssessmentPreviewSchema);
+
+const returnEvidenceUploadReservationSchema: z.ZodType<ReturnEvidenceUploadReservation> = z.object({
+  evidence_id: z.string().uuid(),
+  upload_url: z.string().url(),
+  expires_in_seconds: z.number().int().positive(),
+});
+
+export const decodeReturnEvidenceUploadReservation = decodeDataEnvelope(returnEvidenceUploadReservationSchema);
+
+const returnEvidenceAccessRecordSchema: z.ZodType<ReturnEvidenceAccessRecord> = z.object({
+  evidence_id: z.string().uuid(),
+  borrowing_id: z.string().min(1),
+  borrowing_item_id: z.string().min(1),
+  equipment_id: z.string().min(1),
+  assessment_item_id: optionalTextSchema,
+  original_filename: z.string().min(1),
+  mime_type: z.enum(['image/jpeg', 'image/png', 'image/webp']),
+  file_size_bytes: z.number().int().positive(),
+  created_at: optionalTextSchema,
+  access_url: z.string().url(),
+  expires_in_seconds: z.number().int().positive(),
+}).loose();
+
+export const decodeReturnEvidenceAccessList = decodeDataEnvelope(z.array(returnEvidenceAccessRecordSchema));

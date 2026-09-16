@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { DatabaseRow } from '../../shared/database/database.types.js';
 import type {
   ContestAchievementListResult,
+  ContestAchievementRecord,
   ContestAchievementsMemoryState,
   ContestAchievementsRepository,
   ContestEntryResultInput,
@@ -12,7 +13,7 @@ import type {
 
 type SupabaseLike = SupabaseClient | null;
 
-function mapRow(row: DatabaseRow): any {
+function mapRow(row: DatabaseRow): ContestAchievementRecord {
   return {
     result_id: typeof row.result_id === 'string' ? row.result_id : null,
     entry_id: String(row.entry_id),

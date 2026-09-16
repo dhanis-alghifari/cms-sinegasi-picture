@@ -71,6 +71,10 @@ test('cash read service rejects invalid filters before repository access', async
     service.listTransactions({ metode_pembayaran: 'qris dana' }, { studentId: null }),
     (error: unknown) => error instanceof CashReadServiceError && error.errorCode === 'INVALID_PAYMENT_METHOD',
   );
+  await assert.rejects(
+    service.listTransactions({ student_id: 'student-bukan-uuid' }, { studentId: null }),
+    (error: unknown) => error instanceof CashReadServiceError && error.errorCode === 'INVALID_STUDENT_ID',
+  );
   assert.equal(called, false);
 });
 

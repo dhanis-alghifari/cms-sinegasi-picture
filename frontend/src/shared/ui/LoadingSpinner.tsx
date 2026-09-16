@@ -1,5 +1,3 @@
-// src/shared/ui/LoadingSpinner.tsx
-// Reusable loading spinner with optional label
 
 import { cn } from '@/shared/utils/cn';
 
@@ -31,11 +29,10 @@ export function LoadingSpinner({ size = 'md', label, className }: LoadingSpinner
   );
 }
 
-// Full page loading state
-export function PageLoader() {
+export function PageLoader({ label = 'Memuat data...' }: { label?: string }) {
   return (
     <div className="flex min-h-[min(50dvh,400px)] items-center justify-center px-4">
-      <LoadingSpinner size="lg" label="Memuat data..." />
+      <LoadingSpinner size="lg" label={label} />
     </div>
   );
 }

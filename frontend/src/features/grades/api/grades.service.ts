@@ -1,5 +1,3 @@
-// src/features/grades/api/grades.service.ts
-// Pure TS student grades service
 
 import { apiClient } from '@/shared/api/client';
 import type { PaginatedResponse } from '@/shared/types/common';
@@ -20,6 +18,22 @@ import type {
   GradeSummary,
 } from '../types/grades.types';
 
+function toAssignmentRequest(payload: CreateAssignmentPayload) {
+  const { kelas: class_name, ...rest } = payload;
+  return { ...rest, ...(class_name !== undefined ? { class_name } : {}) };
+}
+
+function toBulkGradeRequest(payload: BulkGradingPayload) {
+  return {
+    ...payload,
+    grades: payload.grades.map(({ nilai: grade, keterangan: notes, ...item }) => ({
+      ...item,
+      grade,
+      ...(notes !== undefined ? { notes } : {}),
+    })),
+  };
+}
+
 export const gradesService = {
   getGrades(params?: GradeFilterParams): Promise<PaginatedResponse<StudentGrade>> {
     const query = new URLSearchParams();
@@ -27,7 +41,7 @@ export const gradesService = {
     if (params?.pageSize) query.append('pageSize', String(params.pageSize));
     if (params?.assignment_id) query.append('assignment_id', params.assignment_id);
     if (params?.category) query.append('category', params.category);
-    if (params?.kelas) query.append('kelas', params.kelas);
+    if (params?.kelas) query.append('class_name', params.kelas);
     if (params?.search) query.append('search', params.search);
     if (params?.scope) query.append('scope', params.scope);
 
@@ -40,7 +54,7 @@ export const gradesService = {
     if (params?.page) query.append('page', String(params.page));
     if (params?.pageSize) query.append('pageSize', String(params.pageSize));
     if (params?.category) query.append('category', params.category);
-    if (params?.kelas) query.append('kelas', params.kelas);
+    if (params?.kelas) query.append('class_name', params.kelas);
     if (params?.search) query.append('search', params.search);
     if (params?.scope) query.append('scope', params.scope);
 
@@ -57,11 +71,11 @@ export const gradesService = {
   },
 
   async createAssignment(payload: CreateAssignmentPayload): Promise<Assignment> {
-    return apiClient.postParsed('/api/grades/assignments', payload, decodeAssignment);
+    return apiClient.postParsed('/api/grades/assignments', toAssignmentRequest(payload), decodeAssignment);
   },
 
   // Bulk Grading Entry (Teacher Only)
   bulkGrade(payload: BulkGradingPayload, changeReason: string): Promise<void> {
-    return apiClient.postParsed('/api/grades/bulk', payload, decodeBulkGrade, { changeReason });
+    return apiClient.postParsed('/api/grades/bulk', toBulkGradeRequest(payload), decodeBulkGrade, { changeReason });
   },
 };

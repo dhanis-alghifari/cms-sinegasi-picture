@@ -1,5 +1,3 @@
-// src/features/cash/components/CashTransactionTable.tsx
-// Table for cash transactions with dispute status and student dispute button
 
 import { ArrowDownRight, ArrowUpRight, AlertCircle } from 'lucide-react';
 import {
@@ -12,6 +10,7 @@ import {
 } from '@/shared/ui/primitives/table';
 import { Button } from '@/shared/ui/primitives/button';
 import { StatusBadge } from '@/shared/ui/StatusBadge';
+import type { StatusBadgeVariant } from '@/shared/ui/StatusBadge';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { formatCurrency } from '@/shared/utils/formatCurrency';
 import { formatDateShort } from '@/shared/utils/formatDate';
@@ -23,14 +22,20 @@ import { AuditHistoryButton } from '@/features/audit/components/AuditHistoryButt
 interface CashTransactionTableProps {
   transactions: CashTransaction[];
   onDispute?: (transaction: CashTransaction) => void;
-  isStudent?: boolean;
+  isStudent: boolean;
   disputeQuota?: CashDisputeQuota;
+}
+
+function getDisputePresentation(status?: string): { label: string; variant: StatusBadgeVariant } {
+  if (status === 'pending') return { label: 'Sanggahan Pending', variant: 'warning' };
+  if (status === 'resolved' || status === 'approved') return { label: 'Disetujui', variant: 'success' };
+  return { label: 'Ditolak', variant: 'danger' };
 }
 
 export function CashTransactionTable({
   transactions,
   onDispute,
-  isStudent = false,
+  isStudent,
   disputeQuota,
 }: CashTransactionTableProps) {
   if (transactions.length === 0) {
@@ -63,6 +68,7 @@ export function CashTransactionTable({
             const hasDispute = Boolean(tx.dispute);
             const disputeStatus = tx.dispute?.status;
             const disputeAction = getDisputeAction(tx.dispute, disputeQuota);
+            const disputePresentation = getDisputePresentation(disputeStatus);
 
             return (
               <TableRow key={tx.id} className="border-hairline hover:bg-surface-2/40">
@@ -99,22 +105,7 @@ export function CashTransactionTable({
 
                 <TableCell>
                   {hasDispute ? (
-                    <StatusBadge
-                      label={
-                        disputeStatus === 'pending'
-                          ? 'Sanggahan Pending'
-                          : disputeStatus === 'resolved' || disputeStatus === 'approved'
-                          ? 'Disetujui'
-                          : 'Ditolak'
-                      }
-                      variant={
-                        disputeStatus === 'pending'
-                          ? 'warning'
-                          : disputeStatus === 'resolved' || disputeStatus === 'approved'
-                          ? 'success'
-                          : 'danger'
-                      }
-                    />
+                    <StatusBadge label={disputePresentation.label} variant={disputePresentation.variant} />
                   ) : (
                     <span className="text-ink-tertiary text-xs">-</span>
                   )}

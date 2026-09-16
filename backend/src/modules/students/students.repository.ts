@@ -200,7 +200,13 @@ export function createStudentRepository(client: SupabaseLike, state: StudentsMem
         p_updated_by: input.actorId,
       });
       if (error) return { error };
-      return { data: data ? mapStudentRow((Array.isArray(data) ? data[0] : data) as Record<string, unknown>) : null };
+      return { data: mapStudentRpcResult(data) };
     },
   };
+}
+
+function mapStudentRpcResult(data: unknown): StudentRecord | null {
+  if (!data) return null;
+  const row = Array.isArray(data) ? data[0] : data;
+  return row && typeof row === 'object' ? mapStudentRow(row as Record<string, unknown>) : null;
 }

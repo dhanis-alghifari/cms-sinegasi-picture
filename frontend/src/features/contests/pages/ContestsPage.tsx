@@ -1,16 +1,17 @@
-// src/features/contests/pages/ContestsPage.tsx
-// Thin orchestration page for Film Contests & Achievements Management
 
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { Trophy } from 'lucide-react';
 
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { ResponsivePageActions } from '@/shared/ui/ResponsivePageActions';
 import { PageLoader } from '@/shared/ui/LoadingSpinner';
+import { QueryErrorState } from '@/shared/ui/QueryErrorState';
 import { Pagination } from '@/shared/ui/Pagination';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/primitives/tabs';
 
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import { useDebouncedValue } from '@/shared/hooks/useDebouncedValue';
+import { UI_CONSTANTS } from '@/shared/constants/ui';
 import { useIsMobile } from '@/shared/hooks/use-mobile';
 import { hasCapability } from '@/shared/auth/capabilities';
 
@@ -22,13 +23,14 @@ import { ContestSummaryCards } from '../components/ContestSummaryCards';
 import { ContestFilter } from '../components/ContestFilter';
 import { ContestTable } from '../components/ContestTable';
 import { ContestMobileList } from '../components/ContestMobileList';
-import { CreateContestModal } from '../components/CreateContestModal';
-import { ContestEntriesDialog } from '../components/ContestEntriesDialog';
-import { ContestAchievementsPanel } from '../components/ContestAchievementsPanel';
 
 import type { Contest } from '../types/contests.types';
 import type { ContestFormValues } from '../schemas/contestSchema';
 import { isContestScope, isContestStatus } from '../utils/contestLabels';
+
+const ContestAchievementsPanel = lazy(() => import('../components/ContestAchievementsPanel').then((module) => ({ default: module.ContestAchievementsPanel })));
+const CreateContestModal = lazy(() => import('../components/CreateContestModal').then((module) => ({ default: module.CreateContestModal })));
+const ContestEntriesDialog = lazy(() => import('../components/ContestEntriesDialog').then((module) => ({ default: module.ContestEntriesDialog })));
 
 export function ContestsPage() {
   const { user } = useAuthStore();
@@ -37,13 +39,13 @@ export function ContestsPage() {
 
   // Filters
   const [search, setSearch] = useState('');
-  const [scopeFilter, setScopeFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [scopeFilter, setScopeFilter] = useState<string>(UI_CONSTANTS.ALL_FILTER_VALUE);
+  const [statusFilter, setStatusFilter] = useState<string>(UI_CONSTANTS.ALL_FILTER_VALUE);
   const [page, setPage] = useState(1);
   const [activeView, setActiveView] = useState<'events' | 'achievements'>('events');
-  const pageSize = 10;
+  const pageSize = UI_CONSTANTS.DEFAULT_PAGE_SIZE;
 
-  const debouncedContestSearch = useDebouncedValue(search, 300);
+  const debouncedContestSearch = useDebouncedValue(search, UI_CONSTANTS.SEARCH_DEBOUNCE_MS);
 
   const handleSearchChange = (searchTerm: string) => {
     setSearch(searchTerm);
@@ -60,10 +62,14 @@ export function ContestsPage() {
     setPage(1);
   };
 
+  const handleActiveViewChange = (value: string) => {
+    if (value === 'events' || value === 'achievements') setActiveView(value);
+  };
+
   const handleResetContestFilters = () => {
     setSearch('');
-    setScopeFilter('all');
-    setStatusFilter('all');
+    setScopeFilter(UI_CONSTANTS.ALL_FILTER_VALUE);
+    setStatusFilter(UI_CONSTANTS.ALL_FILTER_VALUE);
     setPage(1);
   };
 
@@ -75,8 +81,20 @@ export function ContestsPage() {
   const [targetContest, setTargetContest] = useState<Contest | null>(null);
 
   // Queries
-  const { data: contestSummary, isLoading: isContestSummaryLoading } = useContestSummaryQuery();
-  const { data: contestPage, isLoading: isContestPageLoading } = useContestsQuery({
+  const {
+    data: contestSummary,
+    isLoading: isContestSummaryLoading,
+    isError: isContestSummaryError,
+    error: contestSummaryError,
+    refetch: refetchContestSummary,
+  } = useContestSummaryQuery();
+  const {
+    data: contestPage,
+    isLoading: isContestPageLoading,
+    isError: isContestPageError,
+    error: contestPageError,
+    refetch: refetchContestPage,
+  } = useContestsQuery({
     page,
     pageSize,
     search: debouncedContestSearch || undefined,
@@ -157,68 +175,100 @@ export function ContestsPage() {
         }
       />
 
-      {/* Summary Cards */}
-      {isContestSummaryLoading ? <PageLoader /> : <ContestSummaryCards summary={contestSummary} />}
+      {isContestSummaryLoading && (
+        <PageLoader label="Memuat ringkasan perlombaan..." />
+      )}
+      {isContestSummaryError && (
+        <QueryErrorState
+          title="Ringkasan perlombaan belum dapat dimuat"
+          error={contestSummaryError}
+          onRetry={refetchContestSummary}
+        />
+      )}
+      {!isContestSummaryLoading && !isContestSummaryError && (
+        <ContestSummaryCards summary={contestSummary} />
+      )}
 
-      <div className="flex w-full gap-1 border-b border-hairline" role="tablist" aria-label="Perlombaan dan prestasi">
-        <button type="button" role="tab" aria-selected={activeView === 'events'} onClick={() => setActiveView('events')} className={`border-b-2 px-3 py-2 text-xs font-semibold transition-colors ${activeView === 'events' ? 'border-primary text-primary' : 'border-transparent text-ink-tertiary hover:text-ink'}`}>Event &amp; pendaftaran</button>
-        <button type="button" role="tab" aria-selected={activeView === 'achievements'} onClick={() => setActiveView('achievements')} className={`border-b-2 px-3 py-2 text-xs font-semibold transition-colors ${activeView === 'achievements' ? 'border-primary text-primary' : 'border-transparent text-ink-tertiary hover:text-ink'}`}>Karya &amp; prestasi</button>
-      </div>
+      <Tabs
+        value={activeView}
+        onValueChange={handleActiveViewChange}
+        className="w-full"
+      >
+        <TabsList aria-label="Perlombaan dan prestasi" className="grid min-h-12 w-full grid-cols-2 border border-hairline bg-surface-2 p-1 sm:w-fit sm:min-h-9 sm:gap-1">
+          <TabsTrigger value="events" className="min-h-10 px-3 text-xs sm:min-h-9">Event &amp; pendaftaran</TabsTrigger>
+          <TabsTrigger value="achievements" className="min-h-10 px-3 text-xs sm:min-h-9">Karya &amp; prestasi</TabsTrigger>
+        </TabsList>
 
-      {activeView === 'achievements' ? <ContestAchievementsPanel /> : <>
-
-      {/* Filter */}
-      <ContestFilter
-        search={search}
-        onSearchChange={handleSearchChange}
-        tingkat={scopeFilter}
-        onTingkatChange={handleScopeFilterChange}
-        status={statusFilter}
-        onStatusChange={handleStatusFilterChange}
-        onReset={handleResetContestFilters}
-      />
-
-      {/* Table */}
-      {isContestPageLoading ? (
-        <PageLoader />
-      ) : (
-        <div className="space-y-4">
-          {isMobile ? (
-            <ContestMobileList contests={contestPage?.data ?? []} onEdit={handleOpenEditContest} onManageEntries={handleOpenContestEntries} canManage={canManage} />
-          ) : (
-            <ContestTable contests={contestPage?.data ?? []} onEdit={handleOpenEditContest} onManageEntries={handleOpenContestEntries} canManage={canManage} />
+        <TabsContent value="achievements" className="pt-2">
+          {activeView === 'achievements' && (
+            <Suspense fallback={<PageLoader label="Memuat rekap prestasi..." />}>
+              <ContestAchievementsPanel />
+            </Suspense>
           )}
-          <Pagination
-            page={contestPage?.page ?? page}
-            totalPages={contestPage?.totalPages ?? 1}
-            total={contestPage?.total ?? 0}
-            pageSize={contestPage?.pageSize ?? pageSize}
-            onPageChange={setPage}
-          />
-        </div>
-      )}
+        </TabsContent>
 
-      {/* Modals */}
+        <TabsContent value="events" className="space-y-4 pt-2">
+          <ContestFilter
+            search={search}
+            onSearchChange={handleSearchChange}
+            tingkat={scopeFilter}
+            onTingkatChange={handleScopeFilterChange}
+            status={statusFilter}
+            onStatusChange={handleStatusFilterChange}
+            onReset={handleResetContestFilters}
+          />
+
+          {isContestPageLoading && (
+            <PageLoader label="Memuat daftar perlombaan..." />
+          )}
+          {isContestPageError && (
+            <QueryErrorState
+              title="Daftar perlombaan belum dapat dimuat"
+              error={contestPageError}
+              onRetry={refetchContestPage}
+            />
+          )}
+          {!isContestPageLoading && !isContestPageError && (
+            <div className="space-y-4">
+              {isMobile ? (
+                <ContestMobileList contests={contestPage?.data ?? []} onEdit={handleOpenEditContest} onManageEntries={handleOpenContestEntries} canManage={canManage} />
+              ) : (
+                <ContestTable contests={contestPage?.data ?? []} onEdit={handleOpenEditContest} onManageEntries={handleOpenContestEntries} canManage={canManage} />
+              )}
+              <Pagination
+                page={contestPage?.page ?? page}
+                totalPages={contestPage?.totalPages ?? 1}
+                total={contestPage?.total ?? 0}
+                pageSize={contestPage?.pageSize ?? pageSize}
+                onPageChange={setPage}
+              />
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
+
       {canManage && (
-        <>
-          <CreateContestModal
-            open={isContestFormOpen}
-            onOpenChange={setIsContestFormOpen}
-            contest={selectedContest}
-            onSubmit={handleContestFormSubmit}
-            isLoading={createContestMutation.isPending || updateContestMutation.isPending}
-            error={createContestMutation.error || updateContestMutation.error}
-          />
-
-          <ContestEntriesDialog
-            key={`${targetContest?.id ?? 'none'}-${submitFilmOpen ? 'open' : 'closed'}`}
-            open={submitFilmOpen}
-            onOpenChange={setSubmitFilmOpen}
-            contest={targetContest}
-          />
-        </>
+        <Suspense fallback={null}>
+          {isContestFormOpen && (
+            <CreateContestModal
+              open={isContestFormOpen}
+              onOpenChange={setIsContestFormOpen}
+              contest={selectedContest}
+              onSubmit={handleContestFormSubmit}
+              isLoading={createContestMutation.isPending || updateContestMutation.isPending}
+              error={createContestMutation.error || updateContestMutation.error}
+            />
+          )}
+          {submitFilmOpen && (
+            <ContestEntriesDialog
+              key={`${targetContest?.id ?? 'none'}-${submitFilmOpen ? 'open' : 'closed'}`}
+              open={submitFilmOpen}
+              onOpenChange={setSubmitFilmOpen}
+              contest={targetContest}
+            />
+          )}
+        </Suspense>
       )}
-      </>}
     </div>
   );
 }

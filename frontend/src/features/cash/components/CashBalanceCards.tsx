@@ -1,5 +1,3 @@
-// src/features/cash/components/CashBalanceCards.tsx
-// Summary cards for cash balance, total inbound, total outbound, and total student debt
 
 import { Wallet, ArrowDownRight, ArrowUpRight, AlertCircle } from 'lucide-react';
 import { Card, CardContent } from '@/shared/ui/primitives/card';
@@ -9,15 +7,15 @@ import type { CashSummary } from '../types/cash.types';
 
 interface CashBalanceCardsProps {
   summary?: CashSummary;
-  isStudent?: boolean;
+  isStudent: boolean;
   isLoading?: boolean;
   error?: unknown;
-  onRetry?: () => void;
+  onRetry: () => void;
 }
 
 export function CashBalanceCards({
   summary,
-  isStudent = false,
+  isStudent,
   isLoading = false,
   error,
   onRetry,
@@ -27,7 +25,7 @@ export function CashBalanceCards({
   }
 
   if (error) {
-    return <CashSectionError error={error} onRetry={onRetry ?? (() => undefined)} title="Saldo kas belum tersedia" />;
+    return <CashSectionError error={error} onRetry={onRetry} title="Saldo kas belum tersedia" />;
   }
 
   const saldo = summary?.saldoUtama ?? 0;

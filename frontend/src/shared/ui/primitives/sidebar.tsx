@@ -258,6 +258,11 @@ function SidebarTrigger({
 }: React.ComponentProps<typeof Button>) {
   const { toggleSidebar } = useSidebar()
 
+  const handleTriggerClick: NonNullable<React.ComponentProps<typeof Button>['onClick']> = (event) => {
+    onClick?.(event)
+    toggleSidebar()
+  }
+
   return (
     <Button
       data-sidebar="trigger"
@@ -265,10 +270,7 @@ function SidebarTrigger({
       variant="ghost"
       size="icon-sm"
       className={cn(className)}
-      onClick={(event) => {
-        onClick?.(event)
-        toggleSidebar()
-      }}
+      onClick={handleTriggerClick}
       {...props}
     >
       <PanelLeftIcon />

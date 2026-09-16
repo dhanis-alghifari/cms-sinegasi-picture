@@ -1,5 +1,3 @@
-// src/features/users/components/UserFormDialog.tsx
-// Dialog form for adding or editing user accounts
 
 import { useEffect, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
@@ -98,7 +96,7 @@ export function UserFormDialog({
   const handleSubmit = form.handleSubmit(async (data) => {
     setFormError(null);
     if (!isEditing && (!data.password || data.password.trim().length < 8)) {
-      setFormError('Password akun operasional wajib diisi minimal 8 karakter.');
+      setFormError('Kata sandi akun operasional wajib diisi minimal 8 karakter.');
       return;
     }
     if (isEditing && (!data.change_reason || data.change_reason.trim().length < 5)) {
@@ -110,13 +108,19 @@ export function UserFormDialog({
       handleDialogOpenChange(false);
     } catch (err: unknown) {
       if (err instanceof ApiError && err.errorCode === 'DUPLICATE_USERNAME') {
-        form.setError('username', { type: 'server', message: 'Username ini sudah digunakan pengguna lain.' });
-        setFormError('Username tidak tersedia. Gunakan username lain.');
+        form.setError('username', { type: 'server', message: 'Nama pengguna ini sudah digunakan akun lain.' });
+        setFormError('Nama pengguna tidak tersedia. Gunakan nama pengguna lain.');
         return;
       }
       setFormError(getErrorMessage(err) || 'Terjadi kesalahan saat menyimpan data pengguna');
     }
   });
+
+  const handleRoleValueChange = (value: string | null) => {
+    if (value === null) return;
+    if (!isOneOf(value, USER_ROLE_VALUES)) return;
+    form.setValue('role', value);
+  };
 
   return (
     <Dialog open={open} onOpenChange={handleDialogOpenChange}>
@@ -132,16 +136,16 @@ export function UserFormDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4 pt-2">
+        <form noValidate onSubmit={handleSubmit} className="space-y-4 pt-2">
           {(formError || Boolean(error)) && (
             <div role="alert" className="px-3.5 py-2.5 rounded-md bg-semantic-danger/10 border border-semantic-danger/30 text-semantic-danger text-xs font-medium">
               {formError || getErrorMessage(error)}
             </div>
           )}
 
-          {/* Username */}
+          {/* Nama pengguna */}
           <div className="space-y-1">
-            <Label htmlFor="username" className="text-ink-muted text-xs">Username *</Label>
+            <Label htmlFor="username" className="text-ink-muted text-xs">Nama Pengguna *</Label>
             <Input
               id="username"
               placeholder="cth. budi_kamera"
@@ -178,12 +182,10 @@ export function UserFormDialog({
 
           {/* Role */}
           <div className="space-y-1">
-            <Label className="text-ink-muted text-xs">Peran (Role Akses) *</Label>
+            <Label className="text-ink-muted text-xs">Peran Akses *</Label>
             <Select
               value={selectedRole}
-              onValueChange={(val) => {
-                if (isOneOf(val, USER_ROLE_VALUES)) form.setValue('role', val);
-              }}
+              onValueChange={handleRoleValueChange}
             >
               <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs">
                 <SelectValue placeholder="Pilih Role" />
@@ -206,10 +208,10 @@ export function UserFormDialog({
             )}
           </div>
 
-          {/* Initial Password (only for creation) */}
+          {/* Kata sandi awal (hanya saat membuat akun) */}
           {!isEditing && (
             <div className="space-y-1">
-              <Label htmlFor="password" className="text-ink-muted text-xs">Password Bawaan *</Label>
+              <Label htmlFor="password" className="text-ink-muted text-xs">Kata Sandi Bawaan *</Label>
               <Input
                 id="password"
                 type="password"

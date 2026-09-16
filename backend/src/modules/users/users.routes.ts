@@ -15,6 +15,7 @@ import {
 } from '../../shared/http/schemas/users.schema.js';
 import { sendServiceError } from '../../shared/http/sendServiceError.js';
 import { getAuditRequestContext } from '../../middleware/auditMiddleware.js';
+import { mapRequestFields } from '../../shared/http/request-field-mapping.js';
 import { UsersService } from './users.service.js';
 import type { UserCreateInput, UserUpdateInput } from './users.types.js';
 
@@ -81,7 +82,8 @@ const usersRoutes: FastifyPluginAsync<UsersRoutesOptions> = async (fastify, opti
   fastify.post('/api/users', { schema: userCreateRouteSchema, preHandler: [authenticate, requireCapability('users.manage')] }, async (request, reply) => {
     try {
       const actorId = await actorIdFor(request);
-      const result = await options.usersService.create(requestBody(request) as unknown as UserCreateInput, actorId);
+      const body = mapRequestFields(requestBody(request), { name: 'nama' });
+      const result = await options.usersService.create(body as unknown as UserCreateInput, actorId);
       await options.persistAuditLog(request, {
         action: 'INSERT', tableName: 'users', recordId: result.data.id,
         newValues: result.data as unknown as Record<string, unknown>,
@@ -95,7 +97,7 @@ const usersRoutes: FastifyPluginAsync<UsersRoutesOptions> = async (fastify, opti
 
   fastify.put('/api/users/:id', { schema: userUpdateRouteSchema, preHandler: [authenticate, requireCapability('users.manage')] }, async (request, reply) => {
     try {
-      const body = requestBody(request);
+      const body = mapRequestFields(requestBody(request), { name: 'nama' });
       const result = await options.usersService.update(
         (request.params as { id: string }).id,
         body as unknown as UserUpdateInput,

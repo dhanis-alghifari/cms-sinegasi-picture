@@ -35,6 +35,7 @@ export async function registerCatalogRoutes(
   });
   await fastify.register(equipmentRoutes, {
     equipmentService: dependencies.equipmentService,
+    equipmentRecoveryService: dependencies.equipmentRecoveryService,
     persistAuditLog: dependencies.persistAuditLog,
   });
   await fastify.register(gradesRoutes, {

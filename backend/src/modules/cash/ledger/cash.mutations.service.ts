@@ -12,8 +12,23 @@ export class CashMutationsServiceError extends Error {
 
 function mapRepositoryError(error: CashRepositoryError, fallback: string): never {
   if (isMissingCashSchemaError(error)) throw new CashMutationsServiceError(503, 'CASH_SCHEMA_UNAVAILABLE', CASH_SCHEMA_MIGRATION_MESSAGE);
-  const statusCode = ['INVALID_PAYMENT_METHOD', 'STUDENT_NOT_FOUND', 'FUTURE_DEBT'].includes(error?.code || '') ? 422 : error?.code === 'INSUFFICIENT_BALANCE' ? 400 : error?.code === 'EMPTY_RESULT' ? 500 : 400;
-  throw new CashMutationsServiceError(statusCode, error?.code || 'CASH_MUTATION_FAILED', error?.message || fallback);
+  const code = error?.code || 'CASH_MUTATION_FAILED';
+  let statusCode = 500;
+  if (['INVALID_PAYMENT_METHOD', 'STUDENT_NOT_FOUND', 'FUTURE_DEBT'].includes(code)) statusCode = 422;
+  else if (code === 'INSUFFICIENT_BALANCE') statusCode = 400;
+  else if (code === '23505' || code === 'DUPLICATE') statusCode = 409;
+  throw new CashMutationsServiceError(statusCode, code, statusCode >= 500 ? fallback : error?.message || fallback);
+}
+
+function resolveIdempotencyKey(
+  requestKey: unknown,
+  inputKey: unknown,
+  prefix: string,
+  actorId: string,
+): string {
+  if (typeof requestKey === 'string' && requestKey.trim()) return requestKey.trim();
+  if (typeof inputKey === 'string' && inputKey.trim()) return inputKey.trim();
+  return `${prefix}-${actorId}-${crypto.randomUUID()}`;
 }
 
 export class CashMutationsService {
@@ -29,7 +44,7 @@ export class CashMutationsService {
     const type = input.type || (input.student_id ? 'iuran_wajib' : 'pemasukan');
     const tanggal = input.tanggal === undefined ? getBusinessTodayDate() : input.tanggal;
     const studentId = typeof input.student_id === 'string' && input.student_id.trim() ? input.student_id.trim() : null;
-    const paymentMethodCode = input.metode_pembayaran == null || (typeof input.metode_pembayaran === 'string' && input.metode_pembayaran.trim() === '')
+    const paymentMethodCode = (input.metode_pembayaran === null || input.metode_pembayaran === undefined) || (typeof input.metode_pembayaran === 'string' && input.metode_pembayaran.trim() === '')
       ? null
       : normalizePaymentMethodCode(input.metode_pembayaran);
     if (typeof input.foto_bukti_url === 'string' && input.foto_bukti_url.length > MAX_CASH_PROOF_URL_LENGTH) {
@@ -42,11 +57,7 @@ export class CashMutationsService {
     if (nominal > 0 && !paymentMethodCode) throw new CashMutationsServiceError(422, 'PAYMENT_METHOD_REQUIRED', 'Metode pembayaran wajib dipilih.');
     if (nominal === 0 && paymentMethodCode) throw new CashMutationsServiceError(422, 'PAYMENT_METHOD_NOT_ALLOWED', 'Metode pembayaran dikosongkan jika iuran belum dibayar.');
     if (type === 'iuran_wajib' && !studentId) throw new CashMutationsServiceError(422, 'STUDENT_REQUIRED', 'Siswa wajib dipilih untuk pembayaran iuran.');
-    const idempotencyKey = typeof requestIdempotencyKey === 'string' && requestIdempotencyKey.trim()
-      ? requestIdempotencyKey.trim()
-      : typeof input.idempotency_key === 'string' && input.idempotency_key.trim()
-        ? input.idempotency_key.trim()
-        : `ci-${actorId}-${crypto.randomUUID()}`;
+    const idempotencyKey = resolveIdempotencyKey(requestIdempotencyKey, input.idempotency_key, 'ci', actorId);
     const result = await this.repository.recordCashIn({
       studentId, nominal, keterangan, type: type as 'iuran_wajib' | 'pemasukan', tanggal,
       fotoBuktiUrl: typeof input.foto_bukti_url === 'string' ? input.foto_bukti_url : undefined,
@@ -65,11 +76,7 @@ export class CashMutationsService {
     }
     if (!Number.isFinite(nominal) || nominal <= 0 || !keterangan) throw new CashMutationsServiceError(422, 'INVALID_INPUT', 'nominal dan keterangan wajib diisi.');
     if (!paymentMethodCode) throw new CashMutationsServiceError(422, 'INVALID_PAYMENT_METHOD', 'Metode pembayaran tidak valid.');
-    const idempotencyKey = typeof requestIdempotencyKey === 'string' && requestIdempotencyKey.trim()
-      ? requestIdempotencyKey.trim()
-      : typeof input.idempotency_key === 'string' && input.idempotency_key.trim()
-        ? input.idempotency_key.trim()
-        : `co-${actorId}-${crypto.randomUUID()}`;
+    const idempotencyKey = resolveIdempotencyKey(requestIdempotencyKey, input.idempotency_key, 'co', actorId);
     const result = await this.repository.recordCashOut({
       nominal, keterangan, paymentMethodCode, actorId, idempotencyKey, changeReason,
       fotoBuktiUrl: typeof input.foto_bukti_url === 'string' ? input.foto_bukti_url : undefined,

@@ -15,6 +15,7 @@ build/
 .vscode/
 
 # Local AI/tooling metadata
+.agents/
 .claude/
 .codegraph/
 .codex/

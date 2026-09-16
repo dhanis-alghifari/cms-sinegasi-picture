@@ -9,19 +9,20 @@ import type {
 } from './overdue.types.js';
 
 test('overdue service orchestrates notifications, audit, and bounded logs', async () => {
+  const now = Date.now();
   const borrowing: OverdueBorrowing = {
     id: 'bor-1',
     studentId: 'student-1',
     studentName: 'Siswa Satu',
     studentUserId: 'user-student-1',
     namaAlat: 'Kamera',
-    dueAt: '2026-08-01T00:00:00.000Z',
+    dueAt: new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString(),
     status: 'borrowed',
   };
   const futureBorrowing: OverdueBorrowing = {
     ...borrowing,
     id: 'bor-2',
-    dueAt: '2026-08-20T00:00:00.000Z',
+    dueAt: new Date(now + 7 * 24 * 60 * 60 * 1000).toISOString(),
   };
   const notifications: string[] = [];
   let auditRecords = 0;

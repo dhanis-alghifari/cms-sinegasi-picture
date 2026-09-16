@@ -1,4 +1,3 @@
-// First-login password page. Route protection is provided by FirstLoginRoute.
 
 import { AuthLayout } from '@/app/layouts/AuthLayout';
 import { PasswordChangeForm } from '../components/PasswordChangeForm';

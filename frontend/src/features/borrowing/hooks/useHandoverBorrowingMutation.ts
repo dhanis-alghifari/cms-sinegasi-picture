@@ -1,4 +1,3 @@
-// src/features/borrowing/hooks/useHandoverBorrowingMutation.ts
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { QUERY_KEYS } from '@/shared/constants/queryKeys';

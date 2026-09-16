@@ -1,5 +1,3 @@
-// src/features/cash/components/DebtRecordsTable.tsx
-// Table for student debt records (Auto-Debt Management)
 
 import {
   Table,
@@ -21,12 +19,12 @@ import type { MouseEvent } from 'react';
 
 interface DebtRecordsTableProps {
   debts: DebtRecord[];
-  isStudent?: boolean;
+  isStudent: boolean;
   onDispute?: (debt: DebtRecord) => void;
   disputeQuota?: CashDisputeQuota;
 }
 
-export function DebtRecordsTable({ debts, isStudent = false, onDispute, disputeQuota }: DebtRecordsTableProps) {
+export function DebtRecordsTable({ debts, isStudent, onDispute, disputeQuota }: DebtRecordsTableProps) {
   if (debts.length === 0) {
     return (
       <EmptyState

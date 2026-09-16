@@ -3,7 +3,7 @@ export const borrowingListRouteSchema = {
     type: 'object',
     additionalProperties: false,
     properties: {
-      status: { type: 'string', enum: ['menunggu_persetujuan', 'disetujui', 'ditolak', 'dipinjam', 'dikembalikan', 'terlambat'] },
+      status: { type: 'string', enum: ['pending_approval', 'approved', 'rejected', 'borrowed', 'returned', 'overdue'] },
       borrower_id: { type: 'string', maxLength: 64 },
       search: { type: 'string', maxLength: 100 },
       page: { type: 'string', pattern: '^[0-9]+$' },
@@ -38,11 +38,11 @@ export const borrowingCreateRouteSchema = {
       student_id: { type: 'string', minLength: 1, maxLength: 128 },
       borrower_id: { type: 'string', minLength: 1, maxLength: 128 },
       equipment_ids: { type: 'array', minItems: 1, maxItems: 50, items: { type: 'string', minLength: 1, maxLength: 128 } },
-      tanggal_pinjam: { type: 'string', minLength: 10, maxLength: 10 },
-      rencana_kembali: { type: 'string', minLength: 10, maxLength: 10 },
+      borrow_date: { type: 'string', minLength: 10, maxLength: 10 },
+      planned_return_date: { type: 'string', minLength: 10, maxLength: 10 },
       due_at: { type: 'string', minLength: 10, maxLength: 30 },
-      keperluan: { type: 'string', maxLength: 500 },
-      keterangan: { type: 'string', maxLength: 500 },
+      purpose: { type: 'string', maxLength: 500 },
+      notes: { type: 'string', maxLength: 500 },
       idempotency_key: { type: 'string', minLength: 8, maxLength: 128 },
     },
   },
@@ -57,8 +57,8 @@ export const borrowingApproveRejectRouteSchema = {
     properties: {
       action: { type: 'string', enum: ['approve', 'reject'] },
       borrowing_id: { type: 'string', minLength: 1, maxLength: 128 },
-      catatan: { type: 'string', maxLength: 500 },
-      alasan: { type: 'string', maxLength: 500 },
+      notes: { type: 'string', maxLength: 500 },
+      reason: { type: 'string', maxLength: 500 },
       change_reason: { type: 'string', maxLength: 500 },
     },
   },
@@ -69,6 +69,26 @@ export const borrowingHandoverRouteSchema = {
   body: { type: 'object', additionalProperties: false, properties: {} },
 } as const;
 
+const returnConditionValues = ['good', 'minor_damage', 'damaged', 'severely_damaged', 'lost'] as const;
+const returnItemProperties = {
+  equipment_id: { type: 'string', minLength: 1, maxLength: 128 },
+  condition: { type: 'string', enum: returnConditionValues },
+  notes: { type: 'string', maxLength: 500 },
+  settlement_method: { type: 'string', enum: ['none', 'repair', 'replacement'] },
+  repair_cost: { type: 'number', exclusiveMinimum: 0, maximum: 9999999999.99 },
+  evidence_ids: {
+    type: 'array', maxItems: 5, uniqueItems: true,
+    items: { type: 'string', minLength: 36, maxLength: 36 },
+  },
+} as const;
+
+const returnItemSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['equipment_id', 'condition'],
+  properties: returnItemProperties,
+} as const;
+
 export const borrowingReturnRouteSchema = {
   params: borrowingIdParam,
   body: {
@@ -76,23 +96,75 @@ export const borrowingReturnRouteSchema = {
     additionalProperties: false,
     required: ['item_conditions'],
     properties: {
-      tanggal_dikembalikan: { type: 'string', minLength: 10, maxLength: 10 },
+      return_date: { type: 'string', minLength: 10, maxLength: 10 },
       item_conditions: {
         type: 'array', minItems: 1, maxItems: 50,
         items: {
-          type: 'object', additionalProperties: false,
-          required: ['equipment_id', 'kondisi_kembali'],
-          properties: {
-            equipment_id: { type: 'string', minLength: 1, maxLength: 128 },
-            kondisi_kembali: { type: 'string', enum: ['bagus', 'sedikit_kerusakan', 'rusak', 'rusak_besar', 'sedang_diperbaiki', 'hilang'] },
-            catatan: { type: 'string', maxLength: 500 },
-            denda: { type: 'number', minimum: 0, maximum: 9999999999.99 },
-          },
+          ...returnItemSchema,
+          allOf: [
+            {
+              if: { properties: { condition: { enum: ['good', 'minor_damage', 'damaged', 'severely_damaged'] } }, required: ['condition'] },
+              then: { required: ['evidence_ids'], properties: { evidence_ids: { type: 'array', minItems: 2 } } },
+            },
+          ],
         },
       },
-      catatan_pengembalian: { type: 'string', maxLength: 500 },
-      total_denda: { type: 'number', minimum: 0, maximum: 9999999999.99 },
+      return_notes: { type: 'string', maxLength: 500 },
       change_reason: { type: 'string', maxLength: 500 },
     },
+  },
+} as const;
+
+const returnAssessmentItemSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['equipment_id', 'condition'],
+  properties: {
+    equipment_id: returnItemProperties.equipment_id,
+    condition: returnItemProperties.condition,
+    notes: returnItemProperties.notes,
+    settlement_method: returnItemProperties.settlement_method,
+    repair_cost: returnItemProperties.repair_cost,
+  },
+} as const;
+
+export const borrowingReturnAssessmentRouteSchema = {
+  params: borrowingIdParam,
+  body: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['item_conditions'],
+    properties: {
+      return_date: { type: 'string', minLength: 10, maxLength: 10 },
+      item_conditions: { type: 'array', minItems: 1, maxItems: 50, items: returnAssessmentItemSchema },
+    },
+  },
+} as const;
+
+export const borrowingReturnEvidenceUploadRouteSchema = {
+  params: borrowingIdParam,
+  body: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['equipment_id', 'file_name', 'content_type', 'file_size_bytes'],
+    properties: {
+      equipment_id: { type: 'string', minLength: 1, maxLength: 128 },
+      file_name: { type: 'string', minLength: 1, maxLength: 255 },
+      content_type: { type: 'string', enum: ['image/jpeg', 'image/png', 'image/webp'] },
+      file_size_bytes: { type: 'integer', minimum: 1, maximum: 614400 },
+    },
+  },
+} as const;
+
+export const borrowingReturnEvidenceListRouteSchema = {
+  params: borrowingIdParam,
+} as const;
+
+export const borrowingReturnEvidenceAccessRouteSchema = {
+  params: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['evidence_id'],
+    properties: { evidence_id: { type: 'string', minLength: 36, maxLength: 36 } },
   },
 } as const;

@@ -14,6 +14,7 @@ test('borrowing mutation routes preserve the response envelope and pass authenti
       approveReject: async () => ({ id: 'bor-1', status: 'disetujui' }),
       handover: async () => ({ id: 'bor-1', status: 'dipinjam' }),
       returnBorrowing: async () => ({ id: 'bor-1', status: 'dikembalikan' }),
+      listReturnEvidence: async () => [{ evidence_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', access_url: 'https://download.example.test/signed', expires_in_seconds: 900 }],
     } as any,
   });
   t.after(() => app.close());
@@ -25,4 +26,11 @@ test('borrowing mutation routes preserve the response envelope and pass authenti
   });
   assert.equal(accepted.statusCode, 200);
   assert.deepEqual(accepted.json(), { success: true, data: { id: 'bor-1', status: 'disetujui' } });
+
+  const evidence = await app.inject({
+    method: 'GET', url: '/api/borrowing/bor-1/return-evidence',
+    headers: { authorization: `Bearer ${teacher}` },
+  });
+  assert.equal(evidence.statusCode, 200);
+  assert.equal(evidence.json().data[0].access_url, 'https://download.example.test/signed');
 });

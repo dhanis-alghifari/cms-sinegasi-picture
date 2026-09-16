@@ -35,6 +35,7 @@ test('cash reporting validates report ranges and billing changes', async () => {
   });
   const service = new CashReportingService(repository);
   await assert.rejects(() => service.getReport({ start_date: '2026-01-01', end_date: '2026-04-01' }), (error: unknown) => error instanceof CashReportingServiceError && error.statusCode === 422);
+  await assert.rejects(() => service.listDebts({ student_id: 'not-a-uuid' }, { studentId: null }), (error: unknown) => error instanceof CashReportingServiceError && error.errorCode === 'INVALID_STUDENT_ID');
   await assert.rejects(() => service.updateBillingRules({ nominal_iuran_wajib: 100 }, 'teacher-1', 'ubah'), (error: unknown) => error instanceof CashReportingServiceError && error.statusCode === 422);
   const result = await service.updateBillingRules({ nominal_iuran_wajib: 6000 }, 'teacher-1', 'Perubahan nominal');
   assert.equal(result?.nominal_iuran_wajib, 6000);

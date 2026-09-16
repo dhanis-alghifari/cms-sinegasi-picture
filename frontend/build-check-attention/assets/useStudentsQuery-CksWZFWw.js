@@ -1,0 +1,1 @@
+import{n as e,t}from"./queryKeys-DxvJZc8s.js";import{t as n}from"./students.service-B73KyOvI.js";function r(r,i=!0){return e({queryKey:[...t.STUDENTS,r],queryFn:()=>n.getStudents(r),enabled:i})}export{r as t};

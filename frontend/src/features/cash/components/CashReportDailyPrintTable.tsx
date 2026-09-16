@@ -10,12 +10,19 @@ import { formatCurrency } from '@/shared/utils/formatCurrency';
 import { formatDateShort } from '@/shared/utils/formatDate';
 
 import type { CashReportDailyPoint } from '../types/cash.types';
+import { getActiveCashReportDays } from '../utils/cashReportRows';
 
 interface CashReportDailyPrintTableProps {
   rows: CashReportDailyPoint[];
 }
 
 export function CashReportDailyPrintTable({ rows }: CashReportDailyPrintTableProps) {
+  const activeRows = getActiveCashReportDays(rows);
+
+  if (activeRows.length === 0) {
+    return <p className="py-8 text-center text-xs text-ink-tertiary">Belum ada aktivitas pada periode ini.</p>;
+  }
+
   return (
     <Table>
       <TableHeader>
@@ -27,7 +34,7 @@ export function CashReportDailyPrintTable({ rows }: CashReportDailyPrintTablePro
         </TableRow>
       </TableHeader>
       <TableBody>
-        {rows.map((item) => (
+        {activeRows.map((item) => (
           <TableRow key={item.date}>
             <TableCell>{formatDateShort(item.date)}</TableCell>
             <TableCell className="text-right">{formatCurrency(item.income)}</TableCell>
