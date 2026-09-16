@@ -13,6 +13,18 @@ jobs:
   deploy-backend-dev:
     runs-on: ubuntu-latest
     steps:
+      - name: Verify Secret Format
+        run: |
+          echo "VPS_HOST set: $([ -n "$VPS_HOST" ] && echo 'YES' || echo 'NO')"
+          echo "VPS_USER set: $([ -n "$VPS_USER" ] && echo 'YES' || echo 'NO')"
+          echo "VPS_SSH_KEY length: ${#VPS_KEY}"
+          echo "VPS_SSH_KEY lines: $(echo "$VPS_KEY" | wc -l)"
+          echo "VPS_SSH_KEY header: $(echo "$VPS_KEY" | head -n 1)"
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_KEY: ${{ secrets.VPS_SSH_KEY }}
+
       - name: Deploy to VPS (Development)
         uses: appleboy/ssh-action@v1.2.0
         with:
