@@ -101,9 +101,23 @@ export async function verifyPassword(password: unknown, storedHash: unknown): Pr
 
 export function createTemporaryPassword(prefix = 'Siswa'): string {
   if (runtimeConfig.environment !== 'production') {
-    return runtimeConfig.studentDefaultPassword;
+    let candidate = (runtimeConfig.studentDefaultPassword || 'siswa123').trim();
+    if (!/[A-Za-z]/.test(candidate)) {
+      candidate = `Siswa${candidate}`;
+    }
+    if (!/\d/.test(candidate)) {
+      candidate = `${candidate}123`;
+    }
+    if (candidate.length < PASSWORD_MIN_LENGTH) {
+      candidate = candidate.padEnd(PASSWORD_MIN_LENGTH, '0');
+    }
+    if (candidate.length > PASSWORD_MAX_LENGTH) {
+      candidate = candidate.slice(0, PASSWORD_MAX_LENGTH);
+    }
+    return candidate;
   }
-  return `${prefix}-${crypto.randomBytes(12).toString('base64url')}`;
+  const digits = crypto.randomInt(100000, 1000000).toString();
+  return `${prefix}-${digits}-${crypto.randomBytes(8).toString('base64url')}`;
 }
 
 /** Administrative resets must never use the shared development password. */

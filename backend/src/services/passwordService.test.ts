@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { assertPasswordPolicy, hashPassword, verifyPassword } from './passwordService.js';
+import {
+  assertPasswordPolicy,
+  createSecureTemporaryPassword,
+  createTemporaryPassword,
+  hashPassword,
+  verifyPassword,
+} from './passwordService.js';
 
 test('hashPassword creates a non-plaintext scrypt hash', async () => {
   const password = 'Siswa123!';
@@ -21,4 +27,12 @@ test('password policy rejects weak credentials', () => {
   assert.throws(() => assertPasswordPolicy('short'), /8-128/);
   assert.throws(() => assertPasswordPolicy('abcdefgh'), /huruf dan satu angka/);
   assert.doesNotThrow(() => assertPasswordPolicy('strong-pass-123'));
+});
+
+test('createTemporaryPassword and createSecureTemporaryPassword always satisfy policy', () => {
+  const temp = createTemporaryPassword();
+  assert.doesNotThrow(() => assertPasswordPolicy(temp));
+
+  const secureTemp = createSecureTemporaryPassword();
+  assert.doesNotThrow(() => assertPasswordPolicy(secureTemp));
 });
