@@ -19,7 +19,7 @@ jobs:
           if echo "$VPS_SSH_KEY" | grep -q "BEGIN"; then
             printf "%s\n" "$VPS_SSH_KEY" | tr -d '\r' > ~/.ssh/id_deploy
           else
-            echo "$VPS_SSH_KEY" | base64 -d > ~/.ssh/id_deploy
+            echo "$VPS_SSH_KEY" | tr -d ' \r\n' | base64 -d > ~/.ssh/id_deploy
           fi
           # Ensure trailing newline required by OpenSSH libcrypto
           echo "" >> ~/.ssh/id_deploy
