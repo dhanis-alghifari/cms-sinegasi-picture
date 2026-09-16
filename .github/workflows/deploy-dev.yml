@@ -16,7 +16,13 @@ jobs:
       - name: Deploy to VPS (Development)
         run: |
           mkdir -p ~/.ssh
-          printf "%s\n" "$VPS_SSH_KEY" > ~/.ssh/id_deploy
+          if echo "$VPS_SSH_KEY" | grep -q "BEGIN"; then
+            printf "%s\n" "$VPS_SSH_KEY" | tr -d '\r' > ~/.ssh/id_deploy
+          else
+            echo "$VPS_SSH_KEY" | base64 -d > ~/.ssh/id_deploy
+          fi
+          # Ensure trailing newline required by OpenSSH libcrypto
+          echo "" >> ~/.ssh/id_deploy
           chmod 600 ~/.ssh/id_deploy
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_deploy -p 22 "$VPS_USER@$VPS_HOST" << 'EOF'
             set -e
