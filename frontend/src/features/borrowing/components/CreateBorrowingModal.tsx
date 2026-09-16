@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { PackagePlus, Loader2, Check, Search, X } from 'lucide-react';
@@ -14,7 +14,7 @@ import {
 import { Button } from '@/shared/ui/primitives/button';
 import { Input } from '@/shared/ui/primitives/input';
 import { Label } from '@/shared/ui/primitives/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/primitives/select';
+import { SearchableCombobox } from '@/shared/ui/SearchableCombobox';
 import { cn } from '@/shared/utils/cn';
 import { getErrorMessage } from '@/shared/api/errors';
 import { formatNumber } from '@/shared/utils/formatNumber';
@@ -87,6 +87,14 @@ export function CreateBorrowingModal({
   const { onRetryStudents, onRetryEquipment } = actions;
   const [selectedEquipmentIds, setSelectedEquipmentIds] = useState<string[]>([]);
   const [equipmentSearch, setEquipmentSearch] = useState('');
+  const searchableStudentOptions = useMemo(
+    () => students.map((student) => ({
+      id: student.id,
+      label: student.nama,
+      secondaryLabel: student.kelas,
+    })),
+    [students],
+  );
 
   const availableEquipment = equipmentList
     .filter((e) => e.status === 'tersedia' && e.reservation_status !== 'dipesan')
@@ -107,7 +115,10 @@ export function CreateBorrowingModal({
   });
 
   const selectedBorrowerId = useWatch({ control: form.control, name: 'borrower_id' });
-  const selectedBorrower = students.find((student) => student.id === selectedBorrowerId);
+  const selectedBorrowerOption = useMemo(
+    () => searchableStudentOptions.find((student) => student.id === selectedBorrowerId) ?? null,
+    [searchableStudentOptions, selectedBorrowerId],
+  );
   const chargesQuery = useEquipmentChargesQuery(selectedBorrowerId, open);
   const outstandingCharge = (chargesQuery.data || []).reduce((total, charge) => total + Math.max(0, charge.amount - charge.paid_amount), 0);
 
@@ -214,23 +225,20 @@ export function CreateBorrowingModal({
           <div className="grid grid-cols-1 gap-3 shrink-0 sm:grid-cols-2">
             <div className="space-y-1">
               <Label className="text-ink-muted text-xs">Pilih Peminjam (Siswa) *</Label>
-              <Select
+              <SearchableCombobox
+                options={searchableStudentOptions}
                 value={selectedBorrowerId}
+                selectedOption={selectedBorrowerOption}
                 onValueChange={handleBorrowerValueChange}
-              >
-                <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs">
-                  <SelectValue placeholder="Pilih Siswa">
-                    {selectedBorrower ? `${selectedBorrower.nama} (${selectedBorrower.kelas})` : undefined}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent className="bg-surface-3 border-hairline text-ink">
-                  {students.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.nama} ({s.kelas})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                isLoading={Boolean(studentsLoading)}
+                disabled={Boolean(studentsLoading || studentsError)}
+                errorMessage={form.formState.errors.borrower_id?.message}
+                ariaLabel="Cari dan pilih peminjam siswa"
+                triggerLabel="Buka daftar peminjam"
+                placeholder="Cari nama atau kelas..."
+                emptyMessage="Siswa aktif tidak ditemukan."
+                loadingMessage="Memuat daftar siswa..."
+              />
               {form.formState.errors.borrower_id && (
                 <p className="text-semantic-danger text-[10px]">{form.formState.errors.borrower_id.message}</p>
               )}

@@ -31,6 +31,18 @@ export const USER_ROLE_VALUES = [
 
 export type UserRole = typeof USER_ROLE_VALUES[number];
 
+export const STUDENT_ROLE_VALUES = [
+  'leader',
+  'vice_leader',
+  'treasurer',
+  'secretary',
+  'equipment_team',
+  'contest_team',
+  'member',
+] as const;
+
+export type StudentRole = typeof STUDENT_ROLE_VALUES[number];
+
 export interface ApiError {
   message: string;
   statusCode: number;

@@ -9,6 +9,7 @@ import {
 } from './students.helpers.js';
 import type {
   StudentAccountOperationResult,
+  StudentAccountRole,
   StudentCreateInput,
   StudentListQuery,
   StudentOptionsQuery,
@@ -16,6 +17,7 @@ import type {
   StudentRepository,
   StudentUpdateInput,
 } from './students.types.js';
+import { STUDENT_ACCOUNT_ROLE_VALUES } from './students.types.js';
 
 export class StudentServiceError extends Error {
   constructor(public readonly statusCode: number, public readonly errorCode: string, message: string) {
@@ -58,13 +60,21 @@ function normalizePhotoUrl(value: unknown): string | undefined {
   return normalized;
 }
 
+function normalizeStudentAccountRole(value: unknown): StudentAccountRole {
+  const role = value === undefined ? 'member' : text(value, 'Peran akun siswa', 1, 32);
+  if (!STUDENT_ACCOUNT_ROLE_VALUES.includes(role as StudentAccountRole)) {
+    throw new StudentServiceError(422, 'INVALID_ACCOUNT_ROLE', 'Peran akun siswa tidak valid.');
+  }
+  return role as StudentAccountRole;
+}
+
 function mapRepositoryError(error: unknown, fallbackStatus = 500, fallbackMessage = 'Operasi data siswa gagal.'): StudentServiceError {
   const candidate = error as { code?: string } | null | undefined;
   if (candidate?.code === '23505') return new StudentServiceError(409, 'STUDENT_CONFLICT', safeStudentErrorMessage(error, 'NIS siswa atau username akun tersebut sudah digunakan.'));
   if (candidate?.code === 'P0002' || candidate?.code === 'STUDENT_NOT_FOUND') return new StudentNotFoundError();
   if (candidate?.code === 'DATABASE_REQUIRED') return new StudentServiceError(503, 'DATABASE_REQUIRED', 'Provisioning akun siswa membutuhkan koneksi database.');
   if (candidate?.code === 'EMPTY_RESULT') return new StudentServiceError(500, 'EMPTY_RESULT', 'Server gagal membaca hasil operasi siswa.');
-  if (isMissingStudentsSchemaError(error)) return new StudentServiceError(503, 'STUDENTS_SCHEMA_UNAVAILABLE', 'Skema siswa atau fungsi provisioning belum tersedia. Jalankan migration 019_student_account_provisioning.sql.');
+  if (isMissingStudentsSchemaError(error)) return new StudentServiceError(503, 'STUDENTS_SCHEMA_UNAVAILABLE', 'Skema siswa atau fungsi provisioning belum tersedia. Jalankan migration 019_student_account_provisioning.sql dan 067_allow_student_committee_roles.sql.');
   return new StudentServiceError(fallbackStatus, 'STUDENT_OPERATION_FAILED', safeStudentErrorMessage(error, fallbackMessage));
 }
 
@@ -121,11 +131,12 @@ export class StudentService {
     const peminatan = normalizePeminatan(input.peminatan);
     const noTelepon = optionalText(input.no_telepon, 'Nomor telepon', 40);
     const fotoUrl = normalizePhotoUrl(input.foto_url);
+    const role = normalizeStudentAccountRole(input.role);
     if (this.repositoryIsConfigured() && !actorId) throw new StudentServiceError(503, 'DATABASE_IDENTITY_UNAVAILABLE', 'Akun login belum terhubung ke users.id database yang valid.');
     const temporaryPassword = createTemporaryPassword();
     const result = await fullRepository(this.repository).createWithAccount({
       nis, nama, kelas, peminatan, no_telepon: noTelepon, foto_url: fotoUrl,
-      username: normalizeStudentUsername(nis), passwordHash: await hashPassword(temporaryPassword), actorId,
+      username: normalizeStudentUsername(nis), passwordHash: await hashPassword(temporaryPassword), actorId, role,
     });
     if ('error' in result) throw mapRepositoryError(result.error, 400, 'Gagal menyimpan siswa dan membuat akun.');
     return { data: result.data, temporaryPassword };

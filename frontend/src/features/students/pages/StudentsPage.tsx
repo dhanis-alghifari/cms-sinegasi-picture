@@ -147,7 +147,7 @@ export function StudentsPage() {
   };
 
   const handleFormSubmit = async (values: StudentFormValues) => {
-    const payload = {
+    const profilePayload = {
       nis: values.nis,
       nama: values.nama,
       kelas: values.kelas,
@@ -159,12 +159,12 @@ export function StudentsPage() {
     if (selectedStudent) {
       await updateMutation.mutateAsync({
         id: selectedStudent.id,
-        payload,
+        payload: profilePayload,
         changeReason: values.change_reason ?? '',
       });
     } else {
       const result = await createMutation.mutateAsync({
-        payload,
+        payload: { ...profilePayload, role: values.role ?? 'member' },
       });
       setCredentials(result.account);
       setCredentialsStudentName(values.nama);
@@ -278,7 +278,7 @@ export function StudentsPage() {
               }}
               content={{
                 title: 'Buat Akun Anggota Siswa',
-                description: `Buat akun login otomatis untuk ${provisionTargetStudent.nama}? Username akan dibuat dari NIS dan role menjadi Anggota.`,
+                description: `Buat akun login otomatis untuk ${provisionTargetStudent.nama}? Username akan dibuat dari NIS dan role awal menjadi Anggota.`,
               }}
               action={{ confirmLabel: 'Buat Akun', onConfirm: handleProvisionSubmit }}
               reason={{ label: 'Alasan Pembuatan Akun *', placeholder: 'Contoh: Melengkapi akun siswa lama' }}

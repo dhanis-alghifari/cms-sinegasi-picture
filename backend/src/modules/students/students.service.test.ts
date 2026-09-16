@@ -35,6 +35,12 @@ test('student service validates account creation, search pagination, and lifecyc
   const created = await service.create({ nis: '20260010', nama: 'Sinta', kelas: 'X TB 1', peminatan: 'editing' }, 'secretary-1');
   assert.equal(created.data.student.nama, 'Sinta');
   assert.equal(created.data.account.role, 'member');
+  const leader = await service.create({ nis: '20260011', nama: 'Raka', kelas: 'X TB 1', role: 'leader' }, 'secretary-1');
+  assert.equal(leader.data.account.role, 'leader');
+  await assert.rejects(
+    service.create({ nis: '20260012', nama: 'Tono', kelas: 'X TB 1', role: 'teacher' }, 'secretary-1'),
+    (error: unknown) => (error as { errorCode?: string }).errorCode === 'INVALID_ACCOUNT_ROLE',
+  );
   await assert.rejects(
     service.create({ nis: '20260010', nama: 'Sinta Lain', kelas: 'X TB 2' }, 'secretary-1'),
     (error: unknown) => (error as { statusCode?: number }).statusCode === 409,

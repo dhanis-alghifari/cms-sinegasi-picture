@@ -82,12 +82,14 @@ export function StudentFormDialog({
       peminatan: undefined,
       no_telepon: '',
       foto_url: '',
+      role: 'member',
       change_reason: '',
     },
   });
 
   const selectedKelas = useWatch({ control: form.control, name: 'kelas' });
   const selectedPeminatan = useWatch({ control: form.control, name: 'peminatan' });
+  const selectedRole = useWatch({ control: form.control, name: 'role' });
   const watchedFotoUrl = useWatch({ control: form.control, name: 'foto_url' });
 
   // Reset form when dialog target student changes
@@ -100,6 +102,7 @@ export function StudentFormDialog({
         peminatan: student.peminatan,
         no_telepon: student.no_telepon ?? '',
         foto_url: student.foto_url ?? '',
+        role: 'member',
         change_reason: 'Penyesuaian data siswa',
       });
     } else {
@@ -110,6 +113,7 @@ export function StudentFormDialog({
         peminatan: undefined,
         no_telepon: '',
         foto_url: '',
+        role: 'member',
         change_reason: '',
       });
     }
@@ -203,7 +207,7 @@ export function StudentFormDialog({
           <DialogDescription className="text-ink-subtle text-xs">
             {isEditing
               ? 'Perbarui informasi identitas siswa atau peminatan crew.'
-              : 'Isi formulir untuk mendaftarkan siswa. Sistem otomatis membuat akun Anggota dengan username dari NIS.'}
+              : 'Isi formulir untuk mendaftarkan siswa. Akun dibuat dengan username dari NIS dan peran yang dipilih.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -216,7 +220,7 @@ export function StudentFormDialog({
 
           <StudentFormFields
             form={form}
-            state={{ isEditing, selectedKelas, selectedPeminatan, activePreview }}
+            state={{ isEditing, selectedKelas, selectedPeminatan, selectedRole, activePreview }}
             classes={{
               options: classOptions,
               isLoading: classOptionsLoading,

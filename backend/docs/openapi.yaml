@@ -339,7 +339,7 @@ paths:
         '503': { description: Users schema or database identity is unavailable }
     put:
       summary: Update a user account
-      description: Username, role, name, and active status changes require an auditable reason. Username is the mutable login identifier; stable feature relationships continue to use users.id. Linked student accounts keep member role and student-owned name/status invariants. The backend commits the update and one redacted audit event through update_user_account_atomic; an effective no-op is safe to retry.
+      description: Username, role, name, and active status changes require an auditable reason. Username is the mutable login identifier; stable feature relationships continue to use users.id. Linked student accounts may use committee roles, but cannot use the Teacher role; student-owned name/status invariants remain enforced. The backend commits the update and one redacted audit event through update_user_account_atomic; an effective no-op is safe to retry.
       parameters:
         - $ref: '#/components/parameters/UserId'
         - $ref: '#/components/parameters/ChangeReason'
@@ -1818,7 +1818,7 @@ components:
         reason: { type: string, maxLength: 2000 }
     UserAccount:
       type: object
-      required: [id, username, nama, role, is_first_login, is_active, created_at]
+      required: [id, username, nama, role, is_first_login, is_active, is_linked_student, created_at]
       properties:
         id: { type: string, format: uuid }
         username: { type: string, minLength: 3, maxLength: 30 }
@@ -1826,6 +1826,8 @@ components:
         role: { type: string, enum: [teacher, leader, vice_leader, treasurer, secretary, equipment_team, contest_team, member] }
         is_first_login: { type: boolean }
         is_active: { type: boolean }
+        is_linked_student: { type: boolean, description: True when the account is linked to a student profile }
+        student_id: { type: string, nullable: true, format: uuid }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, nullable: true, format: date-time }
         created_by: { type: string, nullable: true, format: uuid }
@@ -1985,6 +1987,10 @@ components:
         peminatan: { type: string, enum: [kamera, editing, naskah] }
         no_telepon: { type: string, maxLength: 40 }
         foto_url: { type: string, maxLength: 2000000 }
+        role:
+          type: string
+          enum: [leader, vice_leader, treasurer, secretary, equipment_team, contest_team, member]
+          description: Peran akun siswa. Teacher hanya dapat dipakai akun yang tidak terhubung ke siswa.
         change_reason: { type: string, maxLength: 500 }
     StudentUpdateRequest:
       type: object

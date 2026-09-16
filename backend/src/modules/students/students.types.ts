@@ -3,6 +3,17 @@ import type { ActorSummary } from '../../shared/actors/actors.types.js';
 export const STUDENT_PEMINATAN_VALUES = ['kamera', 'editing', 'naskah'] as const;
 export type StudentPeminatan = typeof STUDENT_PEMINATAN_VALUES[number];
 
+export const STUDENT_ACCOUNT_ROLE_VALUES = [
+  'leader',
+  'vice_leader',
+  'treasurer',
+  'secretary',
+  'equipment_team',
+  'contest_team',
+  'member',
+] as const;
+export type StudentAccountRole = typeof STUDENT_ACCOUNT_ROLE_VALUES[number];
+
 export type StudentRecord = {
   id: string;
   user_id?: string;
@@ -59,6 +70,7 @@ export type StudentCreateInput = {
   peminatan?: string;
   no_telepon?: string;
   foto_url?: string;
+  role?: StudentAccountRole | string;
 };
 
 export type StudentUpdateInput = {

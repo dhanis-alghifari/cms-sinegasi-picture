@@ -159,20 +159,21 @@ export function ClassesPage() {
       />
 
       {/* Filter & Search Bar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-        <div className="relative flex-1">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-tertiary" />
+      <div className="mb-4 flex flex-col gap-2.5 lg:flex-row lg:items-center">
+        <div className="relative min-w-0 flex-1">
+          <Search size={16} aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-tertiary" />
           <Input
             type="text"
+            aria-label="Cari kelas"
             placeholder="Cari nama kelas (misal: TKJ 1, AK 5)..."
             value={search}
             onChange={(e) => handleSearchChange(e.target.value)}
-            className="bg-surface-1 pl-9 text-xs text-ink placeholder:text-ink-tertiary"
+            className="h-9 w-full min-w-0 bg-surface-1 pl-9 text-xs text-ink placeholder:text-ink-tertiary"
           />
         </div>
 
         <Select value={tingkatFilter} onValueChange={handleTingkatFilterChange}>
-          <SelectTrigger className="w-full bg-surface-1 text-xs text-ink sm:w-40">
+          <SelectTrigger aria-label="Filter tingkat kelas" className="h-9 w-full bg-surface-1 text-xs text-ink lg:w-40">
             <SelectValue placeholder="Tingkat" />
           </SelectTrigger>
           <SelectContent className="bg-surface-3 border-hairline text-ink">

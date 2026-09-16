@@ -132,7 +132,7 @@ const studentRoutes: FastifyPluginAsync<StudentRoutesOptions> = async (fastify, 
     try {
       const body = studentInput(bodyOf(request));
       const result = await options.studentsService.create(body as unknown as StudentCreateInput, await actorIdFor(request));
-      const reason = reasonFrom(request, body, 'Menambahkan siswa dan membuat akun anggota');
+      const reason = reasonFrom(request, body, 'Menambahkan siswa dan membuat akun sesuai peran');
       await options.persistAuditLog(request, {
         action: 'INSERT', tableName: 'students', recordId: result.data.student.id,
         newValues: result.data.student as unknown as Record<string, unknown>, changeReason: reason,

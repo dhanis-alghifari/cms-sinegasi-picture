@@ -1,5 +1,5 @@
 
-import type { ChangeEvent, RefObject } from 'react';
+import { useMemo, type ChangeEvent, type RefObject } from 'react';
 import { Image as ImageIcon, Upload, X } from 'lucide-react';
 import type { UseFormReturn } from 'react-hook-form';
 
@@ -8,9 +8,12 @@ import { Input } from '@/shared/ui/primitives/input';
 import { Label } from '@/shared/ui/primitives/label';
 import { RadioGroup } from '@/shared/ui/primitives/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/primitives/select';
+import { SearchableCombobox } from '@/shared/ui/SearchableCombobox';
 import { cn } from '@/shared/utils/cn';
 
 import type { ClassSelectorOption } from '@/features/classes/types/classes.types';
+import { formatRoleLabel } from '@/shared/utils/formatLabels';
+import { STUDENT_ROLE_VALUES, type StudentRole } from '@/shared/types/common';
 import type { StudentFormValues } from '../schemas/studentSchema';
 import { PEMINATAN_VALUES, type Peminatan } from '../types/students.types';
 import { isOneOf } from '@/shared/utils/isOneOf';
@@ -21,6 +24,7 @@ interface StudentFormFieldsProps {
     isEditing: boolean;
     selectedKelas?: string;
     selectedPeminatan?: Peminatan;
+    selectedRole?: StudentRole;
     activePreview: string | null;
   };
   classes: {
@@ -42,7 +46,7 @@ export function StudentFormFields({
   classes,
   image,
 }: StudentFormFieldsProps) {
-  const { isEditing, selectedKelas, selectedPeminatan, activePreview } = state;
+  const { isEditing, selectedKelas, selectedPeminatan, selectedRole, activePreview } = state;
   const {
     options: classOptions,
     isLoading: classOptionsLoading,
@@ -50,24 +54,40 @@ export function StudentFormFields({
     onRetry: onRetryLoadClasses,
   } = classes;
   const { fileInputRef, onFileChange, onRemove: onRemoveImage } = image;
-  const handleClassValueChange = (value: string | null) => {
-    if (!value) return;
-    form.setValue('kelas', value, { shouldValidate: true });
+  const searchableClassOptions = useMemo(
+    () => classOptions.map((option) => ({
+      id: option.id,
+      label: option.nama_kelas,
+      secondaryLabel: `Tingkat ${option.tingkat}`,
+    })),
+    [classOptions],
+  );
+  const selectedClassOption = useMemo(
+    () => searchableClassOptions.find((option) => option.label === selectedKelas) ?? null,
+    [searchableClassOptions, selectedKelas],
+  );
+  const handleClassValueChange = (value: string) => {
+    const selectedClass = classOptions.find((option) => option.id === value);
+    if (!selectedClass) return;
+    form.setValue('kelas', selectedClass.nama_kelas, { shouldValidate: true });
   };
   const handleSpecializationChange = (value: string) => {
     form.setValue('peminatan', isOneOf(value, PEMINATAN_VALUES) ? value : undefined);
+  };
+  const handleRoleChange = (value: string | null) => {
+    if (value && isOneOf(value, STUDENT_ROLE_VALUES)) form.setValue('role', value, { shouldValidate: true });
   };
   return (
     <>
           {/* NIS & Nama */}
           <div className="grid grid-cols-1 gap-3">
-            <div className="space-y-1 col-span-1">
+            <div className="min-w-0 space-y-1">
               <Label htmlFor="nis" className="text-ink-muted text-xs">NIS *</Label>
               <Input
                 id="nis"
                 placeholder="2026xxxx"
                 disabled={isEditing}
-                className={cn('bg-surface-2 border-hairline text-ink text-xs font-mono', form.formState.errors.nis && 'border-semantic-danger')}
+                className={cn('w-full min-w-0 bg-surface-2 border-hairline text-ink text-xs font-mono', form.formState.errors.nis && 'border-semantic-danger')}
                 {...form.register('nis')}
               />
               {form.formState.errors.nis && (
@@ -75,12 +95,12 @@ export function StudentFormFields({
               )}
             </div>
 
-            <div className="space-y-1 col-span-2">
+            <div className="min-w-0 space-y-1">
               <Label htmlFor="nama" className="text-ink-muted text-xs">Nama Lengkap *</Label>
               <Input
                 id="nama"
                 placeholder="Nama lengkap siswa"
-                className={cn('bg-surface-2 border-hairline text-ink text-xs', form.formState.errors.nama && 'border-semantic-danger')}
+                className={cn('w-full min-w-0 bg-surface-2 border-hairline text-ink text-xs', form.formState.errors.nama && 'border-semantic-danger')}
                 {...form.register('nama')}
               />
               {form.formState.errors.nama && (
@@ -93,27 +113,20 @@ export function StudentFormFields({
           <div className="grid grid-cols-1 gap-3">
             <div className="space-y-1">
               <Label className="text-ink-muted text-xs">Kelas *</Label>
-              <Select
-                value={selectedKelas || ''}
-                disabled={classOptionsLoading || Boolean(classOptionsError)}
+              <SearchableCombobox
+                options={searchableClassOptions}
+                value={selectedClassOption?.id}
+                selectedOption={selectedClassOption}
                 onValueChange={handleClassValueChange}
-              >
-                <SelectTrigger
-                  className={cn(
-                    'w-full bg-surface-2 border-hairline text-ink text-xs',
-                    form.formState.errors.kelas && 'border-semantic-danger'
-                  )}
-                >
-                  <SelectValue placeholder="Pilih Kelas Siswa" />
-                </SelectTrigger>
-                <SelectContent className="bg-surface-3 border-hairline text-ink max-h-56 overflow-y-auto">
-                  {classOptions.map((item) => (
-                    <SelectItem key={item.id} value={item.nama_kelas}>
-                      {item.nama_kelas}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                isLoading={classOptionsLoading}
+                disabled={classOptionsLoading || Boolean(classOptionsError)}
+                errorMessage={form.formState.errors.kelas?.message}
+                ariaLabel="Cari dan pilih kelas siswa"
+                triggerLabel="Buka daftar kelas"
+                placeholder="Cari atau pilih kelas..."
+                emptyMessage="Kelas tidak ditemukan."
+                loadingMessage="Memuat pilihan kelas..."
+              />
               {form.formState.errors.kelas && (
                 <p className="text-semantic-danger text-[10px]">{form.formState.errors.kelas.message}</p>
               )}
@@ -149,6 +162,26 @@ export function StudentFormFields({
                 onValueChange={handleSpecializationChange}
               />
             </div>
+
+            {!isEditing && (
+              <div className="space-y-1">
+                <Label className="text-ink-muted text-xs">Peran Akun Siswa *</Label>
+                <Select value={selectedRole ?? 'member'} onValueChange={handleRoleChange}>
+                  <SelectTrigger className="w-full bg-surface-2 border-hairline text-ink text-xs">
+                    <SelectValue placeholder="Pilih peran akun siswa" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-surface-3 border-hairline text-ink">
+                    {STUDENT_ROLE_VALUES.map((role) => (
+                      <SelectItem key={role} value={role}>{formatRoleLabel(role)}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-ink-tertiary text-[10px]">Peran mengatur hak akses akun; siswa tidak dapat diberi peran Guru.</p>
+                {form.formState.errors.role && (
+                  <p className="text-semantic-danger text-[10px]">{form.formState.errors.role.message}</p>
+                )}
+              </div>
+            )}
 
             <div className="space-y-1">
               <Label htmlFor="no_telepon" className="text-ink-muted text-xs">No. Telepon / WA</Label>

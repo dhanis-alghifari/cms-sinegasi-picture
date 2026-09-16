@@ -18,7 +18,7 @@ import { Label } from '@/shared/ui/primitives/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/primitives/select';
 import { cn } from '@/shared/utils/cn';
 import { ApiError, getErrorMessage } from '@/shared/api/errors';
-import { USER_ROLE_VALUES } from '@/shared/types/common';
+import { type UserRole } from '@/shared/types/common';
 import { isOneOf } from '@/shared/utils/isOneOf';
 
 import { userSchema, type UserFormValues } from '../schemas/userSchema';
@@ -33,6 +33,20 @@ interface UserFormDialogProps {
   error?: unknown;
 }
 
+const ROLE_OPTIONS: ReadonlyArray<{ value: UserRole; label: string }> = [
+  { value: 'teacher', label: 'Teacher (Guru Pembina)' },
+  { value: 'leader', label: 'Leader (Ketua)' },
+  { value: 'vice_leader', label: 'Vice Leader (Wakil Ketua)' },
+  { value: 'treasurer', label: 'Treasurer (Bendahara)' },
+  { value: 'secretary', label: 'Secretary (Sekretaris)' },
+  { value: 'equipment_team', label: 'Equipment Team' },
+  { value: 'contest_team', label: 'Contest Team' },
+  { value: 'member', label: 'Member (Siswa)' },
+];
+
+const STUDENT_ROLE_OPTIONS = ROLE_OPTIONS.filter(({ value }) => value !== 'teacher');
+const OPERATIONAL_ROLE_OPTIONS = ROLE_OPTIONS.filter(({ value }) => value !== 'member');
+
 export function UserFormDialog({
   open,
   onOpenChange,
@@ -42,6 +56,8 @@ export function UserFormDialog({
   error,
 }: UserFormDialogProps) {
   const isEditing = Boolean(userAccount);
+  const isLinkedStudent = Boolean(userAccount?.is_linked_student);
+  const roleOptions = isEditing && isLinkedStudent ? STUDENT_ROLE_OPTIONS : OPERATIONAL_ROLE_OPTIONS;
 
   const form = useForm<UserFormValues>({
     resolver: zodResolver(userSchema),
@@ -118,7 +134,7 @@ export function UserFormDialog({
 
   const handleRoleValueChange = (value: string | null) => {
     if (value === null) return;
-    if (!isOneOf(value, USER_ROLE_VALUES)) return;
+    if (!isOneOf(value, roleOptions.map(({ value: role }) => role))) return;
     form.setValue('role', value);
   };
 
@@ -172,17 +188,21 @@ export function UserFormDialog({
             <Input
               id="nama"
               placeholder="Masukkan nama lengkap"
+              readOnly={isLinkedStudent}
               className={cn('bg-surface-2 border-hairline text-ink text-xs', form.formState.errors.nama && 'border-semantic-danger')}
               {...form.register('nama')}
             />
             {form.formState.errors.nama && (
               <p className="text-semantic-danger text-[10px]">{form.formState.errors.nama.message}</p>
             )}
+            {isLinkedStudent && !form.formState.errors.nama && (
+              <p className="text-ink-tertiary text-[10px]">Nama akun mengikuti data siswa. Ubah dari halaman Data Siswa.</p>
+            )}
           </div>
 
           {/* Role */}
           <div className="space-y-1">
-            <Label className="text-ink-muted text-xs">Peran Akses *</Label>
+            <Label className="text-ink-muted text-xs">{isLinkedStudent ? 'Peran Siswa' : 'Peran Akses'} *</Label>
             <Select
               value={selectedRole}
               onValueChange={handleRoleValueChange}
@@ -190,21 +210,15 @@ export function UserFormDialog({
               <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs">
                 <SelectValue placeholder="Pilih Role" />
               </SelectTrigger>
-            <SelectContent className="bg-surface-3 border-hairline text-ink">
-                <SelectItem value="teacher">Teacher (Guru Pembina)</SelectItem>
-                <SelectItem value="leader">Leader (Ketua)</SelectItem>
-                <SelectItem value="vice_leader">Vice Leader (Wakil Ketua)</SelectItem>
-                <SelectItem value="treasurer">Treasurer (Bendahara)</SelectItem>
-                <SelectItem value="secretary">Secretary (Sekretaris)</SelectItem>
-                <SelectItem value="equipment_team">Equipment Team</SelectItem>
-                <SelectItem value="contest_team">Contest Team</SelectItem>
-                {isEditing && userAccount?.role === 'member' && (
-                  <SelectItem value="member">Member (Siswa)</SelectItem>
-                )}
+              <SelectContent className="bg-surface-3 border-hairline text-ink">
+                {roleOptions.map(({ value, label }) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
               </SelectContent>
             </Select>
             {form.formState.errors.role && (
               <p className="text-semantic-danger text-[10px]">{form.formState.errors.role.message}</p>
+            )}
+            {isLinkedStudent && !form.formState.errors.role && (
+              <p className="text-ink-tertiary text-[10px]">Role kepengurusan dapat diberikan kepada akun siswa. Teacher hanya untuk akun guru.</p>
             )}
           </div>
 

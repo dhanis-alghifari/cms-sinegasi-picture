@@ -1,5 +1,6 @@
 
 import { z } from 'zod';
+import { STUDENT_ROLE_VALUES } from '@/shared/types/common';
 import { PEMINATAN_VALUES } from '../types/students.types';
 
 export const studentSchema = z.object({
@@ -16,6 +17,7 @@ export const studentSchema = z.object({
     )
     .optional()
     .or(z.literal('')),
+  role: z.enum(STUDENT_ROLE_VALUES).optional(),
   change_reason: z.string().optional(),
 });
 

@@ -24,13 +24,17 @@ test('users service creates operational accounts with hashed-password adapter st
   );
 });
 
-test('users service enforces linked-student invariants before update/delete', async () => {
+test('users service allows committee roles for linked students and protects teacher role', async () => {
   const { service: usersService, state } = service();
   const created = await usersService.create({ username: 'linked_user', nama: 'Siswa Tertaut', role: 'teacher', password: 'Strong123' }, 'teacher-1');
   state.linkedStudents.push({ id: created.data.id, nama: created.data.nama, is_active: false });
 
+  const promoted = await usersService.update(created.data.id, { role: 'leader' }, 'teacher-1', 'Tetapkan Ketua');
+  assert.equal(promoted.data.role, 'leader');
+  assert.equal(promoted.data.is_linked_student, true);
+
   await assert.rejects(
-    usersService.update(created.data.id, { role: 'leader' }, 'teacher-1', 'Perubahan role'),
+    usersService.update(created.data.id, { role: 'teacher' }, 'teacher-1', 'Ubah role akun'),
     (error: unknown) => error instanceof UsersServiceError && error.errorCode === 'LINKED_STUDENT_ROLE',
   );
   await assert.rejects(

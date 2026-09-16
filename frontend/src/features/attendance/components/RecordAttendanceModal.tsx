@@ -17,6 +17,7 @@ import { Button } from '@/shared/ui/primitives/button';
 import { Input } from '@/shared/ui/primitives/input';
 import { Label } from '@/shared/ui/primitives/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/primitives/select';
+import { SearchableCombobox } from '@/shared/ui/SearchableCombobox';
 import { cn } from '@/shared/utils/cn';
 import { isOneOf } from '@/shared/utils/isOneOf';
 import { getErrorMessage } from '@/shared/api/errors';
@@ -89,6 +90,17 @@ export function RecordAttendanceModal({
       return true;
     });
   }, [classes]);
+  const searchableClassChoices = useMemo(
+    () => classChoices.map((choice) => ({
+      id: choice.value,
+      label: choice.label,
+    })),
+    [classChoices],
+  );
+  const selectedClassOption = useMemo(
+    () => searchableClassChoices.find((choice) => choice.id === selectedKelas) ?? null,
+    [searchableClassChoices, selectedKelas],
+  );
 
   useEffect(() => {
     if (previousTanggal.current !== undefined && previousTanggal.current !== selectedTanggal) {
@@ -252,14 +264,19 @@ export function RecordAttendanceModal({
               </div>
               <div className="space-y-1">
                 <Label className="text-ink-muted text-xs">Pilih Kelas *</Label>
-                <Select value={selectedKelas} onValueChange={handleSelectedClassValueChange}>
-                  <SelectTrigger className="bg-surface-2 text-xs text-ink">
-                    <SelectValue placeholder="Pilih Kelas" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-surface-3 text-ink">
-                    {classChoices.map((choice) => <SelectItem key={choice.value} value={choice.value}>{choice.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <SearchableCombobox
+                  options={searchableClassChoices}
+                  value={selectedKelas}
+                  selectedOption={selectedClassOption}
+                  onValueChange={handleSelectedClassValueChange}
+                  disabled={Boolean(classOptionsError)}
+                  errorMessage={classOptionsError ? getErrorMessage(classOptionsError) : undefined}
+                  ariaLabel="Cari dan pilih kelas absensi"
+                  triggerLabel="Buka daftar kelas absensi"
+                  placeholder="Cari atau pilih kelas..."
+                  emptyMessage="Kelas tidak ditemukan."
+                  loadingMessage="Memuat pilihan kelas..."
+                />
               </div>
             </div>
 

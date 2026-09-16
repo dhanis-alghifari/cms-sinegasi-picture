@@ -15,6 +15,8 @@ const userSchema: z.ZodType<UserAccount> = z.object({
   updated_at: optionalTextSchema,
   created_by: optionalTextSchema,
   updated_by: optionalTextSchema,
+  is_linked_student: z.boolean().default(false),
+  student_id: z.string().nullable().optional(),
   created_actor: actorSummarySchema.optional(),
   updated_actor: actorSummarySchema.optional(),
 }).loose();

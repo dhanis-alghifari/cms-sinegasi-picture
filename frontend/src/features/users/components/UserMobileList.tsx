@@ -44,14 +44,17 @@ export function UserMobileList({ users, onEdit, onResetPassword, onToggleActive,
                     <DropdownMenuItem onClick={() => onToggleActive(user)} className="min-h-11 cursor-pointer text-sm">
                       {user.is_active ? <><UserX size={16} className="mr-2 text-semantic-warning" aria-hidden="true" />Nonaktifkan akun</> : <><UserCheck size={16} className="mr-2 text-semantic-success" aria-hidden="true" />Aktifkan kembali</>}
                     </DropdownMenuItem>
-                    {user.role !== 'member' && <DropdownMenuItem onClick={() => onDelete(user)} className="min-h-11 cursor-pointer text-sm text-semantic-danger focus:text-semantic-danger"><Trash2 size={16} className="mr-2" aria-hidden="true" />Hapus akun operasional</DropdownMenuItem>}
+                    {!user.is_linked_student && user.role !== 'member' && <DropdownMenuItem onClick={() => onDelete(user)} className="min-h-11 cursor-pointer text-sm text-semantic-danger focus:text-semantic-danger"><Trash2 size={16} className="mr-2" aria-hidden="true" />Hapus akun operasional</DropdownMenuItem>}
                   </DropdownMenuContent>
                 </DropdownMenu>
               )}
             </div>
           </div>
           <div className="mt-3 flex items-center justify-between gap-2 rounded-lg bg-surface-2 p-3">
-            <span className="rounded-full border border-primary/20 bg-primary/10 px-2 py-1 text-xs font-medium text-primary">{formatRoleLabel(user.role)}</span>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="rounded-full border border-primary/20 bg-primary/10 px-2 py-1 text-xs font-medium text-primary">{formatRoleLabel(user.role)}</span>
+              {user.is_linked_student && <span className="text-[10px] text-ink-subtle">Akun siswa</span>}
+            </div>
             <div className="flex items-center gap-2">
               <span className="text-[10px] text-ink-tertiary">{user.is_first_login ? 'Wajib ganti password' : 'Password aktif'}</span>
               <StatusBadge label={user.is_active ? 'Aktif' : 'Nonaktif'} variant={user.is_active ? 'success' : 'danger'} />

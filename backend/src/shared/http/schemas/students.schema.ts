@@ -1,3 +1,5 @@
+import { STUDENT_ACCOUNT_ROLE_VALUES } from '../../../modules/students/students.types.js';
+
 const studentIdParams = {
   type: 'object',
   additionalProperties: false,
@@ -46,6 +48,7 @@ export const studentCreateRouteSchema = {
       specialization: { type: 'string', enum: specializations },
       phone_number: { type: 'string', maxLength: 40 },
       photo_url: { type: 'string', maxLength: 2_000_000 },
+      role: { type: 'string', enum: STUDENT_ACCOUNT_ROLE_VALUES },
       change_reason: { type: 'string', maxLength: 500 },
     },
   },

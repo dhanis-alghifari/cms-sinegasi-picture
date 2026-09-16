@@ -1,5 +1,5 @@
 
-import type { RefObject } from 'react';
+import { useMemo, type RefObject } from 'react';
 import type { UseFormReturn } from 'react-hook-form';
 import { Check, Plus, Search, X } from 'lucide-react';
 
@@ -7,6 +7,7 @@ import { Button } from '@/shared/ui/primitives/button';
 import { Input } from '@/shared/ui/primitives/input';
 import { Label } from '@/shared/ui/primitives/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/primitives/select';
+import { SearchableCombobox } from '@/shared/ui/SearchableCombobox';
 import { getErrorMessage } from '@/shared/api/errors';
 import { cn } from '@/shared/utils/cn';
 
@@ -70,7 +71,6 @@ export function BulkGradingFields({
   const {
     options: assignmentOptions,
     selectedId: selectedAssignmentId,
-    selected: selectedAssignment,
     formatLabel: formatAssignmentLabel,
   } = assignment;
   const {
@@ -94,6 +94,17 @@ export function BulkGradingFields({
     onKeteranganChange,
     onRemoveStudent,
   } = actions;
+  const searchableAssignmentOptions = useMemo(
+    () => assignmentOptions.map((option) => ({
+      id: option.id,
+      label: formatAssignmentLabel(option),
+    })),
+    [assignmentOptions, formatAssignmentLabel],
+  );
+  const selectedAssignmentOption = useMemo(
+    () => searchableAssignmentOptions.find((option) => option.id === selectedAssignmentId) ?? null,
+    [searchableAssignmentOptions, selectedAssignmentId],
+  );
 
   const handleGradeValueChange = (studentId: string, value: string | null) => {
     if (value === null) return;
@@ -111,23 +122,17 @@ export function BulkGradingFields({
           {/* Assignment Selector */}
           <div className="space-y-1 shrink-0">
             <Label className="text-ink-muted text-xs">Pilih Tugas / Kegiatan Penilaian *</Label>
-            <Select
+            <SearchableCombobox
+              options={searchableAssignmentOptions}
               value={selectedAssignmentId}
+              selectedOption={selectedAssignmentOption}
               onValueChange={onAssignmentChange}
-            >
-              <SelectTrigger className="w-full bg-surface-2 border-hairline text-ink text-xs">
-                <SelectValue placeholder="Pilih tugas...">
-                  {selectedAssignment ? formatAssignmentLabel(selectedAssignment) : undefined}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent className="bg-surface-3 border-hairline text-ink">
-                {assignmentOptions.map((a) => (
-                  <SelectItem key={a.id} value={a.id}>
-                    {formatAssignmentLabel(a)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              ariaLabel="Cari dan pilih tugas penilaian"
+              triggerLabel="Buka daftar tugas penilaian"
+              placeholder="Cari atau pilih tugas..."
+              emptyMessage="Tugas penilaian tidak ditemukan."
+              loadingMessage="Memuat daftar tugas..."
+            />
             {form.formState.errors.assignment_id && (
               <p className="text-semantic-danger text-[10px]">{form.formState.errors.assignment_id.message}</p>
             )}

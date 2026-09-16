@@ -75,7 +75,7 @@ export const studentsService = {
 
   createStudent(payload: CreateStudentPayload): Promise<StudentAccountResponse> {
     return apiClient.postParsed('/api/students', toStudentRequest(payload), decodeStudentAccountResponse, {
-      changeReason: payload.change_reason || 'Menambahkan siswa dan membuat akun anggota',
+      changeReason: payload.change_reason || 'Menambahkan siswa dan membuat akun sesuai peran',
     });
   },
 

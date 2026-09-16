@@ -1,4 +1,4 @@
-import type { ActorSummary } from '@/shared/types/common';
+import type { ActorSummary, StudentRole } from '@/shared/types/common';
 
 export const PEMINATAN_VALUES = ['kamera', 'editing', 'naskah'] as const;
 export type Peminatan = typeof PEMINATAN_VALUES[number];
@@ -61,6 +61,7 @@ export interface CreateStudentPayload {
   peminatan?: Peminatan;
   no_telepon?: string;
   foto_url?: string;
+  role?: StudentRole;
   change_reason?: string;
 }
 

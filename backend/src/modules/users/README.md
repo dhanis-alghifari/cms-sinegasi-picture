@@ -32,14 +32,18 @@ capability `users.manage`; username baru dipakai pada login berikutnya dan
 tidak mengubah relasi siswa, nilai, absensi, atau audit yang menggunakan UUID.
 
 Pada deployment Supabase, repository memanggil
-`public.update_user_account_atomic`—bukan `UPDATE users` langsung. RPC ini
-mengunci target, memvalidasi capability dan invariant akun-siswa, mengatur
+`public.update_user_account_atomic`, bukan `UPDATE users` langsung. RPC ini
+mengunci target, memvalidasi capability dan aturan akun-siswa, mengatur
 konteks audit trigger, lalu menulis satu event audit kanonik. Perubahan yang
 tidak menghasilkan state baru dikembalikan sebagai no-op tanpa audit duplikat.
 
+Siswa baru memakai `member` sebagai default dan dapat langsung diberi role
+`leader`, `vice_leader`, `treasurer`, `secretary`, `equipment_team`, atau
+`contest_team`. Role `teacher` hanya untuk akun yang tidak terhubung ke siswa.
+
 Error penting: `DUPLICATE_USERNAME` (409), `USER_LINKED_STUDENT_ROLE` atau
 `USER_LINKED_STUDENT_NAME` (422), `USER_INACTIVE_STUDENT` (409), dan
-`USERS_SCHEMA_UNAVAILABLE` (503 ketika migration 041 belum diterapkan).
+`USERS_SCHEMA_UNAVAILABLE` (503 ketika migration 041 atau 067 belum diterapkan).
 
 ## Error contract
 
@@ -50,6 +54,7 @@ message, request_id }`. Kode penting: `RESET_USER_NOT_FOUND` (404),
 
 Migration `040_admin_password_reset_atomic.sql` dan
 `041_user_account_update_atomic.sql` wajib diterapkan setelah migration 039
-sebelum endpoint production digunakan. Migration 040 memperbaiki audit trigger
+dan `067_allow_student_committee_roles.sql` setelahnya sebelum endpoint
+production digunakan. Migration 040 memperbaiki audit trigger
 untuk seluruh perubahan users baru; audit historis immutable yang terlanjur
 mengandung hash tidak ditulis ulang otomatis.

@@ -43,20 +43,21 @@ export function AssignmentFilter({
   };
 
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:flex xl:items-center">
-      <div className="relative flex-1">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-tertiary" />
+    <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center">
+      <div className="relative min-w-0 flex-1">
+        <Search size={16} aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-tertiary" />
         <Input
           type="text"
+          aria-label="Cari tugas"
           placeholder="Cari judul tugas..."
           value={search}
           onChange={(event) => onSearchChange(event.target.value)}
-          className="pl-9 bg-surface-1 border-hairline text-ink placeholder:text-ink-tertiary text-xs"
+          className="h-9 w-full min-w-0 bg-surface-1 pl-9 text-xs text-ink placeholder:text-ink-tertiary"
         />
       </div>
 
       <Select value={category} onValueChange={handleCategoryValueChange}>
-        <SelectTrigger className="w-full xl:w-44 bg-surface-1 border-hairline text-ink text-xs">
+        <SelectTrigger aria-label="Filter kategori tugas" className="h-9 w-full bg-surface-1 text-xs text-ink lg:w-44">
           <SelectValue placeholder="Kategori tugas" />
         </SelectTrigger>
         <SelectContent className="bg-surface-3 border-hairline text-ink">
@@ -69,7 +70,7 @@ export function AssignmentFilter({
       </Select>
 
       {!isOwn && <Select value={kelas} onValueChange={handleKelasValueChange}>
-        <SelectTrigger className="w-full xl:w-36 bg-surface-1 border-hairline text-ink text-xs">
+        <SelectTrigger aria-label="Filter kelas tugas" className="h-9 w-full bg-surface-1 text-xs text-ink lg:w-36">
           <SelectValue placeholder="Pilih kelas" />
         </SelectTrigger>
         <SelectContent className="bg-surface-3 border-hairline text-ink">
@@ -82,10 +83,11 @@ export function AssignmentFilter({
 
       {hasActiveFilters && (
         <Button
+          type="button"
           variant="ghost"
           size="sm"
           onClick={onReset}
-          className="text-ink-subtle hover:text-ink hover:bg-surface-2 text-xs h-9"
+          className="h-9 shrink-0 text-xs text-ink-subtle hover:bg-surface-2 hover:text-ink"
         >
           <X size={14} className="mr-1" />
           Reset

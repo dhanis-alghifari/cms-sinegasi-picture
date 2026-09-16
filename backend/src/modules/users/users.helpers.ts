@@ -41,7 +41,11 @@ export function isValidUsername(value: unknown): value is string {
   return typeof value === 'string' && /^[a-zA-Z0-9._-]{3,30}$/.test(value.trim());
 }
 
-export function mapUserRow(row: Record<string, unknown>): UserAccount {
+export function mapUserRow(row: Record<string, unknown>, linkedStudent?: LinkedStudent | null): UserAccount {
+  const studentId = linkedStudent?.student_id || (typeof row.student_id === 'string' ? row.student_id : null);
+  const isLinkedStudent = linkedStudent !== undefined
+    ? linkedStudent !== null
+    : row.is_linked_student === true || studentId !== null;
   return {
     id: String(row.id),
     username: String(row.username),
@@ -53,6 +57,8 @@ export function mapUserRow(row: Record<string, unknown>): UserAccount {
     ...(row.updated_at == null ? {} : { updated_at: String(row.updated_at) }),
     ...(row.created_by == null ? {} : { created_by: String(row.created_by) }),
     ...(row.updated_by == null ? {} : { updated_by: String(row.updated_by) }),
+    is_linked_student: isLinkedStudent,
+    student_id: studentId,
   };
 }
 

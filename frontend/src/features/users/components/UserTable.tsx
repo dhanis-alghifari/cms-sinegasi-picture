@@ -71,9 +71,12 @@ export function UserTable({
               <TableCell className="text-ink font-mono text-xs font-medium">@{user.username}</TableCell>
               <TableCell className="text-ink font-medium text-xs">{user.nama}</TableCell>
               <TableCell>
-                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
-                  {formatRoleLabel(user.role)}
-                </span>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                    {formatRoleLabel(user.role)}
+                  </span>
+                  {user.is_linked_student && <span className="text-[10px] text-ink-subtle">Akun siswa</span>}
+                </div>
               </TableCell>
               <TableCell>
                 {user.is_first_login ? (
@@ -126,7 +129,7 @@ export function UserTable({
                           </>
                         )}
                       </DropdownMenuItem>
-                      {user.role !== 'member' && (
+                      {!user.is_linked_student && user.role !== 'member' && (
                         <DropdownMenuItem onClick={() => onDelete(user)} className="text-xs cursor-pointer text-semantic-danger focus:text-semantic-danger">
                           <Trash2 size={14} className="mr-2" />
                           Hapus Akun Operasional

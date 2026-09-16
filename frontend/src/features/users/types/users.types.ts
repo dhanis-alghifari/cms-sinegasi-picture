@@ -12,6 +12,8 @@ export interface UserAccount {
   updated_at?: string;
   created_by?: string;
   updated_by?: string;
+  is_linked_student: boolean;
+  student_id?: string | null;
   created_actor?: ActorSummary;
   updated_actor?: ActorSummary;
 }

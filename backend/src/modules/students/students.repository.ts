@@ -130,12 +130,12 @@ export function createStudentRepository(client: SupabaseLike, state: StudentsMem
           ...(input.actorId ? { created_by: input.actorId, updated_by: input.actorId, updated_at: now } : {}),
         };
         state.students.unshift(student);
-        return { data: mapAccountOperation(student, { userId, username: input.username, role: 'member', isFirstLogin: true }) };
+        return { data: mapAccountOperation(student, { userId, username: input.username, role: input.role || 'member', isFirstLogin: true }) };
       }
       const { data: accountData, error } = await client.rpc('create_student_with_account_atomic', {
         p_nis: input.nis, p_nama: input.nama, p_kelas: input.kelas, p_peminatan: input.peminatan || null,
         p_no_telepon: input.no_telepon || null, p_foto_url: input.foto_url || null, p_username: input.username,
-        p_password_hash: input.passwordHash, p_created_by: input.actorId,
+        p_password_hash: input.passwordHash, p_created_by: input.actorId, p_role: input.role || 'member',
       });
       if (error) return { error };
       const account = accountResult(accountData, input.username);

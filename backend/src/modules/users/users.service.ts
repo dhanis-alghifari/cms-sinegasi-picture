@@ -72,7 +72,7 @@ function updateFailure(error: unknown): never {
     throw new UsersServiceError(
       503,
       'USERS_SCHEMA_UNAVAILABLE',
-      'Fitur pembaruan akun belum siap. Jalankan migration 041_user_account_update_atomic.sql di Supabase.',
+      'Fitur pembaruan akun belum siap. Jalankan migration 041_user_account_update_atomic.sql dan 067_allow_student_committee_roles.sql di Supabase.',
     );
   }
   const code = userUpdateErrorCode(error);
@@ -87,7 +87,7 @@ function updateFailure(error: unknown): never {
     USER_UPDATE_NAME_INVALID: { status: 422, message: 'Nama pengguna tidak valid.' },
     USER_UPDATE_ROLE_INVALID: { status: 422, message: 'Role pengguna tidak valid.' },
     USER_UPDATE_STATUS_INVALID: { status: 422, message: 'Status akun harus berupa boolean.' },
-    USER_LINKED_STUDENT_ROLE: { status: 422, message: 'Role akun siswa harus tetap Member. Ubah role melalui akun operasional.' },
+    USER_LINKED_STUDENT_ROLE: { status: 422, message: 'Akun siswa boleh memakai role kepengurusan, tetapi tidak boleh menjadi Teacher.' },
     USER_LINKED_STUDENT_NAME: { status: 422, message: 'Nama akun siswa mengikuti data siswa. Ubah nama melalui halaman Data Siswa.' },
     USER_INACTIVE_STUDENT: { status: 409, message: 'Aktifkan siswa sebagai siswa aktif terlebih dahulu sebelum mengaktifkan akunnya.' },
   };
@@ -151,8 +151,8 @@ export class UsersService {
     const current = await this.findById(userId);
     const linked = await this.repository.findLinkedStudent(userId);
     if ('error' in linked) serviceFailure(linked.error, 'Gagal memeriksa relasi siswa.');
-    if (linked.data && input.role !== undefined && input.role !== 'member') {
-      throw new UsersServiceError(422, 'LINKED_STUDENT_ROLE', 'Role akun siswa harus tetap Member. Ubah role hanya melalui akun operasional.');
+    if (linked.data && input.role === 'teacher') {
+      throw new UsersServiceError(422, 'LINKED_STUDENT_ROLE', 'Akun siswa boleh memakai role kepengurusan, tetapi tidak boleh menjadi Teacher.');
     }
     if (linked.data && input.nama !== undefined && input.nama.trim() !== current.nama) {
       throw new UsersServiceError(422, 'LINKED_STUDENT_NAME', 'Nama akun siswa mengikuti data siswa. Ubah nama melalui halaman Data Siswa.');
