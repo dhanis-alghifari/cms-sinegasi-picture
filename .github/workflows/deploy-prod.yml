@@ -4,8 +4,10 @@ on:
   push:
     branches: [main]
     paths:
-      - 'backend/**'
-      - 'docker-compose.prod.yml'
+      - "backend/**"
+      - "docker-compose.prod.yml"
+      - ".github/workflows/deploy-prod.yml"
+      - "scripts/verify-guardrails.mjs"
 
 jobs:
   # Step 1: Run quality checks before deploying
@@ -17,8 +19,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: 'npm'
+          cache: "npm"
           cache-dependency-path: backend/package-lock.json
+
+      - name: Verify Guardrails
+        run: node scripts/verify-guardrails.mjs
 
       - name: Install dependencies
         run: cd backend && npm ci
@@ -38,16 +43,27 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Deploy to VPS (Production)
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          script: |
+        run: |
+          mkdir -p ~/.ssh
+          if echo "$VPS_SSH_KEY" | grep -q "BEGIN"; then
+            printf "%s\n" "$VPS_SSH_KEY" | tr -d '\r' > ~/.ssh/id_deploy
+          else
+            echo "$VPS_SSH_KEY" | tr -d ' \r\n' | base64 -d > ~/.ssh/id_deploy
+          fi
+          echo "" >> ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_deploy -p 22 "$VPS_USER@$VPS_HOST" << 'EOF'
+            set -e
             cd /opt/sinegasi
             git fetch origin main
             git checkout main
             git pull origin main
-            docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
+            docker compose -f docker-compose.caddy.yml up -d
+            docker compose -f docker-compose.prod.yml up -d --build --force-recreate
             docker image prune -f
             echo "✅ Production backend deployed successfully"
+          EOF
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}

@@ -7,10 +7,22 @@ on:
       - 'backend/**'
       - 'docker-compose.dev.yml'
       - '.github/workflows/deploy-dev.yml'
+      - 'scripts/verify-guardrails.mjs'
   workflow_dispatch:
 
 jobs:
+  guardrail-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify Guardrails
+        run: node scripts/verify-guardrails.mjs
+
   deploy-backend-dev:
+    needs: guardrail-check
     runs-on: ubuntu-latest
     steps:
       - name: Deploy to VPS (Development)
