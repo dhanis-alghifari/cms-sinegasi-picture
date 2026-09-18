@@ -224,7 +224,7 @@ export function EquipmentPage() {
   })();
 
   return (
-    <div className="mx-auto max-w-7xl space-y-5 px-4 py-5 sm:space-y-6 sm:p-6">
+    <div className="space-y-5 px-4 py-5 sm:space-y-6 sm:p-6">
       <PageHeader
         title="Katalog & Inventaris Alat Sinematografi"
         subtitle="Kelola data kamera, lensa, audio, lighting, status ketersediaan, dan laporan maintenance fisik."

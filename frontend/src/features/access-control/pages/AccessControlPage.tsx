@@ -36,7 +36,7 @@ export function AccessControlPage() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl space-y-5 px-4 py-5 sm:p-6">
+    <div className="space-y-5 px-4 py-5 sm:p-6">
       <PageHeader title="Pengaturan Akses" subtitle="Atur modul yang tersedia untuk setiap role. Perubahan hanya dapat dilakukan guru dan tercatat sebagai audit." />
       <div className="grid gap-5 xl:grid-cols-2">
         {data.roles.map(({ role }) => {

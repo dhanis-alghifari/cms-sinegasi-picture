@@ -216,7 +216,7 @@ export function AttendancePage() {
   );
 
   return (
-    <div className="mx-auto max-w-7xl space-y-5 px-4 py-5 sm:space-y-6 sm:p-6">
+    <div className="space-y-5 px-4 py-5 sm:space-y-6 sm:p-6">
       <PageHeader
         title={isOwn ? 'Absensi Saya' : 'Absensi Siswa Sinematografi'}
         subtitle={isOwn ? 'Riwayat kehadiran pribadi Anda.' : 'Pencatatan harian kehadiran siswa, ringkasan metrics, dan koreksi otomatis kunci 48 jam.'}

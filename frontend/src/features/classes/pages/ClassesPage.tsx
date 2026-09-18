@@ -142,7 +142,7 @@ export function ClassesPage() {
   };
 
   return (
-    <div className="mx-auto max-w-7xl space-y-5 px-4 py-5 sm:space-y-6 sm:p-6">
+    <div className="space-y-5 px-4 py-5 sm:space-y-6 sm:p-6">
       <PageHeader
         title="Master Kelas"
         subtitle="Kelola daftar kelas terstruktur (TKJ, AK, TB, PH) untuk digunakan di data siswa & absensi."

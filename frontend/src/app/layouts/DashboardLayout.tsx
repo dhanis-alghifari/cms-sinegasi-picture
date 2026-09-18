@@ -60,7 +60,7 @@ export function DashboardLayout() {
   };
 
   return (
-    <div className="flex min-h-screen min-h-dvh overflow-hidden bg-canvas">
+    <div className="flex h-full h-dvh overflow-hidden bg-canvas">
       <a
         href="#main-content"
         className="sr-only z-50 rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground focus:not-sr-only focus:fixed focus:left-3 focus:top-3"
@@ -116,7 +116,7 @@ export function DashboardLayout() {
           <NotificationDropdown />
         </header>
 
-        <main id="main-content" className="min-h-0 flex-1 overflow-y-auto pb-[calc(8.5rem+env(safe-area-inset-bottom))] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] md:pb-[calc(4.5rem+env(safe-area-inset-bottom))] lg:pb-0">
+        <main id="main-content" className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable] pb-[calc(8.5rem+env(safe-area-inset-bottom))] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] md:pb-[calc(4.5rem+env(safe-area-inset-bottom))] lg:pb-0">
           <Outlet />
         </main>
       </div>

@@ -202,7 +202,7 @@ export function StudentsPage() {
   })();
 
   return (
-    <div className="mx-auto max-w-7xl space-y-5 px-4 py-5 sm:space-y-6 sm:p-6">
+    <div className="space-y-5 px-4 py-5 sm:space-y-6 sm:p-6">
       <PageHeader
         title="Manajemen Data Siswa"
         subtitle="Kelola profil, kelas, peminatan, dan status keaktifan siswa sinematografi."

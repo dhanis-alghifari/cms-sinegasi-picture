@@ -286,7 +286,7 @@ export function CashPage() {
 
 
   return (
-    <div className="mx-auto max-w-7xl space-y-5 px-4 pb-28 pt-5 sm:space-y-6 sm:px-6 sm:pt-6 sm:pb-28 md:pb-6">
+    <div className="space-y-5 px-4 pb-28 pt-5 sm:space-y-6 sm:px-6 sm:pt-6 sm:pb-28 md:pb-6">
       <PageHeader
         title={isStudent ? 'Keuangan Kas Saya' : 'Uang Kas & Manajemen Utang'}
         subtitle={isStudent ? 'Pantau pembayaran, tunggakan, dan sanggahan kas Anda.' : 'Pencatatan iuran kas masuk, pengeluaran 2-tahap, saldo tidak boleh negatif, dan sanggahan siswa.'}

@@ -226,7 +226,7 @@ export function UsersPage() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl space-y-5 px-4 py-5 sm:space-y-6 sm:p-6">
+    <div className="space-y-5 px-4 py-5 sm:space-y-6 sm:p-6">
       <PageHeader
         title="Manajemen Pengguna & Akses"
         subtitle="Kelola akun pengguna, penetapan 8 tingkatan peran (RBAC), reset password, dan status keaktifan."

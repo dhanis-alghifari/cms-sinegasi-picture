@@ -174,7 +174,7 @@ export function GradesPage() {
   };
 
   return (
-    <div className="mx-auto max-w-7xl space-y-5 px-4 py-5 sm:space-y-6 sm:p-6">
+    <div className="space-y-5 px-4 py-5 sm:space-y-6 sm:p-6">
       <PageHeader
         title={isPersonalView ? 'Nilai & Tugas Saya' : 'Evaluasi & Nilai Universal (A–E)'}
         subtitle={isPersonalView ? 'Pantau hasil penilaian dan tugas yang ditujukan untuk kelas Anda.' : 'Sistem penilaian Universal Grading A-E untuk tugas kelas, karya crew film, dan kegiatan eksternal.'}
