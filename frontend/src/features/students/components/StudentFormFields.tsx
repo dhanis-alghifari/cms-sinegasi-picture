@@ -4,6 +4,7 @@ import { Image as ImageIcon, Upload, X } from 'lucide-react';
 import type { UseFormReturn } from 'react-hook-form';
 
 import { Button } from '@/shared/ui/primitives/button';
+import { FieldError } from '@/shared/ui/FieldError';
 import { Input } from '@/shared/ui/primitives/input';
 import { Label } from '@/shared/ui/primitives/label';
 import { RadioGroup } from '@/shared/ui/primitives/radio-group';
@@ -37,6 +38,7 @@ interface StudentFormFieldsProps {
     fileInputRef: RefObject<HTMLInputElement | null>;
     onFileChange: (event: ChangeEvent<HTMLInputElement>) => void;
     onRemove: () => void;
+    error?: string | null;
   };
 }
 
@@ -53,7 +55,7 @@ export function StudentFormFields({
     error: classOptionsError,
     onRetry: onRetryLoadClasses,
   } = classes;
-  const { fileInputRef, onFileChange, onRemove: onRemoveImage } = image;
+  const { fileInputRef, onFileChange, onRemove: onRemoveImage, error: imageError } = image;
   const searchableClassOptions = useMemo(
     () => classOptions.map((option) => ({
       id: option.id,
@@ -170,7 +172,7 @@ export function StudentFormFields({
                   <SelectTrigger className="w-full bg-surface-2 border-hairline text-ink text-xs">
                     <SelectValue placeholder="Pilih peran akun siswa" />
                   </SelectTrigger>
-                  <SelectContent className="bg-surface-3 border-hairline text-ink">
+                  <SelectContent>
                     {STUDENT_ROLE_VALUES.map((role) => (
                       <SelectItem key={role} value={role}>{formatRoleLabel(role)}</SelectItem>
                     ))}
@@ -204,6 +206,8 @@ export function StudentFormFields({
               accept="image/jpeg,image/png,image/webp"
               capture="user"
               onChange={onFileChange}
+              aria-invalid={Boolean(imageError)}
+              aria-describedby={imageError ? 'student-photo-error' : undefined}
               className="hidden"
             />
 
@@ -234,7 +238,12 @@ export function StudentFormFields({
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="w-full border-2 border-dashed border-hairline hover:border-primary/50 bg-surface-2/50 hover:bg-surface-2 p-3 rounded-lg flex items-center justify-center gap-2.5 transition-colors cursor-pointer group"
+                aria-invalid={Boolean(imageError)}
+                aria-describedby={imageError ? 'student-photo-error' : undefined}
+                className={cn(
+                  'w-full rounded-lg border-2 border-dashed bg-surface-2/50 p-3 flex items-center justify-center gap-2.5 transition-colors cursor-pointer group hover:border-primary/50 hover:bg-surface-2',
+                  imageError ? 'border-semantic-danger' : 'border-hairline',
+                )}
               >
                 <div className="w-8 h-8 rounded-full bg-primary/10 group-hover:bg-primary/20 flex items-center justify-center shrink-0">
                   <Upload size={16} className="text-primary" />
@@ -248,6 +257,7 @@ export function StudentFormFields({
                 </div>
               </button>
             )}
+            <FieldError id="student-photo-error" message={imageError} />
           </div>
 
           {/* Change Reason (Zero Silent Edits Requirement — Wajib hanya saat Edit/Ubah Data) */}

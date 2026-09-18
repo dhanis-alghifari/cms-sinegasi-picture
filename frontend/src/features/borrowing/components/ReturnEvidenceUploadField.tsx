@@ -3,6 +3,7 @@ import { ImagePlus, Loader2, Upload, X } from 'lucide-react';
 
 import { getErrorMessage } from '@/shared/api/errors';
 import { Button } from '@/shared/ui/primitives/button';
+import { FieldError } from '@/shared/ui/FieldError';
 import { Label } from '@/shared/ui/primitives/label';
 import { cn } from '@/shared/utils/cn';
 import { compressImageFileToFile, MAX_COMPRESSED_IMAGE_BYTES, MAX_SOURCE_IMAGE_BYTES } from '@/shared/utils/compressImage';
@@ -108,6 +109,8 @@ export function ReturnEvidenceUploadField({
         capture="environment"
         multiple
         aria-required={required}
+        aria-invalid={hasError}
+        aria-describedby={hasError ? `${id}-error` : undefined}
         onChange={handleFileChange}
         disabled={disabled || isProcessing || values.length >= maxFiles}
         className="sr-only"
@@ -145,6 +148,8 @@ export function ReturnEvidenceUploadField({
           variant="outline"
           onClick={() => inputRef.current?.click()}
           disabled={disabled || isProcessing || values.length >= maxFiles}
+          aria-invalid={hasError}
+          aria-describedby={hasError ? `${id}-error` : undefined}
           className="mt-2 min-h-11 border-hairline bg-surface-1 text-xs sm:min-h-9"
         >
           {isProcessing ? <Loader2 size={14} className="mr-1.5 animate-spin" /> : <Upload size={14} className="mr-1.5" />}
@@ -154,7 +159,7 @@ export function ReturnEvidenceUploadField({
           {formatNumber(values.length)} foto dipilih; {required ? `minimal ${formatNumber(minFiles)}, ` : ''}maksimal {formatNumber(maxFiles)} foto. JPG, PNG, atau WebP.
         </p>
       </div>
-      {hasError && <p className="text-[10px] text-semantic-danger">{localError || error}</p>}
+      <FieldError id={`${id}-error`} message={localError || error} />
     </div>
   );
 }

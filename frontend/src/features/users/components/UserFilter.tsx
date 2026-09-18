@@ -52,7 +52,7 @@ export function UserFilter({
         <SelectTrigger aria-label="Filter peran pengguna" className="h-9 w-full bg-surface-1 text-xs text-ink lg:w-44">
           <SelectValue placeholder="Pilih Role" />
         </SelectTrigger>
-        <SelectContent className="bg-surface-3 border-hairline text-ink">
+        <SelectContent>
           <SelectItem value={UI_CONSTANTS.ALL_FILTER_VALUE}>Semua Peran (Role)</SelectItem>
           <SelectItem value="teacher">{formatRoleLabel('teacher')}</SelectItem>
           <SelectItem value="leader">{formatRoleLabel('leader')}</SelectItem>
@@ -76,7 +76,7 @@ export function UserFilter({
           { value: 'inactive', label: 'Nonaktif' },
         ]}
         onValueChange={onStatusChange}
-        className="lg:w-auto"
+        className="lg:min-w-fit lg:w-auto"
       />
 
       {/* Reset Filter Button */}

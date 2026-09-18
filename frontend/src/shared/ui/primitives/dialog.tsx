@@ -100,7 +100,7 @@ function DialogFooter({
     <div
       data-slot="dialog-footer"
       className={cn(
-        "mt-auto flex shrink-0 flex-col items-stretch gap-2 border-t bg-muted/50 pt-4 pb-[env(safe-area-inset-bottom)] md:flex-row md:items-center md:justify-end md:pb-0 [&>[data-slot=button]]:min-h-12 [&>[data-slot=button]]:w-full md:[&>[data-slot=button]]:min-h-9 md:[&>[data-slot=button]]:w-auto",
+        "!mt-0 flex flex-none min-h-0 shrink-0 flex-col items-stretch gap-2 border-t bg-muted/50 pt-4 pb-[env(safe-area-inset-bottom)] md:flex-row md:items-center md:justify-end md:pb-0 [&>[data-slot=button]]:min-h-12 [&>[data-slot=button]]:w-full md:[&>[data-slot=button]]:min-h-9 md:[&>[data-slot=button]]:w-auto",
         className
       )}
       {...props}

@@ -194,9 +194,9 @@ export function ContestsPage() {
         onValueChange={handleActiveViewChange}
         className="w-full"
       >
-        <TabsList aria-label="Perlombaan dan prestasi" className="grid min-h-12 w-full grid-cols-2 border border-hairline bg-surface-2 p-1 sm:w-fit sm:min-h-9 sm:gap-1">
-          <TabsTrigger value="events" className="min-h-10 px-3 text-xs sm:min-h-9">Event &amp; pendaftaran</TabsTrigger>
-          <TabsTrigger value="achievements" className="min-h-10 px-3 text-xs sm:min-h-9">Karya &amp; prestasi</TabsTrigger>
+        <TabsList aria-label="Perlombaan dan prestasi" className="grid w-full grid-cols-2 md:w-fit">
+          <TabsTrigger value="events" className="px-3 text-xs">Event &amp; pendaftaran</TabsTrigger>
+          <TabsTrigger value="achievements" className="px-3 text-xs">Karya &amp; prestasi</TabsTrigger>
         </TabsList>
 
         <TabsContent value="achievements" className="pt-2">

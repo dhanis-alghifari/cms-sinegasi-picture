@@ -8,9 +8,11 @@ import {
   DialogFooter,
 } from '@/shared/ui/primitives/dialog';
 import { Button } from '@/shared/ui/primitives/button';
+import { FieldError } from '@/shared/ui/FieldError';
 import { Input } from '@/shared/ui/primitives/input';
 import { Label } from '@/shared/ui/primitives/label';
 import { RadioGroup } from '@/shared/ui/primitives/radio-group';
+import { cn } from '@/shared/utils/cn';
 import type { ClassRecord } from '../types/classes.types';
 
 interface ClassFormDialogProps {
@@ -31,7 +33,8 @@ export function ClassFormDialog({
   const [namaKelas, setNamaKelas] = useState('');
   const [tingkat, setTingkat] = useState<'X' | 'XI' | 'XII'>('X');
   const [changeReason, setChangeReason] = useState('');
-  const [error, setError] = useState('');
+  const [formError, setFormError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<{ namaKelas?: string; changeReason?: string }>({});
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -43,29 +46,34 @@ export function ClassFormDialog({
         setTingkat('X');
       }
       setChangeReason('');
-      setError('');
+      setFormError('');
+      setFieldErrors({});
     }, 0);
     return () => window.clearTimeout(timer);
   }, [initialData, open]);
 
   const handleDialogOpenChange = (nextOpen: boolean) => {
-    if (!nextOpen) setError('');
+    if (!nextOpen) {
+      setFormError('');
+      setFieldErrors({});
+    }
     onOpenChange(nextOpen);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError('');
+    setFieldErrors({});
     if (!namaKelas.trim()) {
-      setError('Nama kelas wajib diisi');
+      setFieldErrors({ namaKelas: 'Nama kelas wajib diisi.' });
       return;
     }
     if (initialData && (!changeReason.trim() || changeReason.trim().length < 5)) {
-      setError('Alasan perubahan wajib diisi (minimal 5 karakter)');
+      setFieldErrors({ changeReason: 'Alasan perubahan wajib diisi (minimal 5 karakter).' });
       return;
     }
 
     try {
-      setError('');
       await onSubmit({
         nama_kelas: namaKelas.trim(),
         tingkat,
@@ -74,9 +82,9 @@ export function ClassFormDialog({
       handleDialogOpenChange(false);
     } catch (err: unknown) {
       if (err instanceof Error) {
-        setError(err.message);
+        setFormError(err.message);
       } else {
-        setError('Gagal menyimpan data kelas');
+        setFormError('Gagal menyimpan data kelas.');
       }
     }
   };
@@ -91,9 +99,9 @@ export function ClassFormDialog({
         </DialogHeader>
 
         <form noValidate onSubmit={handleSubmit} className="space-y-4 pt-2">
-          {error && (
-            <div className="p-2.5 rounded bg-semantic-danger/10 border border-semantic-danger/20 text-semantic-danger text-xs">
-              {error}
+          {formError && (
+            <div role="alert" className="p-2.5 rounded bg-semantic-danger/10 border border-semantic-danger/20 text-semantic-danger text-xs">
+              {formError}
             </div>
           )}
 
@@ -105,9 +113,15 @@ export function ClassFormDialog({
               id="nama_kelas"
               placeholder="Contoh: X TKJ 1, XII AK 5"
               value={namaKelas}
-              onChange={(e) => setNamaKelas(e.target.value)}
-              className="bg-surface-2 border-hairline text-ink text-xs"
+              onChange={(e) => {
+                setNamaKelas(e.target.value);
+                setFieldErrors((current) => ({ ...current, namaKelas: undefined }));
+              }}
+              aria-invalid={Boolean(fieldErrors.namaKelas)}
+              aria-describedby={fieldErrors.namaKelas ? 'class-name-error' : undefined}
+              className={cn('bg-surface-2 border-hairline text-ink text-xs', fieldErrors.namaKelas && 'border-semantic-danger')}
             />
+            <FieldError id="class-name-error" message={fieldErrors.namaKelas} />
           </div>
 
           <div className="space-y-1">
@@ -132,18 +146,24 @@ export function ClassFormDialog({
               id="changeReason"
               placeholder="Contoh: Penambahan rombel baru tahun ajaran 2026/2027"
               value={changeReason}
-              onChange={(e) => setChangeReason(e.target.value)}
-              className="bg-surface-2 border-hairline text-ink text-xs"
+              onChange={(e) => {
+                setChangeReason(e.target.value);
+                setFieldErrors((current) => ({ ...current, changeReason: undefined }));
+              }}
+              aria-invalid={Boolean(fieldErrors.changeReason)}
+              aria-describedby={fieldErrors.changeReason ? 'class-change-reason-error' : undefined}
+              className={cn('bg-surface-2 border-hairline text-ink text-xs', fieldErrors.changeReason && 'border-semantic-danger')}
             />
+            <FieldError id="class-change-reason-error" message={fieldErrors.changeReason} />
           </div>}
 
           <DialogFooter className="pt-2">
             <Button
               type="button"
-              variant="outline"
+              variant="secondary"
               size="sm"
               onClick={() => handleDialogOpenChange(false)}
-              className="border-hairline text-ink hover:bg-surface-2 text-xs"
+              className="text-xs"
             >
               Batal
             </Button>

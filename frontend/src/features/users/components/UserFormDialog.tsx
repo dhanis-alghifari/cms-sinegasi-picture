@@ -18,6 +18,7 @@ import { Label } from '@/shared/ui/primitives/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/primitives/select';
 import { cn } from '@/shared/utils/cn';
 import { ApiError, getErrorMessage } from '@/shared/api/errors';
+import { FieldError } from '@/shared/ui/FieldError';
 import { type UserRole } from '@/shared/types/common';
 import { isOneOf } from '@/shared/utils/isOneOf';
 
@@ -111,12 +112,19 @@ export function UserFormDialog({
 
   const handleSubmit = form.handleSubmit(async (data) => {
     setFormError(null);
+    form.clearErrors(['password', 'change_reason']);
     if (!isEditing && (!data.password || data.password.trim().length < 8)) {
-      setFormError('Kata sandi akun operasional wajib diisi minimal 8 karakter.');
+      form.setError('password', {
+        type: 'manual',
+        message: 'Kata sandi akun operasional wajib diisi minimal 8 karakter.',
+      });
       return;
     }
     if (isEditing && (!data.change_reason || data.change_reason.trim().length < 5)) {
-      setFormError('Alasan perubahan wajib diisi (minimal 5 karakter)');
+      form.setError('change_reason', {
+        type: 'manual',
+        message: 'Alasan perubahan wajib diisi (minimal 5 karakter).',
+      });
       return;
     }
     try {
@@ -125,7 +133,6 @@ export function UserFormDialog({
     } catch (err: unknown) {
       if (err instanceof ApiError && err.errorCode === 'DUPLICATE_USERNAME') {
         form.setError('username', { type: 'server', message: 'Nama pengguna ini sudah digunakan akun lain.' });
-        setFormError('Nama pengguna tidak tersedia. Gunakan nama pengguna lain.');
         return;
       }
       setFormError(getErrorMessage(err) || 'Terjadi kesalahan saat menyimpan data pengguna');
@@ -210,7 +217,7 @@ export function UserFormDialog({
               <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs">
                 <SelectValue placeholder="Pilih Role" />
               </SelectTrigger>
-              <SelectContent className="bg-surface-3 border-hairline text-ink">
+              <SelectContent>
                 {roleOptions.map(({ value, label }) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
               </SelectContent>
             </Select>
@@ -230,9 +237,12 @@ export function UserFormDialog({
                 id="password"
                 type="password"
                 placeholder="Password bawaan akun baru"
-              className={cn('bg-surface-2 border-hairline text-ink text-xs', form.formState.errors.password && 'border-semantic-danger')}
+                aria-invalid={Boolean(form.formState.errors.password)}
+                aria-describedby={form.formState.errors.password ? 'password-error' : undefined}
+                className={cn('bg-surface-2 border-hairline text-ink text-xs', form.formState.errors.password && 'border-semantic-danger')}
                 {...form.register('password')}
               />
+              <FieldError id="password-error" message={form.formState.errors.password?.message} />
               <p className="text-ink-tertiary text-[10px]">
                 Pengguna akan diwajibkan mengganti password ini saat login pertama kali. Jangan gunakan password yang sama untuk banyak akun.
               </p>
@@ -248,21 +258,21 @@ export function UserFormDialog({
               <Input
                 id="change_reason"
                 placeholder="cth. Perubahan nama pengurus / promosi role"
-              className={cn('bg-surface-2 border-hairline text-ink text-xs', form.formState.errors.change_reason && 'border-semantic-danger')}
+                aria-invalid={Boolean(form.formState.errors.change_reason)}
+                aria-describedby={form.formState.errors.change_reason ? 'user-change-reason-error' : undefined}
+                className={cn('bg-surface-2 border-hairline text-ink text-xs', form.formState.errors.change_reason && 'border-semantic-danger')}
                 {...form.register('change_reason')}
               />
-              {form.formState.errors.change_reason && (
-                <p className="text-semantic-danger text-[10px]">{form.formState.errors.change_reason.message}</p>
-              )}
+              <FieldError id="user-change-reason-error" message={form.formState.errors.change_reason?.message} />
             </div>
           )}
 
           <DialogFooter className="pt-2">
             <Button
               type="button"
-              variant="outline"
+              variant="secondary"
               onClick={() => handleDialogOpenChange(false)}
-              className="bg-surface-2 border-hairline text-ink text-xs h-9"
+              className="text-xs h-9"
             >
               Batal
             </Button>

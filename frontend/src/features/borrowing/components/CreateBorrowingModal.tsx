@@ -322,7 +322,7 @@ export function CreateBorrowingModal({
           </div>
 
           <DialogFooter className="shrink-0 pt-2">
-            <Button type="button" variant="outline" onClick={handleClose} className="bg-surface-2 border-hairline text-ink text-xs h-9">
+            <Button type="button" variant="secondary" onClick={handleClose} className="text-xs h-9">
               Batal
             </Button>
             <Button type="submit" disabled={isLoading || selectedEquipmentIds.length === 0} className="bg-primary hover:bg-primary-hover text-primary-foreground text-xs h-9 font-medium">

@@ -59,7 +59,7 @@ export function ContestFilter({
         <SelectTrigger aria-label="Filter tingkat perlombaan" className="h-9 w-full bg-surface-1 text-xs text-ink lg:w-40">
           <SelectValue placeholder="Tingkat Lomba" />
         </SelectTrigger>
-        <SelectContent className="bg-surface-3 border-hairline text-ink">
+        <SelectContent>
           <SelectItem value={UI_CONSTANTS.ALL_FILTER_VALUE}>Semua Tingkat</SelectItem>
           {CONTEST_SCOPE_OPTIONS.map((option) => (
             <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
@@ -76,7 +76,7 @@ export function ContestFilter({
         <SelectTrigger aria-label="Filter status perlombaan" className="h-9 w-full bg-surface-1 text-xs text-ink lg:w-40">
           <SelectValue placeholder="Status Lomba" />
         </SelectTrigger>
-        <SelectContent className="bg-surface-3 border-hairline text-ink">
+        <SelectContent>
           <SelectItem value={UI_CONSTANTS.ALL_FILTER_VALUE}>Semua Status</SelectItem>
           {CONTEST_STATUS_OPTIONS.map((option) => (
             <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>

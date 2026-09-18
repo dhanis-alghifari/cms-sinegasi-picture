@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { Image as ImageIcon, Loader2, Plus, Upload, X } from 'lucide-react';
 
 import { Button } from '@/shared/ui/primitives/button';
+import { FieldError } from '@/shared/ui/FieldError';
 import { Input } from '@/shared/ui/primitives/input';
 import { Label } from '@/shared/ui/primitives/label';
 import { cn } from '@/shared/utils/cn';
@@ -122,6 +123,8 @@ export function MultiImageUploadField({
         onChange={handleFileChange}
         disabled={disabled || isProcessing}
         className="hidden"
+        aria-invalid={hasError}
+        aria-describedby={hasError ? `${id}-error` : undefined}
       />
 
       <div className={cn('rounded-md border border-dashed bg-surface-2 p-3', hasError ? 'border-semantic-danger' : 'border-hairline')}>
@@ -162,6 +165,8 @@ export function MultiImageUploadField({
             variant="outline"
             onClick={() => fileInputRef.current?.click()}
             disabled={disabled || isProcessing}
+            aria-invalid={hasError}
+            aria-describedby={hasError ? `${id}-error` : undefined}
             size="sm"
             className="border-hairline bg-surface-1 text-ink text-xs"
           >
@@ -203,7 +208,7 @@ export function MultiImageUploadField({
           Foto {formatNumber(values.length)}/{formatNumber(minFiles)} minimum • Disarankan depan, samping, dan atas/belakang.
         </p>
       </div>
-      {hasError && <p className="text-semantic-danger text-[10px]">{localError || error}</p>}
+      <FieldError id={`${id}-error`} message={localError || error} />
     </div>
   );
 }

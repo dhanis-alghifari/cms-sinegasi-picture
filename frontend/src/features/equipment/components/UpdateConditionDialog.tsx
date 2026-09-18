@@ -122,7 +122,7 @@ export function UpdateConditionDialog({
                 <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs">
                   <SelectValue placeholder="Pilih kondisi baru" />
                 </SelectTrigger>
-                <SelectContent className="bg-surface-3 border-hairline text-ink">
+                <SelectContent>
                   <SelectItem value="bagus">Bagus</SelectItem>
                   <SelectItem value="sedikit_kerusakan">Sedikit Rusak</SelectItem>
                   <SelectItem value="rusak">Rusak</SelectItem>
@@ -166,7 +166,7 @@ export function UpdateConditionDialog({
           </div>
 
           <DialogFooter className="pt-2">
-            <Button type="button" variant="outline" onClick={() => handleDialogOpenChange(false)} className="bg-surface-2 border-hairline text-ink text-xs h-9">
+            <Button type="button" variant="secondary" onClick={() => handleDialogOpenChange(false)} className="text-xs h-9">
               Batal
             </Button>
             <Button type="submit" disabled={isLoading} className="bg-semantic-warning text-white hover:bg-semantic-warning/90 font-semibold text-xs h-9">

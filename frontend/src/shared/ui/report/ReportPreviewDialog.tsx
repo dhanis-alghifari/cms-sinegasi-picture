@@ -94,8 +94,8 @@ export function ReportPreviewDialog({
           </div>
         </div>
 
-        <DialogFooter className="shrink-0 border-t border-hairline bg-surface-2 px-5 py-3">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="border-hairline bg-surface-1 text-ink">
+        <DialogFooter className="shrink-0 border-t border-hairline bg-surface-2 px-5 py-3 md:pb-3">
+          <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
             Tutup
           </Button>
           <Button type="button" onClick={actions.onPrint} className="bg-primary text-primary-foreground">

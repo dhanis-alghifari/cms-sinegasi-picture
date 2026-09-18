@@ -54,7 +54,7 @@ export function StudentFilter({
         <SelectTrigger aria-label="Filter kelas siswa" className="h-9 w-full bg-surface-1 text-xs text-ink lg:w-36">
           <SelectValue placeholder="Pilih Kelas" />
         </SelectTrigger>
-        <SelectContent className="bg-surface-3 border-hairline text-ink">
+        <SelectContent>
           <SelectItem value={UI_CONSTANTS.ALL_FILTER_VALUE}>Semua Kelas</SelectItem>
           <SelectItem value="X">Kelas X</SelectItem>
           <SelectItem value="XI">Kelas XI</SelectItem>
@@ -67,7 +67,7 @@ export function StudentFilter({
         <SelectTrigger aria-label="Filter peminatan siswa" className="h-9 w-full bg-surface-1 text-xs text-ink lg:w-40">
           <SelectValue placeholder="Peminatan" />
         </SelectTrigger>
-        <SelectContent className="bg-surface-3 border-hairline text-ink">
+        <SelectContent>
           <SelectItem value={UI_CONSTANTS.ALL_FILTER_VALUE}>Semua Peminatan</SelectItem>
           <SelectItem value="kamera">Kamera</SelectItem>
           <SelectItem value="editing">Editing</SelectItem>

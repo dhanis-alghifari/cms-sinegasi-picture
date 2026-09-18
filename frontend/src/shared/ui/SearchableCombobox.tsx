@@ -103,15 +103,15 @@ export function SearchableCombobox<T extends SearchableComboboxOption>({
               type="button"
               aria-label={triggerLabel}
               disabled={disabled}
-              className="my-0.5 mr-1 flex min-w-8 self-stretch shrink-0 items-center justify-center rounded text-ink-tertiary hover:bg-surface-3 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              className="group/combobox-trigger my-0.5 mr-1 flex min-w-8 self-stretch shrink-0 items-center justify-center rounded text-ink-tertiary transition-colors duration-150 hover:bg-surface-3 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary motion-reduce:transition-none"
             >
-              <ChevronDown size={16} aria-hidden="true" />
+              <ChevronDown size={16} aria-hidden="true" className="transition-transform duration-150 group-data-popup-open/combobox-trigger:rotate-180 motion-reduce:transition-none" />
             </Combobox.Trigger>
           </Combobox.InputGroup>
 
           <Combobox.Portal>
             <Combobox.Positioner sideOffset={4} className="z-[70] w-[var(--anchor-width)] outline-none">
-              <Combobox.Popup className="max-h-(--available-height) overflow-hidden rounded-lg border border-hairline bg-surface-3 p-1 text-ink shadow-xl">
+              <Combobox.Popup className="max-h-[min(var(--available-height),20rem)] overflow-hidden overscroll-contain rounded-lg border border-hairline bg-surface-1 p-1 text-ink shadow-lg">
                 <m.div
                   initial={{ opacity: 0, y: -4 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -130,8 +130,8 @@ export function SearchableCombobox<T extends SearchableComboboxOption>({
                             key={option.id}
                             value={option}
                             className={cn(
-                              'flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-left text-xs outline-none',
-                              'data-highlighted:bg-primary/10 data-highlighted:text-ink',
+                              'flex min-h-[var(--touch-target-min)] w-full cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-left text-xs outline-none transition-colors duration-150',
+                              'data-highlighted:bg-surface-2 data-highlighted:text-ink data-selected:bg-primary/10 motion-reduce:transition-none',
                             )}
                           >
                             <span className="min-w-0 flex-1">

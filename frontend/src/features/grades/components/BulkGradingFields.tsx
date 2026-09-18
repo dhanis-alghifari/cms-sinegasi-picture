@@ -261,7 +261,7 @@ export function BulkGradingFields({
                         <SelectTrigger className="w-full bg-surface-1 border-hairline text-ink text-xs font-bold md:w-24">
                           <SelectValue placeholder="Pilih nilai" />
                         </SelectTrigger>
-                        <SelectContent className="bg-surface-3 border-hairline text-ink">
+                        <SelectContent>
                           <SelectItem value="A">Nilai A (Sangat Baik)</SelectItem>
                           <SelectItem value="B">Nilai B (Baik)</SelectItem>
                           <SelectItem value="C">Nilai C (Cukup)</SelectItem>

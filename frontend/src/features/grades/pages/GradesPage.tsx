@@ -207,13 +207,13 @@ export function GradesPage() {
       />
 
       <Tabs defaultValue="grades" className="w-full">
-        <TabsList aria-label="Menu nilai" className="grid min-h-12 w-full grid-cols-2 gap-2 border border-hairline bg-surface-2 p-2 md:flex md:min-h-9 md:w-fit md:gap-2 md:p-1">
-          <TabsTrigger value="grades" className="min-h-12 min-w-0 flex-1 gap-1.5 px-2 text-xs leading-tight md:min-h-9 md:min-w-44 md:flex-none md:whitespace-nowrap md:px-3">
+        <TabsList aria-label="Menu nilai" className="grid w-full grid-cols-2 md:flex md:w-fit">
+          <TabsTrigger value="grades" className="min-w-0 gap-1.5 px-2 text-xs leading-tight md:min-w-44 md:flex-none md:whitespace-nowrap md:px-3">
             <GraduationCap size={14} />
             <span className="md:hidden">Nilai</span>
             <span className="hidden md:inline">{isPersonalView ? 'Riwayat Nilai Saya' : 'Rekap Nilai Siswa'}</span>
           </TabsTrigger>
-          <TabsTrigger value="assignments" className="min-h-12 min-w-0 flex-1 gap-1.5 px-2 text-xs leading-tight md:min-h-9 md:min-w-44 md:flex-none md:whitespace-nowrap md:px-3">
+          <TabsTrigger value="assignments" className="min-w-0 gap-1.5 px-2 text-xs leading-tight md:min-w-44 md:flex-none md:whitespace-nowrap md:px-3">
             <ClipboardList size={14} /><span className="md:hidden">Tugas</span><span className="hidden md:inline">{isPersonalView ? 'Tugas Saya' : 'Daftar Tugas'}</span>
           </TabsTrigger>
         </TabsList>

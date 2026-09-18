@@ -73,6 +73,7 @@ function returnErrorMessage(error: unknown): string {
 
 export function ProcessReturnModal({ open, onOpenChange, record, onSubmit, isLoading, error }: ProcessReturnModalProps) {
   const [itemStates, setItemStates] = useState<Record<string, ReturnItemState>>({});
+  const [evidenceErrors, setEvidenceErrors] = useState<Record<string, string>>({});
   const [localValidationError, setLocalValidationError] = useState<string | null>(null);
   const [isUploadingEvidence, setIsUploadingEvidence] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -149,11 +150,18 @@ export function ProcessReturnModal({ open, onOpenChange, record, onSubmit, isLoa
 
   const handleEvidenceChange = (equipmentId: string, files: File[]) => {
     setLocalValidationError(null);
+    setEvidenceErrors((current) => {
+      if (!current[equipmentId]) return current;
+      const next = { ...current };
+      delete next[equipmentId];
+      return next;
+    });
     setItemState(equipmentId, { evidence_files: files, evidence_ids: [] });
   };
 
   const handleClose = () => {
     setItemStates({});
+    setEvidenceErrors({});
     setLocalValidationError(null);
     setIsUploadingEvidence(false);
     setIsSubmitting(false);
@@ -164,15 +172,20 @@ export function ProcessReturnModal({ open, onOpenChange, record, onSubmit, isLoa
     if (!record) return;
     const physicalItemsMissingEvidence = record.items.filter((item) => {
       const state = itemStates[item.equipment_id];
-      return state.condition !== 'hilang' && state.evidence_files.length < 2;
+      return state?.condition !== 'hilang' && (state?.evidence_files.length ?? 0) < 2;
     });
     if (physicalItemsMissingEvidence.length > 0) {
-      const itemLabels = physicalItemsMissingEvidence.map((item) => item.kode_alat).join(', ');
-      setLocalValidationError(`Unggah minimal 2 foto kondisi untuk: ${itemLabels}. Alat hilang tidak wajib difoto.`);
+      setEvidenceErrors(Object.fromEntries(
+        physicalItemsMissingEvidence.map((item) => [
+          item.equipment_id,
+          `Unggah minimal 2 foto kondisi untuk ${item.kode_alat}.`,
+        ]),
+      ));
       return;
     }
 
     setLocalValidationError(null);
+    setEvidenceErrors({});
     setIsSubmitting(true);
     try {
       await borrowingService.previewReturn({
@@ -257,7 +270,7 @@ export function ProcessReturnModal({ open, onOpenChange, record, onSubmit, isLoa
                 return <article key={item.equipment_id} className="space-y-2 rounded-lg border border-hairline bg-surface-1 p-3 shadow-[0_1px_0_rgba(0,0,0,0.03)]">
                   <div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="flex flex-wrap items-center gap-x-2 gap-y-0.5"><span className="font-mono text-[11px] font-bold text-primary">{item.kode_alat}</span><span className="truncate text-xs font-semibold text-ink">{item.nama_alat}</span></div><p className="mt-1 text-[10px] text-ink-tertiary">Kondisi awal: {item.kondisi_awal}</p></div>{localCharge !== undefined && localCharge > 0 && <span className="shrink-0 text-[10px] font-semibold text-semantic-danger">{formatCurrency(localCharge)}</span>}</div>
                   <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                    <div className="space-y-1"><Label className="text-[10px] text-ink-muted">Kondisi saat kembali</Label><Select value={state?.condition} onValueChange={(condition) => handleConditionValueChange(item.equipment_id, state, condition)}><SelectTrigger className="h-9 bg-surface-2 text-xs"><SelectValue placeholder="Pilih kondisi" /></SelectTrigger><SelectContent className="bg-surface-3 text-ink"><SelectItem value="bagus">Bagus (normal)</SelectItem><SelectItem value="sedikit_kerusakan">Sedikit rusak</SelectItem><SelectItem value="rusak">Rusak</SelectItem><SelectItem value="rusak_besar">Rusak berat</SelectItem><SelectItem value="hilang">Hilang</SelectItem></SelectContent></Select></div>
+                    <div className="space-y-1"><Label className="text-[10px] text-ink-muted">Kondisi saat kembali</Label><Select value={state?.condition} onValueChange={(condition) => handleConditionValueChange(item.equipment_id, state, condition)}><SelectTrigger className="h-9 bg-surface-2 text-xs"><SelectValue placeholder="Pilih kondisi" /></SelectTrigger><SelectContent><SelectItem value="bagus">Bagus (normal)</SelectItem><SelectItem value="sedikit_kerusakan">Sedikit rusak</SelectItem><SelectItem value="rusak">Rusak</SelectItem><SelectItem value="rusak_besar">Rusak berat</SelectItem><SelectItem value="hilang">Hilang</SelectItem></SelectContent></Select></div>
                     {state && state.condition !== 'bagus' && <RadioGroup
                       name={`return-settlement-${item.equipment_id}`}
                       legend="Penyelesaian"
@@ -268,6 +281,7 @@ export function ProcessReturnModal({ open, onOpenChange, record, onSubmit, isLoa
                       ]}
                       onValueChange={(value) => handleSettlementValueChange(item.equipment_id, value)}
                       disabled={state.condition === 'hilang'}
+                      className="md:col-span-2"
                     />}
                   </div>
                   {state && state.condition !== 'bagus' && <div className="grid grid-cols-1 gap-2 md:grid-cols-2"><div>{state.settlement_method === 'repair' ? <><Label htmlFor={`repair-cost-${item.equipment_id}`} className="text-[10px] text-ink-muted">Biaya perbaikan</Label><FormattedNumberInput id={`repair-cost-${item.equipment_id}`} min="1" step="0.01" placeholder="Masukkan nominal" value={state.repair_cost} onChange={(value) => setItemState(item.equipment_id, { repair_cost: value })} className="mt-1 h-9 bg-surface-2 text-xs" /></> : <div className="rounded-md border border-dashed border-hairline bg-surface-2 px-2.5 py-2 text-[10px] leading-4 text-ink-subtle">{replacementValueLabel}</div>}</div><div><Label htmlFor={`item-notes-${item.equipment_id}`} className="text-[10px] text-ink-muted">Catatan item</Label><Input id={`item-notes-${item.equipment_id}`} value={state.notes} onChange={(event) => setItemState(item.equipment_id, { notes: event.target.value })} placeholder="Kerusakan atau kelengkapan" className="mt-1 h-9 bg-surface-2 text-xs" /></div></div>}
@@ -284,7 +298,7 @@ export function ProcessReturnModal({ open, onOpenChange, record, onSubmit, isLoa
                           values: state.evidence_files,
                           onChange: (files) => handleEvidenceChange(item.equipment_id, files),
                         }}
-                        validation={{ required: true }}
+                        validation={{ required: true, error: evidenceErrors[item.equipment_id] }}
                         state={{ disabled: isLoading || isSubmitting }}
                       />
                     );
@@ -297,7 +311,7 @@ export function ProcessReturnModal({ open, onOpenChange, record, onSubmit, isLoa
 
           <div className="shrink-0 space-y-3 px-4 py-4 sm:px-5"><div className="space-y-1.5"><Label htmlFor="catatan_pengembalian" className="text-xs text-ink-muted">Catatan pemeriksaan <span className="font-normal text-ink-tertiary">(opsional)</span></Label><Textarea id="catatan_pengembalian" rows={2} placeholder="Kelengkapan aksesori, kabel, atau kerusakan fisik..." className="resize-none bg-surface-2 text-xs" {...form.register('catatan_pengembalian')} /></div><div className="space-y-1.5"><Label htmlFor="change_reason" className="text-xs text-ink-muted">Alasan audit <span className="text-semantic-danger">*</span></Label><Input id="change_reason" className={cn('h-9 bg-surface-2 text-xs', form.formState.errors.change_reason && 'border-semantic-danger')} {...form.register('change_reason')} />{form.formState.errors.change_reason && <p className="text-[10px] text-semantic-danger">{form.formState.errors.change_reason.message}</p>}</div></div>
           </div>
-          <DialogFooter className="shrink-0 border-t border-hairline bg-surface-2/45 px-4 py-3 sm:px-5"><Button type="button" variant="outline" onClick={handleClose} disabled={isSubmitting} className="bg-surface-1 text-xs">Batal</Button><Button type="submit" disabled={isLoading || isSubmitting || !record || !completeInspection} className="bg-semantic-warning text-xs text-white hover:bg-semantic-warning/90">{submitButtonContent}</Button></DialogFooter>
+          <DialogFooter className="shrink-0 border-t border-hairline bg-surface-2/45 px-4 py-3 sm:px-5 md:pb-3"><Button type="button" variant="secondary" onClick={handleClose} disabled={isSubmitting} className="text-xs">Batal</Button><Button type="submit" disabled={isLoading || isSubmitting || !record || !completeInspection} className="bg-semantic-warning text-xs text-white hover:bg-semantic-warning/90">{submitButtonContent}</Button></DialogFooter>
         </form>
       </DialogContent>
     </Dialog>

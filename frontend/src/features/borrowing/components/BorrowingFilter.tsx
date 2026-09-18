@@ -46,7 +46,7 @@ export function BorrowingFilter({
         <SelectTrigger aria-label="Filter status peminjaman" className="h-9 w-full bg-surface-1 text-xs text-ink lg:w-48">
           <SelectValue placeholder="Status Peminjaman" />
         </SelectTrigger>
-        <SelectContent className="bg-surface-3 border-hairline text-ink">
+        <SelectContent>
           <SelectItem value={UI_CONSTANTS.ALL_FILTER_VALUE}>Semua Status</SelectItem>
           <SelectItem value="menunggu_persetujuan">Menunggu Persetujuan</SelectItem>
           <SelectItem value="disetujui">Disetujui (Siap Ambil)</SelectItem>

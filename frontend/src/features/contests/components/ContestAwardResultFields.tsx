@@ -3,6 +3,7 @@ import type { ChangeEvent, ReactElement, ReactNode } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 
 import { Button } from '@/shared/ui/primitives/button';
+import { FieldError } from '@/shared/ui/FieldError';
 import { Input } from '@/shared/ui/primitives/input';
 import { Label } from '@/shared/ui/primitives/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/primitives/select';
@@ -22,6 +23,7 @@ import {
 
 interface ContestAwardResultFieldsProps {
   resultRows: AwardResultDraft[];
+  error?: string | null;
   onAddResult: () => void;
   onRemoveResult: (resultRowIndex: number) => void;
   onResultTitleChange: (resultRowIndex: number, title: string) => void;
@@ -45,6 +47,7 @@ function useContestAwardResultFieldsContext(): ContestAwardResultFieldsContextVa
 function ContestAwardResultFieldsRoot({
   children,
   resultRows,
+  error,
   onAddResult,
   onRemoveResult,
   onResultTitleChange,
@@ -55,6 +58,7 @@ function ContestAwardResultFieldsRoot({
     <ContestAwardResultFieldsContext.Provider
       value={{
         resultRows,
+        error,
         onAddResult,
         onRemoveResult,
         onResultTitleChange,
@@ -68,15 +72,20 @@ function ContestAwardResultFieldsRoot({
 }
 
 function ContestAwardResultFieldsHeader(): ReactElement {
+  const { error } = useContestAwardResultFieldsContext();
+
   return (
-    <div className="flex items-center justify-between gap-3">
-      <div>
-        <p className="text-xs font-semibold text-ink">Hasil penghargaan</p>
-        <p className="text-[11px] text-ink-tertiary">
-          Tambahkan semua hasil yang diperoleh karya ini.
-        </p>
+    <div className="space-y-1">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold text-ink">Hasil penghargaan</p>
+          <p className="text-[11px] text-ink-tertiary">
+            Tambahkan semua hasil yang diperoleh karya ini.
+          </p>
+        </div>
+        <ContestAwardResultFieldsAddButton />
       </div>
-      <ContestAwardResultFieldsAddButton />
+      <FieldError message={error} />
     </div>
   );
 }
@@ -175,7 +184,7 @@ function ContestAwardResultRow({
             <SelectTrigger className="bg-surface-1 text-sm">
               <SelectValue>{getContestFinalizeResultKindLabel(resultRow.result_kind)}</SelectValue>
             </SelectTrigger>
-            <SelectContent className="bg-surface-3 text-ink">
+            <SelectContent>
               {CONTEST_FINALIZE_RESULT_KIND_OPTIONS.map((resultKindOption) => (
                 <SelectItem key={resultKindOption.value} value={resultKindOption.value}>
                   {resultKindOption.label}

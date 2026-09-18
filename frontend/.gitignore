@@ -11,6 +11,15 @@ node_modules
 dist
 dist-ssr
 build-check*
+coverage/
+playwright-report/
+test-results/
+.vite/
+.cache/
+.turbo/
+*.tsbuildinfo
+.eslintcache
+.oxlint-cache
 docs/
 *.local
 .env

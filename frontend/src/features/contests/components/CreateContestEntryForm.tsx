@@ -110,7 +110,7 @@ export function CreateContestEntryForm({
           <SelectTrigger className="bg-surface-1 text-sm">
             <SelectValue>{selectedWorkTypeLabel}</SelectValue>
           </SelectTrigger>
-          <SelectContent className="bg-surface-3 text-ink">
+          <SelectContent>
             {workTypeOptions.map((workType) => (
               <SelectItem key={workType.code} value={workType.code}>
                 {workType.label}
@@ -121,7 +121,7 @@ export function CreateContestEntryForm({
       </div>
 
       <div className="flex justify-end gap-2">
-        <Button type="button" variant="outline" size="sm" onClick={onClose}>
+        <Button type="button" variant="secondary" size="sm" onClick={onClose}>
           Batal
         </Button>
         <Button type="submit" size="sm" disabled={createContestEntryMutation.isPending}>

@@ -93,20 +93,20 @@ export function EquipmentAttentionTabs({
       )}
 
       <Tabs value={activeTab} onValueChange={changeTab} className="w-full">
-        <TabsList aria-label="Operasional alat" className={`grid min-h-12 w-full gap-1 border border-hairline bg-surface-2 p-1 sm:min-h-10 sm:max-w-2xl ${canManage ? 'grid-cols-3' : 'grid-cols-2'}`}>
-          <TabsTrigger value="recovery" className="min-h-10 gap-1.5 px-3 text-xs sm:min-h-9">
+        <TabsList aria-label="Operasional alat" className={`grid w-full max-w-2xl ${canManage ? 'grid-cols-3' : 'grid-cols-2'}`}>
+          <TabsTrigger value="recovery" className="gap-1.5 px-3 text-xs">
             <Wrench size={14} aria-hidden="true" />
             <span>Tindak lanjut</span>
             {recoveryCount > 0 && <StatusBadge label={String(recoveryCount)} variant="warning" className="ml-1 px-1.5" />}
           </TabsTrigger>
           {canManage && (
-            <TabsTrigger value="charges" className="min-h-10 gap-1.5 px-3 text-xs sm:min-h-9">
+            <TabsTrigger value="charges" className="gap-1.5 px-3 text-xs">
               <CreditCard size={14} aria-hidden="true" />
               <span>Tagihan</span>
               {openCharges.length > 0 && <StatusBadge label={String(openCharges.length)} variant="warning" className="ml-1 px-1.5" />}
             </TabsTrigger>
           )}
-          <TabsTrigger value="history" className="min-h-10 gap-1.5 px-3 text-xs sm:min-h-9">
+          <TabsTrigger value="history" className="gap-1.5 px-3 text-xs">
             <History size={14} aria-hidden="true" />
             <span>Riwayat selesai</span>
             {historyCases.length > 0 && <StatusBadge label={String(historyCases.length)} variant="neutral" className="ml-1 px-1.5" />}

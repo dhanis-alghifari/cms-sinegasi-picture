@@ -10,11 +10,14 @@ import { Input } from '@/shared/ui/primitives/input';
 import { Label } from '@/shared/ui/primitives/label';
 import { Textarea } from '@/shared/ui/primitives/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/shared/ui/primitives/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/primitives/select';
 import { FormattedNumberInput } from '@/shared/ui/FormattedNumberInput';
+import { FieldError } from '@/shared/ui/FieldError';
 import { formatCurrency } from '@/shared/utils/formatCurrency';
 import { formatNumber } from '@/shared/utils/formatNumber';
 import { formatDateShort } from '@/shared/utils/formatDate';
 import { getErrorMessage } from '@/shared/api/errors';
+import { cn } from '@/shared/utils/cn';
 import { UI_CONSTANTS } from '@/shared/constants/ui';
 import { cashService } from '../api/cash.service';
 import { useCashDisputesQuery, useCashPaymentMethodsQuery } from '../hooks/useCashQuery';
@@ -40,6 +43,8 @@ function safeProofUrl(value: string): string | null {
 }
 
 type ReviewDraft = { dispute: CashDispute; status: 'approved' | 'rejected' };
+type ReviewField = 'reviewNote' | 'resolutionDate' | 'resolutionAmount' | 'paymentMethod';
+type ReviewFieldErrors = Partial<Record<ReviewField, string>>;
 
 export function CashDisputeQueue({ reviewer = false }: { reviewer?: boolean }) {
   const [page, setPage] = useState(1);
@@ -52,7 +57,7 @@ export function CashDisputeQueue({ reviewer = false }: { reviewer?: boolean }) {
   const [downloadState, setDownloadState] = useState<'idle' | 'loading' | 'error'>('idle');
   const [reviewDraft, setReviewDraft] = useState<ReviewDraft | null>(null);
   const [reviewNote, setReviewNote] = useState('');
-  const [reviewValidationError, setReviewValidationError] = useState<string | null>(null);
+  const [reviewFieldErrors, setReviewFieldErrors] = useState<ReviewFieldErrors>({});
   const [resolutionDate, setResolutionDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [resolutionAmount, setResolutionAmount] = useState<number | undefined>();
   const [paymentMethodCode, setPaymentMethodCode] = useState('');
@@ -77,7 +82,7 @@ export function CashDisputeQueue({ reviewer = false }: { reviewer?: boolean }) {
   const openReview = (dispute: CashDispute, status: 'approved' | 'rejected') => {
     setReviewDraft({ dispute, status });
     setReviewNote('');
-    setReviewValidationError(null);
+    setReviewFieldErrors({});
     setResolutionDate(new Date().toISOString().slice(0, 10));
     setResolutionAmount(dispute.transaction_nominal ?? undefined);
     setPaymentMethodCode('');
@@ -87,26 +92,27 @@ export function CashDisputeQueue({ reviewer = false }: { reviewer?: boolean }) {
     if (!reviewDraft) return;
 
     const normalizedReviewNote = reviewNote.trim();
+    setReviewFieldErrors({});
+    const validationErrors: ReviewFieldErrors = {};
     if (normalizedReviewNote.length < 5) {
-      setReviewValidationError('Catatan pemeriksaan wajib diisi minimal 5 karakter.');
-      return;
+      validationErrors.reviewNote = 'Catatan pemeriksaan wajib diisi minimal 5 karakter.';
     }
 
     const requiresResolution = reviewDraft.status === 'approved' && Boolean(reviewDraft.dispute.debt_record_id);
     if (requiresResolution && !resolutionDate) {
-      setReviewValidationError('Tanggal pembayaran wajib diisi.');
-      return;
+      validationErrors.resolutionDate = 'Tanggal pembayaran wajib diisi.';
     }
     if (requiresResolution && (resolutionAmount === undefined || !Number.isFinite(resolutionAmount) || resolutionAmount < 1)) {
-      setReviewValidationError('Nominal pembayaran wajib diisi dan harus lebih besar dari Rp 0.');
-      return;
+      validationErrors.resolutionAmount = 'Nominal pembayaran wajib diisi dan harus lebih besar dari Rp 0.';
     }
     if (requiresResolution && !paymentMethodCode) {
-      setReviewValidationError('Metode pembayaran wajib dipilih.');
+      validationErrors.paymentMethod = 'Metode pembayaran wajib dipilih.';
+    }
+    if (Object.keys(validationErrors).length > 0) {
+      setReviewFieldErrors(validationErrors);
       return;
     }
 
-    setReviewValidationError(null);
     await resolveMutation.mutateAsync({
       disputeId: reviewDraft.dispute.id,
       status: reviewDraft.status,
@@ -142,25 +148,28 @@ export function CashDisputeQueue({ reviewer = false }: { reviewer?: boolean }) {
 
   const handleReviewNoteChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
     setReviewNote(event.target.value);
-    setReviewValidationError(null);
+    setReviewFieldErrors((current) => ({ ...current, reviewNote: undefined }));
   };
 
   const handleResolutionDateChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setResolutionDate(event.target.value);
-    setReviewValidationError(null);
+    setReviewFieldErrors((current) => ({ ...current, resolutionDate: undefined }));
   };
 
   const handleResolutionAmountChange = (value: number | undefined) => {
     setResolutionAmount(value);
-    setReviewValidationError(null);
+    setReviewFieldErrors((current) => ({ ...current, resolutionAmount: undefined }));
   };
 
-  const handlePaymentMethodChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    setPaymentMethodCode(event.target.value);
-    setReviewValidationError(null);
+  const handlePaymentMethodChange = (value: string | null) => {
+    setPaymentMethodCode(value ?? '');
+    setReviewFieldErrors((current) => ({ ...current, paymentMethod: undefined }));
   };
 
-  const handleCloseReview = () => setReviewDraft(null);
+  const handleCloseReview = () => {
+    setReviewDraft(null);
+    setReviewFieldErrors({});
+  };
 
   return (
     <>
@@ -194,10 +203,10 @@ export function CashDisputeQueue({ reviewer = false }: { reviewer?: boolean }) {
         <DialogContent className="max-w-lg border-hairline bg-surface-1 text-ink">
           <DialogHeader><DialogTitle>{reviewDraft?.status === 'approved' ? 'Setujui sanggahan' : 'Tolak sanggahan'}</DialogTitle><DialogDescription className="text-ink-subtle">Catatan pemeriksa wajib diisi dan tersimpan dalam riwayat audit.</DialogDescription></DialogHeader>
           <form noValidate onSubmit={handleReviewFormSubmit} className="space-y-4">
-            <div className="space-y-1"><Label htmlFor="review-note">Catatan pemeriksaan *</Label><Textarea id="review-note" value={reviewNote} onChange={handleReviewNoteChange} minLength={5} maxLength={2000} required rows={4} placeholder="Jelaskan hasil pemeriksaan bukti..." /></div>
-            {reviewDraft?.status === 'approved' && reviewDraft.dispute.debt_record_id && <div className="grid gap-3 sm:grid-cols-2"><div className="space-y-1"><Label htmlFor="resolution-date">Tanggal pembayaran *</Label><Input id="resolution-date" type="date" value={resolutionDate} onChange={handleResolutionDateChange} required /></div><div className="space-y-1"><Label htmlFor="resolution-amount">Nominal *</Label><FormattedNumberInput id="resolution-amount" min="1" step="0.01" value={resolutionAmount} onChange={handleResolutionAmountChange} required /></div><div className="space-y-1 sm:col-span-2"><Label htmlFor="payment-method">Metode pembayaran *</Label><select id="payment-method" value={paymentMethodCode} onChange={handlePaymentMethodChange} required disabled={paymentMethodsQuery.isLoading} className="min-h-11 w-full rounded-md border border-hairline bg-surface-2 px-3 text-sm text-ink"><option value="">{paymentMethodsQuery.isLoading ? 'Memuat metode...' : 'Pilih metode'}</option>{(paymentMethodsQuery.data?.data ?? []).map((method) => <option key={method.code} value={method.code}>{method.label}</option>)}</select>{paymentMethodsQuery.error && <p className="text-xs text-semantic-danger">Metode pembayaran belum dapat dimuat.</p>}</div></div>}
-            {(reviewValidationError || resolveMutation.error) && <p role="alert" className="text-sm text-semantic-danger">{reviewValidationError ?? getErrorMessage(resolveMutation.error)}</p>}
-            <DialogFooter className="gap-2"><Button type="button" variant="outline" className="min-h-11" disabled={resolveMutation.isPending} onClick={handleCloseReview}>Batal</Button><Button type="submit" className="min-h-11" disabled={resolveMutation.isPending}>{resolveMutation.isPending ? <><Loader2 size={14} className="mr-1 animate-spin" />Menyimpan...</> : 'Simpan keputusan'}</Button></DialogFooter>
+            <div className="space-y-1"><Label htmlFor="review-note">Catatan pemeriksaan *</Label><Textarea id="review-note" value={reviewNote} onChange={handleReviewNoteChange} minLength={5} maxLength={2000} required rows={4} placeholder="Jelaskan hasil pemeriksaan bukti..." aria-invalid={Boolean(reviewFieldErrors.reviewNote)} aria-describedby={reviewFieldErrors.reviewNote ? 'review-note-error' : undefined} className={cn(reviewFieldErrors.reviewNote && 'border-semantic-danger')} /><FieldError id="review-note-error" message={reviewFieldErrors.reviewNote} /></div>
+            {reviewDraft?.status === 'approved' && reviewDraft.dispute.debt_record_id && <div className="grid gap-3 sm:grid-cols-2"><div className="space-y-1"><Label htmlFor="resolution-date">Tanggal pembayaran *</Label><Input id="resolution-date" type="date" value={resolutionDate} onChange={handleResolutionDateChange} required aria-invalid={Boolean(reviewFieldErrors.resolutionDate)} aria-describedby={reviewFieldErrors.resolutionDate ? 'resolution-date-error' : undefined} className={cn(reviewFieldErrors.resolutionDate && 'border-semantic-danger')} /><FieldError id="resolution-date-error" message={reviewFieldErrors.resolutionDate} /></div><div className="space-y-1"><Label htmlFor="resolution-amount">Nominal *</Label><FormattedNumberInput id="resolution-amount" min="1" step="0.01" value={resolutionAmount} onChange={handleResolutionAmountChange} required aria-invalid={Boolean(reviewFieldErrors.resolutionAmount)} aria-describedby={reviewFieldErrors.resolutionAmount ? 'resolution-amount-error' : undefined} className={cn(reviewFieldErrors.resolutionAmount && 'border-semantic-danger')} /><FieldError id="resolution-amount-error" message={reviewFieldErrors.resolutionAmount} /></div><div className="space-y-1 sm:col-span-2"><Label htmlFor="payment-method">Metode pembayaran *</Label><Select value={paymentMethodCode || null} onValueChange={handlePaymentMethodChange} disabled={paymentMethodsQuery.isLoading} required><SelectTrigger id="payment-method" className={cn('min-h-11 bg-surface-2', reviewFieldErrors.paymentMethod && 'border-semantic-danger')} aria-invalid={Boolean(reviewFieldErrors.paymentMethod)} aria-describedby={reviewFieldErrors.paymentMethod ? 'payment-method-error' : undefined}><SelectValue placeholder={paymentMethodsQuery.isLoading ? 'Memuat metode...' : 'Pilih metode'} /></SelectTrigger><SelectContent>{(paymentMethodsQuery.data?.data ?? []).map((method) => <SelectItem key={method.code} value={method.code}>{method.label}</SelectItem>)}</SelectContent></Select><FieldError id="payment-method-error" message={reviewFieldErrors.paymentMethod} />{paymentMethodsQuery.error && <p className="text-xs text-semantic-danger">Metode pembayaran belum dapat dimuat.</p>}</div></div>}
+            {resolveMutation.error && <p role="alert" className="text-sm text-semantic-danger">{getErrorMessage(resolveMutation.error)}</p>}
+            <DialogFooter className="gap-2"><Button type="button" variant="secondary" className="min-h-11" disabled={resolveMutation.isPending} onClick={handleCloseReview}>Batal</Button><Button type="submit" className="min-h-11" disabled={resolveMutation.isPending}>{resolveMutation.isPending ? <><Loader2 size={14} className="mr-1 animate-spin" />Menyimpan...</> : 'Simpan keputusan'}</Button></DialogFooter>
           </form>
         </DialogContent>
       </Dialog>

@@ -1,19 +1,23 @@
 import { useState } from 'react';
-import type { ChangeEvent } from 'react';
 import { ClipboardCheck, Loader2, Wrench } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/shared/ui/primitives/dialog';
 import { Button } from '@/shared/ui/primitives/button';
+import { FieldError } from '@/shared/ui/FieldError';
 import { Input } from '@/shared/ui/primitives/input';
 import { Checkbox } from '@/shared/ui/primitives/checkbox';
 import { Label } from '@/shared/ui/primitives/label';
 import { Textarea } from '@/shared/ui/primitives/textarea';
 import { RadioGroup } from '@/shared/ui/primitives/radio-group';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/primitives/select';
 import { getErrorMessage } from '@/shared/api/errors';
+import { cn } from '@/shared/utils/cn';
 import { MultiImageUploadField } from './MultiImageUploadField';
 import { FormattedNumberInput } from '@/shared/ui/FormattedNumberInput';
 import type { Equipment, EquipmentRecoveryCase, RecoveryType } from '../types/equipment.types';
 
 type RecoveryDialogMode = 'create' | 'repair' | 'replacement';
+type RecoveryField = 'changeReason' | 'photos' | 'inspection' | 'equipmentCode' | 'name';
+type RecoveryFieldErrors = Partial<Record<RecoveryField, string>>;
 
 interface EquipmentRecoveryDialogProps {
   dialog: {
@@ -44,8 +48,6 @@ const categoryOptions = [
 ];
 const categoryCodeByLabel: Record<string, string> = { Kamera: 'camera', Lensa: 'lens', Audio: 'audio', Lighting: 'lighting', Aksesoris: 'accessory', Lainnya: 'other' };
 const conditionCodeByLabel: Record<string, string> = { sedikit_kerusakan: 'minor_damage', rusak: 'damaged', rusak_besar: 'severely_damaged', sedang_diperbaiki: 'under_repair', hilang: 'lost' };
-const nativeControlFocusClass = 'transition-[color,border-color,box-shadow] focus-visible:border-primary-focus focus-visible:ring-1 focus-visible:ring-primary-focus/50 focus-visible:ring-offset-0 focus-visible:outline-none';
-
 function getRecoveryDialogTitle(mode: RecoveryDialogMode): string {
   switch (mode) {
     case 'create':
@@ -85,32 +87,68 @@ export function EquipmentRecoveryDialog({
   const [serialNumber, setSerialNumber] = useState('');
   const [replacementValue, setReplacementValue] = useState<number | undefined>();
   const [localError, setLocalError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<RecoveryFieldErrors>({});
 
-  const close = () => { if (!isLoading) onOpenChange(false); };
+  const clearFieldError = (field: RecoveryField) => {
+    setFieldErrors((existingErrors) => {
+      if (!existingErrors[field]) return existingErrors;
+      const nextErrors = { ...existingErrors };
+      delete nextErrors[field];
+      return nextErrors;
+    });
+  };
+  const close = () => {
+    if (isLoading) return;
+    setLocalError(null);
+    setFieldErrors({});
+    onOpenChange(false);
+  };
   const handleRecoveryTypeChange = (value: string) => {
     if (value !== 'repair' && value !== 'replacement') return;
     setRecoveryType(value);
   };
 
-  const handleConditionChange = (event: ChangeEvent<HTMLSelectElement>) => {
-    const nextCondition = event.target.value;
+  const handleConditionChange = (nextCondition: string | null) => {
+    if (!nextCondition) return;
     setCondition(nextCondition);
     if (nextCondition === 'lost') setRecoveryType('replacement');
   };
 
+  const handleCategoryChange = (nextCategory: string | null) => {
+    if (nextCategory) setCategory(nextCategory);
+  };
+
   const submit = async () => {
     setLocalError(null);
+    setFieldErrors({});
+    const validationErrors: RecoveryFieldErrors = {};
+    if (changeReason.trim().length < 5) validationErrors.changeReason = 'Alasan perubahan minimal 5 karakter.';
+    if (mode === 'repair' && photos.length < 2) {
+      validationErrors.photos = 'Minimal 2 foto hasil pemeriksaan wajib diunggah.';
+    }
+    if (mode === 'repair' && !inspectionPassed) {
+      validationErrors.inspection = 'Konfirmasi checklist pemeriksaan akhir sebelum menyimpan.';
+    }
+    if (mode === 'replacement' && !equipmentCode.trim()) {
+      validationErrors.equipmentCode = 'Kode alat baru wajib diisi.';
+    }
+    if (mode === 'replacement' && !name.trim()) {
+      validationErrors.name = 'Nama alat baru wajib diisi.';
+    }
+    if (mode === 'replacement' && photos.length < 3) {
+      validationErrors.photos = 'Minimal 3 foto alat pengganti wajib diunggah.';
+    }
+    if (Object.keys(validationErrors).length > 0) {
+      setFieldErrors(validationErrors);
+      return;
+    }
     try {
-      if (changeReason.trim().length < 5) throw new Error('Alasan perubahan minimal 5 karakter.');
       if (mode === 'create') await onCreate({ recovery_type: recoveryType, reported_condition: condition, notes: notes.trim() || undefined, change_reason: changeReason.trim() });
       else if (mode === 'repair') {
         if (!recoveryCase) throw new Error('Tindak lanjut perbaikan tidak ditemukan.');
-        if (photos.length < 2) throw new Error('Minimal 2 foto hasil pemeriksaan wajib diunggah.');
-        if (!inspectionPassed) throw new Error('Konfirmasi checklist pemeriksaan akhir sebelum menyimpan.');
         await onCompleteRepair({ case_id: recoveryCase.id, inspection_photos: photos, inspection_passed: true, actual_cost: actualCost, notes: notes.trim() || undefined, change_reason: changeReason.trim() });
       } else {
         if (!recoveryCase) throw new Error('Tindak lanjut penggantian tidak ditemukan.');
-        if (photos.length < 3) throw new Error('Minimal 3 foto alat pengganti wajib diunggah.');
         await onRegisterReplacement({ case_id: recoveryCase.id, equipment_code: equipmentCode.trim(), name: name.trim(), category, storage_location: storageLocation.trim() || undefined, serial_number: serialNumber.trim() || undefined, photo_urls: photos, description: notes.trim() || undefined, replacement_value: replacementValue, change_reason: changeReason.trim() });
       }
       onOpenChange(false);
@@ -129,36 +167,54 @@ export function EquipmentRecoveryDialog({
           {Boolean(localError || error) && <div role="alert" className="rounded border border-semantic-danger/30 bg-semantic-danger/10 px-3 py-2 text-xs text-semantic-danger">{localError || (error ? getErrorMessage(error) : null)}</div>}
           {mode === 'create' && <>
             <RadioGroup name="recovery-type" legend="Jenis tindak lanjut *" value={recoveryType} options={condition === 'lost' ? [{ value: 'replacement', label: 'Ganti unit baru' }] : [{ value: 'repair', label: 'Perbaikan / servis' }, { value: 'replacement', label: 'Ganti unit baru' }]} onValueChange={handleRecoveryTypeChange} />
-            <div className="space-y-1"><Label htmlFor="recovery-condition">Kondisi yang dilaporkan *</Label><select id="recovery-condition" value={condition} onChange={handleConditionChange} className={`h-9 w-full rounded-lg border border-input bg-surface-2 px-2.5 text-xs outline-none ${nativeControlFocusClass}`}>{conditionOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></div>
+            <div className="space-y-1"><Label htmlFor="recovery-condition">Kondisi yang dilaporkan *</Label><Select value={condition} onValueChange={handleConditionChange} required><SelectTrigger id="recovery-condition" className="bg-surface-2 text-xs"><SelectValue placeholder="Pilih kondisi" /></SelectTrigger><SelectContent>{conditionOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent></Select></div>
             <div className="space-y-1"><Label htmlFor="recovery-notes">Catatan</Label><Textarea id="recovery-notes" rows={3} value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Jelaskan kerusakan atau alasan penggantian." /></div>
           </>}
           {mode === 'repair' && <>
             <MultiImageUploadField
-              field={{ id: 'repair-photos', label: 'Foto hasil perbaikan', values: photos, onChange: setPhotos }}
-              validation={{ minFiles: 2, required: true }}
+              field={{ id: 'repair-photos', label: 'Foto hasil perbaikan', values: photos, onChange: (nextPhotos) => { setPhotos(nextPhotos); clearFieldError('photos'); } }}
+              validation={{ minFiles: 2, required: true, error: fieldErrors.photos }}
               state={{ disabled: isLoading }}
             />
-            <label htmlFor="repair-inspection-passed" className="flex cursor-pointer items-start gap-2 rounded-lg border border-hairline bg-surface-2/60 p-2.5 text-xs text-ink">
-              <Checkbox id="repair-inspection-passed" checked={inspectionPassed} onChange={(event) => setInspectionPassed(event.currentTarget.checked)} disabled={isLoading} className="mt-0.5" />
-              <span>Saya sudah memeriksa fungsi alat dan memastikan alat siap dipinjam kembali.</span>
-            </label>
+            <div className="space-y-1">
+              <label htmlFor="repair-inspection-passed" className={cn('flex cursor-pointer items-start gap-2 rounded-lg border bg-surface-2/60 p-2.5 text-xs text-ink', fieldErrors.inspection ? 'border-semantic-danger' : 'border-hairline')}>
+                <Checkbox id="repair-inspection-passed" checked={inspectionPassed} onChange={(event) => { setInspectionPassed(event.currentTarget.checked); clearFieldError('inspection'); }} disabled={isLoading} className="mt-0.5" aria-invalid={Boolean(fieldErrors.inspection)} aria-describedby={fieldErrors.inspection ? 'repair-inspection-error' : undefined} />
+                <span>Saya sudah memeriksa fungsi alat dan memastikan alat siap dipinjam kembali.</span>
+              </label>
+              <FieldError id="repair-inspection-error" message={fieldErrors.inspection} />
+            </div>
             <div className="space-y-1"><Label>Biaya aktual (opsional)</Label><FormattedNumberInput value={actualCost} onChange={setActualCost} placeholder="0" disabled={isLoading} /></div>
             <div className="space-y-1"><Label htmlFor="repair-notes">Catatan pemeriksaan</Label><Textarea id="repair-notes" rows={3} value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Bagian yang diperbaiki dan hasil pengujian." /></div>
           </>}
           {mode === 'replacement' && <>
-            <div className="grid gap-3 sm:grid-cols-2"><div className="space-y-1"><Label htmlFor="replacement-code">Kode alat baru *</Label><Input id="replacement-code" value={equipmentCode} onChange={(event) => setEquipmentCode(event.target.value.toUpperCase())} placeholder="CAM-002" /></div><div className="space-y-1"><Label htmlFor="replacement-name">Nama alat baru *</Label><Input id="replacement-name" value={name} onChange={(event) => setName(event.target.value)} /></div></div>
-            <div className="grid gap-3 sm:grid-cols-2"><div className="space-y-1"><Label htmlFor="replacement-category">Kategori *</Label><select id="replacement-category" value={category} onChange={(event) => setCategory(event.target.value)} className={`h-9 w-full rounded-lg border border-input bg-surface-2 px-2.5 text-xs outline-none ${nativeControlFocusClass}`}>{categoryOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></div><div className="space-y-1"><Label>Nilai penggantian (opsional)</Label><FormattedNumberInput value={replacementValue} onChange={setReplacementValue} placeholder="-" disabled={isLoading} /></div></div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1">
+                <Label htmlFor="replacement-code">Kode alat baru *</Label>
+                <Input id="replacement-code" value={equipmentCode} onChange={(event) => { setEquipmentCode(event.target.value.toUpperCase()); clearFieldError('equipmentCode'); }} placeholder="CAM-002" aria-invalid={Boolean(fieldErrors.equipmentCode)} aria-describedby={fieldErrors.equipmentCode ? 'replacement-code-error' : undefined} className={fieldErrors.equipmentCode ? 'border-semantic-danger' : undefined} />
+                <FieldError id="replacement-code-error" message={fieldErrors.equipmentCode} />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="replacement-name">Nama alat baru *</Label>
+                <Input id="replacement-name" value={name} onChange={(event) => { setName(event.target.value); clearFieldError('name'); }} aria-invalid={Boolean(fieldErrors.name)} aria-describedby={fieldErrors.name ? 'replacement-name-error' : undefined} className={fieldErrors.name ? 'border-semantic-danger' : undefined} />
+                <FieldError id="replacement-name-error" message={fieldErrors.name} />
+              </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2"><div className="space-y-1"><Label htmlFor="replacement-category">Kategori *</Label><Select value={category} onValueChange={handleCategoryChange} required><SelectTrigger id="replacement-category" className="bg-surface-2 text-xs"><SelectValue placeholder="Pilih kategori" /></SelectTrigger><SelectContent>{categoryOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent></Select></div><div className="space-y-1"><Label>Nilai penggantian (opsional)</Label><FormattedNumberInput value={replacementValue} onChange={setReplacementValue} placeholder="-" disabled={isLoading} /></div></div>
             <div className="grid gap-3 sm:grid-cols-2"><div className="space-y-1"><Label htmlFor="replacement-location">Lokasi penyimpanan</Label><Input id="replacement-location" value={storageLocation} onChange={(event) => setStorageLocation(event.target.value)} /></div><div className="space-y-1"><Label htmlFor="replacement-serial">Nomor seri</Label><Input id="replacement-serial" value={serialNumber} onChange={(event) => setSerialNumber(event.target.value)} /></div></div>
             <MultiImageUploadField
-              field={{ id: 'replacement-photos', label: 'Foto alat pengganti', values: photos, onChange: setPhotos }}
-              validation={{ minFiles: 3, required: true }}
+              field={{ id: 'replacement-photos', label: 'Foto alat pengganti', values: photos, onChange: (nextPhotos) => { setPhotos(nextPhotos); clearFieldError('photos'); } }}
+              validation={{ minFiles: 3, required: true, error: fieldErrors.photos }}
               state={{ disabled: isLoading }}
             />
             <div className="space-y-1"><Label htmlFor="replacement-notes">Catatan</Label><Textarea id="replacement-notes" rows={2} value={notes} onChange={(event) => setNotes(event.target.value)} /></div>
           </>}
-          <div className="space-y-1 border-t border-hairline pt-3"><Label htmlFor="recovery-change-reason">Alasan perubahan (audit) *</Label><Input id="recovery-change-reason" value={changeReason} onChange={(event) => setChangeReason(event.target.value)} placeholder="Contoh: Verifikasi hasil servis alat" /></div>
+          <div className="space-y-1 border-t border-hairline pt-3">
+            <Label htmlFor="recovery-change-reason">Alasan perubahan (audit) *</Label>
+            <Input id="recovery-change-reason" value={changeReason} onChange={(event) => { setChangeReason(event.target.value); clearFieldError('changeReason'); }} placeholder="Contoh: Verifikasi hasil servis alat" aria-invalid={Boolean(fieldErrors.changeReason)} aria-describedby={fieldErrors.changeReason ? 'recovery-change-reason-error' : undefined} className={fieldErrors.changeReason ? 'border-semantic-danger' : undefined} />
+            <FieldError id="recovery-change-reason-error" message={fieldErrors.changeReason} />
+          </div>
         </div>
-        <DialogFooter><Button type="button" variant="outline" onClick={close} disabled={isLoading}>Batal</Button><Button type="button" onClick={() => void submit()} disabled={isLoading} className="bg-primary text-primary-foreground">{isLoading ? <><Loader2 size={14} className="mr-1.5 animate-spin" />Menyimpan...</> : <><ClipboardCheck size={14} className="mr-1.5" />Simpan</>}</Button></DialogFooter>
+        <DialogFooter><Button type="button" variant="secondary" onClick={close} disabled={isLoading}>Batal</Button><Button type="button" onClick={() => void submit()} disabled={isLoading} className="bg-primary text-primary-foreground">{isLoading ? <><Loader2 size={14} className="mr-1.5 animate-spin" />Menyimpan...</> : <><ClipboardCheck size={14} className="mr-1.5" />Simpan</>}</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   );

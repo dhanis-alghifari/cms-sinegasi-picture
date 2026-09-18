@@ -135,7 +135,7 @@ export function StudentDisputeModal({
           />
 
           <DialogFooter className="pt-2">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="min-h-11 bg-surface-2 border-hairline text-ink text-xs">
+            <Button type="button" variant="secondary" onClick={() => onOpenChange(false)} className="min-h-11 text-xs">
               Batal
             </Button>
             <Button type="submit" disabled={isLoading || isImageProcessing || quota?.remaining === 0} className="min-h-11 border-primary bg-primary px-3 text-xs font-semibold text-primary-foreground hover:bg-primary-hover focus-visible:ring-primary/30">

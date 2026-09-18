@@ -176,7 +176,7 @@ export function ClassesPage() {
           <SelectTrigger aria-label="Filter tingkat kelas" className="h-9 w-full bg-surface-1 text-xs text-ink lg:w-40">
             <SelectValue placeholder="Tingkat" />
           </SelectTrigger>
-          <SelectContent className="bg-surface-3 border-hairline text-ink">
+          <SelectContent>
             <SelectItem value={UI_CONSTANTS.ALL_FILTER_VALUE}>Semua Tingkat</SelectItem>
             <SelectItem value="X">Tingkat X</SelectItem>
             <SelectItem value="XI">Tingkat XI</SelectItem>

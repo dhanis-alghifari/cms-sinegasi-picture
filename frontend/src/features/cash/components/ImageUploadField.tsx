@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { Image as ImageIcon, Loader2, Upload, X } from 'lucide-react';
 
 import { Button } from '@/shared/ui/primitives/button';
+import { FieldError } from '@/shared/ui/FieldError';
 import { Input } from '@/shared/ui/primitives/input';
 import { Label } from '@/shared/ui/primitives/label';
 import { cn } from '@/shared/utils/cn';
@@ -121,9 +122,11 @@ export function ImageUploadField({
         onChange={(event) => onChange(event.target.value)}
         placeholder="Atau masukkan URL foto https://..."
         disabled={disabled || isProcessing}
+        aria-invalid={Boolean(error || localError)}
+        aria-describedby={error || localError ? `${id}-error` : undefined}
         className={cn('bg-surface-2 border-hairline text-ink text-xs', (error || localError) && 'border-semantic-danger')}
       />
-      {(error || localError) && <p className="text-semantic-danger text-[10px]">{localError || error}</p>}
+      <FieldError id={`${id}-error`} message={localError || error} />
     </div>
   );
 }

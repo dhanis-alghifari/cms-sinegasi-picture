@@ -9,6 +9,13 @@ export type NextPipelineStatus = Extract<
   'sudah_terkirim' | 'menunggu_pengumuman' | 'selesai'
 >;
 
+export const CONTEST_PIPELINE_ORDER = [
+  'proses_submit',
+  'sudah_terkirim',
+  'menunggu_pengumuman',
+  'selesai',
+] as const satisfies readonly ContestEntryStatus[];
+
 export type FinalOutcomeStatus = 'awarded' | 'not_awarded';
 
 export type AwardResultDraft = {
@@ -31,6 +38,11 @@ export function getNextPipelineStatus(
   };
 
   return nextStatusByCurrentStatus[currentStatus];
+}
+
+export function getPipelineStepIndex(currentStatus: ContestEntryStatus): number {
+  const stepIndex = CONTEST_PIPELINE_ORDER.indexOf(currentStatus);
+  return stepIndex >= 0 ? stepIndex : 0;
 }
 
 export function createEmptyAwardResultDraft(): AwardResultDraft {
@@ -57,31 +69,49 @@ type PipelineValidationInput = {
   resultRows: AwardResultDraft[];
 };
 
-export function getPipelineValidationError({
+export type PipelineValidationField = 'change_reason' | 'evidence' | 'awards';
+
+export type PipelineValidationIssue = {
+  field: PipelineValidationField;
+  message: string;
+};
+
+export function getPipelineValidationIssues({
   nextStatus,
   changeReason,
   evidenceFile,
   outcomeStatus,
   resultRows,
-}: PipelineValidationInput): string | null {
+}: PipelineValidationInput): PipelineValidationIssue[] {
+  const issues: PipelineValidationIssue[] = [];
+
   if (changeReason.trim().length < 5) {
-    return 'Alasan perubahan minimal 5 karakter.';
+    issues.push({ field: 'change_reason', message: 'Alasan perubahan minimal 5 karakter.' });
   }
 
   if ((nextStatus === 'sudah_terkirim' || nextStatus === 'selesai') && !evidenceFile) {
-    return 'Unggah screenshot atau foto bukti terlebih dahulu.';
+    issues.push({ field: 'evidence', message: 'Unggah screenshot atau foto bukti terlebih dahulu.' });
   }
 
   if (nextStatus === 'selesai' && outcomeStatus === 'awarded') {
     if (resultRows.length === 0 || resultRows.some((resultRow) => resultRow.result_title.trim().length < 2)) {
-      return 'Isi minimal satu nama penghargaan.';
+      issues.push({ field: 'awards', message: 'Isi minimal satu nama penghargaan.' });
     }
-    if (resultRows.some((resultRow) => resultRow.result_kind === 'rank' && Number(resultRow.position) < 1)) {
-      return 'Posisi wajib diisi untuk hasil Juara.';
+    if (issues.every((issue) => issue.field !== 'awards')
+      && resultRows.some((resultRow) => resultRow.result_kind === 'rank' && Number(resultRow.position) < 1)) {
+      issues.push({ field: 'awards', message: 'Posisi wajib diisi untuk hasil Juara.' });
     }
   }
 
-  return null;
+  return issues;
+}
+
+export function getPipelineValidationIssue(input: PipelineValidationInput): PipelineValidationIssue | null {
+  return getPipelineValidationIssues(input)[0] ?? null;
+}
+
+export function getPipelineValidationError(input: PipelineValidationInput): string | null {
+  return getPipelineValidationIssue(input)?.message ?? null;
 }
 
 export function toFinalizeResultPayload(

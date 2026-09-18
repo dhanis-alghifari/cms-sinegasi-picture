@@ -47,6 +47,7 @@ export function StudentFormDialog({
   const [classOptionsLoading, setClassOptionsLoading] = useState(false);
   const [classOptionsError, setClassOptionsError] = useState<string | null>(null);
   const [isProcessingImage, setIsProcessingImage] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
 
   const loadClassOptions = useCallback(async () => {
@@ -140,22 +141,22 @@ export function StudentFormDialog({
     if (!file) return;
 
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-      setFormError('File harus berupa gambar JPEG, PNG, atau WebP.');
+      setImageError('File harus berupa gambar JPEG, PNG, atau WebP.');
       return;
     }
     if (file.size < 1 || file.size > MAX_SOURCE_IMAGE_BYTES) {
-      setFormError('Ukuran foto sumber maksimal 5 MB.');
+      setImageError('Ukuran foto sumber maksimal 5 MB.');
       return;
     }
 
-    setFormError(null);
+    setImageError(null);
     setIsProcessingImage(true);
     try {
       const compressedDataUrl = await compressImageFile(file);
       setSelectedFilePreview(compressedDataUrl);
       form.setValue('foto_url', compressedDataUrl, { shouldValidate: true, shouldDirty: true });
     } catch (err) {
-      setFormError(getErrorMessage(err));
+      setImageError(getErrorMessage(err));
     } finally {
       setIsProcessingImage(false);
     }
@@ -166,6 +167,7 @@ export function StudentFormDialog({
       URL.revokeObjectURL(selectedFilePreview);
     }
     setSelectedFilePreview(null);
+    setImageError(null);
     form.setValue('foto_url', '', { shouldValidate: true, shouldDirty: true });
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -175,6 +177,7 @@ export function StudentFormDialog({
   const handleDialogOpenChange = (nextOpen: boolean) => {
     if (!nextOpen) {
       setFormError(null);
+      setImageError(null);
       setSelectedFilePreview(null);
     }
     onOpenChange(nextOpen);
@@ -182,8 +185,12 @@ export function StudentFormDialog({
 
   const handleSubmit = form.handleSubmit(async (data: StudentFormValues) => {
     setFormError(null);
+    form.clearErrors('change_reason');
     if (isEditing && (!data.change_reason || data.change_reason.trim().length < 5)) {
-      setFormError('Alasan perubahan wajib diisi (minimal 5 karakter)');
+      form.setError('change_reason', {
+        type: 'manual',
+        message: 'Alasan perubahan wajib diisi (minimal 5 karakter).',
+      });
       return;
     }
     try {
@@ -231,15 +238,16 @@ export function StudentFormDialog({
               fileInputRef,
               onFileChange: handleFileChange,
               onRemove: handleRemoveImage,
+              error: imageError,
             }}
           />
 
           <DialogFooter className="pt-2">
             <Button
               type="button"
-              variant="outline"
+              variant="secondary"
               onClick={() => handleDialogOpenChange(false)}
-              className="bg-surface-2 border-hairline text-ink text-xs"
+              className="text-xs"
             >
               Batal
             </Button>

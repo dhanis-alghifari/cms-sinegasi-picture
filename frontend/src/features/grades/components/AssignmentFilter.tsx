@@ -60,7 +60,7 @@ export function AssignmentFilter({
         <SelectTrigger aria-label="Filter kategori tugas" className="h-9 w-full bg-surface-1 text-xs text-ink lg:w-44">
           <SelectValue placeholder="Kategori tugas" />
         </SelectTrigger>
-        <SelectContent className="bg-surface-3 border-hairline text-ink">
+        <SelectContent>
           <SelectItem value={UI_CONSTANTS.ALL_FILTER_VALUE}>Semua Kategori</SelectItem>
           <SelectItem value="class_task">{ASSIGNMENT_CATEGORY_LABELS.class_task}</SelectItem>
           <SelectItem value="crew_film">{ASSIGNMENT_CATEGORY_LABELS.crew_film}</SelectItem>
@@ -73,7 +73,7 @@ export function AssignmentFilter({
         <SelectTrigger aria-label="Filter kelas tugas" className="h-9 w-full bg-surface-1 text-xs text-ink lg:w-36">
           <SelectValue placeholder="Pilih kelas" />
         </SelectTrigger>
-        <SelectContent className="bg-surface-3 border-hairline text-ink">
+        <SelectContent>
           <SelectItem value={UI_CONSTANTS.ALL_FILTER_VALUE}>Semua Kelas</SelectItem>
           <SelectItem value="X">Kelas X</SelectItem>
           <SelectItem value="XI">Kelas XI</SelectItem>

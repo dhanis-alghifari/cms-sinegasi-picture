@@ -155,7 +155,7 @@ export function ApproveRejectModal({
           </div>
 
           <DialogFooter className="pt-2">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="bg-surface-2 border-hairline text-ink text-xs h-9">
+          <Button type="button" variant="secondary" onClick={() => onOpenChange(false)} className="text-xs h-9">
               Batal
             </Button>
             <Button

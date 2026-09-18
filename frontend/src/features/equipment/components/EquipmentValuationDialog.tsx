@@ -103,7 +103,7 @@ export function EquipmentValuationDialog({ open, onOpenChange, equipment, onSubm
         <div className="space-y-1"><Label htmlFor="source-url">Sumber harga (opsional)</Label><Input id="source-url" type="url" placeholder="https://..." {...form.register('source_url')} /></div>
         <div className="space-y-1"><Label htmlFor="valuation-notes">Catatan (opsional)</Label><Textarea id="valuation-notes" rows={2} {...form.register('notes')} /></div>
         <div className="space-y-1"><Label htmlFor="valuation-reason">Alasan audit *</Label><Input id="valuation-reason" aria-invalid={Boolean(form.formState.errors.change_reason)} aria-describedby={form.formState.errors.change_reason ? 'valuation-reason-error' : undefined} {...form.register('change_reason')} />{form.formState.errors.change_reason && <p id="valuation-reason-error" role="alert" className="text-[10px] text-semantic-danger">{form.formState.errors.change_reason.message}</p>}</div>
-        <DialogFooter><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Batal</Button><Button type="submit" disabled={isLoading}>{isLoading ? 'Menyimpan...' : 'Simpan Revisi'}</Button></DialogFooter>
+        <DialogFooter><Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>Batal</Button><Button type="submit" disabled={isLoading}>{isLoading ? 'Menyimpan...' : 'Simpan Revisi'}</Button></DialogFooter>
       </form>
     </DialogContent>
   </Dialog>;

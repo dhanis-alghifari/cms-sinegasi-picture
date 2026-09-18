@@ -158,7 +158,7 @@ export function SubmitFilmEntryModal({
                 <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs font-semibold">
                   <SelectValue placeholder="Pilih status penghargaan" />
                 </SelectTrigger>
-                <SelectContent className="bg-surface-3 border-hairline text-ink">
+                <SelectContent>
                   <SelectItem value="Juara 1">Juara 1 (Gold Winner)</SelectItem>
                   <SelectItem value="Juara 2">Juara 2 (Silver Winner)</SelectItem>
                   <SelectItem value="Juara 3">Juara 3 (Bronze Winner)</SelectItem>
@@ -195,7 +195,7 @@ export function SubmitFilmEntryModal({
           </div>
 
           <DialogFooter className="pt-2">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="bg-surface-2 border-hairline text-ink text-xs h-9">
+            <Button type="button" variant="secondary" onClick={() => onOpenChange(false)} className="text-xs h-9">
               Batal
             </Button>
             <Button type="submit" disabled={isLoading} className="bg-primary hover:bg-primary-hover text-primary-foreground text-xs h-9 font-medium">

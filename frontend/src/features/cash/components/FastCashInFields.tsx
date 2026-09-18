@@ -205,7 +205,7 @@ export function FastCashInFields({
               <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs">
                 <SelectValue placeholder={isPaymentMethodsLoading ? 'Memuat metode...' : 'Pilih metode pembayaran'} />
               </SelectTrigger>
-              <SelectContent className="bg-surface-3 border-hairline text-ink">
+              <SelectContent>
                 {paymentMethods.map((method) => (
                   <SelectItem key={method.id} value={method.code}>{formatPaymentMethodLabel(method.code, method.label)}</SelectItem>
                 ))}

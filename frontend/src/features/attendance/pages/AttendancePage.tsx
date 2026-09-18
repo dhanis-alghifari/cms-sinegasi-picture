@@ -237,7 +237,7 @@ export function AttendancePage() {
 
       {!isOwn && canReadStudents ? (
         <Tabs value={view} onValueChange={handleViewChange} className="w-full">
-          <TabsList className="w-full max-w-xl">
+          <TabsList aria-label="Menu absensi" className="w-full max-w-xl">
             <TabsTrigger value="daily">Absensi harian</TabsTrigger>
             <TabsTrigger value="student_report">Rekap siswa</TabsTrigger>
           </TabsList>

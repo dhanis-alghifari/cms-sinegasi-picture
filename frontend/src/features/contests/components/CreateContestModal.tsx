@@ -169,42 +169,42 @@ export function CreateContestModal({
               {form.formState.errors.kota && <p className="text-semantic-danger text-[10px]">{form.formState.errors.kota.message}</p>}
             </div>
 
-            {/* Tingkat dan status — dua kolom desktop, satu kolom mobile */}
-          <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="space-y-1">
-              <Label htmlFor="tingkat" className="text-xs text-ink-muted">Tingkat Lomba <span className="text-semantic-danger" aria-hidden="true">*</span></Label>
-              <Select
-                items={CONTEST_SCOPE_OPTIONS}
-                value={selectedContestScope}
-                onValueChange={handleContestScopeValueChange}
-              >
-                <SelectTrigger id="tingkat" className="w-full bg-surface-2 border-hairline text-ink text-xs">
-                  <SelectValue placeholder="Pilih tingkat lomba" />
-                </SelectTrigger>
-                <SelectContent className="bg-surface-3 border-hairline text-ink">
-                  {CONTEST_SCOPE_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            {/* Status dibuat satu kolom agar label pilihan tetap terbaca. */}
+            <div className="min-w-0 space-y-3">
+              <div className="space-y-1">
+                <Label htmlFor="tingkat" className="text-xs text-ink-muted">Tingkat Lomba <span className="text-semantic-danger" aria-hidden="true">*</span></Label>
+                <Select
+                  items={CONTEST_SCOPE_OPTIONS}
+                  value={selectedContestScope}
+                  onValueChange={handleContestScopeValueChange}
+                >
+                  <SelectTrigger id="tingkat" className="w-full bg-surface-2 border-hairline text-ink text-xs">
+                    <SelectValue placeholder="Pilih tingkat lomba" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CONTEST_SCOPE_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <RadioGroup
+                  name="contest-status"
+                  legend={<>Status Event <span className="text-semantic-danger" aria-hidden="true">*</span></>}
+                  value={selectedContestStatus ?? ''}
+                  options={CONTEST_STATUS_OPTIONS}
+                  onValueChange={handleContestStatusValueChange}
+                />
+              </div>
             </div>
 
             <div className="space-y-1">
-              <RadioGroup
-                name="contest-status"
-                legend={<>Status Event <span className="text-semantic-danger" aria-hidden="true">*</span></>}
-                value={selectedContestStatus ?? ''}
-                options={CONTEST_STATUS_OPTIONS}
-                onValueChange={handleContestStatusValueChange}
-              />
-            </div>
-          </div>
-
-          <div className="space-y-1">
               <Label htmlFor="tahun_event" className="text-xs text-ink-muted">Tahun Event <span className="text-semantic-danger" aria-hidden="true">*</span></Label>
               <Input id="tahun_event" type="number" inputMode="numeric" min={1900} max={2200} className={cn('w-full bg-surface-2 border-hairline text-ink text-xs', form.formState.errors.tahun_event && 'border-semantic-danger')} {...form.register('tahun_event', { setValueAs: (value) => value === '' ? undefined : Number(value) })} />
               {form.formState.errors.tahun_event && <p className="text-semantic-danger text-[10px]">{form.formState.errors.tahun_event.message}</p>}
-          </div>
+            </div>
           </section>
 
           <section className="w-full min-w-0 shrink-0 space-y-3 rounded-lg border border-hairline bg-surface-2/40 p-3 sm:p-4">
@@ -271,7 +271,7 @@ export function CreateContestModal({
           )}
 
           <DialogFooter className="sticky bottom-0 -mx-0.5 shrink-0 flex-col-reverse gap-2 border-t border-hairline bg-surface-1/95 pt-3 backdrop-blur sm:flex-row sm:justify-end">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="h-10 w-full border-hairline bg-surface-2 text-xs text-ink sm:w-auto">
+            <Button type="button" variant="secondary" onClick={() => onOpenChange(false)} className="h-10 w-full text-xs sm:w-auto">
               Batal
             </Button>
             <Button type="submit" disabled={isLoading} className="h-10 w-full bg-primary text-xs font-medium text-primary-foreground hover:bg-primary-hover sm:w-auto">

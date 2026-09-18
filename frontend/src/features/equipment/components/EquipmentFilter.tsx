@@ -61,7 +61,7 @@ export function EquipmentFilter({
         <SelectTrigger aria-label="Filter kategori alat" className="h-9 w-full bg-surface-1 text-xs text-ink lg:w-36">
           <SelectValue placeholder="Kategori" />
         </SelectTrigger>
-        <SelectContent className="bg-surface-3 border-hairline text-ink">
+        <SelectContent>
           <SelectItem value={UI_CONSTANTS.ALL_FILTER_VALUE}>Semua Kategori</SelectItem>
           <SelectItem value="Kamera">Kamera</SelectItem>
           <SelectItem value="Lensa">Lensa</SelectItem>
@@ -77,7 +77,7 @@ export function EquipmentFilter({
         <SelectTrigger aria-label="Filter kondisi alat" className="h-9 w-full bg-surface-1 text-xs text-ink lg:w-36">
           <SelectValue placeholder="Kondisi" />
         </SelectTrigger>
-        <SelectContent className="bg-surface-3 border-hairline text-ink">
+        <SelectContent>
           <SelectItem value={UI_CONSTANTS.ALL_FILTER_VALUE}>Semua Kondisi</SelectItem>
           <SelectItem value="bagus">Bagus</SelectItem>
           <SelectItem value="sedikit_kerusakan">Sedikit Rusak</SelectItem>
@@ -93,7 +93,7 @@ export function EquipmentFilter({
         <SelectTrigger aria-label="Filter status ketersediaan alat" className="h-9 w-full bg-surface-1 text-xs text-ink lg:w-36">
           <SelectValue placeholder="Status Pinjam" />
         </SelectTrigger>
-        <SelectContent className="bg-surface-3 border-hairline text-ink">
+        <SelectContent>
           <SelectItem value={UI_CONSTANTS.ALL_FILTER_VALUE}>Semua Status</SelectItem>
           <SelectItem value="tersedia">Tersedia</SelectItem>
           <SelectItem value="dipinjam">Dipinjam</SelectItem>

@@ -62,8 +62,8 @@ export function ContestEntriesDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleDialogOpenChange}>
-      <DialogContent className="flex max-h-[90dvh] max-w-3xl flex-col overflow-hidden bg-surface-1 p-0 text-ink">
-        <DialogHeader className="border-b border-hairline px-6 py-5">
+      <DialogContent className="grid h-[min(90dvh,48rem)] max-h-[90dvh] max-w-3xl grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden overflow-y-hidden bg-surface-1 p-0 text-ink">
+        <DialogHeader className="shrink-0 border-b border-hairline px-6 py-5">
           <div className="flex items-center gap-2 pr-6">
             <FileText size={18} className="text-primary" aria-hidden="true" />
             <DialogTitle className="text-base font-semibold">
@@ -75,7 +75,7 @@ export function ContestEntriesDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-4">
+        <div className="min-h-0 min-w-0 space-y-4 overflow-y-auto overscroll-contain px-6 py-4">
           {contestDialogError && (
             <div role="alert" className="rounded-lg border border-semantic-danger/30 bg-semantic-danger/10 px-3 py-2 text-xs text-semantic-danger">
               {getErrorMessage(contestDialogError)}
@@ -93,6 +93,7 @@ export function ContestEntriesDialog({
             </div>
             <Button
               type="button"
+              variant={isCreateFormVisible ? 'secondary' : 'default'}
               size="sm"
               onClick={handleToggleCreateForm}
               className="gap-1.5"
@@ -125,8 +126,14 @@ export function ContestEntriesDialog({
           )}
         </div>
 
-        <DialogFooter className="border-t border-hairline bg-surface-1 px-6 py-4">
-          <Button type="button" variant="outline" size="sm" onClick={() => handleDialogOpenChange(false)}>
+        <DialogFooter className="min-h-0 border-t border-hairline bg-surface-1 px-6 py-4 md:pb-4">
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={() => handleDialogOpenChange(false)}
+            className="h-9 min-h-9 px-3 text-xs"
+          >
             Tutup
           </Button>
         </DialogFooter>
