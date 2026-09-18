@@ -21,6 +21,10 @@ export const contestAchievementListRouteSchema = {
   },
 } as const;
 
+export const contestAchievementDetailRouteSchema = {
+  params: entryParams,
+} as const;
+
 export const contestAchievementRecordRouteSchema = {
   params: entryParams,
   headers: {

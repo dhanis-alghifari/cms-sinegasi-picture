@@ -6,6 +6,7 @@ import { compressImageFileToFile, MAX_SOURCE_IMAGE_BYTES } from '@/shared/utils/
 import type { PaginatedResponse } from '@/shared/types/common';
 import {
   decodeContestAchievementsResponse,
+  decodeContestAchievementDetail,
   decodeContestEntriesResponse,
   decodeContestEntryResponse,
   decodeContestListResponse,
@@ -15,6 +16,7 @@ import {
   decodeEvidenceReservationResponse,
   decodeFilmSubmissionResponse,
   decodeFinalizeContestEntryResponse,
+  decodeContestEvidenceAccess,
   decodeRecordContestResultResponse,
 } from './contests.responses';
 import type {
@@ -32,6 +34,8 @@ import type {
   TransitionContestEntryPayload,
   ContestAchievementsParams,
   ContestAchievementsResponse,
+  ContestAchievementDetail,
+  ContestEvidenceAccessResponse,
   RecordContestResultResponse,
   RecordContestResultPayload,
   FinalizeContestEntryPayload,
@@ -220,6 +224,20 @@ export const contestsService = {
     if (params?.pageSize) query.set('pageSize', String(params.pageSize));
     const endpoint = `/api/contest-achievements${query.toString() ? `?${query.toString()}` : ''}`;
     return apiClient.getParsed(endpoint, decodeContestAchievementsResponse);
+  },
+
+  async getContestAchievementDetail(entryId: string): Promise<ContestAchievementDetail> {
+    return apiClient.getParsed(
+      `/api/contest-achievements/${encodeURIComponent(entryId)}`,
+      decodeContestAchievementDetail,
+    );
+  },
+
+  async getContestEvidenceAccess(evidenceId: string): Promise<ContestEvidenceAccessResponse> {
+    return apiClient.getParsed(
+      `/api/contest-evidence/${encodeURIComponent(evidenceId)}/access`,
+      decodeContestEvidenceAccess,
+    );
   },
 
   async recordContestResult(entryId: string, payload: RecordContestResultPayload): Promise<RecordContestResultResponse> {

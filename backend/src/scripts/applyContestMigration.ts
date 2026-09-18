@@ -12,6 +12,7 @@ const migrationNames = [
   '051_contest_update_atomic.sql',
   '052_contest_scope_contract.sql',
   '053_contest_pipeline_evidence_contract.sql',
+  '054_contest_achievement_recap_read.sql',
 ];
 const historyTable = 'public.contest_migration_history';
 

@@ -1180,7 +1180,7 @@ paths:
       parameters:
         - { name: status, in: query, required: false, schema: { type: string, maxLength: 32 } }
         - { name: tingkat, in: query, required: false, schema: { type: string, maxLength: 32 } }
-        - { name: tahun_event, in: query, required: false, schema: { type: integer, minimum: 1900, maximum: 2200 } }
+        - { name: event_year, in: query, required: false, schema: { type: integer, minimum: 1900, maximum: 2200 } }
         - { name: search, in: query, required: false, schema: { type: string, maxLength: 100 } }
         - { name: page, in: query, required: false, schema: { type: integer, minimum: 1, default: 1 } }
         - { name: pageSize, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
@@ -1362,11 +1362,11 @@ paths:
         - { name: id, in: path, required: true, schema: { type: string, maxLength: 64 } }
       responses:
         '200': { description: Signed evidence access URL issued }
-        '403': { description: Contest manage capability required }
+        '403': { description: Contest read capability required }
         '404': { description: Attached evidence not found }
   /api/contest-achievements:
     get:
-      summary: List normalized contest outcomes and achievements
+      summary: List completed contest entries with grouped outcomes and achievements
       security: [{ bearerAuth: [] }]
       parameters:
         - { name: search, in: query, required: false, schema: { type: string, maxLength: 100 } }
@@ -1377,9 +1377,20 @@ paths:
         - { name: page, in: query, required: false, schema: { type: integer, minimum: 1, default: 1 } }
         - { name: pageSize, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
       responses:
-        '200': { description: Paginated achievement rows; one entry may return multiple result rows }
+        '200': { description: Paginated completed entries; each entry groups all active result rows }
         '401': { description: Unauthenticated }
         '503': { description: Contest results schema unavailable }
+  /api/contest-achievements/{id}:
+    get:
+      summary: Read a completed contest entry with evidence and status history
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, maxLength: 64 } }
+      responses:
+        '200': { description: Completed entry detail with grouped awards, attached evidence metadata, and timeline }
+        '401': { description: Unauthenticated }
+        '403': { description: Contest read capability required }
+        '404': { description: Completed contest entry not found }
   /api/contest-entries/{id}/results:
     post:
       summary: Legacy endpoint; use the contest entry finalize endpoint

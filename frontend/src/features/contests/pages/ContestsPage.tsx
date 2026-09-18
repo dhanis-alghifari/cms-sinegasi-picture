@@ -198,7 +198,7 @@ export function ContestsPage() {
         className="w-full md:w-fit"
         tabs={[
           { value: 'events', label: 'Event & pendaftaran' },
-          { value: 'achievements', label: 'Karya & prestasi' },
+          { value: 'achievements', label: 'Karya & prestasi selesai' },
         ]}
       />
 

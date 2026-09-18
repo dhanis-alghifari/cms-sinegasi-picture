@@ -13,7 +13,12 @@ import {
   type Contest,
   type ContestAchievementsResponse,
   type ContestEntry,
-  type ContestEntryResult,
+  type ContestAchievementAward,
+  type ContestAchievementDetail,
+  type ContestAchievementEvidence,
+  type ContestAchievementRecord,
+  type ContestAchievementTimelineItem,
+  type ContestEvidenceAccessResponse,
   type ContestSummary,
   type ContestEvidenceUploadReservation,
   type FinalizeContestEntryResponse,
@@ -158,13 +163,33 @@ const finalizeResponseSchema: z.ZodType<FinalizeContestEntryResponse> = z.object
   results: z.array(finalizedResultSchema),
 }).loose();
 
-const achievementResponseSchema: z.ZodType<ContestEntryResult> = z.object({
-  result_id: z.string().nullable(),
+const achievementAwardSchema: z.ZodType<ContestAchievementAward> = z.object({
+  id: z.string().optional(),
+  result_id: z.string().optional(),
+  entry_id: z.string().min(1).optional(),
+  result_kind: z.enum(CONTEST_RESULT_KIND_VALUES),
+  result_title: z.string().min(1),
+  position: z.number().int().positive().nullable().optional(),
+  category_name: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
+  created_at: z.string().nullable().optional(),
+}).loose().transform((value): ContestAchievementAward => ({
+  id: value.id ?? value.result_id ?? `${value.entry_id ?? 'award'}-${value.result_kind}-${value.result_title}`,
+  entry_id: value.entry_id,
+  result_kind: value.result_kind,
+  result_title: value.result_title,
+  position: value.position,
+  category_name: value.category_name,
+  notes: value.notes,
+  created_at: value.created_at,
+}));
+
+const achievementRecordSchema: z.ZodType<ContestAchievementRecord> = z.object({
   entry_id: z.string().min(1),
   contest_id: z.string().min(1),
   work_id: z.string().min(1),
-  pipeline_status: z.enum(CONTEST_ENTRY_STATUS_VALUES),
-  outcome_status: z.enum(CONTEST_OUTCOME_STATUS_VALUES),
+  pipeline_status: z.literal('selesai').default('selesai'),
+  outcome_status: z.enum(['awarded', 'not_awarded']),
   work_title: z.string(),
   work_type_code: z.string(),
   nama_lomba: z.string(),
@@ -172,12 +197,69 @@ const achievementResponseSchema: z.ZodType<ContestEntryResult> = z.object({
   tingkat: z.string().nullable().optional(),
   tahun_event: z.number().int().nullable().optional(),
   status_public: z.enum(CONTEST_STATUS_VALUES).nullable().optional(),
-  result_kind: z.enum(CONTEST_RESULT_KIND_VALUES).nullable(),
-  result_title: z.string(),
-  position: z.number().int().positive().nullable().optional(),
-  category_name: z.string().nullable().optional(),
-  notes: z.string().nullable().optional(),
+  completed_at: z.string().nullable().optional(),
+  awards: z.array(achievementAwardSchema).default([]),
+  evidence_count: z.number().int().nonnegative().optional(),
+}).loose();
+
+const achievementEvidenceSchema: z.ZodType<ContestAchievementEvidence> = z.object({
+  id: z.string().min(1),
+  entry_id: z.string().min(1).optional(),
+  evidence_type: z.enum(['submission', 'result', 'other']),
+  target_status: z.enum(['sudah_terkirim', 'selesai']).nullable().optional(),
+  storage_provider: z.string().optional(),
+  mime_type: z.string().nullable().optional(),
+  file_size_bytes: z.number().int().nonnegative().nullable().optional(),
+  original_filename: z.string().nullable().optional(),
+  upload_status: z.string().optional(),
+  attached_status: z.enum(['sudah_terkirim', 'selesai']).nullable().optional(),
   created_at: z.string().nullable().optional(),
+  updated_at: z.string().nullable().optional(),
+}).loose();
+
+const achievementTimelineSchema: z.ZodType<ContestAchievementTimelineItem> = z.object({
+  id: z.string().min(1),
+  kind: z.enum(['status', 'result']),
+  status: z.string().nullable().optional(),
+  from_status: z.string().nullable().optional(),
+  to_status: z.string().nullable().optional(),
+  change_reason: z.string(),
+  changed_by: z.string().nullable().optional(),
+  changed_by_name: z.string().nullable().optional(),
+  created_at: z.string(),
+}).loose();
+
+const achievementDetailEntrySchema = z.object({
+  id: z.string().min(1),
+  contest_id: z.string().min(1),
+  work_id: z.string().min(1),
+  pipeline_status: z.enum(CONTEST_ENTRY_STATUS_VALUES),
+  outcome_status: z.enum(CONTEST_OUTCOME_STATUS_VALUES),
+  result_label: z.string().nullable().optional(),
+  result_note: z.string().nullable().optional(),
+  submitted_at: z.string().nullable().optional(),
+  completed_at: z.string().nullable().optional(),
+  work: mediaWorkResponseSchema,
+  contest: z.object({
+    id: z.string().min(1),
+    nama_lomba: z.string().min(1),
+    kota: z.string().nullable().optional(),
+    tingkat: z.string().nullable().optional(),
+    tahun_event: z.number().int().nullable().optional(),
+    status_public: z.enum(CONTEST_STATUS_VALUES).nullable().optional(),
+  }).loose(),
+}).loose() as z.ZodType<ContestAchievementDetail['entry']>;
+
+const achievementDetailSchema: z.ZodType<ContestAchievementDetail> = z.object({
+  entry: achievementDetailEntrySchema,
+  awards: z.array(achievementAwardSchema),
+  evidence: z.array(achievementEvidenceSchema),
+  timeline: z.array(achievementTimelineSchema),
+}).loose() as z.ZodType<ContestAchievementDetail>;
+
+const evidenceAccessResponseSchema: z.ZodType<ContestEvidenceAccessResponse> = z.object({
+  access_url: z.string().url(),
+  expires_in_seconds: z.number().int().positive().nullable(),
 }).loose();
 
 const recordResultResponseSchema: z.ZodType<RecordContestResultResponse> = z.object({
@@ -211,7 +293,9 @@ export const decodeContestEntriesResponse = decodePaginatedResponse(contestEntry
 export const decodeContestEntryResponse = decodeDataEnvelope(contestEntryResponseSchema);
 export const decodeEvidenceReservationResponse = decodeDataEnvelope(evidenceReservationResponseSchema);
 export const decodeFinalizeContestEntryResponse = decodeDataEnvelope(finalizeResponseSchema);
-export const decodeContestAchievementsResponse: (payload: unknown) => ContestAchievementsResponse = decodePaginatedResponse(achievementResponseSchema);
+export const decodeContestAchievementsResponse: (payload: unknown) => ContestAchievementsResponse = decodePaginatedResponse(achievementRecordSchema);
+export const decodeContestAchievementDetail = decodeDataEnvelope(achievementDetailSchema);
+export const decodeContestEvidenceAccess = decodeDataEnvelope(evidenceAccessResponseSchema);
 export const decodeRecordContestResultResponse = decodeDataEnvelope(recordResultResponseSchema);
 
 // Keep the result-kind schema close to the response contract for future

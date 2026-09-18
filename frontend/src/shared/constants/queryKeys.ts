@@ -60,6 +60,8 @@ export const QUERY_KEYS = {
   CONTEST_ENTRIES: (id: string) => ['contests', id, 'entries'] as const,
   CONTEST_WORK_TYPES: ['contests', 'work-types'] as const,
   CONTEST_ACHIEVEMENTS: ['contest-achievements'] as const,
+  CONTEST_ACHIEVEMENT_DETAIL: (entryId: string) => ['contest-achievements', entryId] as const,
+  CONTEST_EVIDENCE_ACCESS: (evidenceId: string) => ['contest-evidence', evidenceId, 'access'] as const,
 
   // Notifications
   NOTIFICATIONS: ['notifications'] as const,

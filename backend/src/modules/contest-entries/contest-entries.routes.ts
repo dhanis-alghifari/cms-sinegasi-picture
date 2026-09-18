@@ -143,7 +143,7 @@ const contestEntriesRoutes: FastifyPluginAsync<ContestEntriesRoutesOptions> = as
     }
   });
 
-  fastify.get('/api/contest-evidence/:id/access', { schema: contestEvidenceAccessRouteSchema, preHandler: [authenticate, requireCapability('contests.manage')] }, async (request, reply) => {
+  fastify.get('/api/contest-evidence/:id/access', { schema: contestEvidenceAccessRouteSchema, preHandler: [authenticate, requireCapability('contests.read')] }, async (request, reply) => {
     try {
       const data = await options.contestEntriesService.getEvidenceAccess((request.params as { id: string }).id);
       return reply.send({ success: true, data });

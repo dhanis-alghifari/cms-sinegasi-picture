@@ -305,6 +305,11 @@ export class ContestEntriesService {
     if (!evidence || evidence.upload_status !== 'attached') {
       throw new ContestEntriesServiceError(404, 'CONTEST_EVIDENCE_NOT_FOUND', 'Bukti tidak ditemukan.');
     }
+    const entryResult = await this.repository.get(evidence.entry_id);
+    if ('error' in entryResult) mapRepositoryError(entryResult.error, 'Gagal memeriksa karya bukti.');
+    if (!entryResult.data || entryResult.data.pipeline_status !== 'selesai') {
+      throw new ContestEntriesServiceError(404, 'CONTEST_EVIDENCE_NOT_FOUND', 'Bukti tidak ditemukan.');
+    }
     if (evidence.storage_provider === 'legacy_url' && evidence.public_url) {
       return { access_url: evidence.public_url, expires_in_seconds: null };
     }

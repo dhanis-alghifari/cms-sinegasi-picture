@@ -57,6 +57,17 @@ test('contest entry routes expose generic work create, list, and transition flow
   });
   assert.equal(transitioned.statusCode, 200);
   assert.equal(transitioned.json().data.pipeline_status, 'sudah_terkirim');
+
+  // Read access is available to contest readers, but only after the entry is
+  // completed and the evidence is attached.
+  (state.entries[0] as any).pipeline_status = 'selesai';
+  const evidenceAccess = await app.inject({
+    method: 'GET',
+    url: `/api/contest-evidence/${reservation.json().data.evidence_id}/access`,
+    headers: { authorization: `Bearer ${token}` },
+  });
+  assert.equal(evidenceAccess.statusCode, 200);
+  assert.equal(evidenceAccess.json().data.access_url, 'https://download.example.test/signed');
 });
 
 test('member cannot submit contest entries without the contest submit capability', async (t) => {
