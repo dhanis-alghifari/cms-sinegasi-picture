@@ -30,7 +30,8 @@ jobs:
             git fetch origin develop
             git checkout develop
             git pull origin develop
-            docker compose -f docker-compose.dev.yml up -d --build --remove-orphans
+            docker compose -f docker-compose.caddy.yml up -d
+            docker compose -f docker-compose.dev.yml up -d --build --force-recreate
             docker image prune -f
             echo "✅ Development backend deployed successfully"
           EOF
