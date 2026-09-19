@@ -20,7 +20,7 @@ export function LoadingSpinner({ size = 'md', label, className }: LoadingSpinner
         role="status"
         aria-label={label ?? 'Memuat...'}
         className={cn(
-          'rounded-full border-hairline-strong border-t-primary animate-spin',
+          'rounded-full border-hairline-strong border-t-primary motion-safe:animate-spin',
           sizeClasses[size],
         )}
       />

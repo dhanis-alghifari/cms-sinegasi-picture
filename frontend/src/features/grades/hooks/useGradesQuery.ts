@@ -1,5 +1,5 @@
 
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { QUERY_KEYS } from '@/shared/constants/queryKeys';
 import { gradesService } from '../api/grades.service';
 import type { AssignmentFilterParams, GradeFilterParams } from '../types/grades.types';
@@ -9,6 +9,7 @@ export function useGradesQuery(params?: GradeFilterParams, enabled = true) {
     queryKey: [...QUERY_KEYS.GRADES, params],
     queryFn: () => gradesService.getGrades(params),
     enabled,
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -17,6 +18,7 @@ export function useAssignmentsQuery(params?: AssignmentFilterParams, enabled = t
     queryKey: [...QUERY_KEYS.ASSIGNMENTS, params],
     queryFn: () => gradesService.getAssignments(params),
     enabled,
+    placeholderData: keepPreviousData,
   });
 }
 

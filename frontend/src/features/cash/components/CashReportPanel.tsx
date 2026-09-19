@@ -189,8 +189,8 @@ export function CashReportPanel({
       </div>
 
       {isLoading && (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label="Memuat laporan">
-          {[1, 2, 3, 4].map((item) => <div key={item} className="h-24 animate-pulse rounded-xl bg-surface-2" />)}
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label="Memuat laporan" aria-busy="true">
+          {[1, 2, 3, 4].map((item) => <div key={item} className="motion-safe:animate-pulse h-24 rounded-xl bg-surface-2" />)}
         </div>
       )}
 

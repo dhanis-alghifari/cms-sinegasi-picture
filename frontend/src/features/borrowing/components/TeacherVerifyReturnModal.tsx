@@ -53,11 +53,13 @@ export function TeacherVerifyReturnModal({ open, onOpenChange, record, onSubmit,
   const isBusy = Boolean(isLoading);
 
   const reportQuery = useBorrowingReturnReportQuery(record?.id, open);
-  const evidence = evidenceQuery.data ?? [];
-  const evidenceByEquipment = useMemo(() => evidence.reduce<Record<string, typeof evidence>>((groups, item) => {
+  const evidenceByEquipment = useMemo(() => {
+    const evidence = evidenceQuery.data ?? [];
+    return evidence.reduce<Record<string, typeof evidence>>((groups, item) => {
     (groups[item.equipment_id] ??= []).push(item);
     return groups;
-  }, {}), [evidence]);
+    }, {});
+  }, [evidenceQuery.data]);
 
   const reset = () => {
     setDecision('approve');
@@ -74,6 +76,13 @@ export function TeacherVerifyReturnModal({ open, onOpenChange, record, onSubmit,
     reset();
     onOpenChange(false);
   };
+
+  const submitIcon = (() => {
+    if (isBusy) return <Loader2 size={15} className="motion-safe:animate-spin" aria-hidden="true" />;
+    if (decision === 'approve') return <CheckCircle2 size={15} aria-hidden="true" />;
+    return <XCircle size={15} aria-hidden="true" />;
+  })();
+  const submitLabel = decision === 'approve' ? 'Setujui pengembalian' : 'Tolak laporan';
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -228,7 +237,7 @@ export function TeacherVerifyReturnModal({ open, onOpenChange, record, onSubmit,
                 <div className="space-y-1.5"><Label htmlFor="verify-return-reason" className="text-xs text-ink-muted">Alasan audit <span className="text-semantic-danger">*</span></Label><Input id="verify-return-reason" value={changeReason} onChange={(event) => setChangeReason(event.target.value)} className={cn('h-10 bg-surface-2 text-xs', changeReason.trim().length > 0 && changeReason.trim().length < 5 && 'border-semantic-danger')} /></div>
               </div>
             </div>
-            <DialogFooter className="shrink-0 border-t border-hairline bg-surface-2/45 px-4 py-3 sm:px-5 md:pb-5"><Button type="button" variant="secondary" onClick={handleClose} disabled={isBusy}>Batal</Button><Button type="submit" disabled={isBusy || !record} className={decision === 'approve' ? 'bg-semantic-success text-white hover:bg-semantic-success/90' : 'bg-semantic-danger text-white hover:bg-semantic-danger/90'}>{isBusy ? <Loader2 size={15} className="animate-spin" aria-hidden="true" /> : decision === 'approve' ? <CheckCircle2 size={15} aria-hidden="true" /> : <XCircle size={15} aria-hidden="true" />}{decision === 'approve' ? 'Setujui pengembalian' : 'Tolak laporan'}</Button></DialogFooter>
+            <DialogFooter className="shrink-0 border-t border-hairline bg-surface-2/45 px-4 py-3 sm:px-5 md:pb-5"><Button type="button" variant="secondary" onClick={handleClose} disabled={isBusy}>Batal</Button><Button type="submit" disabled={isBusy || !record} className={decision === 'approve' ? 'bg-semantic-success text-white hover:bg-semantic-success/90' : 'bg-semantic-danger text-white hover:bg-semantic-danger/90'}>{submitIcon}{submitLabel}</Button></DialogFooter>
           </form>
         </DialogContent>
       </Dialog>

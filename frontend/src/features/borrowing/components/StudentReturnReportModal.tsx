@@ -33,6 +33,11 @@ export function StudentReturnReportModal({ open, onOpenChange, record, onSubmit,
   const items = record?.items ?? [];
   const totalPhotos = useMemo(() => Object.values(filesByEquipment).reduce((total, files) => total + files.length, 0), [filesByEquipment]);
   const isBusy = Boolean(isLoading || isUploading || isSubmitting);
+  const submitLabel = (() => {
+    if (isUploading) return 'Mengunggah foto...';
+    if (isBusy) return 'Mengirim laporan...';
+    return 'Kirim laporan pengembalian';
+  })();
 
   const reset = () => {
     setFilesByEquipment({});
@@ -154,7 +159,7 @@ export function StudentReturnReportModal({ open, onOpenChange, record, onSubmit,
             <Button type="button" variant="secondary" onClick={handleClose} disabled={isBusy}>Batal</Button>
             <Button type="submit" disabled={isBusy || !record || items.length === 0} className="bg-primary text-primary-foreground hover:bg-primary/90">
               {isBusy ? <Loader2 size={15} className="animate-spin" aria-hidden="true" /> : <PackageCheck size={15} aria-hidden="true" />}
-              {isUploading ? 'Mengunggah foto...' : isBusy ? 'Mengirim laporan...' : 'Kirim laporan pengembalian'}
+              {submitLabel}
             </Button>
           </DialogFooter>
         </form>

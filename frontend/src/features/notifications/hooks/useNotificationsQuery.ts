@@ -1,5 +1,5 @@
 
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { QUERY_KEYS } from '@/shared/constants/queryKeys';
 import { notificationsService } from '../api/notifications.service';
 import { UI_CONSTANTS } from '@/shared/constants/ui';
@@ -9,6 +9,7 @@ export function useNotificationsQuery(params?: NotificationFilterParams) {
   return useQuery({
     queryKey: [...QUERY_KEYS.NOTIFICATIONS, params],
     queryFn: () => notificationsService.getNotifications(params),
+    placeholderData: keepPreviousData,
     refetchInterval: UI_CONSTANTS.NOTIFICATION_POLL_INTERVAL_MS,
   });
 }
