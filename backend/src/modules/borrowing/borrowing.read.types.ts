@@ -33,7 +33,7 @@ export type BorrowingReadRecord = {
   rencana_kembali: string;
   tanggal_dikembalikan?: string;
   keperluan: string;
-  status: 'menunggu_persetujuan' | 'disetujui' | 'ditolak' | 'dipinjam' | 'dikembalikan' | 'terlambat';
+  status: 'menunggu_persetujuan' | 'disetujui' | 'ditolak' | 'dipinjam' | 'menunggu_verifikasi' | 'dikembalikan' | 'terlambat';
   catatan_persetujuan?: string;
   catatan_pengembalian?: string;
   total_denda?: number;
@@ -47,6 +47,10 @@ export type BorrowingReadRecord = {
   updated_actor?: ActorSummary;
   created_at: string;
   updated_at?: string;
+  return_reported_at?: string;
+  return_notes?: string;
+  return_verified_at?: string;
+  return_verified_by?: string;
 };
 
 export type BorrowingReadPage = {

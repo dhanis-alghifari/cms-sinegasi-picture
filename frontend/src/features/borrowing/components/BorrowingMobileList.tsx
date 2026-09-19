@@ -1,4 +1,4 @@
-import { AlertTriangle, ArrowRightLeft, CheckCircle2, MoreVertical, RotateCcw } from 'lucide-react';
+import { AlertTriangle, ArrowRightLeft, Camera, CheckCircle2, MoreVertical, RotateCcw, ShieldCheck } from 'lucide-react';
 
 import { AuditHistoryButton } from '@/features/audit/components/AuditHistoryButton';
 import { EmptyState } from '@/shared/ui/EmptyState';
@@ -19,6 +19,11 @@ interface BorrowingMobileListProps {
   canManage?: boolean;
   canApprove?: boolean;
   canHandoverOrReturn?: boolean;
+  onReportReturn?: (record: BorrowingRecord) => void;
+  onVerifyReturn?: (record: BorrowingRecord) => void;
+  canReportReturn?: boolean;
+  reportStudentId?: string;
+  canVerifyReturn?: boolean;
 }
 
 export function BorrowingMobileList({
@@ -29,6 +34,11 @@ export function BorrowingMobileList({
   canManage = true,
   canApprove = true,
   canHandoverOrReturn = true,
+  onReportReturn,
+  onVerifyReturn,
+  canReportReturn = false,
+  reportStudentId,
+  canVerifyReturn = false,
 }: BorrowingMobileListProps) {
   if (borrowings.length === 0) {
     return (
@@ -43,10 +53,12 @@ export function BorrowingMobileList({
     <div className="space-y-3" aria-label="Daftar peminjaman versi ponsel">
       {borrowings.map((borrowing) => {
         const totalFine = borrowing.total_denda ?? 0;
-        const hasAction = canManage && (
+        const hasAction = (canManage || canReportReturn || canVerifyReturn) && (
           (canApprove && borrowing.status === 'menunggu_persetujuan')
           || (canHandoverOrReturn && borrowing.status === 'disetujui')
           || (canHandoverOrReturn && (borrowing.status === 'dipinjam' || borrowing.status === 'terlambat'))
+          || (canReportReturn && borrowing.borrower_id === reportStudentId && (borrowing.status === 'dipinjam' || borrowing.status === 'terlambat'))
+          || (canVerifyReturn && borrowing.status === 'menunggu_verifikasi')
         );
 
         return (
@@ -82,6 +94,18 @@ export function BorrowingMobileList({
                         <DropdownMenuItem onClick={() => onReturn(borrowing)} className="min-h-11 cursor-pointer text-sm">
                           <RotateCcw size={16} className="mr-2 text-semantic-warning" aria-hidden="true" />
                           Proses pengembalian
+                        </DropdownMenuItem>
+                      )}
+                      {canReportReturn && borrowing.borrower_id === reportStudentId && (borrowing.status === 'dipinjam' || borrowing.status === 'terlambat') && onReportReturn && (
+                        <DropdownMenuItem onClick={() => onReportReturn(borrowing)} className="min-h-11 cursor-pointer text-sm">
+                          <Camera size={16} className="mr-2 text-primary" aria-hidden="true" />
+                          Laporkan pengembalian
+                        </DropdownMenuItem>
+                      )}
+                      {canVerifyReturn && borrowing.status === 'menunggu_verifikasi' && onVerifyReturn && (
+                        <DropdownMenuItem onClick={() => onVerifyReturn(borrowing)} className="min-h-11 cursor-pointer text-sm">
+                          <ShieldCheck size={16} className="mr-2 text-semantic-success" aria-hidden="true" />
+                          Verifikasi pengembalian
                         </DropdownMenuItem>
                       )}
                     </DropdownMenuContent>

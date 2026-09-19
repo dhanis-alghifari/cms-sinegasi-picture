@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { decodeDataEnvelope, decodePaginatedResponse, decodeWithSchema } from '@/shared/api/responseValidation';
 import { actorSummarySchema, optionalTextSchema } from '@/shared/api/responseSchemas';
-import { BORROWING_STATUS_VALUES, type BorrowingRecord, type BorrowingSummary, type BorrowedItem, type ReturnAssessmentPreview, type ReturnEvidenceAccessRecord, type ReturnEvidenceUploadReservation } from '../types/borrowing.types';
+import { BORROWING_STATUS_VALUES, type BorrowingRecord, type BorrowingSummary, type BorrowedItem, type ReturnAssessmentPreview, type ReturnEvidenceAccessRecord, type ReturnEvidenceUploadReservation, type ReturnReport, type ReturnReportEvidenceAccessRecord } from '../types/borrowing.types';
 
 const optionalNumber = z.number().nullable().optional().transform((value) => value ?? undefined);
 const borrowingStatusSchema = z.enum(BORROWING_STATUS_VALUES);
@@ -40,6 +40,10 @@ const borrowingRecordSchema: z.ZodType<BorrowingRecord> = z.object({
   updated_by: optionalTextSchema,
   created_at: z.string().min(1),
   updated_at: optionalTextSchema,
+  return_reported_at: optionalTextSchema,
+  return_notes: optionalTextSchema,
+  return_verified_at: optionalTextSchema,
+  return_verified_by: optionalTextSchema,
   approved_actor: actorSummarySchema.optional(),
   processed_return_actor: actorSummarySchema.optional(),
   created_actor: actorSummarySchema.optional(),
@@ -79,6 +83,7 @@ export const decodeReturnAssessmentPreview = decodeDataEnvelope(returnAssessment
 
 const returnEvidenceUploadReservationSchema: z.ZodType<ReturnEvidenceUploadReservation> = z.object({
   evidence_id: z.string().uuid(),
+  report_id: optionalTextSchema,
   upload_url: z.string().url(),
   expires_in_seconds: z.number().int().positive(),
 });
@@ -100,3 +105,35 @@ const returnEvidenceAccessRecordSchema: z.ZodType<ReturnEvidenceAccessRecord> = 
 }).loose();
 
 export const decodeReturnEvidenceAccessList = decodeDataEnvelope(z.array(returnEvidenceAccessRecordSchema));
+
+const returnReportEvidenceSchema: z.ZodType<ReturnReportEvidenceAccessRecord> = z.object({
+  evidence_id: z.string().uuid(),
+  borrowing_id: z.string().min(1),
+  borrowing_item_id: z.string().min(1),
+  equipment_id: z.string().min(1),
+  assessment_item_id: optionalTextSchema,
+  original_filename: z.string().min(1),
+  mime_type: z.enum(['image/jpeg', 'image/png', 'image/webp']),
+  file_size_bytes: z.number().int().positive(),
+  created_at: optionalTextSchema,
+  access_url: z.string().url(),
+  expires_in_seconds: z.number().int().positive(),
+  source: z.enum(['student_report', 'teacher_return']).optional(),
+}).loose();
+
+const returnReportSchema: z.ZodType<ReturnReport> = z.object({
+  id: z.string().uuid(),
+  borrowing_id: z.string().min(1),
+  reporter_id: z.string().min(1),
+  status: z.enum(['draft', 'pending_verification', 'approved', 'rejected', 'superseded']),
+  notes: optionalTextSchema,
+  reported_at: optionalTextSchema,
+  verified_at: optionalTextSchema,
+  verified_by: optionalTextSchema,
+  verification_method: z.enum(['photo', 'physical_check', 'photo_and_physical']).optional(),
+  rejection_reason: optionalTextSchema,
+  evidence: z.array(returnReportEvidenceSchema).optional(),
+}).loose();
+
+export const decodeReturnReport = decodeDataEnvelope(returnReportSchema);
+export const decodeReturnReportEvidenceList = decodeDataEnvelope(z.array(returnReportEvidenceSchema));

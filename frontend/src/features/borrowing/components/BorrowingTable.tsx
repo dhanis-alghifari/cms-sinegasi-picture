@@ -1,5 +1,5 @@
 
-import { CheckCircle2, ArrowRightLeft, RotateCcw, AlertTriangle } from 'lucide-react';
+import { CheckCircle2, ArrowRightLeft, RotateCcw, AlertTriangle, Camera, ShieldCheck } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -25,6 +25,11 @@ interface BorrowingTableProps {
   canManage?: boolean;
   canApprove?: boolean;
   canHandoverOrReturn?: boolean;
+  onReportReturn?: (record: BorrowingRecord) => void;
+  onVerifyReturn?: (record: BorrowingRecord) => void;
+  canReportReturn?: boolean;
+  reportStudentId?: string;
+  canVerifyReturn?: boolean;
 }
 
 export function BorrowingTable({
@@ -35,6 +40,11 @@ export function BorrowingTable({
   canManage = true,
   canApprove = true,
   canHandoverOrReturn = true,
+  onReportReturn,
+  onVerifyReturn,
+  canReportReturn = false,
+  reportStudentId,
+  canVerifyReturn = false,
 }: BorrowingTableProps) {
   if (borrowings.length === 0) {
     return (
@@ -57,7 +67,7 @@ export function BorrowingTable({
             <TableHead className="text-ink-subtle text-xs font-semibold">Status Peminjaman</TableHead>
             <TableHead className="text-ink-subtle text-xs font-semibold">Tagihan (Jika ada)</TableHead>
             <TableHead className="text-right text-ink-subtle text-xs font-semibold">Riwayat</TableHead>
-            {canManage && <TableHead className="text-right text-ink-subtle text-xs font-semibold">Aksi Workflow</TableHead>}
+            {(canManage || canReportReturn || canVerifyReturn) && <TableHead className="text-right text-ink-subtle text-xs font-semibold">Aksi Workflow</TableHead>}
           </TableRow>
         </TableHeader>
 
@@ -125,7 +135,7 @@ export function BorrowingTable({
               <TableCell className="text-right"><AuditHistoryButton tableName="borrowings" recordId={b.id} /></TableCell>
 
               {/* Action Buttons */}
-              {canManage && (
+              {(canManage || canReportReturn || canVerifyReturn) && (
                 <TableCell className="text-right">
                   <div className="flex flex-wrap items-center justify-end gap-1">
                   {canApprove && b.status === 'menunggu_persetujuan' && (
@@ -159,6 +169,29 @@ export function BorrowingTable({
                     >
                       <RotateCcw size={12} className="mr-1" />
                       Proses Pengembalian
+                    </Button>
+                  )}
+
+                  {canReportReturn && b.borrower_id === reportStudentId && (b.status === 'dipinjam' || b.status === 'terlambat') && onReportReturn && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => onReportReturn(b)}
+                      className="border-primary/30 bg-primary/5 text-primary hover:bg-primary/10 text-xs h-7 px-2.5 font-medium"
+                    >
+                      <Camera size={12} className="mr-1" />
+                      Laporkan Pengembalian
+                    </Button>
+                  )}
+
+                  {canVerifyReturn && b.status === 'menunggu_verifikasi' && onVerifyReturn && (
+                    <Button
+                      size="sm"
+                      onClick={() => onVerifyReturn(b)}
+                      className="bg-semantic-success hover:bg-semantic-success/80 text-white text-xs h-7 px-2.5 font-medium"
+                    >
+                      <ShieldCheck size={12} className="mr-1" />
+                      Verifikasi Pengembalian
                     </Button>
                   )}
 

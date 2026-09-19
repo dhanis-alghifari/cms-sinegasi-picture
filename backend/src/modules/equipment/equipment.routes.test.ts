@@ -61,6 +61,48 @@ test('equipment routes require authentication and preserve the list envelope', a
   assert.equal(deniedReport.statusCode, 403);
 });
 
+test('borrowing request roles can only see sanitized available equipment', async (t) => {
+  const app = await createApp();
+  t.after(() => app.close());
+
+  const response = await app.inject({
+    method: 'GET',
+    url: '/api/equipment?status=available&page=1&pageSize=10',
+    headers: { authorization: `Bearer ${token(app, 'secretary')}` },
+  });
+  assert.equal(response.statusCode, 200);
+  const first = response.json().data[0];
+  assert.equal(first.status, 'tersedia');
+  assert.equal(first.lokasi_penyimpanan, undefined);
+  assert.equal(first.serial_number, undefined);
+  assert.equal(first.foto_urls, undefined);
+
+  const forbidden = await app.inject({
+    method: 'GET',
+    url: '/api/equipment?status=maintenance',
+    headers: { authorization: `Bearer ${token(app, 'secretary')}` },
+  });
+  assert.equal(forbidden.statusCode, 403);
+
+  const equipmentTeamBorrowingOptions = await app.inject({
+    method: 'GET',
+    url: '/api/equipment?purpose=borrowing_request&status=available&page=1&pageSize=10',
+    headers: { authorization: `Bearer ${token(app, 'equipment_team')}` },
+  });
+  assert.equal(equipmentTeamBorrowingOptions.statusCode, 200);
+  const equipmentTeamItem = equipmentTeamBorrowingOptions.json().data[0];
+  assert.equal(equipmentTeamItem.lokasi_penyimpanan, undefined);
+  assert.equal(equipmentTeamItem.serial_number, undefined);
+  assert.equal(equipmentTeamItem.foto_urls, undefined);
+
+  const invalidPurpose = await app.inject({
+    method: 'GET',
+    url: '/api/equipment?purpose=borrowing_request',
+    headers: { authorization: `Bearer ${token(app, 'member')}` },
+  });
+  assert.equal(invalidPurpose.statusCode, 403);
+});
+
 test('equipment mutation routes keep the equipment-team role guard and validate schemas', async (t) => {
   const app = await createApp();
   t.after(() => app.close());

@@ -930,7 +930,7 @@ paths:
     get:
       summary: List borrowing records with server-side scope and pagination
       parameters:
-        - { name: status, in: query, required: false, schema: { type: string, enum: [menunggu_persetujuan, disetujui, ditolak, dipinjam, dikembalikan, terlambat] } }
+        - { name: status, in: query, required: false, schema: { type: string, enum: [menunggu_persetujuan, disetujui, ditolak, dipinjam, menunggu_verifikasi, dikembalikan, terlambat] } }
         - { name: borrower_id, in: query, required: false, schema: { type: string, maxLength: 64 } }
         - { name: search, in: query, required: false, schema: { type: string, maxLength: 100 } }
         - { name: page, in: query, required: false, schema: { type: integer, minimum: 1, default: 1 } }
@@ -952,7 +952,7 @@ paths:
               $ref: '#/components/schemas/BorrowingCreateRequest'
       responses:
         '201': { description: Borrowing request created or replayed idempotently }
-        '403': { description: Member attempted to borrow for another student }
+        '403': { description: Non-teacher attempted to borrow for a different student or account lacks request capability }
         '409': { description: Equipment is unavailable or already reserved }
         '422': { description: Invalid dates, purpose, or equipment list }
         '503': { description: Borrowing schema or database identity is not available }
@@ -1070,8 +1070,112 @@ paths:
         - { name: borrowing_id, in: path, required: true, schema: { type: string, maxLength: 128 } }
       responses:
         '200': { description: Attached return evidence metadata and signed access URLs }
-        '403': { description: Borrowing read capability required }
+        '403': { description: Borrowing management capability required }
         '503': { description: Return evidence schema or storage is not available }
+  /api/borrowing/{borrowing_id}/return-report-evidence-uploads:
+    post:
+      summary: Reserve a private student return-report photo upload
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: borrowing_id, in: path, required: true, schema: { type: string, maxLength: 128 } }
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BorrowingReturnEvidenceUploadRequest'
+      responses:
+        '201': { description: Signed upload URL, evidence identifier, and report identifier }
+        '403': { description: Student return-report capability or ownership is required }
+        '422': { description: Invalid image metadata or borrowing item }
+        '503': { description: Return evidence storage is not configured }
+  /api/borrowing/{borrowing_id}/report-return:
+    post:
+      summary: Submit an asynchronous student return report for teacher verification
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: borrowing_id, in: path, required: true, schema: { type: string, maxLength: 128 } }
+        - $ref: '#/components/parameters/ChangeReason'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [report_id, evidence_ids]
+              properties:
+                report_id: { type: string, format: uuid }
+                evidence_ids: { type: array, minItems: 2, maxItems: 50, uniqueItems: true, items: { type: string, format: uuid } }
+                notes: { type: string, maxLength: 1000 }
+      responses:
+        '200': { description: Report submitted and borrowing moved to pending verification }
+        '403': { description: Student return-report capability or ownership is required }
+        '409': { description: Report transition or idempotency conflict }
+        '422': { description: Evidence is missing, incomplete, or does not belong to the report }
+        '503': { description: Borrowing schema or evidence storage is not available }
+  /api/borrowing/{borrowing_id}/verify-return:
+    post:
+      summary: Approve or reject a student return report (teacher only)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: borrowing_id, in: path, required: true, schema: { type: string, maxLength: 128 } }
+        - $ref: '#/components/parameters/ChangeReason'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [report_id, decision]
+              properties:
+                report_id: { type: string, format: uuid }
+                decision: { type: string, enum: [approve, reject] }
+                verification_method: { type: string, enum: [photo, physical_check, photo_and_physical] }
+                rejection_reason: { type: string, maxLength: 500 }
+                item_conditions:
+                  type: array
+                  maxItems: 50
+                  items:
+                    type: object
+                    required: [equipment_id, condition]
+                    properties:
+                      equipment_id: { type: string, format: uuid }
+                      condition: { type: string, enum: [good, minor_damage, damaged, severely_damaged, lost] }
+                      settlement_method: { type: string, enum: [none, repair, replacement] }
+                      repair_cost: { type: number, exclusiveMinimum: 0 }
+                      notes: { type: string, maxLength: 500 }
+      responses:
+        '200': { description: Report approved/rejected and borrowing status updated atomically }
+        '403': { description: Teacher role and verification capability required }
+        '404': { description: Return report not found for this borrowing }
+        '409': { description: Report transition or idempotency conflict }
+        '422': { description: Invalid decision, evidence, conditions, or audit reason }
+        '503': { description: Borrowing schema or evidence storage is not available }
+  /api/borrowing/{borrowing_id}/return-report:
+    get:
+      summary: Read a return report and short-lived private evidence URLs
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: borrowing_id, in: path, required: true, schema: { type: string, maxLength: 128 } }
+      responses:
+        '200': { description: Return report metadata and signed evidence URLs }
+        '403': { description: Teacher or report-owner scope is required }
+        '404': { description: Return report not found }
+        '503': { description: Return evidence storage is not available }
+  /api/borrowing/{borrowing_id}/return-report-evidence:
+    get:
+      summary: List private evidence attached to a student return report
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: borrowing_id, in: path, required: true, schema: { type: string, maxLength: 128 } }
+      responses:
+        '200': { description: Signed evidence access URLs }
+        '403': { description: Teacher or report-owner scope is required }
+        '404': { description: Return report not found }
+        '503': { description: Return evidence storage is not available }
   /api/borrowing-return-evidence/{evidence_id}/access:
     get:
       summary: Issue a short-lived access URL for attached return evidence
@@ -1080,7 +1184,7 @@ paths:
         - { name: evidence_id, in: path, required: true, schema: { type: string, minLength: 36, maxLength: 36 } }
       responses:
         '200': { description: Signed evidence access URL }
-        '403': { description: Borrowing read capability required }
+        '403': { description: Borrowing management capability required }
         '404': { description: Attached evidence not found }
   /api/grades:
     get:
@@ -1419,10 +1523,11 @@ paths:
         - { name: kategori, in: query, required: false, schema: { type: string, enum: [Kamera, Lensa, Audio, Lighting, Aksesoris, Lainnya] } }
         - { name: kondisi, in: query, required: false, schema: { type: string, enum: [bagus, sedikit_kerusakan, rusak, rusak_besar, sedang_diperbaiki, hilang] } }
         - { name: status, in: query, required: false, schema: { type: string, enum: [tersedia, dipinjam, maintenance] } }
+        - { name: purpose, in: query, required: false, schema: { type: string, enum: [borrowing_request] }, description: Return only selectable available equipment with sanitized fields }
         - { name: page, in: query, required: false, schema: { type: integer, minimum: 1, default: 1 } }
         - { name: pageSize, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
       responses:
-        '200': { description: Paginated equipment records with reservation status }
+        '200': { description: Paginated equipment records; borrowing-request roles receive only available, sanitized selection fields }
         '401': { description: Unauthenticated }
     post:
       summary: Create an equipment catalog record

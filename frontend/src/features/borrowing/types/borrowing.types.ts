@@ -5,6 +5,7 @@ export const BORROWING_STATUS_VALUES = [
   'disetujui',
   'ditolak',
   'dipinjam',
+  'menunggu_verifikasi',
   'dikembalikan',
   'terlambat',
 ] as const;
@@ -44,6 +45,10 @@ export interface BorrowingRecord {
   updated_by?: string;
   created_at: string;
   updated_at?: string;
+  return_reported_at?: string;
+  return_notes?: string;
+  return_verified_at?: string;
+  return_verified_by?: string;
   approved_actor?: ActorSummary;
   processed_return_actor?: ActorSummary;
   created_actor?: ActorSummary;
@@ -117,8 +122,44 @@ export interface ReturnAssessmentPreview {
 
 export interface ReturnEvidenceUploadReservation {
   evidence_id: string;
+  report_id?: string | null;
   upload_url: string;
   expires_in_seconds: number;
+}
+
+export type ReturnReportVerificationMethod = 'photo' | 'physical_check' | 'photo_and_physical';
+export type ReturnReportDecision = 'approve' | 'reject';
+
+export interface ReturnReportEvidenceAccessRecord extends ReturnEvidenceAccessRecord {
+  source?: 'student_report' | 'teacher_return';
+}
+
+export interface ReturnReport {
+  id: string;
+  borrowing_id: string;
+  reporter_id: string;
+  status: 'draft' | 'pending_verification' | 'approved' | 'rejected' | 'superseded';
+  notes?: string;
+  reported_at?: string;
+  verified_at?: string;
+  verified_by?: string;
+  verification_method?: ReturnReportVerificationMethod;
+  rejection_reason?: string;
+  evidence?: ReturnReportEvidenceAccessRecord[];
+}
+
+export interface ReturnReportPayload {
+  report_id: string;
+  evidence_ids: string[];
+  notes?: string;
+}
+
+export interface VerifyReturnPayload {
+  report_id: string;
+  decision: ReturnReportDecision;
+  verification_method: ReturnReportVerificationMethod;
+  item_conditions: ReturnItemCondition[];
+  rejection_reason?: string;
 }
 
 export interface ReturnEvidenceAccessRecord {

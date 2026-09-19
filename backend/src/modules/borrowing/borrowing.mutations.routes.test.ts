@@ -34,3 +34,46 @@ test('borrowing mutation routes preserve the response envelope and pass authenti
   assert.equal(evidence.statusCode, 200);
   assert.equal(evidence.json().data[0].access_url, 'https://download.example.test/signed');
 });
+
+test('leader can submit only for the linked student and cannot approve', async (t) => {
+  const app = Fastify();
+  await app.register(jwt, { secret: 'test-secret-that-is-long-enough' });
+  let receivedStudentId: string | undefined;
+  await app.register(borrowingMutationsRoutes, {
+    borrowingMutationsService: {
+      repositoryIsConfigured: () => false,
+      create: async (_input: unknown, _actor: unknown, actorStudentId: string | null) => {
+        receivedStudentId = actorStudentId ?? undefined;
+        return { id: 'bor-1', status: 'menunggu_persetujuan' };
+      },
+    } as any,
+  });
+  t.after(() => app.close());
+
+  const leader = app.jwt.sign({
+    userId: 'leader-1', username: 'leader', role: 'leader', studentId: 'student-1', isFirstLogin: false,
+  });
+  const headers = { authorization: `Bearer ${leader}` };
+  const created = await app.inject({
+    method: 'POST',
+    url: '/api/borrowing',
+    headers,
+    payload: {
+      borrower_id: 'student-1',
+      equipment_ids: ['equipment-1'],
+      borrow_date: '2026-09-19',
+      planned_return_date: '2026-09-21',
+      purpose: 'Produksi tugas film',
+    },
+  });
+  assert.equal(created.statusCode, 201);
+  assert.equal(receivedStudentId, 'student-1');
+
+  const approval = await app.inject({
+    method: 'POST',
+    url: '/api/borrowing/bor-1/approve-reject',
+    headers: { ...headers, 'x-change-reason': 'Tidak boleh' },
+    payload: { action: 'approve' },
+  });
+  assert.equal(approval.statusCode, 403);
+});

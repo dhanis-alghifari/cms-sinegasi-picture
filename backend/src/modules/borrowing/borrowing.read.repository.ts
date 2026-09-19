@@ -13,9 +13,9 @@ type SupabaseLike = SupabaseClient | null;
 type BorrowingDbRow = DatabaseRow;
 const VALUATION_LOOKUP_LIMIT = 5_000;
 
-export const BORROWING_SELECT = 'id,student_id,tanggal_pinjam,borrowed_at,rencana_kembali,due_at,returned_at,keperluan,status,catatan_persetujuan,catatan_pengembalian,total_denda,approved_by,processed_return_by,created_by,updated_by,created_at,updated_at,students(id,nis,nama,kelas),borrowing_items(id,borrowing_id,equipment_id,status,kondisi_awal,kondisi_kembali,denda,tanggal_diserahkan,tanggal_dikembalikan,catatan,equipment(id,kode_alat,kode_qr,nama_alat,kategori,kondisi,physical_condition,status,availability_status))';
+export const BORROWING_SELECT = 'id,student_id,tanggal_pinjam,borrowed_at,rencana_kembali,due_at,returned_at,keperluan,status,catatan_persetujuan,catatan_pengembalian,total_denda,approved_by,processed_return_by,created_by,updated_by,created_at,updated_at,return_reported_at,return_notes,return_verified_at,return_verified_by,students(id,nis,nama,kelas),borrowing_items(id,borrowing_id,equipment_id,status,kondisi_awal,kondisi_kembali,denda,tanggal_diserahkan,tanggal_dikembalikan,catatan,equipment(id,kode_alat,kode_qr,nama_alat,kategori,kondisi,physical_condition,status,availability_status))';
 const STATUS_MAP: Record<string, BorrowingReadRecord['status']> = {
-  pending: 'menunggu_persetujuan', approved: 'disetujui', rejected: 'ditolak', borrowed: 'dipinjam', returned: 'dikembalikan', partial: 'dipinjam',
+  pending: 'menunggu_persetujuan', approved: 'disetujui', rejected: 'ditolak', borrowed: 'dipinjam', pending_verification: 'menunggu_verifikasi', returned: 'dikembalikan', partial: 'dipinjam',
 };
 
 function asRow(value: unknown): DatabaseRow {
@@ -131,6 +131,10 @@ export function mapBorrowingRow(row: BorrowingDbRow, replacementValues?: Readonl
     catatan_pengembalian: typeof row.catatan_pengembalian === 'string' ? row.catatan_pengembalian : undefined, total_denda: Number(row.total_denda || items.reduce((sum, item) => sum + item.denda_kerusakan, 0)),
     approved_by: typeof row.approved_by === 'string' ? row.approved_by : undefined, processed_return_by: typeof row.processed_return_by === 'string' ? row.processed_return_by : undefined, created_by: typeof row.created_by === 'string' ? row.created_by : undefined,
     updated_by: typeof row.updated_by === 'string' ? row.updated_by : undefined, created_at: text(row.created_at), updated_at: typeof row.updated_at === 'string' ? row.updated_at : undefined,
+    return_reported_at: typeof row.return_reported_at === 'string' ? row.return_reported_at : undefined,
+    return_notes: typeof row.return_notes === 'string' ? row.return_notes : undefined,
+    return_verified_at: typeof row.return_verified_at === 'string' ? row.return_verified_at : undefined,
+    return_verified_by: typeof row.return_verified_by === 'string' ? row.return_verified_by : undefined,
   };
 }
 
@@ -143,7 +147,7 @@ function parsePage(query: BorrowingReadQuery) {
 
 function requestedStatus(status?: string): string | undefined {
   if (status === 'menunggu_persetujuan') return 'pending'; if (status === 'disetujui') return 'approved'; if (status === 'ditolak') return 'rejected';
-  if (status === 'dipinjam' || status === 'terlambat') return 'borrowed'; if (status === 'dikembalikan') return 'returned'; return undefined;
+  if (status === 'dipinjam' || status === 'terlambat') return 'borrowed'; if (status === 'menunggu_verifikasi') return 'pending_verification'; if (status === 'dikembalikan') return 'returned'; return undefined;
 }
 
 function emptySummary(): BorrowingSummary { return { totalActive: 0, pendingApproval: 0, overdueCount: 0, returnedToday: 0 }; }
@@ -171,7 +175,7 @@ export function createBorrowingReadRepository(
         const requested = requestedStatus(query.status);
         if (query.status === 'terlambat') rows = rows.filter((row) => row.status === 'terlambat');
         else if (requested) rows = rows.filter((row) => ({
-          pending: 'menunggu_persetujuan', approved: 'disetujui', rejected: 'ditolak', borrowed: 'dipinjam', returned: 'dikembalikan',
+          pending: 'menunggu_persetujuan', approved: 'disetujui', rejected: 'ditolak', borrowed: 'dipinjam', pending_verification: 'menunggu_verifikasi', returned: 'dikembalikan',
         } as Record<string, string>)[requested] === row.status);
         const search = query.search?.trim().toLowerCase();
         if (search) rows = rows.filter((row) => row.borrower_nama.toLowerCase().includes(search) || row.borrower_nis?.toLowerCase().includes(search) || row.items.some((item) => item.kode_alat.toLowerCase().includes(search) || item.nama_alat.toLowerCase().includes(search)));
@@ -204,7 +208,7 @@ export function createBorrowingReadRepository(
         const rows = memoryRows.map((row) => mapBorrowingRow(row, replacementValues)).filter((row) => !scope.studentId || row.borrower_id === scope.studentId);
         const today = new Date().toISOString().slice(0, 10);
         return { data: {
-          totalActive: rows.filter((row) => ['menunggu_persetujuan', 'disetujui', 'dipinjam', 'terlambat'].includes(row.status)).length,
+          totalActive: rows.filter((row) => ['menunggu_persetujuan', 'disetujui', 'dipinjam', 'menunggu_verifikasi', 'terlambat'].includes(row.status)).length,
           pendingApproval: rows.filter((row) => row.status === 'menunggu_persetujuan').length,
           overdueCount: rows.filter((row) => row.status === 'terlambat').length,
           returnedToday: rows.filter((row) => row.status === 'dikembalikan' && row.tanggal_dikembalikan?.slice(0, 10) === today).length,
@@ -219,7 +223,7 @@ export function createBorrowingReadRepository(
         return query;
       };
       const [active, pending, overdue, returnedToday] = await Promise.all([
-        count().in('status', ['pending', 'approved', 'borrowed', 'partial']),
+        count().in('status', ['pending', 'approved', 'borrowed', 'partial', 'pending_verification']),
         count().eq('status', 'pending'),
         count().eq('status', 'borrowed').lt('due_at', now.toISOString()),
         count().eq('status', 'returned').gte('returned_at', todayStart).lt('returned_at', tomorrowStart),

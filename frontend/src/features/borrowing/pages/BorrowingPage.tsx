@@ -22,6 +22,7 @@ import { useCreateBorrowingMutation } from '../hooks/useCreateBorrowingMutation'
 import { useApproveRejectBorrowingMutation } from '../hooks/useApproveRejectBorrowingMutation';
 import { useHandoverBorrowingMutation } from '../hooks/useHandoverBorrowingMutation';
 import { useReturnBorrowingMutation } from '../hooks/useReturnBorrowingMutation';
+import { useSubmitReturnReportMutation, useVerifyReturnReportMutation } from '../hooks/useReturnReportMutations';
 
 import { BorrowingSummaryCards } from '../components/BorrowingSummaryCards';
 import { BorrowingFilter } from '../components/BorrowingFilter';
@@ -45,13 +46,24 @@ const LazyCreateBorrowingModal = lazy(() =>
 const LazyProcessReturnModal = lazy(() =>
   import('../components/ProcessReturnModal').then(({ ProcessReturnModal }) => ({ default: ProcessReturnModal })),
 );
+const LazyStudentReturnReportModal = lazy(() =>
+  import('../components/StudentReturnReportModal').then(({ StudentReturnReportModal }) => ({ default: StudentReturnReportModal })),
+);
+const LazyTeacherVerifyReturnModal = lazy(() =>
+  import('../components/TeacherVerifyReturnModal').then(({ TeacherVerifyReturnModal }) => ({ default: TeacherVerifyReturnModal })),
+);
 
 export function BorrowingPage() {
   const { user } = useAuthStore();
   const isMobile = useIsMobile();
   const canManage = hasCapability(user, 'borrowing.manage');
+  const canRequest = hasCapability(user, 'borrowing.request');
+  const isTeacher = user?.role === 'teacher';
+  const canOpenCreate = canRequest && (isTeacher || Boolean(user?.studentId));
   const canApprove = canManage;
   const canHandoverOrReturn = canManage;
+  const canReportReturn = Boolean(user?.studentId) && hasCapability(user, 'borrowing.return.report');
+  const canVerifyReturn = user?.role === 'teacher' && hasCapability(user, 'borrowing.return.verify');
 
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<string>(UI_CONSTANTS.ALL_FILTER_VALUE);
@@ -77,13 +89,17 @@ export function BorrowingPage() {
   };
 
   const [createOpen, setCreateOpen] = useState(false);
-  const shouldLoadCreateFormOptions = canManage && createOpen;
+  const shouldLoadCreateFormOptions = canOpenCreate && createOpen;
 
   const [approveRejectOpen, setApproveRejectOpen] = useState(false);
   const [approveRejectRecord, setApproveRejectRecord] = useState<BorrowingRecord | null>(null);
 
   const [returnOpen, setReturnOpen] = useState(false);
   const [returnRecord, setReturnRecord] = useState<BorrowingRecord | null>(null);
+  const [returnReportOpen, setReturnReportOpen] = useState(false);
+  const [returnReportRecord, setReturnReportRecord] = useState<BorrowingRecord | null>(null);
+  const [verifyReturnOpen, setVerifyReturnOpen] = useState(false);
+  const [verifyReturnRecord, setVerifyReturnRecord] = useState<BorrowingRecord | null>(null);
   const [handoverTarget, setHandoverTarget] = useState<BorrowingRecord | null>(null);
 
   const {
@@ -104,7 +120,7 @@ export function BorrowingPage() {
     pageSize,
     search: debouncedSearch || undefined,
     status: isOneOf(status, BORROWING_STATUS_VALUES) ? status : undefined,
-    borrower_id: user?.role === 'member' ? user.studentId : undefined,
+    borrower_id: user?.role === 'member' || user?.role === 'contest_team' ? user?.studentId : undefined,
   });
 
   const {
@@ -115,7 +131,7 @@ export function BorrowingPage() {
     refetch: refetchStudents,
   } = useStudentsQuery(
     { is_active: true, page: 1, pageSize: UI_CONSTANTS.ATTENDANCE_ROSTER_PAGE_SIZE },
-    shouldLoadCreateFormOptions,
+    shouldLoadCreateFormOptions && isTeacher,
   );
   const {
     data: equipmentData,
@@ -124,7 +140,7 @@ export function BorrowingPage() {
     error: equipmentOptionsError,
     refetch: refetchEquipmentOptions,
   } = useEquipmentQuery(
-    { status: 'tersedia', page: 1, pageSize: UI_CONSTANTS.ATTENDANCE_ROSTER_PAGE_SIZE },
+    { purpose: 'borrowing_request', status: 'tersedia', page: 1, pageSize: UI_CONSTANTS.ATTENDANCE_ROSTER_PAGE_SIZE },
     shouldLoadCreateFormOptions,
   );
 
@@ -132,6 +148,8 @@ export function BorrowingPage() {
   const approveRejectMutation = useApproveRejectBorrowingMutation();
   const handoverMutation = useHandoverBorrowingMutation();
   const returnMutation = useReturnBorrowingMutation();
+  const returnReportMutation = useSubmitReturnReportMutation();
+  const verifyReturnMutation = useVerifyReturnReportMutation();
 
   const handleOpenApproveReject = (rec: BorrowingRecord) => {
     setApproveRejectRecord(rec);
@@ -160,6 +178,16 @@ export function BorrowingPage() {
   const handleOpenReturn = (rec: BorrowingRecord) => {
     setReturnRecord(rec);
     setReturnOpen(true);
+  };
+
+  const handleOpenReturnReport = (rec: BorrowingRecord) => {
+    setReturnReportRecord(rec);
+    setReturnReportOpen(true);
+  };
+
+  const handleOpenVerifyReturn = (rec: BorrowingRecord) => {
+    setVerifyReturnRecord(rec);
+    setVerifyReturnOpen(true);
   };
 
   const handleCreateSubmit = async (values: CreateBorrowingFormValues) => {
@@ -202,6 +230,30 @@ export function BorrowingPage() {
     });
   };
 
+  const handleReturnReportSubmit = async (values: { borrowing_id: string; report_id: string; evidence_ids: string[]; notes?: string; change_reason: string }) => {
+    await returnReportMutation.mutateAsync({
+      borrowingId: values.borrowing_id,
+      payload: { report_id: values.report_id, evidence_ids: values.evidence_ids, notes: values.notes },
+      changeReason: values.change_reason,
+      idempotencyKey: crypto.randomUUID(),
+    });
+  };
+
+  const handleVerifyReturnSubmit = async (values: { borrowing_id: string; report_id: string; decision: 'approve' | 'reject'; verification_method: 'photo' | 'physical_check' | 'photo_and_physical'; item_conditions: ReturnItemCondition[]; rejection_reason?: string; change_reason: string }) => {
+    await verifyReturnMutation.mutateAsync({
+      borrowingId: values.borrowing_id,
+      payload: {
+        report_id: values.report_id,
+        decision: values.decision,
+        verification_method: values.verification_method,
+        item_conditions: values.item_conditions,
+        rejection_reason: values.rejection_reason,
+      },
+      changeReason: values.change_reason,
+      idempotencyKey: crypto.randomUUID(),
+    });
+  };
+
   const summaryContent = (() => {
     if (isSummaryLoading) return <PageLoader label="Memuat ringkasan peminjaman..." />;
     if (isSummaryError) {
@@ -218,8 +270,8 @@ export function BorrowingPage() {
 
     const borrowings = borrowingData?.data ?? [];
     const list = isMobile
-      ? <BorrowingMobileList borrowings={borrowings} onApproveReject={handleOpenApproveReject} onHandover={handleHandover} onReturn={handleOpenReturn} canManage={canManage} canApprove={canApprove} canHandoverOrReturn={canHandoverOrReturn} />
-      : <BorrowingTable borrowings={borrowings} onApproveReject={handleOpenApproveReject} onHandover={handleHandover} onReturn={handleOpenReturn} canManage={canManage} canApprove={canApprove} canHandoverOrReturn={canHandoverOrReturn} />;
+      ? <BorrowingMobileList borrowings={borrowings} onApproveReject={handleOpenApproveReject} onHandover={handleHandover} onReturn={handleOpenReturn} onReportReturn={handleOpenReturnReport} onVerifyReturn={handleOpenVerifyReturn} canManage={canManage} canApprove={canApprove} canHandoverOrReturn={canHandoverOrReturn} canReportReturn={canReportReturn} reportStudentId={user?.studentId} canVerifyReturn={canVerifyReturn} />
+      : <BorrowingTable borrowings={borrowings} onApproveReject={handleOpenApproveReject} onHandover={handleHandover} onReturn={handleOpenReturn} onReportReturn={handleOpenReturnReport} onVerifyReturn={handleOpenVerifyReturn} canManage={canManage} canApprove={canApprove} canHandoverOrReturn={canHandoverOrReturn} canReportReturn={canReportReturn} reportStudentId={user?.studentId} canVerifyReturn={canVerifyReturn} />;
 
     return (
       <div className="space-y-4">
@@ -242,12 +294,12 @@ export function BorrowingPage() {
         subtitle="Alur persetujuan peminjaman, penyerahan barang, pemeriksaan fisik pengembalian, serta tagihan perbaikan dan penggantian."
         actions={
           <ResponsivePageActions
-            actions={[{
+            actions={canOpenCreate ? [{
               id: 'create-borrowing',
               label: 'Ajukan Peminjaman Alat',
               icon: PackagePlus,
               onSelect: () => setCreateOpen(true),
-            }]}
+            }] : []}
           />
         }
       />
@@ -264,7 +316,7 @@ export function BorrowingPage() {
 
       {borrowingContent}
 
-      {canManage && createOpen && (
+      {canOpenCreate && createOpen && (
         <Suspense fallback={null}>
           <LazyCreateBorrowingModal
             dialog={{ open: createOpen, onOpenChange: setCreateOpen }}
@@ -276,6 +328,9 @@ export function BorrowingPage() {
               equipmentLoading: isEquipmentOptionsLoading,
               equipmentError: isEquipmentOptionsError ? equipmentOptionsError : undefined,
             }}
+            borrower={isTeacher
+              ? { mode: 'select' }
+              : { mode: 'self', studentId: user?.studentId ?? '', displayName: user?.nama ?? 'Akun Anda' }}
             submission={{ onSubmit: handleCreateSubmit, isLoading: createMutation.isPending, error: createMutation.error }}
             actions={{ onRetryStudents: refetchStudents, onRetryEquipment: refetchEquipmentOptions }}
           />
@@ -321,6 +376,34 @@ export function BorrowingPage() {
               action={{ confirmLabel: 'Serahkan Alat', onConfirm: handleConfirmHandover }}
             />
           )}
+        </Suspense>
+      )}
+
+      {canReportReturn && returnReportOpen && returnReportRecord && (
+        <Suspense fallback={null}>
+          <LazyStudentReturnReportModal
+            key={returnReportRecord.id}
+            open={returnReportOpen}
+            onOpenChange={setReturnReportOpen}
+            record={returnReportRecord}
+            onSubmit={handleReturnReportSubmit}
+            isLoading={returnReportMutation.isPending}
+            error={returnReportMutation.error}
+          />
+        </Suspense>
+      )}
+
+      {canVerifyReturn && verifyReturnOpen && verifyReturnRecord && (
+        <Suspense fallback={null}>
+          <LazyTeacherVerifyReturnModal
+            key={verifyReturnRecord.id}
+            open={verifyReturnOpen}
+            onOpenChange={setVerifyReturnOpen}
+            record={verifyReturnRecord}
+            onSubmit={handleVerifyReturnSubmit}
+            isLoading={verifyReturnMutation.isPending}
+            error={verifyReturnMutation.error}
+          />
         </Suspense>
       )}
     </div>

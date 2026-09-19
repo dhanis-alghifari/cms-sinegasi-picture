@@ -51,6 +51,7 @@ export function BorrowingFilter({
           <SelectItem value="menunggu_persetujuan">Menunggu Persetujuan</SelectItem>
           <SelectItem value="disetujui">Disetujui (Siap Ambil)</SelectItem>
           <SelectItem value="dipinjam">Sedang Dipinjam</SelectItem>
+          <SelectItem value="menunggu_verifikasi">Menunggu Verifikasi Guru</SelectItem>
           <SelectItem value="terlambat">Terlambat (Overdue)</SelectItem>
           <SelectItem value="dikembalikan">Dikembalikan</SelectItem>
           <SelectItem value="ditolak">Ditolak</SelectItem>

@@ -1,7 +1,7 @@
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { resolveDatabaseUserId } from '../auth/auth.identity.js';
 import { authenticate, type JwtPayload } from '../../middleware/authMiddleware.js';
-import { requireAnyCapability, requireCapability } from '../../middleware/capabilities.js';
+import { hasCapability, requireAnyCapability, requireCapability } from '../../middleware/capabilities.js';
 import {
   equipmentConditionRouteSchema,
   equipmentCreateRouteSchema,
@@ -88,21 +88,44 @@ const equipmentRoutes: FastifyPluginAsync<EquipmentRoutesOptions> = async (fasti
 
   fastify.get('/api/equipment', {
     schema: equipmentListRouteSchema,
-    preHandler: [authenticate, requireAnyCapability('equipment.read', 'borrowing.manage')],
+    preHandler: [authenticate, requireAnyCapability('equipment.read', 'borrowing.manage', 'borrowing.request')],
   }, async (request, reply) => {
     try {
+      const user = request.user as JwtPayload;
       const query = equipmentInput(request.query as Record<string, unknown>) as Record<string, string | undefined>;
-      return reply.send({
-        success: true,
-        ...(await options.equipmentService.list({
-          search: query.search,
-          kategori: query.kategori,
-          kondisi: query.kondisi,
-          status: query.status,
-          page: Number(query.page || 1),
-          pageSize: Number(query.pageSize || 20),
-        })),
+      const borrowingRequest = query.purpose === 'borrowing_request';
+      if (borrowingRequest && !hasCapability(user.role, 'borrowing.request')) {
+        return reply.status(403).send({ success: false, error_code: 'FORBIDDEN', message: 'Akun tidak dapat memilih alat untuk pengajuan peminjaman.' });
+      }
+      const requestOnly = borrowingRequest || (!hasCapability(user.role, 'equipment.read') && hasCapability(user.role, 'borrowing.request'));
+      if (requestOnly && query.status && query.status !== 'tersedia') {
+        return reply.status(403).send({ success: false, error_code: 'FORBIDDEN', message: 'Akun hanya dapat melihat alat yang tersedia untuk diajukan.' });
+      }
+      const result = await options.equipmentService.list({
+        search: query.search,
+        kategori: query.kategori,
+        kondisi: query.kondisi,
+        status: requestOnly ? 'tersedia' : query.status,
+        page: Number(query.page || 1),
+        pageSize: requestOnly ? Math.min(Number(query.pageSize || 20), 100) : Number(query.pageSize || 20),
       });
+      if (!requestOnly) return reply.send({ success: true, ...result });
+
+      // Request-only roles get the minimum data needed to choose an item. Do
+      // not expose storage location, serials, photos, valuations, or notes.
+      const data = result.data
+        .filter((item) => item.status === 'tersedia' && item.reservation_status !== 'dipesan')
+        .map((item) => ({
+          id: item.id,
+          kode_alat: item.kode_alat,
+          nama_alat: item.nama_alat,
+          kategori: item.kategori,
+          kondisi: item.kondisi,
+          status: item.status,
+          reservation_status: item.reservation_status,
+          created_at: item.created_at,
+        }));
+      return reply.send({ success: true, ...result, data });
     } catch (error) {
       return sendServiceError(error, reply);
     }

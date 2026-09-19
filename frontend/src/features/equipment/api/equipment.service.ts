@@ -82,6 +82,7 @@ export const equipmentService = {
     const query = new URLSearchParams();
     if (params?.page) query.append('page', String(params.page));
     if (params?.pageSize) query.append('pageSize', String(params.pageSize));
+    if (params?.purpose) query.append('purpose', params.purpose);
     if (params?.search) query.append('search', params.search);
     if (params?.kategori) query.append('category', categoryValues[params.kategori]);
     if (params?.kondisi) query.append('condition', conditionValues[params.kondisi]);

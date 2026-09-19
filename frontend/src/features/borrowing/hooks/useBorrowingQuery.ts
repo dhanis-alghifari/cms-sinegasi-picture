@@ -28,3 +28,23 @@ export function useBorrowingReturnEvidenceQuery(borrowingId: string | undefined,
     retry: false,
   });
 }
+
+export function useBorrowingReturnReportQuery(borrowingId: string | undefined, enabled = true) {
+  return useQuery({
+    queryKey: [...QUERY_KEYS.BORROWING, 'return-report', borrowingId || 'none'],
+    queryFn: () => borrowingService.getReturnReport(borrowingId!),
+    enabled: Boolean(borrowingId && enabled),
+    staleTime: UI_CONSTANTS.LONG_QUERY_STALE_TIME_MS,
+    retry: false,
+  });
+}
+
+export function useBorrowingReturnReportEvidenceQuery(borrowingId: string | undefined, enabled = true) {
+  return useQuery({
+    queryKey: [...QUERY_KEYS.BORROWING, 'return-report-evidence', borrowingId || 'none'],
+    queryFn: () => borrowingService.listReturnReportEvidence(borrowingId!),
+    enabled: Boolean(borrowingId && enabled),
+    staleTime: UI_CONSTANTS.LONG_QUERY_STALE_TIME_MS,
+    retry: false,
+  });
+}

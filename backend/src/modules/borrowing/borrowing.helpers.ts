@@ -1,7 +1,7 @@
 import { runtimeConfig } from '../../config/env.js';
 import type { BorrowingDatabaseError } from './borrowing.mutations.types.js';
 
-export const BORROWING_SCHEMA_MIGRATION_MESSAGE = 'Skema peminjaman belum lengkap. Jalankan migration 014_borrowing_items_hardening.sql, 060_equipment_valuation_return_assessment.sql, 062_borrowing_return_evidence.sql, dan 063_equipment_recovery_and_charges.sql di Supabase, lalu restart backend.';
+export const BORROWING_SCHEMA_MIGRATION_MESSAGE = 'Skema peminjaman belum lengkap. Jalankan migration 014_borrowing_items_hardening.sql, 060_equipment_valuation_return_assessment.sql, 062_borrowing_return_evidence.sql, 063_equipment_recovery_and_charges.sql, dan 068_borrowing_self_return_verification.sql di Supabase, lalu restart backend.';
 
 export function isIsoDate(value: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
@@ -20,9 +20,16 @@ export function isMissingBorrowingSchemaError(error: BorrowingDatabaseError | nu
     || message.includes('approve_borrowing_atomic')
     || message.includes('handover_borrowing_atomic')
     || message.includes('return_borrowing_atomic')
-    || message.includes('reserve_borrowing_return_evidence_atomic');
+    || message.includes('reserve_borrowing_return_evidence_atomic')
+    || message.includes('reserve_borrowing_self_return_evidence_atomic')
+    || message.includes('submit_borrowing_self_return_atomic')
+    || message.includes('verify_borrowing_self_return_atomic');
   return message.includes('function public.create_borrowing_atomic')
-    || message.includes('relation "public.borrowing_items" does not exist');
+    || message.includes('relation "public.borrowing_items" does not exist')
+    || message.includes('column "return_reported_at" does not exist')
+    || message.includes('column "return_notes" does not exist')
+    || message.includes('column "return_verified_at" does not exist')
+    || message.includes('column "return_verified_by" does not exist');
 }
 
 export function getBorrowingErrorMessage(error: BorrowingDatabaseError | null | undefined): string {

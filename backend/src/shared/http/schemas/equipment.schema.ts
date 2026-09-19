@@ -36,6 +36,7 @@ export const equipmentListRouteSchema = {
       category: { type: 'string', maxLength: 32 },
       condition: { type: 'string', maxLength: 32 },
       status: { type: 'string', maxLength: 32 },
+      purpose: { type: 'string', enum: ['borrowing_request'] },
       page: { type: 'string', pattern: '^[0-9]+$' },
       pageSize: { type: 'string', pattern: '^[0-9]+$' },
     },

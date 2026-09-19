@@ -29,7 +29,10 @@ export const CAPABILITY_VALUES = [
   'equipment.read',
   'equipment.manage',
   'borrowing.read',
+  'borrowing.request',
   'borrowing.manage',
+  'borrowing.return.report',
+  'borrowing.return.verify',
   'contests.read',
   'contests.submit',
   'contests.manage',
@@ -55,32 +58,32 @@ export const ROLE_CAPABILITIES: Readonly<Record<UserRole, readonly Capability[]>
   leader: [
     'dashboard.read.own', 'students.read', 'students.manage', 'classes.read', 'classes.manage',
     'attendance.read', 'attendance.record', 'attendance.correct', 'equipment.read', 'equipment.manage',
-    'borrowing.read', 'borrowing.manage', 'contests.read', 'contests.submit', 'contests.manage',
+    'borrowing.read', 'borrowing.request', 'borrowing.return.report', 'contests.read', 'contests.submit', 'contests.manage',
     'grades.read.own', 'notifications.read',
   ],
   vice_leader: [
     'dashboard.read.own', 'attendance.read', 'attendance.record', 'attendance.correct',
-    'borrowing.read', 'borrowing.manage', 'contests.read', 'contests.submit', 'contests.manage',
+    'borrowing.read', 'borrowing.request', 'borrowing.return.report', 'contests.read', 'contests.submit', 'contests.manage',
     'grades.read.own', 'notifications.read',
   ],
   treasurer: [
     'dashboard.read.own', 'cash.read', 'cash.read.own', 'cash.manage', 'cash.dispute.create', 'cash.dispute.review',
-    'grades.read.own', 'notifications.read',
+    'borrowing.read', 'borrowing.request', 'borrowing.return.report', 'grades.read.own', 'notifications.read',
   ],
   secretary: [
     'dashboard.read.own', 'students.read', 'students.manage', 'classes.read', 'classes.manage',
-    'attendance.read', 'attendance.record', 'attendance.correct', 'grades.read.own', 'notifications.read',
+    'attendance.read', 'attendance.record', 'attendance.correct', 'borrowing.read', 'borrowing.request', 'borrowing.return.report', 'grades.read.own', 'notifications.read',
   ],
   equipment_team: [
-    'dashboard.read.own', 'equipment.read', 'equipment.manage', 'borrowing.read', 'borrowing.manage',
+    'dashboard.read.own', 'equipment.read', 'equipment.manage', 'borrowing.read', 'borrowing.request', 'borrowing.return.report',
     'grades.read.own', 'notifications.read',
   ],
   contest_team: [
-    'dashboard.read.own', 'contests.read', 'contests.submit', 'contests.manage',
+    'dashboard.read.own', 'borrowing.read', 'borrowing.return.report', 'contests.read', 'contests.submit', 'contests.manage',
     'grades.read.own', 'notifications.read',
   ],
   member: [
-    'dashboard.read.own', 'attendance.read.own', 'cash.read.own', 'cash.dispute.create',
+    'dashboard.read.own', 'attendance.read.own', 'cash.read.own', 'cash.dispute.create', 'borrowing.read', 'borrowing.return.report',
     'cash.dispute.read.own', 'grades.read.own', 'notifications.read',
   ],
 };

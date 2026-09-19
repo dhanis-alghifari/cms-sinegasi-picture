@@ -53,6 +53,39 @@ test('borrowing mutation service prevents a member from creating for another stu
   );
 });
 
+test('borrowing mutation service prevents every non-teacher role from creating for another student', async () => {
+  const returnDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const service = new BorrowingMutationsService(createBorrowingMutationsRepository(null, {
+    equipment: [{ id: 'eq-1', kode_alat: 'CAM-001', nama_alat: 'Camera', kondisi: 'bagus', status: 'tersedia' }], borrowings: [],
+  }));
+
+  await assert.rejects(
+    () => service.create(
+      { borrower_id: 'student-2', equipment_ids: ['eq-1'], rencana_kembali: returnDate, keperluan: 'Produksi tugas film' },
+      { userId: 'leader-1', role: 'leader' },
+      'student-1',
+      'leader-1',
+    ),
+    (error: unknown) => error instanceof BorrowingMutationsServiceError && error.statusCode === 403,
+  );
+});
+
+test('committee role can create a request for its linked student', async () => {
+  const returnDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const service = new BorrowingMutationsService(createBorrowingMutationsRepository(null, {
+    equipment: [{ id: 'eq-1', kode_alat: 'CAM-001', nama_alat: 'Camera', kondisi: 'bagus', status: 'tersedia' }], borrowings: [],
+  }));
+
+  const created = await service.create(
+    { borrower_id: 'student-1', equipment_ids: ['eq-1'], rencana_kembali: returnDate, keperluan: 'Produksi tugas film' },
+    { userId: 'leader-1', role: 'leader' },
+    'student-1',
+    'leader-1',
+    'leader-request-001',
+  );
+  assert.equal(created.borrower_id, 'student-1');
+});
+
 test('borrowing return rejects a physical condition without evidence', async () => {
   const state = {
     equipment: [{ id: 'eq-1', kode_alat: 'CAM-001', nama_alat: 'Camera', kondisi: 'bagus', status: 'tersedia' }],
