@@ -118,7 +118,7 @@ const returnReportEvidenceSchema: z.ZodType<ReturnReportEvidenceAccessRecord> = 
   created_at: optionalTextSchema,
   access_url: z.string().url(),
   expires_in_seconds: z.number().int().positive(),
-  source: z.enum(['student_report', 'teacher_return']).optional(),
+  source: z.enum(['student_report', 'teacher_return']).nullable().optional().transform((v) => v ?? undefined),
 }).loose();
 
 const returnReportSchema: z.ZodType<ReturnReport> = z.object({
@@ -130,7 +130,7 @@ const returnReportSchema: z.ZodType<ReturnReport> = z.object({
   reported_at: optionalTextSchema,
   verified_at: optionalTextSchema,
   verified_by: optionalTextSchema,
-  verification_method: z.enum(['photo', 'physical_check', 'photo_and_physical']).optional(),
+  verification_method: z.enum(['photo', 'physical_check', 'photo_and_physical']).nullable().optional().transform((v) => v ?? undefined),
   rejection_reason: optionalTextSchema,
   evidence: z.array(returnReportEvidenceSchema).optional(),
 }).loose();
