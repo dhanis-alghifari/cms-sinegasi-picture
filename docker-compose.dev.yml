@@ -12,6 +12,7 @@ services:
     environment:
       - NODE_ENV=development
       - TRUST_PROXY=true
+      - NTFY_ENABLED=true
     networks:
       - caddy_net
     labels:
