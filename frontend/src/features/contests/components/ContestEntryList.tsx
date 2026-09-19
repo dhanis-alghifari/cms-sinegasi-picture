@@ -3,6 +3,7 @@ import { Send, Trophy } from 'lucide-react';
 import { Badge } from '@/shared/ui/primitives/badge';
 import { Button } from '@/shared/ui/primitives/button';
 import { cn } from '@/shared/utils/cn';
+import { CompactListSkeleton } from '@/shared/ui/LoadingSkeletons';
 
 import type {
   ContestEntry,
@@ -36,7 +37,7 @@ export function ContestEntryList({
   onOpenPipelineUpdate,
 }: ContestEntryListProps) {
   if (isLoading) {
-    return <div className="py-10 text-center text-xs text-ink-tertiary">Memuat daftar karya...</div>;
+    return <CompactListSkeleton rows={3} label="Memuat daftar karya..." />;
   }
 
   if (entries.length === 0) {

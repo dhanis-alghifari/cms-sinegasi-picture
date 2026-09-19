@@ -3,7 +3,7 @@ import { CalendarCheck } from 'lucide-react';
 
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { ResponsivePageActions } from '@/shared/ui/ResponsivePageActions';
-import { PageLoader } from '@/shared/ui/LoadingSpinner';
+import { DataTableSkeleton, MetricCardsSkeleton } from '@/shared/ui/LoadingSkeletons';
 import { Pagination } from '@/shared/ui/Pagination';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/primitives/tabs';
 
@@ -151,7 +151,7 @@ export function AttendancePage() {
   };
 
   const dailySummaryContent = (() => {
-    if (summaryQuery.isPending) return <PageLoader />;
+    if (summaryQuery.isPending) return <MetricCardsSkeleton count={4} label="Memuat ringkasan absensi..." />;
     if (summaryQuery.isError) {
       return (
         <AttendanceQueryError
@@ -165,7 +165,7 @@ export function AttendancePage() {
   })();
 
   const dailyAttendanceContent = (() => {
-    if (attendanceQuery.isPending) return <PageLoader />;
+    if (attendanceQuery.isPending) return <DataTableSkeleton columns={9} rows={7} mobile={isMobile} label="Memuat daftar absensi..." />;
     if (attendanceQuery.isError) {
       return (
         <AttendanceQueryError
@@ -245,7 +245,7 @@ export function AttendancePage() {
             {dailyContent}
           </TabsContent>
           <TabsContent value="student_report" keepMounted={hasVisitedStudentReport} className="mt-5 sm:mt-6">
-            <Suspense fallback={<PageLoader />}>
+            <Suspense fallback={<DataTableSkeleton columns={6} rows={5} mobile={isMobile} label="Memuat laporan siswa..." />}>
               <LazyAttendanceStudentReport canReadStudents={canReadStudents} isActive={view === 'student_report'} />
             </Suspense>
           </TabsContent>

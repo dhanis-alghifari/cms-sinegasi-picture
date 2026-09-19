@@ -4,7 +4,7 @@ import { PackagePlus } from 'lucide-react';
 
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { ResponsivePageActions } from '@/shared/ui/ResponsivePageActions';
-import { PageLoader } from '@/shared/ui/LoadingSpinner';
+import { DataTableSkeleton, MetricCardsSkeleton, RefreshingIndicator } from '@/shared/ui/LoadingSkeletons';
 import { QueryErrorState } from '@/shared/ui/QueryErrorState';
 import { Pagination } from '@/shared/ui/Pagination';
 
@@ -112,6 +112,7 @@ export function BorrowingPage() {
   const {
     data: borrowingData,
     isLoading: isBorrowingLoading,
+    isFetching: isBorrowingFetching,
     isError: isBorrowingError,
     error: borrowingError,
     refetch: refetchBorrowing,
@@ -255,7 +256,7 @@ export function BorrowingPage() {
   };
 
   const summaryContent = (() => {
-    if (isSummaryLoading) return <PageLoader label="Memuat ringkasan peminjaman..." />;
+    if (isSummaryLoading) return <MetricCardsSkeleton count={4} label="Memuat ringkasan peminjaman..." />;
     if (isSummaryError) {
       return <QueryErrorState title="Ringkasan peminjaman belum dapat dimuat" error={summaryError} onRetry={refetchSummary} />;
     }
@@ -263,7 +264,7 @@ export function BorrowingPage() {
   })();
 
   const borrowingContent = (() => {
-    if (isBorrowingLoading) return <PageLoader label="Memuat daftar peminjaman..." />;
+    if (isBorrowingLoading) return <DataTableSkeleton columns={8} rows={6} mobile={isMobile} label="Memuat daftar peminjaman..." />;
     if (isBorrowingError) {
       return <QueryErrorState title="Daftar peminjaman belum dapat dimuat" error={borrowingError} onRetry={refetchBorrowing} />;
     }
@@ -314,6 +315,7 @@ export function BorrowingPage() {
         onReset={handleResetFilter}
       />
 
+      <RefreshingIndicator visible={isBorrowingFetching && !isBorrowingLoading} />
       {borrowingContent}
 
       {canOpenCreate && createOpen && (

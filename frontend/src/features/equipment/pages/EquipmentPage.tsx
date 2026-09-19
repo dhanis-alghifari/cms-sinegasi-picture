@@ -4,7 +4,7 @@ import { FileDown, Plus, Tags } from 'lucide-react';
 
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { ResponsivePageActions } from '@/shared/ui/ResponsivePageActions';
-import { PageLoader } from '@/shared/ui/LoadingSpinner';
+import { DataTableSkeleton, MetricCardsSkeleton, RefreshingIndicator } from '@/shared/ui/LoadingSkeletons';
 import { QueryErrorState } from '@/shared/ui/QueryErrorState';
 import { Pagination } from '@/shared/ui/Pagination';
 
@@ -111,6 +111,7 @@ export function EquipmentPage() {
   const {
     data: equipmentData,
     isLoading: isEquipmentLoading,
+    isFetching: isEquipmentFetching,
     isError: isEquipmentError,
     error: equipmentError,
     refetch: refetchEquipment,
@@ -252,7 +253,7 @@ export function EquipmentPage() {
       )}
 
       {isSummaryLoading && (
-        <PageLoader label="Memuat ringkasan alat..." />
+        <MetricCardsSkeleton count={6} label="Memuat ringkasan alat..." />
       )}
       {isSummaryError && (
         <QueryErrorState
@@ -276,8 +277,9 @@ export function EquipmentPage() {
         }}
       />
 
+      {isEquipmentFetching && !isEquipmentLoading && <RefreshingIndicator visible />}
       {isEquipmentLoading && (
-        <PageLoader label="Memuat daftar alat..." />
+        <DataTableSkeleton columns={6} rows={6} mobile={isMobile} label="Memuat daftar alat..." />
       )}
       {isEquipmentError && (
         <QueryErrorState

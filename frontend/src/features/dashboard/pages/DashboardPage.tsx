@@ -1,6 +1,6 @@
 
 import { PageHeader } from '@/shared/ui/PageHeader';
-import { PageLoader } from '@/shared/ui/LoadingSpinner';
+import { RouteContentSkeleton } from '@/shared/ui/LoadingSkeletons';
 import { Button } from '@/shared/ui/primitives/button';
 import { RefreshCw } from 'lucide-react';
 import { getErrorMessage } from '@/shared/api/errors';
@@ -25,7 +25,7 @@ export function DashboardPage() {
         </div>
       );
     }
-    if (isLoading) return <PageLoader label="Memuat ringkasan dashboard..." />;
+    if (isLoading) return <RouteContentSkeleton />;
     return <DashboardOverview data={data} isStudentRole={isPersonalDashboard} />;
   })();
 

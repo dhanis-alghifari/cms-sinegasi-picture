@@ -4,7 +4,7 @@ import { Plus } from 'lucide-react';
 
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { ResponsivePageActions } from '@/shared/ui/ResponsivePageActions';
-import { PageLoader } from '@/shared/ui/LoadingSpinner';
+import { DataTableSkeleton, RefreshingIndicator } from '@/shared/ui/LoadingSkeletons';
 import { QueryErrorState } from '@/shared/ui/QueryErrorState';
 import { Pagination } from '@/shared/ui/Pagination';
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
@@ -92,7 +92,7 @@ export function StudentsPage() {
   const [detailStudent, setDetailStudent] = useState<Student | null>(null);
 
   // Queries & Mutations
-  const { data, isLoading, isError, error, refetch } = useStudentsQuery({
+  const { data, isLoading, isFetching, isError, error, refetch } = useStudentsQuery({
     page,
     pageSize,
     search: debouncedSearch || undefined,
@@ -177,7 +177,7 @@ export function StudentsPage() {
   };
 
   const studentContent = (() => {
-    if (isLoading) return <PageLoader label="Memuat daftar siswa..." />;
+    if (isLoading) return <DataTableSkeleton columns={6} rows={6} mobile={isMobile} label="Memuat daftar siswa..." />;
     if (isError) {
       return <QueryErrorState title="Daftar siswa belum dapat dimuat" error={error} onRetry={refetch} />;
     }
@@ -230,6 +230,7 @@ export function StudentsPage() {
         onReset={handleResetFilter}
       />
 
+      <RefreshingIndicator visible={isFetching && !isLoading} />
       {studentContent}
 
       {canManage && (

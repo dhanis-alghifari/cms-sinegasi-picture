@@ -11,7 +11,7 @@ import {
 } from '@/shared/ui/primitives/table';
 import { StatusBadge } from '@/shared/ui/StatusBadge';
 import { QueryErrorState } from '@/shared/ui/QueryErrorState';
-import { LoadingSpinner, PageLoader } from '@/shared/ui/LoadingSpinner';
+import { DataTableSkeleton } from '@/shared/ui/LoadingSkeletons';
 import { formatCurrency } from '@/shared/utils/formatCurrency';
 import { formatDateShort } from '@/shared/utils/formatDate';
 import type { Equipment, EquipmentRecoveryCase } from '../types/equipment.types';
@@ -112,7 +112,7 @@ export function EquipmentRecoveryPanel({
   const showActions = canManage && !isHistory;
 
   const loadingLabel = isHistory ? 'Memuat riwayat tindak lanjut alat...' : 'Memuat tindak lanjut alat...';
-  if (isLoading) return embedded ? <div className="flex items-center justify-center py-10"><LoadingSpinner size="sm" label={loadingLabel} /></div> : <PageLoader label={loadingLabel} />;
+  if (isLoading) return <DataTableSkeleton columns={5} rows={4} label={loadingLabel} className={embedded ? 'pt-4' : undefined} />;
   if (error) return <QueryErrorState title={isHistory ? 'Riwayat tindak lanjut alat belum dapat dimuat' : 'Tindak lanjut alat belum dapat dimuat'} error={error} onRetry={onRetry} />;
 
   return (

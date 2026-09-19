@@ -3,6 +3,7 @@ import { lazy, Suspense } from 'react';
 
 import { Pagination } from '@/shared/ui/Pagination';
 import { AnimatedTabs } from '@/shared/ui/motion/animated-tabs';
+import { PanelSkeleton } from '@/shared/ui/LoadingSkeletons';
 import type { ReportPrintFormat } from '@/shared/types/report';
 import type { PaginatedResponse } from '@/shared/types/common';
 import type { StudentOption } from '@/features/students/types/students.types';
@@ -335,7 +336,7 @@ export function CashPageTabs({
 
         {isTransactionsView && (
           <div>
-            <Suspense fallback={<div className="mb-4 h-28 animate-pulse rounded-xl border border-hairline bg-surface-1" aria-label="Memuat filter transaksi" />}>
+            <Suspense fallback={<PanelSkeleton rows={2} label="Memuat filter transaksi..." className="mb-4" />}>
               <LazyCashTransactionFilter
                 filters={{
                   startDate: tanggalMulai,
@@ -370,7 +371,7 @@ export function CashPageTabs({
         {isDebtsView && (
           <div>
             {canFilterCashHistoryByStudent && (
-              <Suspense fallback={<div className="mb-4 h-28 animate-pulse rounded-xl border border-hairline bg-surface-1" aria-label="Memuat filter tunggakan" />}>
+              <Suspense fallback={<PanelSkeleton rows={2} label="Memuat filter tunggakan..." className="mb-4" />}>
                 <LazyCashDebtFilter
                   studentScope={{
                     selectedStudent: selectedHistoryStudent,

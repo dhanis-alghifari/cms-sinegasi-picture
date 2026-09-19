@@ -12,6 +12,7 @@ import {
   DialogFooter,
 } from '@/shared/ui/primitives/dialog';
 import { Button } from '@/shared/ui/primitives/button';
+import { CompactListSkeleton } from '@/shared/ui/LoadingSkeletons';
 import { Input } from '@/shared/ui/primitives/input';
 import { Label } from '@/shared/ui/primitives/label';
 import { SearchableCombobox } from '@/shared/ui/SearchableCombobox';
@@ -130,8 +131,6 @@ export function CreateBorrowingModal({
       rencana_kembali: getDefaultReturnDate(),
       keperluan: '',
     });
-    setSelectedEquipmentIds([]);
-    setEquipmentSearch('');
   }, [defaultBorrowerId, form, open]);
 
   const selectedBorrowerId = useWatch({ control: form.control, name: 'borrower_id' });
@@ -177,7 +176,7 @@ export function CreateBorrowingModal({
   });
 
   const equipmentContent = (() => {
-    if (equipmentLoading) return <p className="text-center text-ink-tertiary text-xs py-4">Memuat alat yang tersedia...</p>;
+    if (equipmentLoading) return <CompactListSkeleton rows={3} label="Memuat alat yang tersedia..." />;
     if (availableEquipment.length === 0) {
       return (
         <p className="text-center text-ink-tertiary text-xs py-4 italic">

@@ -46,7 +46,7 @@ export const router = createBrowserRouter([
       },
       {
         element: (
-          <Suspense fallback={<PageLoader />}>
+          <Suspense fallback={<PageLoader label="Menyiapkan aplikasi..." />}>
             <LazyDashboardLayout />
           </Suspense>
         ),

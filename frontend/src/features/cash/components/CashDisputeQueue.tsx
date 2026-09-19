@@ -4,7 +4,7 @@ import { Button } from '@/shared/ui/primitives/button';
 import { ImagePreviewDialog } from '@/shared/ui/ImagePreviewDialog';
 import { Pagination } from '@/shared/ui/Pagination';
 import { EmptyState } from '@/shared/ui/EmptyState';
-import { PageLoader } from '@/shared/ui/LoadingSpinner';
+import { DataTableSkeleton } from '@/shared/ui/LoadingSkeletons';
 import { StatusBadge } from '@/shared/ui/StatusBadge';
 import { Input } from '@/shared/ui/primitives/input';
 import { Label } from '@/shared/ui/primitives/label';
@@ -63,7 +63,7 @@ export function CashDisputeQueue({ reviewer = false }: { reviewer?: boolean }) {
   const [paymentMethodCode, setPaymentMethodCode] = useState('');
   const disputes = data?.data ?? [];
 
-  if (isLoading) return <PageLoader />;
+  if (isLoading) return <DataTableSkeleton columns={6} rows={5} label="Memuat daftar sanggahan..." />;
   if (error) return <div role="alert" className="rounded-lg border border-semantic-danger/30 bg-semantic-danger/10 p-4 text-sm text-semantic-danger">{getErrorMessage(error)}</div>;
   if (disputes.length === 0) return <EmptyState title="Belum ada sanggahan" description={reviewer ? 'Laporan sanggahan baru akan muncul di sini.' : 'Riwayat sanggahan Anda masih kosong.'} />;
 

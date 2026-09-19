@@ -3,7 +3,7 @@ import { AlertCircle, History } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 
 import { PageHeader } from '@/shared/ui/PageHeader';
-import { PageLoader } from '@/shared/ui/LoadingSpinner';
+import { DataTableSkeleton } from '@/shared/ui/LoadingSkeletons';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { Pagination } from '@/shared/ui/Pagination';
 
@@ -45,7 +45,7 @@ export function AuditPage() {
   const logs = data?.data ?? [];
 
   const auditContent = (() => {
-    if (isLoading) return <PageLoader />;
+    if (isLoading) return <DataTableSkeleton columns={6} rows={7} mobile={isMobile} label="Memuat riwayat audit..." />;
     if (isError) {
       return (
         <div role="alert" className="flex items-start gap-2 rounded-lg border border-semantic-danger/30 bg-semantic-danger/10 p-4 text-semantic-danger text-xs">

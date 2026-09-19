@@ -6,6 +6,7 @@ import { Pagination } from '@/shared/ui/Pagination';
 import { Badge } from '@/shared/ui/primitives/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/primitives/table';
 import { QueryErrorState } from '@/shared/ui/QueryErrorState';
+import { DataTableSkeleton } from '@/shared/ui/LoadingSkeletons';
 import { formatDateShort } from '@/shared/utils/formatDate';
 import { formatEnumLabel } from '@/shared/utils/formatLabels';
 import { useIsMobile } from '@/shared/hooks/use-mobile';
@@ -62,9 +63,7 @@ export function AssignmentList({
       </div>
 
       {isLoading && (
-        <div className="rounded-lg border border-hairline bg-surface-1 px-4 py-10 text-center text-ink-subtle text-sm">
-          Memuat daftar tugas...
-        </div>
+        <DataTableSkeleton columns={isOwn ? 5 : 6} rows={5} mobile={isMobile} label="Memuat daftar tugas..." />
       )}
       {isError && (
         <QueryErrorState

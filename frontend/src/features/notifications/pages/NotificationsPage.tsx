@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { CheckCheck } from 'lucide-react';
 
 import { PageHeader } from '@/shared/ui/PageHeader';
-import { PageLoader } from '@/shared/ui/LoadingSpinner';
+import { MobileCardListSkeleton, RefreshingIndicator } from '@/shared/ui/LoadingSkeletons';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { Button } from '@/shared/ui/primitives/button';
 import { AnimatedTabs } from '@/shared/ui/motion/animated-tabs';
@@ -27,6 +27,7 @@ export function NotificationsPage() {
   const {
     data: notificationsData,
     isLoading,
+    isFetching,
     isError,
     refetch: refetchNotifications,
   } = useNotificationsQuery({
@@ -93,8 +94,9 @@ export function NotificationsPage() {
             exit={{ opacity: 0, y: -6 }}
             transition={{ duration: 0.28, ease: 'easeOut' }}
           >
+            {isFetching && !isLoading && <RefreshingIndicator visible />}
             {isLoading && (
-              <PageLoader />
+              <MobileCardListSkeleton rows={5} label="Memuat notifikasi..." />
             )}
             {isError && (
               <EmptyState

@@ -9,7 +9,7 @@ export function ProtectedRoute() {
   const location = useLocation();
 
   if (!authHydrated || (isAuthenticated && !sessionChecked)) {
-    return <PageLoader />;
+    return <PageLoader label="Menyiapkan sesi..." />;
   }
 
   if (!isAuthenticated) {

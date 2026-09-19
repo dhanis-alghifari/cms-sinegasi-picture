@@ -13,6 +13,7 @@ import { useMarkNotificationReadMutation } from '../hooks/useMarkNotificationRea
 import { useMarkAllNotificationsReadMutation } from '../hooks/useMarkAllNotificationsReadMutation';
 import { NotificationItem } from './NotificationItem';
 import { useNavigate } from 'react-router-dom';
+import { CompactListSkeleton } from '@/shared/ui/LoadingSkeletons';
 
 export function NotificationDropdown() {
   const navigate = useNavigate();
@@ -31,7 +32,7 @@ export function NotificationDropdown() {
   const recentNotifications = notificationsData?.data ?? [];
   const notificationContent = (() => {
     if (isNotificationsLoading) {
-      return <p className="py-6 text-center text-xs text-ink-tertiary">Memuat notifikasi...</p>;
+      return <CompactListSkeleton rows={3} label="Memuat notifikasi..." />;
     }
     if (hasNotificationsError) {
       return (

@@ -4,7 +4,7 @@ import { Download, FileSpreadsheet, Printer } from 'lucide-react';
 import { getErrorMessage } from '@/shared/api/errors';
 import { UI_CONSTANTS } from '@/shared/constants/ui';
 import type { ReportPrintFormat } from '@/shared/types/report';
-import { PageLoader } from '@/shared/ui/LoadingSpinner';
+import { DataTableSkeleton, MetricCardsSkeleton } from '@/shared/ui/LoadingSkeletons';
 import { Button } from '@/shared/ui/primitives/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/ui/primitives/card';
 import { ReportFormatSelector } from '@/shared/ui/report/ReportFormatSelector';
@@ -133,7 +133,7 @@ export function AttendanceStudentReport({ canReadStudents, isActive = true }: At
   };
 
   const summaryContent = (() => {
-    if (summaryQuery.isPending) return <PageLoader />;
+    if (summaryQuery.isPending) return <MetricCardsSkeleton count={4} label="Memuat ringkasan absensi..." />;
     if (summaryQuery.isError) {
       return (
         <AttendanceQueryError
@@ -147,7 +147,7 @@ export function AttendanceStudentReport({ canReadStudents, isActive = true }: At
   })();
 
   const attendanceContent = (() => {
-    if (attendanceQuery.isPending) return <div className="p-4"><PageLoader /></div>;
+    if (attendanceQuery.isPending) return <DataTableSkeleton columns={8} rows={6} mobile={isMobile} label="Memuat riwayat absensi..." />;
     if (attendanceQuery.isError) {
       return (
         <div className="p-4">
@@ -247,7 +247,7 @@ export function AttendanceStudentReport({ canReadStudents, isActive = true }: At
                     className="min-w-40"
                   />
                   <Button type="button" variant="outline" onClick={() => void handleExport()} disabled={isExporting || records.length === 0} className="min-h-11 border-hairline bg-surface-2 text-xs md:min-h-9">
-                    {isExporting ? <Download size={14} className="mr-1.5 animate-pulse" aria-hidden="true" /> : <FileSpreadsheet size={14} className="mr-1.5 text-semantic-success" aria-hidden="true" />}
+                    {isExporting ? <Download size={14} className="mr-1.5 motion-safe:animate-pulse" aria-hidden="true" /> : <FileSpreadsheet size={14} className="mr-1.5 text-semantic-success" aria-hidden="true" />}
                     {isExporting ? 'Menyiapkan...' : 'Export CSV'}
                   </Button>
                   <Button type="button" variant="outline" onClick={() => setIsPreviewOpen(true)} disabled={records.length === 0} className="min-h-11 border-hairline bg-surface-2 text-xs md:min-h-9">

@@ -4,7 +4,7 @@ import { Button } from '@/shared/ui/primitives/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/primitives/card';
 import { Checkbox } from '@/shared/ui/primitives/checkbox';
 import { PageHeader } from '@/shared/ui/PageHeader';
-import { PageLoader } from '@/shared/ui/LoadingSpinner';
+import { PanelSkeleton } from '@/shared/ui/LoadingSkeletons';
 import { useAccessControlMatrixQuery, useUpdateRoleCapabilitiesMutation } from '../hooks/useAccessControlQuery';
 import { CAPABILITY_VALUES, type Capability } from '@/shared/auth/capabilities';
 import { formatRoleLabel } from '@/shared/utils/formatLabels';
@@ -30,7 +30,7 @@ export function AccessControlPage() {
     return roleCapabilities;
   }, [data]);
 
-  if (isLoading) return <PageLoader />;
+  if (isLoading) return <PanelSkeleton rows={5} label="Memuat matriks akses..." />;
   if (isError || !data) {
     return <div className="mx-auto max-w-4xl p-6" role="alert"><div className="rounded-lg border border-semantic-danger/30 bg-semantic-danger/10 p-4 text-sm text-semantic-danger"><AlertCircle className="mr-2 inline size-4" />{error instanceof Error ? error.message : 'Policy akses belum dapat dimuat.'}</div></div>;
   }

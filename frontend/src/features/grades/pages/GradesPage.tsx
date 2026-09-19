@@ -4,7 +4,7 @@ import { ClipboardList, GraduationCap, PlusCircle } from 'lucide-react';
 
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { ResponsivePageActions } from '@/shared/ui/ResponsivePageActions';
-import { PageLoader } from '@/shared/ui/LoadingSpinner';
+import { DataTableSkeleton, RefreshingIndicator } from '@/shared/ui/LoadingSkeletons';
 import { QueryErrorState } from '@/shared/ui/QueryErrorState';
 import { Pagination } from '@/shared/ui/Pagination';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/primitives/tabs';
@@ -109,6 +109,7 @@ export function GradesPage() {
   const {
     data: gradesData,
     isLoading: isGradesLoading,
+    isFetching: isGradesFetching,
     isError: isGradesError,
     error: gradesError,
     refetch: refetchGrades,
@@ -232,8 +233,9 @@ export function GradesPage() {
             scope={{ isOwn: isPersonalView }}
           />
 
+          {isGradesFetching && !isGradesLoading && <RefreshingIndicator visible />}
           {isGradesLoading && (
-            <PageLoader label="Memuat rekap nilai..." />
+            <DataTableSkeleton columns={7} rows={7} mobile={isMobile} label="Memuat rekap nilai..." />
           )}
           {isGradesError && (
             <QueryErrorState

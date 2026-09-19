@@ -4,7 +4,7 @@ import { UserPlus } from 'lucide-react';
 
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { ResponsivePageActions } from '@/shared/ui/ResponsivePageActions';
-import { PageLoader } from '@/shared/ui/LoadingSpinner';
+import { DataTableSkeleton, RefreshingIndicator } from '@/shared/ui/LoadingSkeletons';
 import { QueryErrorState } from '@/shared/ui/QueryErrorState';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { Pagination } from '@/shared/ui/Pagination';
@@ -82,7 +82,7 @@ export function UsersPage() {
   const [deleteTargetUser, setDeleteTargetUser] = useState<UserAccount | null>(null);
 
   // Queries & Mutations
-  const { data, isLoading, isError, error, refetch } = useUsersQuery({
+  const { data, isLoading, isFetching, isError, error, refetch } = useUsersQuery({
     page,
     pageSize,
     search: debouncedSearch || undefined,
@@ -190,7 +190,7 @@ export function UsersPage() {
   };
 
   const userContent = (() => {
-    if (isLoading) return <PageLoader label="Memuat daftar akun..." />;
+    if (isLoading) return <DataTableSkeleton columns={6} rows={6} mobile={isMobile} label="Memuat daftar akun..." />;
     if (isError) {
       return <QueryErrorState title="Daftar akun belum dapat dimuat" error={error} onRetry={refetch} />;
     }
@@ -252,6 +252,7 @@ export function UsersPage() {
         onReset={handleResetFilter}
       />
 
+      <RefreshingIndicator visible={isFetching && !isLoading} />
       {userContent}
 
       <Suspense fallback={null}>

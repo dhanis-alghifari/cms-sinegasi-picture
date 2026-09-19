@@ -4,7 +4,7 @@ import { Trophy } from 'lucide-react';
 
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { ResponsivePageActions } from '@/shared/ui/ResponsivePageActions';
-import { PageLoader } from '@/shared/ui/LoadingSpinner';
+import { DataTableSkeleton, MetricCardsSkeleton, RefreshingIndicator } from '@/shared/ui/LoadingSkeletons';
 import { QueryErrorState } from '@/shared/ui/QueryErrorState';
 import { Pagination } from '@/shared/ui/Pagination';
 import { AnimatedTabs } from '@/shared/ui/motion/animated-tabs';
@@ -91,6 +91,7 @@ export function ContestsPage() {
   const {
     data: contestPage,
     isLoading: isContestPageLoading,
+    isFetching: isContestPageFetching,
     isError: isContestPageError,
     error: contestPageError,
     refetch: refetchContestPage,
@@ -176,7 +177,7 @@ export function ContestsPage() {
       />
 
       {isContestSummaryLoading && (
-        <PageLoader label="Memuat ringkasan perlombaan..." />
+        <MetricCardsSkeleton count={4} label="Memuat ringkasan perlombaan..." />
       )}
       {isContestSummaryError && (
         <QueryErrorState
@@ -205,7 +206,7 @@ export function ContestsPage() {
       <div id="contest-tab-panel" role="tabpanel" aria-labelledby={`contest-tabs-${activeView}`} className="w-full">
         {activeView === 'achievements' && (
           <div className="pt-2">
-            <Suspense fallback={<PageLoader label="Memuat rekap prestasi..." />}>
+            <Suspense fallback={<DataTableSkeleton columns={5} rows={4} mobile={isMobile} label="Memuat rekap prestasi..." />}>
               <ContestAchievementsPanel />
             </Suspense>
           </div>
@@ -223,8 +224,9 @@ export function ContestsPage() {
               onReset={handleResetContestFilters}
             />
 
+            {isContestPageFetching && !isContestPageLoading && <RefreshingIndicator visible />}
             {isContestPageLoading && (
-              <PageLoader label="Memuat daftar perlombaan..." />
+              <DataTableSkeleton columns={7} rows={6} mobile={isMobile} label="Memuat daftar perlombaan..." />
             )}
             {isContestPageError && (
               <QueryErrorState

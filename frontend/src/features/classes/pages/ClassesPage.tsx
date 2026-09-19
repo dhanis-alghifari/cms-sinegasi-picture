@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { AlertCircle, Plus, Search, Layers, Edit2, Power } from 'lucide-react';
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { ResponsivePageActions } from '@/shared/ui/ResponsivePageActions';
-import { PageLoader } from '@/shared/ui/LoadingSpinner';
+import { DataTableSkeleton } from '@/shared/ui/LoadingSkeletons';
 import { Pagination } from '@/shared/ui/Pagination';
 import { Button } from '@/shared/ui/primitives/button';
 import { Input } from '@/shared/ui/primitives/input';
@@ -187,7 +187,7 @@ export function ClassesPage() {
 
       {/* Classes Table */}
       {classesQuery.isPending && (
-        <PageLoader />
+        <DataTableSkeleton columns={canManage ? 5 : 4} rows={5} mobile={isMobile} label="Memuat daftar kelas..." />
       )}
       {classesQuery.isError && (
         <div
