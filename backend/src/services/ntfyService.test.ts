@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { runtimeConfig } from '../config/env.js';
-import { notifyNewBorrowingSubmission, sendNtfyMessage } from './ntfyService.js';
+import { notifyNewBorrowingSubmission, sendNtfyMessage, setCustomHttpSenderForTest } from './ntfyService.js';
 
 test('ntfy service respects ntfyEnabled flag when set to false', async () => {
   const originalEnabled = runtimeConfig.ntfyEnabled;
@@ -19,18 +19,14 @@ test('ntfy service respects ntfyEnabled flag when set to false', async () => {
 });
 
 test('notifyNewBorrowingSubmission formats JSON payload with direct link and actions', async () => {
-  const originalFetch = globalThis.fetch;
   let capturedUrl = '';
-  let capturedHeaders: Record<string, string> = {};
-  let capturedBody = '';
+  let capturedPayload: Record<string, unknown> = {};
 
-  // Mock fetch
-  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-    capturedUrl = String(input);
-    capturedHeaders = (init?.headers as Record<string, string>) || {};
-    capturedBody = String(init?.body || '');
-    return new Response('{"id":"mocked"}', { status: 200 });
-  }) as typeof fetch;
+  setCustomHttpSenderForTest(async (urlStr, bodyObj) => {
+    capturedUrl = urlStr;
+    capturedPayload = bodyObj as Record<string, unknown>;
+    return { ok: true, status: 200, text: '{"id":"mocked"}' };
+  });
 
   const originalConfig = {
     ntfyEnabled: runtimeConfig.ntfyEnabled,
@@ -55,19 +51,17 @@ test('notifyNewBorrowingSubmission formats JSON payload with direct link and act
 
     assert.equal(success, true);
     assert.equal(capturedUrl, 'https://ntfy.sh');
-    assert.equal(capturedHeaders['Content-Type'], 'application/json');
-
-    const parsed = JSON.parse(capturedBody);
-    assert.equal(parsed.topic, 'test-topic');
-    assert.equal(parsed.title, '📋 Pengajuan Peminjaman Alat Baru');
-    assert.equal(parsed.priority, 4);
-    assert.equal(parsed.click, 'https://sinegasi-picture-develop-cms.pages.dev/notifications');
-    assert.equal(parsed.actions[0].url, 'https://sinegasi-picture-develop-cms.pages.dev/notifications');
-    assert.equal(parsed.actions[0].label, 'Buka Notifikasi CMS');
-    assert.match(parsed.message, /Ahmad Zaki/);
-    assert.match(parsed.message, /Sony A7 IV/);
+    assert.equal(capturedPayload.topic, 'test-topic');
+    assert.equal(capturedPayload.title, '📋 Pengajuan Peminjaman Alat Baru');
+    assert.equal(capturedPayload.priority, 4);
+    assert.equal(capturedPayload.click, 'https://sinegasi-picture-develop-cms.pages.dev/notifications');
+    const actions = capturedPayload.actions as Array<{ url: string; label: string }>;
+    assert.equal(actions[0].url, 'https://sinegasi-picture-develop-cms.pages.dev/notifications');
+    assert.equal(actions[0].label, 'Buka Notifikasi CMS');
+    assert.match(String(capturedPayload.message), /Ahmad Zaki/);
+    assert.match(String(capturedPayload.message), /Sony A7 IV/);
   } finally {
-    globalThis.fetch = originalFetch;
+    setCustomHttpSenderForTest(null);
     Object.assign(runtimeConfig, originalConfig);
   }
 });

@@ -1,3 +1,5 @@
+import http from 'node:http';
+import https from 'node:https';
 import { runtimeConfig } from '../config/env.js';
 
 export interface NtfyAction {
@@ -51,6 +53,54 @@ function resolveNumericPriority(priority?: NtfyMessageOptions['priority']): numb
   }
 }
 
+export type HttpSender = (urlStr: string, bodyObj: unknown, timeoutMs?: number) => Promise<{ ok: boolean; status: number; text: string }>;
+
+export const defaultHttpSender: HttpSender = (urlStr: string, bodyObj: unknown, timeoutMs = 7000) => {
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(urlStr);
+    const transport = parsed.protocol === 'https:' ? https : http;
+    const jsonStr = JSON.stringify(bodyObj);
+
+    const req = transport.request(parsed, {
+      method: 'POST',
+      family: 4, // Force IPv4 to bypass Docker/Alpine Linux IPv6 routing timeouts
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(jsonStr),
+      },
+      timeout: timeoutMs,
+    }, (res) => {
+      let data = '';
+      res.setEncoding('utf8');
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => {
+        const statusCode = res.statusCode || 0;
+        resolve({
+          ok: statusCode >= 200 && statusCode < 300,
+          status: statusCode,
+          text: data,
+        });
+      });
+    });
+
+    req.on('timeout', () => {
+      req.destroy(new Error(`Timeout after ${timeoutMs}ms`));
+    });
+
+    req.on('error', (err) => {
+      reject(err);
+    });
+
+    req.write(jsonStr);
+    req.end();
+  });
+};
+
+let customHttpSender: HttpSender | null = null;
+export function setCustomHttpSenderForTest(sender: HttpSender | null): void {
+  customHttpSender = sender;
+}
+
 export async function sendNtfyMessage(options: NtfyMessageOptions): Promise<boolean> {
   if (!runtimeConfig.ntfyEnabled) return false;
 
@@ -90,23 +140,19 @@ export async function sendNtfyMessage(options: NtfyMessageOptions): Promise<bool
   }
 
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-      signal: controller.signal,
-    });
-    clearTimeout(timeoutId);
-
-    return response.ok;
+    const sender = customHttpSender || defaultHttpSender;
+    const res = await sender(url, payload, 7000);
+    if (!res.ok) {
+      console.warn(`[ntfyService] Response not OK (${res.status}): ${res.text}`);
+    } else {
+      console.log(`[ntfyService] Push notification sent successfully to topic: ${topic}`);
+    }
+    return res.ok;
   } catch (error) {
     // Non-blocking: fail-safe logging to avoid disrupting primary transactions
-    console.warn('[ntfyService] Gagal mengirim push notification:', error instanceof Error ? error.message : error);
+    const err = error as Error & { cause?: Error };
+    const cause = err?.cause ? ` (Penyebab: ${err.cause.message || err.cause})` : '';
+    console.warn('[ntfyService] Gagal mengirim push notification:', err?.message || error, cause);
     return false;
   }
 }
