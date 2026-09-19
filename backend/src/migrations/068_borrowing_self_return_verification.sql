@@ -328,6 +328,11 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM public.users WHERE id = p_verified_by AND is_active = TRUE AND role::TEXT = 'teacher') THEN
     RAISE EXCEPTION USING ERRCODE = 'P0001', MESSAGE = 'RETURN_VERIFICATION_ACTOR_FORBIDDEN';
   END IF;
+
+  -- Ensure Zero Silent Edits audit context is present for all subsequent updates (approve or reject)
+  PERFORM set_config('app.current_user_id', p_verified_by::TEXT, TRUE);
+  PERFORM set_config('app.change_reason', left(btrim(p_change_reason), 500), TRUE);
+
   SELECT * INTO v_report FROM public.borrowing_return_reports WHERE id = p_report_id FOR UPDATE;
   IF NOT FOUND THEN
     RAISE EXCEPTION USING ERRCODE = 'P0001', MESSAGE = 'RETURN_VERIFICATION_TRANSITION_INVALID';
@@ -351,8 +356,6 @@ BEGIN
     RAISE EXCEPTION USING ERRCODE = 'P0001', MESSAGE = 'RETURN_VERIFICATION_TRANSITION_INVALID';
   END IF;
   IF p_decision = 'reject' THEN
-    PERFORM set_config('app.current_user_id', p_verified_by::TEXT, TRUE);
-    PERFORM set_config('app.change_reason', left(btrim(p_change_reason), 500), TRUE);
     UPDATE public.borrowing_return_evidence SET upload_status = 'abandoned', updated_at = NOW()
     WHERE return_report_id = p_report_id AND upload_status = 'pending';
     UPDATE public.borrowing_return_reports SET status = 'rejected', rejection_reason = btrim(p_rejection_reason), verified_by = p_verified_by, verified_at = NOW(), updated_at = NOW() WHERE id = p_report_id;
