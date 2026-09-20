@@ -33,7 +33,7 @@ test('cash reporting routes keep manager guard and response envelopes', async (t
     headers: { authorization: `Bearer ${teacher}` },
   });
   assert.equal(debts.statusCode, 200);
-  assert.deepEqual(debtScope, { studentId: '123e4567-e89b-12d3-a456-426614174000' });
+  assert.deepEqual(debtScope, { studentId: null });
   const denied = await app.inject({ method: 'GET', url: '/api/cash/report', headers: { authorization: `Bearer ${member}` } });
   assert.equal(denied.statusCode, 403);
   const update = await app.inject({ method: 'PUT', url: '/api/cash/billing-rules', headers: { authorization: `Bearer ${teacher}`, 'x-change-reason': 'Perubahan aturan' }, payload: { mandatory_fee_amount: 6000 } });

@@ -396,7 +396,7 @@ export function CashPageTabs({
 
         {isDisputesView && (
           <div>
-            <CashDisputeQueue reviewer={isTreasurerOrTeacher} />
+            <CashDisputeQueue reviewer={isTreasurerOrTeacher} scope={isStudent ? 'own' : 'manage'} />
           </div>
         )}
       </div>

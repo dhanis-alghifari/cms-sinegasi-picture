@@ -49,7 +49,7 @@ test('cash read routes keep authenticated response envelopes for the treasurer r
   });
   assert.equal(transactions.statusCode, 200);
   assert.equal(receivedQuery?.student_id, studentId);
-  assert.deepEqual(receivedTransactionScope, { studentId });
+  assert.deepEqual(receivedTransactionScope, { studentId: null });
 });
 
 test('cash read routes return service validation errors as HTTP responses', async (t) => {
@@ -71,4 +71,27 @@ test('cash read routes return service validation errors as HTTP responses', asyn
   });
   assert.equal(response.statusCode, 422);
   assert.equal(response.json().message, 'Tanggal mulai transaksi tidak valid.');
+});
+
+test('student-backed roles cannot widen an own ledger request to the global scope', async (t) => {
+  const app = Fastify();
+  await app.register(jwt, { secret: 'test-secret-that-is-long-enough' });
+  let receivedScope: { studentId: string | null } | undefined;
+  await app.register(cashReadRoutes, {
+    cashReadService: {
+      repositoryIsConfigured: () => false,
+      getSummary: async (scope: { studentId: string | null }) => {
+        receivedScope = scope;
+        return { saldoUtama: 0, totalPemasukan: 0, totalPengeluaran: 0, totalTunggakanSiswa: 0 };
+      },
+      listTransactions: async () => ({ data: [], total: 0, page: 1, pageSize: 20, totalPages: 1 }),
+    } as unknown as CashReadService,
+  });
+  t.after(() => app.close());
+  const leader = app.jwt.sign({ userId: 'usr-1', username: 'leader', role: 'leader', studentId: 'student-1', isFirstLogin: false });
+  const widened = await app.inject({ method: 'GET', url: '/api/cash/summary?scope=manage', headers: { authorization: `Bearer ${leader}` } });
+  assert.equal(widened.statusCode, 403);
+  const own = await app.inject({ method: 'GET', url: '/api/cash/summary?scope=own', headers: { authorization: `Bearer ${leader}` } });
+  assert.equal(own.statusCode, 200);
+  assert.deepEqual(receivedScope, { studentId: 'student-1' });
 });

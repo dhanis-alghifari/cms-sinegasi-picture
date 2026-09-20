@@ -17,25 +17,25 @@ const proofUrl = `data:image/jpeg;base64,${'A'.repeat(3_000)}`;
 
 test('cash dispute service enforces ownership and duplicate protection', async () => {
   const disputes = service();
-  const created = await disputes.create({ transaction_id: 'tx-1', reason: 'Nominal belum sesuai catatan saya', bukti_sanggahan_url: proofUrl }, 'member-1', 'member', 'key-0001', 'student-1');
+  const created = await disputes.create({ transaction_id: 'tx-1', reason: 'Nominal belum sesuai catatan saya', bukti_sanggahan_url: proofUrl }, 'member-1', 'key-0001', 'student-1');
   assert.equal(created.dispute.status, 'pending');
-  await assert.rejects(() => disputes.create({ transaction_id: 'tx-1', reason: 'Nominal belum sesuai catatan saya', bukti_sanggahan_url: proofUrl }, 'member-1', 'member', 'key-0002', 'student-1'), (error: unknown) => error instanceof CashDisputesServiceError && error.statusCode === 409);
-  await assert.rejects(() => disputes.create({ transaction_id: 'tx-1', reason: 'Nominal belum sesuai catatan saya', bukti_sanggahan_url: proofUrl }, 'member-2', 'member', 'key-0003', 'student-2'), (error: unknown) => error instanceof CashDisputesServiceError && error.statusCode === 403);
+  await assert.rejects(() => disputes.create({ transaction_id: 'tx-1', reason: 'Nominal belum sesuai catatan saya', bukti_sanggahan_url: proofUrl }, 'member-1', 'key-0002', 'student-1'), (error: unknown) => error instanceof CashDisputesServiceError && error.statusCode === 409);
+  await assert.rejects(() => disputes.create({ transaction_id: 'tx-1', reason: 'Nominal belum sesuai catatan saya', bukti_sanggahan_url: proofUrl }, 'member-2', 'key-0003', 'student-2'), (error: unknown) => error instanceof CashDisputesServiceError && error.statusCode === 403);
 });
 
 test('cash dispute service resolves legacy resolved status to approved', async () => {
   const disputes = service();
-  const created = await disputes.create({ transaction_id: 'tx-1', reason: 'Nominal belum sesuai catatan saya', bukti_sanggahan_url: proofUrl }, 'member-1', 'member', 'key-0001', 'student-1');
+  const created = await disputes.create({ transaction_id: 'tx-1', reason: 'Nominal belum sesuai catatan saya', bukti_sanggahan_url: proofUrl }, 'member-1', 'key-0001', 'student-1');
   const resolved = await disputes.resolve(created.dispute.id, { status: 'resolved', review_note: 'Bukti telah diverifikasi' }, 'teacher-1');
   assert.equal(resolved.dispute.status, 'approved');
 });
 
 test('cash dispute service permits one retry after rejection and enforces two monthly attempts', async () => {
   const disputes = service();
-  const first = await disputes.create({ transaction_id: 'tx-1', reason: 'Nominal belum sesuai catatan saya', bukti_sanggahan_url: proofUrl }, 'member-1', 'member', 'key-0001', 'student-1');
+  const first = await disputes.create({ transaction_id: 'tx-1', reason: 'Nominal belum sesuai catatan saya', bukti_sanggahan_url: proofUrl }, 'member-1', 'key-0001', 'student-1');
   await disputes.resolve(first.dispute.id, { status: 'rejected', review_note: 'Bukti tidak menunjukkan tanggal pembayaran' }, 'teacher-1');
-  const retry = await disputes.create({ transaction_id: 'tx-1', reason: 'Saya lampirkan bukti yang lebih jelas', bukti_sanggahan_url: proofUrl }, 'member-1', 'member', 'key-0002', 'student-1');
+  const retry = await disputes.create({ transaction_id: 'tx-1', reason: 'Saya lampirkan bukti yang lebih jelas', bukti_sanggahan_url: proofUrl }, 'member-1', 'key-0002', 'student-1');
   assert.equal(retry.dispute.attempt_number, 2);
   await disputes.resolve(retry.dispute.id, { status: 'rejected', review_note: 'Bukti kedua juga belum cukup jelas' }, 'teacher-1');
-  await assert.rejects(() => disputes.create({ transaction_id: 'tx-1', reason: 'Pengajuan ketiga seharusnya ditolak', bukti_sanggahan_url: proofUrl }, 'member-1', 'member', 'key-0003', 'student-1'), (error: unknown) => error instanceof CashDisputesServiceError && error.statusCode === 429);
+  await assert.rejects(() => disputes.create({ transaction_id: 'tx-1', reason: 'Pengajuan ketiga seharusnya ditolak', bukti_sanggahan_url: proofUrl }, 'member-1', 'key-0003', 'student-1'), (error: unknown) => error instanceof CashDisputesServiceError && error.statusCode === 429);
 });

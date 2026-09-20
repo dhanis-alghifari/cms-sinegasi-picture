@@ -20,6 +20,11 @@ export interface NtfyMessageOptions {
   actionUrl?: string;
 }
 
+export interface CashDisputeNotificationInput {
+  disputeId?: string;
+  studentName?: string;
+}
+
 export interface BorrowingSubmissionNotificationInput {
   studentName: string;
   equipmentSummary: string;
@@ -53,9 +58,9 @@ function resolveNumericPriority(priority?: NtfyMessageOptions['priority']): numb
   }
 }
 
-export type HttpSender = (urlStr: string, bodyObj: unknown, timeoutMs?: number) => Promise<{ ok: boolean; status: number; text: string }>;
+export type HttpSender = (urlStr: string, bodyObj: unknown, timeoutMs?: number, headers?: Record<string, string>) => Promise<{ ok: boolean; status: number; text: string }>;
 
-export const defaultHttpSender: HttpSender = (urlStr: string, bodyObj: unknown, timeoutMs = 7000) => {
+export const defaultHttpSender: HttpSender = (urlStr: string, bodyObj: unknown, timeoutMs = 7000, headers = {}) => {
   return new Promise((resolve, reject) => {
     const parsed = new URL(urlStr);
     const transport = parsed.protocol === 'https:' ? https : http;
@@ -67,6 +72,7 @@ export const defaultHttpSender: HttpSender = (urlStr: string, bodyObj: unknown, 
       headers: {
         'Content-Type': 'application/json',
         'Content-Length': Buffer.byteLength(jsonStr),
+        ...headers,
       },
       timeout: timeoutMs,
     }, (res) => {
@@ -141,7 +147,10 @@ export async function sendNtfyMessage(options: NtfyMessageOptions): Promise<bool
 
   try {
     const sender = customHttpSender || defaultHttpSender;
-    const res = await sender(url, payload, 7000);
+    const headers = runtimeConfig.ntfyAccessToken
+      ? { Authorization: `Bearer ${runtimeConfig.ntfyAccessToken}` }
+      : undefined;
+    const res = await sender(url, payload, 7000, headers);
     if (!res.ok) {
       console.warn(`[ntfyService] Response not OK (${res.status}): ${res.text}`);
     } else {
@@ -187,6 +196,24 @@ export async function notifyReturnReportSubmitted(
     tags: ['package', 'camera'],
     clickUrl: directLink,
     actionLabel: 'Buka Peminjaman',
+    actionUrl: directLink,
+  });
+}
+
+export async function notifyCashDisputeSubmitted(
+  input: CashDisputeNotificationInput,
+): Promise<boolean> {
+  const directLink = `${runtimeConfig.ntfyFrontendUrl.replace(/\/$/, '')}/cash?scope=manage`;
+  const who = input.studentName ? `${input.studentName} mengajukan` : 'Ada pengajuan';
+  const suffix = input.disputeId ? ` (ID ${input.disputeId.slice(0, 8)})` : '';
+  return sendNtfyMessage({
+    topic: runtimeConfig.ntfyCashReviewTopic || runtimeConfig.ntfyTopic,
+    title: '⚖️ Sanggahan kas perlu ditinjau',
+    message: `${who} sanggahan kas baru${suffix}. Periksa dan beri keputusan sebagai guru.`,
+    priority: 'high',
+    tags: ['warning', 'money_with_wings'],
+    clickUrl: directLink,
+    actionLabel: 'Buka Kas',
     actionUrl: directLink,
   });
 }

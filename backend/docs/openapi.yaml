@@ -835,7 +835,9 @@ paths:
   /api/cash/summary:
     get:
       summary: Read the authenticated user's cash summary
-      description: Teachers and leaders receive the class summary. Member accounts are scoped to their own student record from the JWT.
+      description: Use scope=own for the linked student's ledger or scope=manage for the global ledger when the account has global cash access. Roles without global access are always forced to own.
+      parameters:
+        - { name: scope, in: query, required: false, schema: { type: string, enum: [own, manage], default: manage } }
       responses:
         '200':
           description: Cash balance, income, expense, and outstanding student debt totals
@@ -858,6 +860,7 @@ paths:
         - { name: metode_pembayaran, in: query, required: false, schema: { type: string, pattern: '^[a-z0-9]+(?:_[a-z0-9]+)*$', maxLength: 40 } }
         - { name: page, in: query, required: false, schema: { type: integer, minimum: 1, default: 1 } }
         - { name: pageSize, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+        - { name: scope, in: query, required: false, schema: { type: string, enum: [own, manage] } }
       responses:
         '200':
           description: Paginated cash transactions ordered by transaction date and creation time
@@ -964,11 +967,12 @@ paths:
   /api/cash/debts:
     get:
       summary: List unpaid cash debts with bounded pagination
-      description: Member accounts are automatically scoped to their own student ID from the JWT.
+      description: Use scope=own for the linked student's debts or scope=manage for the global debt list. Roles without global access are always forced to own.
       parameters:
         - { name: search, in: query, required: false, schema: { type: string, maxLength: 100 } }
         - { name: page, in: query, required: false, schema: { type: integer, minimum: 1, default: 1 } }
         - { name: pageSize, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+        - { name: scope, in: query, required: false, schema: { type: string, enum: [own, manage] } }
       responses:
         '200': { description: Paginated unpaid cash debts }
         '401': { description: Unauthenticated }
@@ -1004,6 +1008,7 @@ paths:
         - { name: cursor, in: query, required: false, schema: { type: string, maxLength: 512 } }
         - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 50, default: 10 } }
         - { name: status, in: query, required: false, schema: { type: string, enum: [pending, approved, rejected] } }
+        - { name: scope, in: query, required: false, schema: { type: string, enum: [own, manage] } }
       responses:
         '200': { description: Paginated disputes scoped to the member or reviewer queue }
         '401': { description: Unauthenticated }
@@ -1038,6 +1043,7 @@ paths:
       summary: Lazily retrieve one dispute proof for an authorized member or reviewer
       parameters:
         - { name: id, in: path, required: true, schema: { type: string, maxLength: 64 } }
+        - { name: scope, in: query, required: false, schema: { type: string, enum: [own, manage] } }
       responses:
         '200': { description: Evidence URL/data returned; never included in list responses }
         '403': { description: Evidence is outside the caller's scope }
@@ -1055,7 +1061,7 @@ paths:
               $ref: '#/components/schemas/CashDisputeUpdateRequest'
       responses:
         '200': { description: Dispute status updated }
-        '403': { description: Teacher or treasurer role required }
+        '403': { description: Teacher role required }
         '404': { description: Dispute not found }
         '422': { description: Invalid status, review note, or debt settlement details }
         '503': { description: Cash schema or database identity is not available }

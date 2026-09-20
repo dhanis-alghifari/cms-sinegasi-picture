@@ -23,6 +23,8 @@ export interface RuntimeConfig {
   ntfyEnabled: boolean;
   ntfyServerUrl: string;
   ntfyTopic: string;
+  ntfyCashReviewTopic: string;
+  ntfyAccessToken: string;
   ntfyFrontendUrl: string;
 }
 
@@ -174,5 +176,7 @@ export const runtimeConfig: RuntimeConfig = {
   ntfyEnabled: parseBoolean(process.env.NTFY_ENABLED, false),
   ntfyServerUrl: (process.env.NTFY_SERVER_URL || "https://ntfy.sh").replace(/\/$/, ""),
   ntfyTopic: (process.env.NTFY_TOPIC || "sinegasi-dev-notif").trim(),
+  ntfyCashReviewTopic: (process.env.NTFY_CASH_REVIEW_TOPIC || "").trim(),
+  ntfyAccessToken: (process.env.NTFY_ACCESS_TOKEN || "").trim(),
   ntfyFrontendUrl: (process.env.NTFY_FRONTEND_URL || "https://sinegasi-picture-develop-cms.pages.dev").replace(/\/$/, ""),
 };

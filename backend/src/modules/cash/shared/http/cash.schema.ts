@@ -4,7 +4,7 @@ export const cashSummaryRouteSchema = {
   querystring: {
     type: 'object',
     additionalProperties: false,
-    properties: {},
+    properties: { scope: { type: 'string', enum: ['own', 'manage'] } },
   },
 } as const;
 
@@ -24,6 +24,7 @@ export const cashTransactionsRouteSchema = {
       start_date: { type: 'string', minLength: 10, maxLength: 10 },
       end_date: { type: 'string', minLength: 10, maxLength: 10 },
       payment_method: { type: 'string', maxLength: 40 },
+      scope: { type: 'string', enum: ['own', 'manage'] },
     },
   },
 } as const;
@@ -119,6 +120,7 @@ export const cashDebtListRouteSchema = {
       },
       page: { type: 'string', pattern: '^[0-9]+$' },
       pageSize: { type: 'string', pattern: '^[0-9]+$' },
+      scope: { type: 'string', enum: ['own', 'manage'] },
     },
   },
 } as const;
@@ -172,6 +174,7 @@ export const cashDisputeListRouteSchema = {
       cursor: { type: 'string', minLength: 1, maxLength: 512 },
       limit: { type: 'string', pattern: '^[0-9]+$' },
       status: { type: 'string', enum: ['pending', 'approved', 'rejected'] },
+      scope: { type: 'string', enum: ['own', 'manage'] },
     },
   },
 } as const;
@@ -181,6 +184,11 @@ export const cashDisputeQuotaRouteSchema = {
 } as const;
 
 export const cashDisputeEvidenceRouteSchema = {
+  querystring: {
+    type: 'object',
+    additionalProperties: false,
+    properties: { scope: { type: 'string', enum: ['own', 'manage'] } },
+  },
   params: {
     type: 'object',
     additionalProperties: false,

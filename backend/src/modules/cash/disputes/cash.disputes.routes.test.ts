@@ -20,11 +20,15 @@ test('cash dispute routes enforce ownership and manager resolution', async (t) =
     persistAuditLog: async () => undefined,
   });
   t.after(() => app.close());
-  const treasurer = app.jwt.sign({ userId: 'usr-1', username: 'treasurer', role: 'treasurer', isFirstLogin: false });
+  const treasurer = app.jwt.sign({ userId: 'usr-1', username: 'treasurer', role: 'treasurer', studentId: 'student-1', isFirstLogin: false });
   const teacher = app.jwt.sign({ userId: 'usr-2', username: 'teacher', role: 'teacher', isFirstLogin: false });
+  const teacherCreate = await app.inject({ method: 'POST', url: '/api/cash/disputes', headers: { authorization: `Bearer ${teacher}`, 'x-idempotency-key': 'teacher-key-001' }, payload: { transaction_id: 'tx-1', reason: 'Tidak boleh mengajukan sebagai guru', evidence_url: proofUrl } });
+  assert.equal(teacherCreate.statusCode, 403);
   const create = await app.inject({ method: 'POST', url: '/api/cash/disputes', headers: { authorization: `Bearer ${treasurer}`, 'x-idempotency-key': 'route-key-001' }, payload: { transaction_id: 'tx-1', reason: 'Nominal belum sesuai catatan', evidence_url: proofUrl } });
   assert.equal(create.statusCode, 201);
   assert.equal(created, true);
+  const treasurerResolve = await app.inject({ method: 'PATCH', url: '/api/cash/disputes/dispute-1', headers: { authorization: `Bearer ${treasurer}` }, payload: { status: 'rejected', review_note: 'Bendahara tidak dapat mereview' } });
+  assert.equal(treasurerResolve.statusCode, 403);
   const resolve = await app.inject({ method: 'PATCH', url: '/api/cash/disputes/dispute-1', headers: { authorization: `Bearer ${teacher}` }, payload: { status: 'resolved', review_note: 'Bukti telah diverifikasi' } });
   assert.equal(resolve.statusCode, 200);
   assert.equal(resolve.json().data.dispute.status, 'approved');

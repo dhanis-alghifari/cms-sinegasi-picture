@@ -15,6 +15,7 @@ const migrationNames = [
   '045_cash_dispute_schema_compatibility.sql',
   '046_cash_dispute_monthly_quota.sql',
   '066_cash_migration_history_rls.sql',
+  '071_cash_personal_scope_and_teacher_dispute_review.sql',
 ] as const;
 
 type MigrationName = (typeof migrationNames)[number];
@@ -132,6 +133,27 @@ const migrationProbes: Record<MigrationName, MigrationProbe> = {
       WHERE oid = to_regclass('public.cash_migration_history')
         AND relrowsecurity = TRUE
     ) AS complete
+  `),
+  '071_cash_personal_scope_and_teacher_dispute_review.sql': (client) => schemaProbe(client, `
+    SELECT to_regprocedure('public.guard_cash_dispute_actor()') IS NOT NULL
+      AND to_regprocedure('public.guard_cash_dispute_reviewer()') IS NOT NULL
+      AND EXISTS (
+        SELECT 1
+        FROM pg_trigger
+        WHERE tgrelid = 'public.cash_disputes'::regclass
+          AND tgname = 'trg_guard_cash_dispute_actor'
+          AND NOT tgisinternal
+      )
+      AND EXISTS (
+        SELECT 1
+        FROM public.access_role_permissions
+        WHERE role_key = 'teacher' AND permission_key = 'cash.dispute.review'
+      )
+      AND NOT EXISTS (
+        SELECT 1
+        FROM public.access_role_permissions
+        WHERE role_key = 'treasurer' AND permission_key = 'cash.dispute.review'
+      ) AS complete
   `),
 };
 

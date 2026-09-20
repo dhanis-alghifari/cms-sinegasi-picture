@@ -54,3 +54,14 @@ test('module capabilities follow the approved role matrix', () => {
   assert.equal(hasCapability('equipment_team', 'borrowing.manage'), false);
   assert.equal(hasCapability('contest_team', 'contests.manage'), true);
 });
+
+test('cash ledger is personal for student-backed roles and review is teacher-only', () => {
+  for (const role of ['leader', 'vice_leader', 'secretary', 'treasurer', 'equipment_team', 'contest_team', 'member'] as const) {
+    assert.equal(hasCapability(role, 'cash.read.own'), true);
+    assert.equal(hasCapability(role, 'cash.dispute.create'), true);
+    assert.equal(hasCapability(role, 'cash.dispute.read.own'), true);
+  }
+  assert.equal(hasCapability('teacher', 'cash.dispute.review'), true);
+  assert.equal(hasCapability('teacher', 'cash.dispute.create'), false);
+  assert.equal(hasCapability('treasurer', 'cash.dispute.review'), false);
+});

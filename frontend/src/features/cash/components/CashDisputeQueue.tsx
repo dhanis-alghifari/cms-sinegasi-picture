@@ -22,7 +22,7 @@ import { UI_CONSTANTS } from '@/shared/constants/ui';
 import { cashService } from '../api/cash.service';
 import { useCashDisputesQuery, useCashPaymentMethodsQuery } from '../hooks/useCashQuery';
 import { useResolveDisputeMutation } from '../hooks/useResolveDisputeMutation';
-import type { CashDispute, DisputeStatus } from '../types/cash.types';
+import type { CashDispute, CashScope, DisputeStatus } from '../types/cash.types';
 
 function statusLabel(status: DisputeStatus) {
   if (status === 'pending') return { label: 'Menunggu', variant: 'warning' as const };
@@ -46,9 +46,9 @@ type ReviewDraft = { dispute: CashDispute; status: 'approved' | 'rejected' };
 type ReviewField = 'reviewNote' | 'resolutionDate' | 'resolutionAmount' | 'paymentMethod';
 type ReviewFieldErrors = Partial<Record<ReviewField, string>>;
 
-export function CashDisputeQueue({ reviewer = false }: { reviewer?: boolean }) {
+export function CashDisputeQueue({ reviewer = false, scope = reviewer ? 'manage' : 'own' }: { reviewer?: boolean; scope?: CashScope }) {
   const [page, setPage] = useState(1);
-  const { data, isLoading, error } = useCashDisputesQuery({ page, pageSize: UI_CONSTANTS.DEFAULT_PAGE_SIZE }, true);
+  const { data, isLoading, error } = useCashDisputesQuery({ scope, page, pageSize: UI_CONSTANTS.DEFAULT_PAGE_SIZE }, true);
   const resolveMutation = useResolveDisputeMutation();
   const paymentMethodsQuery = useCashPaymentMethodsQuery(Boolean(reviewer));
   const [selectedProof, setSelectedProof] = useState<string | null>(null);
@@ -72,7 +72,7 @@ export function CashDisputeQueue({ reviewer = false }: { reviewer?: boolean }) {
     setEvidenceLoadingId(dispute.id);
     setEvidenceError(null);
     try {
-      const response = await cashService.getDisputeEvidence(dispute.id);
+      const response = await cashService.getDisputeEvidence(dispute.id, scope);
       const url = safeProofUrl(response.data.url);
       if (url) { setSelectedProof(url); setDownloadState('idle'); }
     } catch (error) {

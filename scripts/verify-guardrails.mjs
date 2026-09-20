@@ -106,6 +106,10 @@ assert(
   devCompose.includes('caddy.reverse_proxy: "{{upstreams 5001}}"'),
   '[GUARDRAIL VIOLATION] docker-compose.dev.yml missing label "caddy.reverse_proxy: {{upstreams 5001}}".'
 );
+assert(
+  devCompose.includes('NTFY_ENABLED=true'),
+  '[GUARDRAIL VIOLATION] docker-compose.dev.yml must keep NTFY_ENABLED=true for development notifications.'
+);
 
 // ============================================================================
 // 3. AUTH & SECURITY POLICIES CHECKS

@@ -127,9 +127,8 @@ export class CashDisputesService {
   async create(
     input: CreateCashDisputeInput,
     actorId: string,
-    role: string,
     idempotencyKey: string,
-    actorStudentId?: string,
+    actorStudentId: string,
   ) {
     const transactionId = typeof input.transaction_id === 'string' ? input.transaction_id.trim() : '';
     const debtRecordId = typeof input.debt_record_id === 'string' ? input.debt_record_id.trim() : '';
@@ -143,7 +142,7 @@ export class CashDisputesService {
     if (reason.length < 10 || reason.length > 2000) throw new CashDisputesServiceError(422, 'DISPUTE_REASON_INVALID', ERROR_MESSAGES.DISPUTE_REASON_INVALID);
     if (proofUrl.length > MAX_CASH_PROOF_URL_LENGTH) throw new CashDisputesServiceError(422, 'DISPUTE_EVIDENCE_INVALID', ERROR_MESSAGES.DISPUTE_EVIDENCE_INVALID);
     if (normalizedIdempotencyKey.length < 8 || normalizedIdempotencyKey.length > 128) throw new CashDisputesServiceError(422, 'IDEMPOTENCY_KEY_INVALID', ERROR_MESSAGES.IDEMPOTENCY_KEY_INVALID);
-    if (role === 'member' && !actorStudentId) throw new CashDisputesServiceError(403, 'STUDENT_SCOPE_UNAVAILABLE', 'Akun member belum terhubung ke data siswa.');
+    if (!actorStudentId) throw new CashDisputesServiceError(403, 'STUDENT_SCOPE_UNAVAILABLE', 'Akun belum terhubung ke data siswa aktif.');
 
     const target = transactionId
       ? await this.repository.findTransaction(transactionId)
@@ -156,7 +155,7 @@ export class CashDisputesService {
     if ('status' in record && record.status !== 'unpaid') {
       throw new CashDisputesServiceError(409, 'DISPUTE_TARGET_SETTLED', ERROR_MESSAGES.DISPUTE_TARGET_SETTLED);
     }
-    if (role === 'member' && actorStudentId !== record.student_id) {
+    if (actorStudentId !== record.student_id) {
       throw new CashDisputesServiceError(403, 'DISPUTE_TARGET_FORBIDDEN', ERROR_MESSAGES.DISPUTE_TARGET_FORBIDDEN);
     }
 
