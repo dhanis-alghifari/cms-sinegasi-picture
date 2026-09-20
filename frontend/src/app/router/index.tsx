@@ -19,6 +19,7 @@ import { notificationRoutes } from '@/features/notifications/routes';
 import { classRoutes } from '@/features/classes/routes';
 import { auditRoutes } from '@/features/audit/routes';
 import { accessControlRoutes } from '@/features/access-control/routes';
+import { agendaRoutes } from '@/features/agenda/routes';
 
 // The router module contains route elements alongside the router export.
 // Fast Refresh's component-only rule does not apply to this boundary.
@@ -65,6 +66,7 @@ export const router = createBrowserRouter([
           ...notificationRoutes,
           ...auditRoutes,
           ...accessControlRoutes,
+          ...agendaRoutes,
           // Fallback root redirect to /dashboard
           {
             path: '/',

@@ -68,7 +68,7 @@ function signingKey(secret: string, date: string): Buffer {
   return hmac(hmac(hmac(hmac(`AWS4${secret}`, date), R2_REGION), 's3'), 'aws4_request');
 }
 
-function presignedUrl(config: R2Config, key: string, method: 'GET' | 'HEAD' | 'PUT' | 'DELETE'): string {
+function presignedUrl(config: R2Config, key: string, method: 'GET' | 'HEAD' | 'PUT' | 'DELETE', contentType?: string): string {
   const now = new Date();
   const amzDate = now.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
   const shortDate = amzDate.slice(0, 8);
@@ -80,19 +80,19 @@ function presignedUrl(config: R2Config, key: string, method: 'GET' | 'HEAD' | 'P
     'X-Amz-Credential': credential,
     'X-Amz-Date': amzDate,
     'X-Amz-Expires': String(PRESIGNED_URL_TTL_SECONDS),
-    'X-Amz-SignedHeaders': 'host',
+    'X-Amz-SignedHeaders': contentType ? 'content-type;host' : 'host',
   };
   const canonicalQuery = Object.entries(query)
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([name, value]) => `${encodeURIComponent(name)}=${encodeURIComponent(value)}`)
     .join('&');
-  const canonicalHeaders = `host:${host}\n`;
+  const canonicalHeaders = contentType ? `content-type:${contentType}\nhost:${host}\n` : `host:${host}\n`;
   const canonicalRequest = [
     method,
     canonicalUri,
     canonicalQuery,
     canonicalHeaders,
-    'host',
+    contentType ? 'content-type;host' : 'host',
     'UNSIGNED-PAYLOAD',
   ].join('\n');
   const scope = `${shortDate}/${R2_REGION}/s3/aws4_request`;
@@ -129,7 +129,7 @@ export async function uploadToCloudflareR2(options: R2UploadOptions): Promise<R2
   try {
     config = getR2Config(true);
     key = buildObjectKey(options.fileName, options.folder);
-    const response = await fetch(presignedUrl(config, key, 'PUT'), {
+    const response = await fetch(presignedUrl(config, key, 'PUT', options.contentType), {
       method: 'PUT',
       headers: { 'Content-Type': options.contentType },
       body: options.buffer as unknown as BodyInit,
@@ -181,11 +181,26 @@ export async function deleteFromCloudflareR2(
 export function generateR2PrivateUploadUrl(
   fileName: string,
   folder = 'contest-evidence',
+  contentType?: string,
 ): { uploadUrl: string; key: string; expiresInSeconds: number } {
   const config = getR2Config();
   const key = buildObjectKey(fileName, folder);
   return {
-    uploadUrl: presignedUrl(config, key, 'PUT'),
+    uploadUrl: presignedUrl(config, key, 'PUT', contentType),
+    key,
+    expiresInSeconds: PRESIGNED_URL_TTL_SECONDS,
+  };
+}
+
+/** Re-signs an existing private object key for an idempotent upload retry. */
+export function generateR2PrivateUploadUrlForKey(
+  objectKey: string,
+  contentType?: string,
+): { uploadUrl: string; key: string; expiresInSeconds: number } {
+  const config = getR2Config();
+  const key = normalizedObjectKey(objectKey);
+  return {
+    uploadUrl: presignedUrl(config, key, 'PUT', contentType),
     key,
     expiresInSeconds: PRESIGNED_URL_TTL_SECONDS,
   };
@@ -207,6 +222,19 @@ export async function inspectCloudflareR2Object(
     contentType: response.headers.get('content-type')?.split(';')[0]?.trim() || undefined,
     contentLength: Number.isFinite(contentLength) ? contentLength : undefined,
   };
+}
+
+/** Checks the first bytes of a private object against the declared image type. */
+export async function verifyCloudflareR2ImageObject(objectKey: string, contentType: string): Promise<boolean> {
+  const config = getR2Config();
+  const response = await fetch(presignedUrl(config, normalizedObjectKey(objectKey), 'GET'), {
+    method: 'GET', headers: { Range: 'bytes=0-15' },
+  });
+  if (!response.ok && response.status !== 206) return false;
+  const bytes = Buffer.from(await response.arrayBuffer());
+  if (contentType === 'image/jpeg') return bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  if (contentType === 'image/png') return bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+  return bytes.length >= 12 && bytes.subarray(0, 4).toString('ascii') === 'RIFF' && bytes.subarray(8, 12).toString('ascii') === 'WEBP';
 }
 
 /** Issues a short-lived read URL for an attached private evidence object. */

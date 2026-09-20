@@ -35,6 +35,9 @@ import type { ContestAchievementsMemoryState } from '../../modules/contest-achie
 import { EquipmentRecoveryService } from '../../modules/equipment/equipment.recovery.service.js';
 import { createEquipmentRecoveryRepository } from '../../modules/equipment/equipment.recovery.repository.js';
 import { createEquipmentRecoveryMemoryState } from '../../modules/equipment/equipment.recovery.helpers.js';
+import { AgendaService } from '../../modules/agenda/agenda.service.js';
+import { createAgendaRepository } from '../../modules/agenda/agenda.repository.js';
+import type { AgendaMemoryState } from '../../modules/agenda/agenda.types.js';
 
 export interface CatalogDependencies {
   studentsService: StudentService;
@@ -50,6 +53,7 @@ export interface CatalogDependencies {
   contestAchievementsService: ContestAchievementsService;
   filmWorksService: FilmWorksService;
   accessControlService: AccessControlService;
+  agendaService: AgendaService;
   studentsMemoryState: ReturnType<typeof createStudentsMemoryState>;
   equipmentMemoryState: ReturnType<typeof createEquipmentMemoryState>;
 }
@@ -69,6 +73,7 @@ export function createCatalogDependencies(): CatalogDependencies {
   const contestAchievementsState: ContestAchievementsMemoryState = { achievements: [] };
   const filmWorksState = { films: [] };
   const accessControlState = createAccessControlMemoryState();
+  const agendaState: AgendaMemoryState = { activities: [] };
 
   return {
     studentsService: new StudentService(
@@ -89,6 +94,7 @@ export function createCatalogDependencies(): CatalogDependencies {
     contestAchievementsService: new ContestAchievementsService(createContestAchievementsRepository(supabase, contestAchievementsState)),
     filmWorksService: new FilmWorksService(createFilmWorksRepository(supabase, filmWorksState)),
     accessControlService: new AccessControlService(createAccessControlRepository(supabase, accessControlState)),
+    agendaService: new AgendaService(createAgendaRepository(supabase, agendaState)),
     studentsMemoryState,
     equipmentMemoryState,
   };

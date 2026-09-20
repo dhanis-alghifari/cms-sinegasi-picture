@@ -75,4 +75,9 @@ export const QUERY_KEYS = {
   // Access control
   ACCESS_CONTROL_MATRIX: ['access-control', 'matrix'] as const,
   ACCESS_CONTROL_AUDIT_LOGS: ['access-control', 'audit-logs'] as const,
+
+  AGENDA: ['agenda'] as const,
+  AGENDA_DETAIL: (id: string) => ['agenda', 'detail', id] as const,
+  AGENDA_PHOTO: (id: string) => ['agenda', 'photo', id] as const,
+  AGENDA_REPORT: ['agenda', 'report'] as const,
 } as const;

@@ -42,6 +42,9 @@ export const CAPABILITY_VALUES = [
   'users.manage',
   'access_control.read',
   'access_control.manage',
+  'agenda.read',
+  'agenda.write',
+  'agenda.archive',
 ] as const;
 
 export type Capability = typeof CAPABILITY_VALUES[number];
@@ -60,11 +63,13 @@ export const ROLE_CAPABILITIES: Readonly<Record<UserRole, readonly Capability[]>
     'attendance.read', 'attendance.record', 'attendance.correct', 'equipment.read', 'equipment.manage',
     'borrowing.read', 'borrowing.request', 'borrowing.return.report', 'contests.read', 'contests.submit', 'contests.manage',
     'grades.read.own', 'notifications.read',
+    'agenda.read', 'agenda.write',
   ],
   vice_leader: [
     'dashboard.read.own', 'attendance.read', 'attendance.record', 'attendance.correct',
     'borrowing.read', 'borrowing.request', 'borrowing.return.report', 'contests.read', 'contests.submit', 'contests.manage',
     'grades.read.own', 'notifications.read',
+    'agenda.read', 'agenda.write',
   ],
   treasurer: [
     'dashboard.read.own', 'cash.read', 'cash.read.own', 'cash.manage', 'cash.dispute.create', 'cash.dispute.review',
@@ -73,6 +78,7 @@ export const ROLE_CAPABILITIES: Readonly<Record<UserRole, readonly Capability[]>
   secretary: [
     'dashboard.read.own', 'students.read', 'students.manage', 'classes.read', 'classes.manage',
     'attendance.read', 'attendance.record', 'attendance.correct', 'borrowing.read', 'borrowing.request', 'borrowing.return.report', 'grades.read.own', 'notifications.read',
+    'agenda.read', 'agenda.write',
   ],
   equipment_team: [
     'dashboard.read.own', 'equipment.read', 'equipment.manage', 'borrowing.read', 'borrowing.request', 'borrowing.return.report',

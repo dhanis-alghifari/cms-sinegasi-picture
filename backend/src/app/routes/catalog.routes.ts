@@ -12,6 +12,7 @@ import accessControlRoutes from '../../modules/access-control/access-control.rou
 import type { AppDependencies } from '../app.dependencies.js';
 import contestEntriesRoutes from '../../modules/contest-entries/contest-entries.routes.js';
 import contestAchievementsRoutes from '../../modules/contest-achievements/contest-achievements.routes.js';
+import agendaRoutes from '../../modules/agenda/agenda.routes.js';
 
 export async function registerCatalogRoutes(
   fastify: FastifyInstance,
@@ -55,4 +56,5 @@ export async function registerCatalogRoutes(
   });
   await fastify.register(filmWorksRoutes, { filmWorksService: dependencies.filmWorksService });
   await fastify.register(accessControlRoutes, { accessControlService: dependencies.accessControlService });
+  await fastify.register(agendaRoutes, { agendaService: dependencies.agendaService });
 }

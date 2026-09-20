@@ -1,6 +1,6 @@
 import type { ElementType } from 'react';
 import {
-  Bell, CalendarCheck, Camera, GraduationCap, History, Layers, LayoutDashboard,
+  Bell, CalendarCheck, CalendarDays, Camera, GraduationCap, History, Layers, LayoutDashboard,
   PackageCheck, ShieldCheck, Trophy, Users, Wallet,
 } from 'lucide-react';
 import type { AuthUser } from '@/features/auth/types/auth.types';
@@ -30,6 +30,7 @@ export const NAVIGATION_ITEMS: readonly NavigationItem[] = [
   { id: 'equipment', to: '/equipment', icon: Camera, label: 'Alat', requiredCapabilities: ['equipment.read'], mobilePriority: 2 },
   { id: 'borrowing', to: '/borrowing', icon: PackageCheck, label: 'Peminjaman', requiredCapabilities: ['borrowing.read'], mobilePriority: 3 },
   { id: 'contests', to: '/contests', icon: Trophy, label: 'Lomba', requiredCapabilities: ['contests.read'] },
+  { id: 'agenda', to: '/agenda', icon: CalendarDays, label: 'Agenda', requiredCapabilities: ['agenda.read'] },
   { id: 'notifications', to: '/notifications', icon: Bell, label: 'Notifikasi', requiredCapabilities: ['notifications.read'], mobilePriority: 4 },
   { id: 'audit', to: '/audit-logs', icon: History, label: 'Audit Trail', requiredCapabilities: ['audit.read'] },
   { id: 'users', to: '/users', icon: Users, label: 'Pengguna', requiredCapabilities: ['users.manage'] },

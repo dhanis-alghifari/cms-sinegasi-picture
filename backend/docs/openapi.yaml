@@ -677,6 +677,139 @@ paths:
         '403': { description: Capability denied }
         '409': { description: Attendance conflicts with a concurrent change }
         '422': { description: Invalid class, record, or status }
+  /api/agenda:
+    get:
+      summary: List agenda kegiatan with bounded search and date filters
+      parameters:
+        - { name: search, in: query, required: false, schema: { type: string, maxLength: 100 } }
+        - { name: date_from, in: query, required: false, schema: { type: string, format: date } }
+        - { name: date_to, in: query, required: false, schema: { type: string, format: date } }
+        - { name: page, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 10000, default: 1 } }
+        - { name: pageSize, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+      responses:
+        '200': { description: Paginated agenda activities }
+        '401': { description: Unauthenticated }
+        '403': { description: Agenda read capability missing }
+        '422': { description: Invalid date range or a range longer than 90 days }
+    post:
+      summary: Create an agenda activity
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgendaActivityRequest'
+      responses:
+        '201': { description: Agenda activity created }
+        '401': { description: Unauthenticated or unmapped account }
+        '403': { description: Agenda write capability missing }
+        '422': { description: Invalid activity data or future date }
+  /api/agenda/report:
+    get:
+      summary: Read a bounded printable agenda report with short-lived photo URLs
+      parameters:
+        - { name: search, in: query, required: false, schema: { type: string, maxLength: 100 } }
+        - { name: date_from, in: query, required: false, schema: { type: string, format: date } }
+        - { name: date_to, in: query, required: false, schema: { type: string, format: date } }
+      responses:
+        '200': { description: Up to 100 filtered agenda activities; photo_access_url is included only when an attached private photo is available }
+        '401': { description: Unauthenticated }
+        '403': { description: Agenda read capability missing }
+        '422': { description: Invalid date range or a range longer than 90 days }
+  /api/agenda/{id}:
+    get:
+      summary: Read one agenda activity
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, maxLength: 64 } }
+      responses:
+        '200': { description: Agenda activity detail }
+        '403': { description: Agenda read capability missing }
+        '404': { description: Agenda activity not found }
+    patch:
+      summary: Update an agenda activity with optimistic versioning
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, maxLength: 64 } }
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/AgendaActivityRequest'
+                - type: object
+                  required: [expected_version, change_reason]
+                  properties:
+                    expected_version: { type: integer, minimum: 1 }
+                    change_reason: { type: string, minLength: 5, maxLength: 500 }
+      responses:
+        '200': { description: Agenda activity updated }
+        '403': { description: Agenda write capability missing }
+        '404': { description: Agenda activity not found }
+        '409': { description: Version conflict }
+    delete:
+      summary: Archive an agenda activity (teacher only)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, maxLength: 64 } }
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [change_reason]
+              properties:
+                change_reason: { type: string, minLength: 5, maxLength: 500 }
+      responses:
+        '200': { description: Agenda activity archived }
+        '403': { description: Teacher-only archive capability }
+        '404': { description: Agenda activity not found }
+  /api/agenda/{id}/photo-uploads:
+    post:
+      summary: Reserve a private agenda photo upload
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, maxLength: 64 } }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [file_name, content_type, file_size_bytes]
+              properties:
+                file_name: { type: string, minLength: 1, maxLength: 255 }
+                content_type: { type: string, enum: [image/jpeg, image/png, image/webp] }
+                file_size_bytes: { type: integer, minimum: 1, maximum: 614400 }
+      responses:
+        '201': { description: Short-lived private PUT URL issued }
+        '403': { description: Agenda write capability missing }
+  /api/agenda/{id}/photo-uploads/{photoId}/complete:
+    post:
+      summary: Verify and attach an uploaded agenda photo
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, maxLength: 64 } }
+        - { name: photoId, in: path, required: true, schema: { type: string, maxLength: 64 } }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200': { description: Photo verified and attached }
+        '403': { description: Agenda write capability missing }
+        '422': { description: Uploaded bytes do not match metadata }
+  /api/agenda/{id}/photo-access:
+    get:
+      summary: Issue a short-lived private agenda photo URL
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, maxLength: 64 } }
+      responses:
+        '200': { description: Signed private GET URL }
+        '403': { description: Agenda read capability missing }
+        '404': { description: Attached photo not found }
   /api/attendance/summary:
     get:
       summary: Summarize attendance for one date
@@ -1980,6 +2113,20 @@ components:
         nama: { type: string, minLength: 2, maxLength: 200 }
         role: { type: string, enum: [teacher, leader, vice_leader, treasurer, secretary, equipment_team, contest_team, member] }
         is_active: { type: boolean }
+    AgendaActivityRequest:
+      type: object
+      additionalProperties: false
+      required: [activity_date, activity_name, activity_description, instructor_name, pic_names]
+      properties:
+        activity_date: { type: string, format: date }
+        activity_name: { type: string, minLength: 2, maxLength: 120 }
+        activity_description: { type: string, minLength: 2, maxLength: 2000 }
+        instructor_name: { type: string, minLength: 2, maxLength: 120 }
+        pic_names:
+          type: array
+          minItems: 1
+          maxItems: 10
+          items: { type: string, minLength: 2, maxLength: 100 }
         change_reason: { type: string, minLength: 5, maxLength: 500 }
     UserResetPasswordRequest:
       type: object
