@@ -21,6 +21,7 @@ import { EmptyState } from '@/shared/ui/EmptyState';
 import type { UserAccount } from '../types/users.types';
 import { formatRoleLabel } from '@/shared/utils/formatLabels';
 import { AuditHistoryButton } from '@/features/audit/components/AuditHistoryButton';
+import { useCanViewAuditHistory } from '@/features/audit/hooks/useCanViewAuditHistory';
 import { ActorSummaryText } from './ActorSummaryText';
 
 interface UserTableProps {
@@ -40,6 +41,8 @@ export function UserTable({
   onDelete,
   canManage = true,
 }: UserTableProps) {
+  const canViewAuditHistory = useCanViewAuditHistory();
+
   if (users.length === 0) {
     return (
       <EmptyState
@@ -59,8 +62,8 @@ export function UserTable({
             <TableHead className="text-ink-subtle text-xs font-semibold">Role Akses</TableHead>
             <TableHead className="text-ink-subtle text-xs font-semibold">Status Login</TableHead>
             <TableHead className="text-ink-subtle text-xs font-semibold">Status Akun</TableHead>
-            <TableHead className="text-ink-subtle text-xs font-semibold">Audit Aktor</TableHead>
-            <TableHead className="text-right text-ink-subtle text-xs font-semibold">Riwayat</TableHead>
+            {canViewAuditHistory && <TableHead className="text-ink-subtle text-xs font-semibold">Audit Aktor</TableHead>}
+            {canViewAuditHistory && <TableHead className="text-right text-ink-subtle text-xs font-semibold">Riwayat</TableHead>}
             {canManage && <TableHead className="text-right text-ink-subtle text-xs font-semibold">Aksi</TableHead>}
           </TableRow>
         </TableHeader>
@@ -94,8 +97,8 @@ export function UserTable({
                   variant={user.is_active ? 'success' : 'danger'}
                 />
               </TableCell>
-              <TableCell><ActorSummaryText actor={user.updated_actor || user.created_actor} /></TableCell>
-              <TableCell className="text-right"><AuditHistoryButton tableName="users" recordId={user.id} /></TableCell>
+              {canViewAuditHistory && <TableCell><ActorSummaryText actor={user.updated_actor || user.created_actor} /></TableCell>}
+              {canViewAuditHistory && <TableCell className="text-right"><AuditHistoryButton tableName="users" recordId={user.id} /></TableCell>}
               {canManage && (
                 <TableCell className="text-right">
                   <div className="flex items-center justify-end gap-1">

@@ -19,6 +19,7 @@ import { Button } from "@/shared/ui/primitives/button";
 import { StatusBadge } from "@/shared/ui/StatusBadge";
 import { EmptyState } from "@/shared/ui/EmptyState";
 import { AuditHistoryButton } from "@/features/audit/components/AuditHistoryButton";
+import { useCanViewAuditHistory } from "@/features/audit/hooks/useCanViewAuditHistory";
 import type { Student } from "../types/students.types";
 
 interface StudentAvatarProps {
@@ -62,6 +63,8 @@ export function StudentTable({
   canManage = true,
   canManageStatus = false,
 }: StudentTableProps) {
+  const canViewAuditHistory = useCanViewAuditHistory();
+
   if (students.length === 0) {
     return (
       <EmptyState
@@ -97,9 +100,11 @@ export function StudentTable({
             <TableHead className="text-ink-subtle text-xs font-semibold">
               Akun Login
             </TableHead>
-            <TableHead className="text-right text-ink-subtle text-xs font-semibold">
-              Riwayat
-            </TableHead>
+            {canViewAuditHistory && (
+              <TableHead className="text-right text-ink-subtle text-xs font-semibold">
+                Riwayat
+              </TableHead>
+            )}
             {canManage && (
               <TableHead className="text-right text-ink-subtle text-xs font-semibold">
                 Aksi
@@ -147,9 +152,11 @@ export function StudentTable({
                   variant={student.user_id ? "success" : "warning"}
                 />
               </TableCell>
-              <TableCell className="text-right">
-                <AuditHistoryButton tableName="students" recordId={student.id} />
-              </TableCell>
+              {canViewAuditHistory && (
+                <TableCell className="text-right">
+                  <AuditHistoryButton tableName="students" recordId={student.id} />
+                </TableCell>
+              )}
               {canManage && (
                 <TableCell className="text-right">
                   <div className="flex items-center justify-end gap-1">

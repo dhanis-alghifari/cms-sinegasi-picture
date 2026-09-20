@@ -13,6 +13,7 @@ import { formatDateShort } from '@/shared/utils/formatDate';
 import { formatEnumLabel } from '@/shared/utils/formatLabels';
 import { ASSIGNMENT_CATEGORY_LABELS, type StudentGrade } from '../types/grades.types';
 import { AuditHistoryButton } from '@/features/audit/components/AuditHistoryButton';
+import { useCanViewAuditHistory } from '@/features/audit/hooks/useCanViewAuditHistory';
 
 interface GradeTableProps {
   grades: StudentGrade[];
@@ -36,6 +37,8 @@ const gradePredicates: Record<string, string> = {
 };
 
 export function GradeTable({ grades, isPersonal = false }: GradeTableProps) {
+  const canViewAuditHistory = useCanViewAuditHistory();
+
   if (grades.length === 0) {
     return (
       <EmptyState
@@ -58,7 +61,7 @@ export function GradeTable({ grades, isPersonal = false }: GradeTableProps) {
             <TableHead className="text-ink-subtle text-xs font-semibold">Kategori</TableHead>
             <TableHead className="text-ink-subtle text-xs font-semibold">Nilai (A-E)</TableHead>
             <TableHead className="text-ink-subtle text-xs font-semibold">Keterangan</TableHead>
-            <TableHead className="text-right text-ink-subtle text-xs font-semibold">Riwayat</TableHead>
+            {canViewAuditHistory && <TableHead className="text-right text-ink-subtle text-xs font-semibold">Riwayat</TableHead>}
           </TableRow>
         </TableHeader>
 
@@ -84,7 +87,7 @@ export function GradeTable({ grades, isPersonal = false }: GradeTableProps) {
               </TableCell>
 
               <TableCell className="text-ink-subtle text-xs">{g.keterangan || '-'}</TableCell>
-              <TableCell className="text-right"><AuditHistoryButton tableName="grades" recordId={g.id} /></TableCell>
+              {canViewAuditHistory && <TableCell className="text-right"><AuditHistoryButton tableName="grades" recordId={g.id} /></TableCell>}
             </TableRow>
           ))}
         </TableBody>

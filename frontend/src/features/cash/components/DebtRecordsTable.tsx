@@ -12,10 +12,9 @@ import { EmptyState } from '@/shared/ui/EmptyState';
 import { formatCurrency } from '@/shared/utils/formatCurrency';
 import { formatDateShort } from '@/shared/utils/formatDate';
 import type { CashDisputeQuota, DebtRecord } from '../types/cash.types';
-import { getDisputeAction } from '../utils/disputeState';
 import { AuditHistoryButton } from '@/features/audit/components/AuditHistoryButton';
-import { Button } from '@/shared/ui/primitives/button';
-import type { MouseEvent } from 'react';
+import { useCanViewAuditHistory } from '@/features/audit/hooks/useCanViewAuditHistory';
+import { CashDisputeAction, CashDisputeStatus } from './CashDisputeState';
 
 interface DebtRecordsTableProps {
   debts: DebtRecord[];
@@ -25,6 +24,8 @@ interface DebtRecordsTableProps {
 }
 
 export function DebtRecordsTable({ debts, isStudent, onDispute, disputeQuota }: DebtRecordsTableProps) {
+  const canViewAuditHistory = useCanViewAuditHistory();
+
   if (debts.length === 0) {
     return (
       <EmptyState
@@ -43,7 +44,9 @@ export function DebtRecordsTable({ debts, isStudent, onDispute, disputeQuota }: 
             {!isStudent && <TableHead className="text-ink-subtle text-xs font-semibold">Nama Siswa</TableHead>}
             <TableHead className="text-ink-subtle text-xs font-semibold text-right">Jumlah Utang (Tunggakan)</TableHead>
             <TableHead className="text-ink-subtle text-xs font-semibold">Status Pembayaran</TableHead>
-            <TableHead className="text-right text-ink-subtle text-xs font-semibold">Aksi</TableHead>
+            <TableHead className="text-ink-subtle text-xs font-semibold">Sanggahan</TableHead>
+            {canViewAuditHistory && <TableHead className="text-right text-ink-subtle text-xs font-semibold">Riwayat</TableHead>}
+            {isStudent && <TableHead className="text-right text-ink-subtle text-xs font-semibold">Aksi</TableHead>}
           </TableRow>
         </TableHeader>
 
@@ -61,7 +64,20 @@ export function DebtRecordsTable({ debts, isStudent, onDispute, disputeQuota }: 
                   variant={debt.status === 'paid' ? 'success' : 'danger'}
                 />
               </TableCell>
-              <TableCell className="text-right"><div className="flex items-center justify-end gap-2"><AuditHistoryButton tableName="debt_records" recordId={debt.id} />{isStudent && onDispute && (() => { const action = getDisputeAction(debt.dispute, disputeQuota, debt.status === 'paid'); return <Button type="button" size="sm" disabled={!action.canSubmit} title={action.reason} className="min-h-9 border-primary bg-primary px-3 text-xs text-primary-foreground hover:bg-primary-hover focus-visible:ring-primary/30" onClick={(event: MouseEvent<HTMLButtonElement>) => { event.stopPropagation(); onDispute(debt); }}>{action.label}</Button>; })()}</div></TableCell>
+              <TableCell><CashDisputeStatus dispute={debt.dispute} /></TableCell>
+              {canViewAuditHistory && <TableCell className="text-right"><AuditHistoryButton tableName="debt_records" recordId={debt.id} /></TableCell>}
+              {isStudent && (
+                <TableCell className="text-right">
+                  {onDispute && (
+                    <CashDisputeAction
+                      dispute={debt.dispute}
+                      quota={disputeQuota}
+                      settled={debt.status === 'paid'}
+                      onSubmit={() => onDispute(debt)}
+                    />
+                  )}
+                </TableCell>
+              )}
             </TableRow>
           ))}
         </TableBody>

@@ -1,6 +1,7 @@
 import { Edit2, KeyRound, MoreVertical, Trash2, UserCheck, UserX } from 'lucide-react';
 
 import { AuditHistoryButton } from '@/features/audit/components/AuditHistoryButton';
+import { useCanViewAuditHistory } from '@/features/audit/hooks/useCanViewAuditHistory';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { StatusBadge } from '@/shared/ui/StatusBadge';
 import { Button } from '@/shared/ui/primitives/button';
@@ -20,6 +21,8 @@ interface UserMobileListProps {
 }
 
 export function UserMobileList({ users, onEdit, onResetPassword, onToggleActive, onDelete, canManage = true }: UserMobileListProps) {
+  const canViewAuditHistory = useCanViewAuditHistory();
+
   if (users.length === 0) return <EmptyState title="Tidak ada data akun pengguna" description="Belum ada akun pengguna terdaftar yang sesuai dengan filter pencarian saat ini." />;
 
   return (
@@ -60,9 +63,11 @@ export function UserMobileList({ users, onEdit, onResetPassword, onToggleActive,
               <StatusBadge label={user.is_active ? 'Aktif' : 'Nonaktif'} variant={user.is_active ? 'success' : 'danger'} />
             </div>
           </div>
-          <div className="mt-2 border-t border-hairline pt-2">
-            <ActorSummaryText actor={user.updated_actor || user.created_actor} />
-          </div>
+          {canViewAuditHistory && (
+            <div className="mt-2 border-t border-hairline pt-2">
+              <ActorSummaryText actor={user.updated_actor || user.created_actor} />
+            </div>
+          )}
         </article>
       ))}
     </div>

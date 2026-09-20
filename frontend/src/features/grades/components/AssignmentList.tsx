@@ -13,6 +13,7 @@ import { useIsMobile } from '@/shared/hooks/use-mobile';
 
 import { ASSIGNMENT_CATEGORY_LABELS, type Assignment } from '../types/grades.types';
 import { AuditHistoryButton } from '@/features/audit/components/AuditHistoryButton';
+import { useCanViewAuditHistory } from '@/features/audit/hooks/useCanViewAuditHistory';
 import { AssignmentMobileList } from './AssignmentMobileList';
 
 interface AssignmentListProps {
@@ -53,6 +54,7 @@ export function AssignmentList({
   const { isOwn = false } = view ?? {};
   const { onRetry } = actions ?? {};
   const isMobile = useIsMobile();
+  const canViewAuditHistory = useCanViewAuditHistory();
   return (
     <section className="space-y-3">
       <div>
@@ -63,7 +65,7 @@ export function AssignmentList({
       </div>
 
       {isLoading && (
-        <DataTableSkeleton columns={isOwn ? 5 : 6} rows={5} mobile={isMobile} label="Memuat daftar tugas..." />
+        <DataTableSkeleton columns={(isOwn ? 4 : 5) + Number(canViewAuditHistory)} rows={5} mobile={isMobile} label="Memuat daftar tugas..." />
       )}
       {isError && (
         <QueryErrorState
@@ -92,7 +94,7 @@ export function AssignmentList({
                   <TableHead className="text-ink-subtle text-xs font-semibold">Kategori</TableHead>
                   {!isOwn && <TableHead className="text-ink-subtle text-xs font-semibold">Kelas</TableHead>}
                   <TableHead className="text-ink-subtle text-xs font-semibold">Deskripsi</TableHead>
-                  <TableHead className="text-right text-ink-subtle text-xs font-semibold">Riwayat</TableHead>
+                  {canViewAuditHistory && <TableHead className="text-right text-ink-subtle text-xs font-semibold">Riwayat</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -113,7 +115,7 @@ export function AssignmentList({
                     <TableCell className="text-ink-subtle text-xs min-w-56">
                       {assignment.description || '-'}
                     </TableCell>
-                    <TableCell className="text-right"><AuditHistoryButton tableName="assignments" recordId={assignment.id} /></TableCell>
+                    {canViewAuditHistory && <TableCell className="text-right"><AuditHistoryButton tableName="assignments" recordId={assignment.id} /></TableCell>}
                   </TableRow>
                 ))}
               </TableBody>

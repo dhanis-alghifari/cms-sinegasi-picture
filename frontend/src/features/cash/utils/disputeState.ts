@@ -1,10 +1,22 @@
 import type { CashDisputeQuota, CashDisputeSummary, DisputeStatus } from '../types/cash.types';
+import type { StatusBadgeVariant } from '@/shared/ui/StatusBadge';
 
 export type DisputeAction = {
   canSubmit: boolean;
   label: string;
   reason?: string;
 };
+
+export type DisputePresentation = {
+  label: string;
+  variant: StatusBadgeVariant;
+};
+
+export function getDisputePresentation(status: DisputeStatus): DisputePresentation {
+  if (status === 'pending') return { label: 'Menunggu pemeriksaan guru', variant: 'warning' };
+  if (status === 'approved' || status === 'resolved') return { label: 'Sanggahan disetujui', variant: 'success' };
+  return { label: 'Sanggahan ditolak', variant: 'danger' };
+}
 
 export function getDisputeAction(
   dispute: CashDisputeSummary | undefined,

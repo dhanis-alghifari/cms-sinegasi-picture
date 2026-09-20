@@ -14,6 +14,7 @@ import { EmptyState } from '@/shared/ui/EmptyState';
 import { formatDateShort } from '@/shared/utils/formatDate';
 import type { AttendanceRecord } from '../types/attendance.types';
 import { AuditHistoryButton } from '@/features/audit/components/AuditHistoryButton';
+import { useCanViewAuditHistory } from '@/features/audit/hooks/useCanViewAuditHistory';
 
 interface AttendanceTableProps {
   records: AttendanceRecord[];
@@ -26,6 +27,8 @@ export function AttendanceTable({
   onCorrect,
   isTeacher = false,
 }: AttendanceTableProps) {
+  const canViewAuditHistory = useCanViewAuditHistory();
+
   if (records.length === 0) {
     return (
       <EmptyState
@@ -47,7 +50,7 @@ export function AttendanceTable({
             <TableHead className="text-ink-subtle text-xs font-semibold">Status Kehadiran</TableHead>
             <TableHead className="text-ink-subtle text-xs font-semibold">Keterangan</TableHead>
             <TableHead className="text-ink-subtle text-xs font-semibold">Lock Status (48h)</TableHead>
-            <TableHead className="text-right text-ink-subtle text-xs font-semibold">Riwayat</TableHead>
+            {canViewAuditHistory && <TableHead className="text-right text-ink-subtle text-xs font-semibold">Riwayat</TableHead>}
             {isTeacher && <TableHead className="text-right text-ink-subtle text-xs font-semibold">Aksi</TableHead>}
           </TableRow>
         </TableHeader>
@@ -79,7 +82,7 @@ export function AttendanceTable({
                 )}
               </TableCell>
 
-              <TableCell className="text-right"><AuditHistoryButton tableName="attendance" recordId={rec.id} /></TableCell>
+              {canViewAuditHistory && <TableCell className="text-right"><AuditHistoryButton tableName="attendance" recordId={rec.id} /></TableCell>}
 
               {isTeacher && (
                 <TableCell className="text-right">

@@ -34,6 +34,7 @@ import { ClassFormDialog } from '../components/ClassFormDialog';
 import { ClassMobileList } from '../components/ClassMobileList';
 import type { ClassRecord } from '../types/classes.types';
 import { AuditHistoryButton } from '@/features/audit/components/AuditHistoryButton';
+import { useCanViewAuditHistory } from '@/features/audit/hooks/useCanViewAuditHistory';
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import { hasCapability } from '@/shared/auth/capabilities';
 
@@ -41,6 +42,7 @@ export function ClassesPage() {
   const { user } = useAuthStore();
   const isMobile = useIsMobile();
   const canManage = hasCapability(user, 'classes.manage');
+  const canViewAuditHistory = useCanViewAuditHistory();
   const [search, setSearch] = useState('');
   const [tingkatFilter, setTingkatFilter] = useState<string>(UI_CONSTANTS.ALL_FILTER_VALUE);
   const [page, setPage] = useState(1);
@@ -187,7 +189,7 @@ export function ClassesPage() {
 
       {/* Classes Table */}
       {classesQuery.isPending && (
-        <DataTableSkeleton columns={canManage ? 5 : 4} rows={5} mobile={isMobile} label="Memuat daftar kelas..." />
+        <DataTableSkeleton columns={3 + Number(canManage) + Number(canViewAuditHistory)} rows={5} mobile={isMobile} label="Memuat daftar kelas..." />
       )}
       {classesQuery.isError && (
         <div
@@ -225,14 +227,14 @@ export function ClassesPage() {
                   <TableHead className="text-ink-subtle text-xs font-semibold">Nama Kelas</TableHead>
                   <TableHead className="text-ink-subtle text-xs font-semibold">Tingkat</TableHead>
                   <TableHead className="text-ink-subtle text-xs font-semibold">Status</TableHead>
-                  <TableHead className="text-right text-ink-subtle text-xs font-semibold">Riwayat</TableHead>
+                  {canViewAuditHistory && <TableHead className="text-right text-ink-subtle text-xs font-semibold">Riwayat</TableHead>}
                   {canManage && <TableHead className="text-right text-ink-subtle text-xs font-semibold">Aksi</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {classes.length === 0 && (
                   <TableRow className="border-hairline">
-                    <TableCell colSpan={canManage ? 5 : 4} className="py-8 text-center text-ink-tertiary">
+                    <TableCell colSpan={3 + Number(canManage) + Number(canViewAuditHistory)} className="py-8 text-center text-ink-tertiary">
                       <Layers className="mx-auto h-8 w-8 text-ink-tertiary mb-2 opacity-50" />
                       Tidak ada kelas yang ditemukan.
                     </TableCell>
@@ -257,7 +259,7 @@ export function ClassesPage() {
                           {cls.is_active ? 'Aktif' : 'Nonaktif'}
                         </span>
                       </TableCell>
-                      <TableCell className="text-right"><AuditHistoryButton tableName="classes" recordId={cls.id} /></TableCell>
+                      {canViewAuditHistory && <TableCell className="text-right"><AuditHistoryButton tableName="classes" recordId={cls.id} /></TableCell>}
                       {canManage && <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1.5">
                           <Button

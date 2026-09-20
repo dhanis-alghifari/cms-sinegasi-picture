@@ -1,5 +1,5 @@
 
-import { ArrowDownRight, ArrowUpRight, AlertCircle } from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -8,16 +8,14 @@ import {
   TableHeader,
   TableRow,
 } from '@/shared/ui/primitives/table';
-import { Button } from '@/shared/ui/primitives/button';
-import { StatusBadge } from '@/shared/ui/StatusBadge';
-import type { StatusBadgeVariant } from '@/shared/ui/StatusBadge';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { formatCurrency } from '@/shared/utils/formatCurrency';
 import { formatDateShort } from '@/shared/utils/formatDate';
 import { formatPaymentMethodLabel } from '@/shared/utils/formatLabels';
 import type { CashDisputeQuota, CashTransaction } from '../types/cash.types';
-import { getDisputeAction } from '../utils/disputeState';
 import { AuditHistoryButton } from '@/features/audit/components/AuditHistoryButton';
+import { useCanViewAuditHistory } from '@/features/audit/hooks/useCanViewAuditHistory';
+import { CashDisputeAction, CashDisputeStatus } from './CashDisputeState';
 
 interface CashTransactionTableProps {
   transactions: CashTransaction[];
@@ -26,18 +24,14 @@ interface CashTransactionTableProps {
   disputeQuota?: CashDisputeQuota;
 }
 
-function getDisputePresentation(status?: string): { label: string; variant: StatusBadgeVariant } {
-  if (status === 'pending') return { label: 'Sanggahan Pending', variant: 'warning' };
-  if (status === 'resolved' || status === 'approved') return { label: 'Disetujui', variant: 'success' };
-  return { label: 'Ditolak', variant: 'danger' };
-}
-
 export function CashTransactionTable({
   transactions,
   onDispute,
   isStudent,
   disputeQuota,
 }: CashTransactionTableProps) {
+  const canViewAuditHistory = useCanViewAuditHistory();
+
   if (transactions.length === 0) {
     return (
       <EmptyState
@@ -58,18 +52,13 @@ export function CashTransactionTable({
             <TableHead className="text-ink-subtle text-xs font-semibold">Metode</TableHead>
             <TableHead className="text-ink-subtle text-xs font-semibold text-right">Nominal</TableHead>
             <TableHead className="text-ink-subtle text-xs font-semibold">Sanggahan (Dispute)</TableHead>
-            <TableHead className="text-right text-ink-subtle text-xs font-semibold">Riwayat</TableHead>
+            {canViewAuditHistory && <TableHead className="text-right text-ink-subtle text-xs font-semibold">Riwayat</TableHead>}
             {isStudent && <TableHead className="text-right text-ink-subtle text-xs font-semibold">Aksi</TableHead>}
           </TableRow>
         </TableHeader>
 
         <TableBody>
           {transactions.map((tx) => {
-            const hasDispute = Boolean(tx.dispute);
-            const disputeStatus = tx.dispute?.status;
-            const disputeAction = getDisputeAction(tx.dispute, disputeQuota);
-            const disputePresentation = getDisputePresentation(disputeStatus);
-
             return (
               <TableRow key={tx.id} className="border-hairline hover:bg-surface-2/40">
                 <TableCell className="text-ink-subtle text-xs">{formatDateShort(tx.tanggal)}</TableCell>
@@ -104,29 +93,19 @@ export function CashTransactionTable({
                 </TableCell>
 
                 <TableCell>
-                  {hasDispute ? (
-                    <StatusBadge label={disputePresentation.label} variant={disputePresentation.variant} />
-                  ) : (
-                    <span className="text-ink-tertiary text-xs">-</span>
-                  )}
+                  <CashDisputeStatus dispute={tx.dispute} />
                 </TableCell>
 
-                <TableCell className="text-right"><AuditHistoryButton tableName="cash_transactions" recordId={tx.id} /></TableCell>
+                {canViewAuditHistory && <TableCell className="text-right"><AuditHistoryButton tableName="cash_transactions" recordId={tx.id} /></TableCell>}
 
                 {isStudent && (
                   <TableCell className="text-right">
                     {tx.tipe === 'masuk' && onDispute && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        disabled={!disputeAction.canSubmit}
-                        title={disputeAction.reason}
-                        onClick={() => onDispute(tx)}
-                        className="min-h-9 border-primary bg-primary px-3 text-xs text-primary-foreground hover:bg-primary-hover focus-visible:ring-primary/30"
-                      >
-                        <AlertCircle size={12} className="mr-1" />
-                        {disputeAction.label}
-                      </Button>
+                      <CashDisputeAction
+                        dispute={tx.dispute}
+                        quota={disputeQuota}
+                        onSubmit={() => onDispute(tx)}
+                      />
                     )}
                   </TableCell>
                 )}

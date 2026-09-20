@@ -249,6 +249,11 @@ export function CashPage() {
       payload: values,
       idempotencyKey: crypto.randomUUID(),
     });
+    toast.add({
+      type: "success",
+      title: "Sanggahan terkirim",
+      description: "Status diubah menjadi menunggu pemeriksaan guru. Pengajuan yang sama tidak dapat dikirim ulang selama masih diperiksa.",
+    });
   };
 
   const handleBillingRulesSubmit = async (values: BillingRulesFormValues) => {

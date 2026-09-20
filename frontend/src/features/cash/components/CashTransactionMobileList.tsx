@@ -1,29 +1,20 @@
-import { AlertCircle, ArrowDownRight, ArrowUpRight } from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight } from 'lucide-react';
 
 import { AuditHistoryButton } from '@/features/audit/components/AuditHistoryButton';
 import { EmptyState } from '@/shared/ui/EmptyState';
-import { StatusBadge } from '@/shared/ui/StatusBadge';
-import { Button } from '@/shared/ui/primitives/button';
 import { formatCurrency } from '@/shared/utils/formatCurrency';
 import { formatDateShort } from '@/shared/utils/formatDate';
 import { formatPaymentMethodLabel } from '@/shared/utils/formatLabels';
 
 import type { CashDisputeQuota, CashTransaction } from '../types/cash.types';
 import { getDisputeAction } from '../utils/disputeState';
+import { CashDisputeAction, CashDisputeStatus } from './CashDisputeState';
 
 interface CashTransactionMobileListProps {
   transactions: CashTransaction[];
   onDispute?: (transaction: CashTransaction) => void;
   isStudent: boolean;
   disputeQuota?: CashDisputeQuota;
-}
-
-function getDisputeStatus(transaction: CashTransaction) {
-  const status = transaction.dispute?.status;
-  if (status === 'pending') return { label: 'Sanggahan pending', variant: 'warning' as const };
-  if (status === 'resolved') return { label: 'Sanggahan disetujui', variant: 'success' as const };
-  if (status === 'rejected') return { label: 'Sanggahan ditolak', variant: 'danger' as const };
-  return null;
 }
 
 export function CashTransactionMobileList({
@@ -45,7 +36,6 @@ export function CashTransactionMobileList({
     <div className="space-y-3" aria-label="Daftar transaksi kas versi ponsel">
       {transactions.map((transaction) => {
         const isIncome = transaction.tipe === 'masuk';
-        const disputeStatus = getDisputeStatus(transaction);
         const disputeAction = getDisputeAction(transaction.dispute, disputeQuota);
         const canDispute = isStudent && isIncome && Boolean(onDispute);
 
@@ -86,25 +76,20 @@ export function CashTransactionMobileList({
               </div>
             </div>
 
-            {disputeStatus && (
+            {transaction.dispute && (
               <div className="mt-2">
-                <StatusBadge label={disputeStatus.label} variant={disputeStatus.variant} />
+                <CashDisputeStatus dispute={transaction.dispute} />
               </div>
             )}
 
-            {canDispute && (
+            {canDispute && disputeAction.canSubmit && (
               <div className="mt-3 flex justify-end border-t border-hairline pt-3">
-                <Button
-                  type="button"
-                  size="sm"
-                  disabled={!disputeAction.canSubmit}
-                  title={disputeAction.reason}
-                  onClick={() => onDispute?.(transaction)}
-                  className="min-h-11 w-full border-primary bg-primary px-3 text-xs text-primary-foreground hover:bg-primary-hover focus-visible:ring-primary/30 sm:w-auto"
-                >
-                  <AlertCircle size={14} aria-hidden="true" />
-                  {disputeAction.label}
-                </Button>
+                <CashDisputeAction
+                  dispute={transaction.dispute}
+                  quota={disputeQuota}
+                  fullWidth
+                  onSubmit={() => onDispute?.(transaction)}
+                />
               </div>
             )}
           </article>

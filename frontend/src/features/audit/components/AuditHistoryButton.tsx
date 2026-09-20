@@ -2,7 +2,7 @@ import { History } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 import { Button } from '@/shared/ui/primitives/button';
-import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
+import { useCanViewAuditHistory } from '../hooks/useCanViewAuditHistory';
 
 type AuditHistoryButtonProps = {
   tableName: string;
@@ -12,9 +12,9 @@ type AuditHistoryButtonProps = {
 /** Opens the audit history for a record when the current user can view it. */
 export function AuditHistoryButton({ tableName, recordId }: AuditHistoryButtonProps) {
   const navigate = useNavigate();
-  const user = useAuthStore((state) => state.user);
+  const canViewAuditHistory = useCanViewAuditHistory();
 
-  if (user?.role !== 'teacher') return null;
+  if (!canViewAuditHistory) return null;
 
   return (
     <Button

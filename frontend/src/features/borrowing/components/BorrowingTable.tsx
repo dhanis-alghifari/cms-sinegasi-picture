@@ -16,6 +16,7 @@ import { formatCurrency } from '@/shared/utils/formatCurrency';
 import { formatStatusLabel } from '@/shared/utils/formatLabels';
 import type { BorrowingRecord } from '../types/borrowing.types';
 import { AuditHistoryButton } from '@/features/audit/components/AuditHistoryButton';
+import { useCanViewAuditHistory } from '@/features/audit/hooks/useCanViewAuditHistory';
 
 interface BorrowingTableProps {
   borrowings: BorrowingRecord[];
@@ -46,6 +47,8 @@ export function BorrowingTable({
   reportStudentId,
   canVerifyReturn = false,
 }: BorrowingTableProps) {
+  const canViewAuditHistory = useCanViewAuditHistory();
+
   if (borrowings.length === 0) {
     return (
       <EmptyState
@@ -66,7 +69,7 @@ export function BorrowingTable({
             <TableHead className="text-ink-subtle text-xs font-semibold">Tgl Pinjam / Rencana Kembali</TableHead>
             <TableHead className="text-ink-subtle text-xs font-semibold">Status Peminjaman</TableHead>
             <TableHead className="text-ink-subtle text-xs font-semibold">Tagihan (Jika ada)</TableHead>
-            <TableHead className="text-right text-ink-subtle text-xs font-semibold">Riwayat</TableHead>
+            {canViewAuditHistory && <TableHead className="text-right text-ink-subtle text-xs font-semibold">Riwayat</TableHead>}
             {(canManage || canReportReturn || canVerifyReturn) && <TableHead className="text-right text-ink-subtle text-xs font-semibold">Aksi Workflow</TableHead>}
           </TableRow>
         </TableHeader>
@@ -132,7 +135,7 @@ export function BorrowingTable({
                 )}
               </TableCell>
 
-              <TableCell className="text-right"><AuditHistoryButton tableName="borrowings" recordId={b.id} /></TableCell>
+              {canViewAuditHistory && <TableCell className="text-right"><AuditHistoryButton tableName="borrowings" recordId={b.id} /></TableCell>}
 
               {/* Action Buttons */}
               {(canManage || canReportReturn || canVerifyReturn) && (
