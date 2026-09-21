@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import '@/app/styles/fonts.css';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, KeyRound, LogOut, MoreHorizontal } from 'lucide-react';
+import { ArrowLeft, ChevronDown, KeyRound, LogOut, MoreHorizontal } from 'lucide-react';
 import { cn } from '@/shared/utils/cn';
 import { Button } from '@/shared/ui/primitives/button';
 import { Separator } from '@/shared/ui/primitives/separator';
@@ -14,8 +14,10 @@ import { NotificationDropdown } from '@/features/notifications/components/Notifi
 import {
   getMobileNavigationItems,
   getNavigationLabel,
-  getVisibleNavigationItems,
+  getVisibleNavigationGroups,
+  isNavigationItemActive,
   type NavigationItem,
+  type NavigationGroup,
 } from '@/app/navigation/navigationPolicy';
 
 export function DashboardLayout() {
@@ -25,19 +27,44 @@ export function DashboardLayout() {
   const location = useLocation();
   const isMobile = useIsMobile();
 
-  const visibleNavItems = getVisibleNavigationItems(user);
+  const visibleNavigationGroups = getVisibleNavigationGroups(user);
   const mobileNavItems = getMobileNavigationItems(user);
-  const mobileSecondaryItems = visibleNavItems.filter(
-    (item) => !mobileNavItems.some((mobileItem) => mobileItem.id === item.id),
-  );
+  const mobileNavigationItemIds = new Set(mobileNavItems.map((item) => item.id));
+  const mobileSecondaryGroups = visibleNavigationGroups.flatMap((group) => {
+    const items = group.items.filter((item) => !mobileNavigationItemIds.has(item.id));
+    if (items.length === 0) return [];
+
+    return [{
+      ...group,
+      items,
+      collapsible: group.collapsible && items.length > 1,
+    }];
+  });
   const pageLabel = getNavigationLabel(location.pathname);
+  const activeGroupId = visibleNavigationGroups.find((group) => (
+    group.collapsible && group.items.some((item) => isNavigationItemActive(item, location.pathname))
+  ))?.id ?? null;
+  const [expandedGroupState, setExpandedGroupState] = useState<{ pathname: string; groupId: string | null }>({
+    pathname: location.pathname,
+    groupId: activeGroupId,
+  });
+  const expandedGroupId = expandedGroupState.pathname === location.pathname
+    ? expandedGroupState.groupId
+    : activeGroupId;
+
+  const toggleGroup = (groupId: string): void => {
+    setExpandedGroupState({
+      pathname: location.pathname,
+      groupId: expandedGroupId === groupId ? null : groupId,
+    });
+  };
 
   const handleLogout = () => {
     logout();
     navigate('/login', { replace: true });
   };
 
-  const renderNavItem = (item: NavigationItem, mobile = false) => {
+  const renderNavItem = (item: NavigationItem, mobile = false, nested = false) => {
     const Icon = item.icon;
     return (
       <NavLink
@@ -47,7 +74,7 @@ export function DashboardLayout() {
         className={({ isActive }) => cn(
           mobile
             ? 'flex min-h-16 min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-lg px-1 py-2 text-[11px]'
-            : 'flex min-h-10 items-center gap-2.5 rounded-md px-3 py-2 text-sm',
+            : cn('flex min-h-11 items-center gap-2.5 rounded-md py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-primary focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar', nested ? 'pl-9 pr-3' : 'px-3'),
           isActive
             ? 'bg-sidebar-accent text-sidebar-primary font-medium'
             : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground',
@@ -59,15 +86,69 @@ export function DashboardLayout() {
     );
   };
 
+  const renderDesktopGroup = (group: NavigationGroup) => {
+    if (!group.collapsible) {
+      const item = group.items[0];
+      return item ? <li key={group.id}>{renderNavItem(item)}</li> : null;
+    }
+
+    const GroupIcon = group.icon;
+    const isExpanded = expandedGroupId === group.id;
+    const isActive = group.items.some((item) => isNavigationItemActive(item, location.pathname));
+    const groupContentId = `sidebar-group-${group.id}`;
+
+    return (
+      <li key={group.id}>
+        <button
+          type="button"
+          onClick={() => toggleGroup(group.id)}
+          className={cn(
+            'flex min-h-11 w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-primary focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar',
+            isActive || isExpanded
+              ? 'bg-sidebar-accent/80 text-sidebar-foreground'
+              : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground',
+          )}
+          aria-expanded={isExpanded}
+          aria-controls={groupContentId}
+        >
+          <GroupIcon size={17} strokeWidth={1.75} aria-hidden="true" />
+          <span>{group.label}</span>
+          <ChevronDown size={15} className={cn('ml-auto transition-transform duration-150 motion-reduce:transition-none', isExpanded && 'rotate-180')} aria-hidden="true" />
+        </button>
+        <ul id={groupContentId} hidden={!isExpanded} className="mt-0.5 space-y-0.5" aria-label={`Menu ${group.label}`}>
+          {group.items.map((item) => <li key={item.id}>{renderNavItem(item, false, true)}</li>)}
+        </ul>
+      </li>
+    );
+  };
+
+  const renderMobileSheetItem = (item: NavigationItem) => {
+    const Icon = item.icon;
+    return (
+      <NavLink
+        key={item.id}
+        to={item.to}
+        onClick={() => setIsMoreOpen(false)}
+        className={({ isActive }) => cn(
+          'flex min-h-11 items-center gap-3 rounded-lg border border-hairline px-3 text-sm text-ink-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
+          isActive ? 'border-primary/50 bg-primary/10 text-primary' : 'bg-surface-2 hover:bg-surface-3 hover:text-ink',
+        )}
+      >
+        <Icon size={18} aria-hidden="true" />
+        <span>{item.label}</span>
+      </NavLink>
+    );
+  };
+
   return (
-    <div className="flex h-full h-dvh overflow-hidden bg-canvas">
+    <div className="flex h-dvh min-h-0 overflow-hidden bg-canvas">
       <a
         href="#main-content"
         className="sr-only z-50 rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground focus:not-sr-only focus:fixed focus:left-3 focus:top-3"
       >
         Lewati ke konten utama
       </a>
-      <aside className="hidden w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground lg:flex">
+      <aside className="hidden min-h-0 w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground lg:flex">
         <div className="flex h-14 shrink-0 items-center gap-2.5 border-b border-sidebar-border px-4">
           <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-sidebar-primary">
             <span className="text-xs font-bold text-sidebar-primary-foreground">S</span>
@@ -75,9 +156,9 @@ export function DashboardLayout() {
           <span className="text-sm font-semibold tracking-tight text-sidebar-foreground">Sinegasi CMS</span>
         </div>
 
-        <nav className="flex-1 px-2 py-3" aria-label="Navigasi utama">
-          <ul className="space-y-0.5">
-            {visibleNavItems.map((item) => <li key={item.id}>{renderNavItem(item)}</li>)}
+        <nav className="min-h-0 flex-1 overflow-hidden px-2 py-3" aria-label="Navigasi utama">
+          <ul className="space-y-1">
+            {visibleNavigationGroups.map(renderDesktopGroup)}
           </ul>
         </nav>
 
@@ -141,14 +222,30 @@ export function DashboardLayout() {
             <SheetTitle className="text-ink">Menu lainnya</SheetTitle>
             <SheetDescription className="text-ink-subtle">Pilih modul yang tersedia untuk peran Anda.</SheetDescription>
           </SheetHeader>
-          <div className="min-h-0 flex-1 grid grid-cols-2 gap-2 overflow-y-auto px-4 pb-2 [scroll-padding-bottom:1rem]">
-            {mobileSecondaryItems.map((item) => {
-              const Icon = item.icon;
+          <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-4 pb-2 [scroll-padding-bottom:1rem]">
+            {mobileSecondaryGroups.map((group) => {
+              if (!group.collapsible) return renderMobileSheetItem(group.items[0]);
+
+              const isExpanded = expandedGroupId === group.id;
+              const groupContentId = `mobile-menu-group-${group.id}`;
+              const GroupIcon = group.icon;
               return (
-                <NavLink key={item.id} to={item.to} onClick={() => setIsMoreOpen(false)} className={({ isActive }) => cn('flex min-h-14 items-center gap-3 rounded-xl border border-hairline px-3 text-sm text-ink-subtle', isActive ? 'border-primary/50 bg-primary/10 text-primary' : 'bg-surface-2 hover:bg-surface-3 hover:text-ink')}>
-                  <Icon size={18} aria-hidden="true" />
-                  <span>{item.label}</span>
-                </NavLink>
+                <div key={group.id} className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(group.id)}
+                    className="flex min-h-11 w-full items-center gap-3 rounded-lg border border-hairline bg-surface-2 px-3 text-left text-sm text-ink-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                    aria-expanded={isExpanded}
+                    aria-controls={groupContentId}
+                  >
+                    <GroupIcon size={18} aria-hidden="true" />
+                    <span>{group.label}</span>
+                    <ChevronDown size={16} className={cn('ml-auto transition-transform duration-150 motion-reduce:transition-none', isExpanded && 'rotate-180')} aria-hidden="true" />
+                  </button>
+                  <div id={groupContentId} hidden={!isExpanded} className="grid grid-cols-2 gap-2 pl-2">
+                    {group.items.map(renderMobileSheetItem)}
+                  </div>
+                </div>
               );
             })}
             <NavLink to="/pengaturan/keamanan" onClick={() => setIsMoreOpen(false)} className="flex min-h-14 items-center gap-3 rounded-xl border border-hairline bg-surface-2 px-3 text-sm text-ink-subtle hover:bg-surface-3 hover:text-ink">
