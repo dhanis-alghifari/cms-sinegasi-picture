@@ -22,6 +22,8 @@ interface CashTransactionTableProps {
   onDispute?: (transaction: CashTransaction) => void;
   isStudent: boolean;
   disputeQuota?: CashDisputeQuota;
+  hasActivePendingDispute?: boolean;
+  isPendingStatusLoading?: boolean;
 }
 
 export function CashTransactionTable({
@@ -29,6 +31,8 @@ export function CashTransactionTable({
   onDispute,
   isStudent,
   disputeQuota,
+  hasActivePendingDispute = false,
+  isPendingStatusLoading = false,
 }: CashTransactionTableProps) {
   const canViewAuditHistory = useCanViewAuditHistory();
 
@@ -104,6 +108,8 @@ export function CashTransactionTable({
                       <CashDisputeAction
                         dispute={tx.dispute}
                         quota={disputeQuota}
+                        hasActivePendingDispute={hasActivePendingDispute}
+                        isPendingStatusLoading={isPendingStatusLoading}
                         onSubmit={() => onDispute(tx)}
                       />
                     )}

@@ -15,6 +15,8 @@ type CashDisputeActionProps = CashDisputeStatusProps & {
   quota?: CashDisputeQuota;
   settled?: boolean;
   fullWidth?: boolean;
+  hasActivePendingDispute?: boolean;
+  isPendingStatusLoading?: boolean;
   onSubmit: () => void;
 };
 
@@ -30,12 +32,20 @@ export function CashDisputeAction({
   quota,
   settled = false,
   fullWidth = false,
+  hasActivePendingDispute = false,
+  isPendingStatusLoading = false,
   onSubmit,
 }: CashDisputeActionProps) {
-  const action = getDisputeAction(dispute, quota, settled);
+  const action = getDisputeAction(
+    dispute,
+    quota,
+    settled,
+    hasActivePendingDispute,
+    isPendingStatusLoading,
+  );
 
   if (!action.canSubmit) {
-    const isPending = dispute?.status === 'pending';
+    const isPending = dispute?.status === 'pending' || hasActivePendingDispute || isPendingStatusLoading;
     const isApproved = dispute?.status === 'approved' || dispute?.status === 'resolved';
     let Icon = AlertCircle;
     if (isPending) Icon = Clock3;

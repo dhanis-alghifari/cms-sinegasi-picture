@@ -7,7 +7,6 @@ import { formatDateShort } from '@/shared/utils/formatDate';
 import { formatPaymentMethodLabel } from '@/shared/utils/formatLabels';
 
 import type { CashDisputeQuota, CashTransaction } from '../types/cash.types';
-import { getDisputeAction } from '../utils/disputeState';
 import { CashDisputeAction, CashDisputeStatus } from './CashDisputeState';
 
 interface CashTransactionMobileListProps {
@@ -15,6 +14,8 @@ interface CashTransactionMobileListProps {
   onDispute?: (transaction: CashTransaction) => void;
   isStudent: boolean;
   disputeQuota?: CashDisputeQuota;
+  hasActivePendingDispute?: boolean;
+  isPendingStatusLoading?: boolean;
 }
 
 export function CashTransactionMobileList({
@@ -22,6 +23,8 @@ export function CashTransactionMobileList({
   onDispute,
   isStudent,
   disputeQuota,
+  hasActivePendingDispute = false,
+  isPendingStatusLoading = false,
 }: CashTransactionMobileListProps) {
   if (transactions.length === 0) {
     return (
@@ -36,7 +39,6 @@ export function CashTransactionMobileList({
     <div className="space-y-3" aria-label="Daftar transaksi kas versi ponsel">
       {transactions.map((transaction) => {
         const isIncome = transaction.tipe === 'masuk';
-        const disputeAction = getDisputeAction(transaction.dispute, disputeQuota);
         const canDispute = isStudent && isIncome && Boolean(onDispute);
 
         return (
@@ -82,11 +84,13 @@ export function CashTransactionMobileList({
               </div>
             )}
 
-            {canDispute && disputeAction.canSubmit && (
+            {canDispute && (
               <div className="mt-3 flex justify-end border-t border-hairline pt-3">
                 <CashDisputeAction
                   dispute={transaction.dispute}
                   quota={disputeQuota}
+                  hasActivePendingDispute={hasActivePendingDispute}
+                  isPendingStatusLoading={isPendingStatusLoading}
                   fullWidth
                   onSubmit={() => onDispute?.(transaction)}
                 />

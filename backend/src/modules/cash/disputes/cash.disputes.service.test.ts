@@ -23,6 +23,29 @@ test('cash dispute service enforces ownership and duplicate protection', async (
   await assert.rejects(() => disputes.create({ transaction_id: 'tx-1', reason: 'Nominal belum sesuai catatan saya', bukti_sanggahan_url: proofUrl }, 'member-2', 'key-0003', 'student-2'), (error: unknown) => error instanceof CashDisputesServiceError && error.statusCode === 403);
 });
 
+test('cash dispute service blocks a second target while another dispute is pending', async () => {
+  const memory = {
+    transactions: [
+      {
+        id: 'tx-1', type: 'iuran_wajib' as const, nominal: 5000, keterangan: 'Iuran pertama', tanggal: '2026-08-01', student_id: 'student-1',
+        idempotency_key: 'id-1', created_by: 'teacher-1', created_at: '2026-08-01T08:00:00.000Z', is_billing: false,
+        payment_method_code: 'cash', payment_method_label: 'Cash',
+      },
+      {
+        id: 'tx-2', type: 'iuran_wajib' as const, nominal: 5000, keterangan: 'Iuran kedua', tanggal: '2026-08-02', student_id: 'student-1',
+        idempotency_key: 'id-2', created_by: 'teacher-1', created_at: '2026-08-02T08:00:00.000Z', is_billing: false,
+        payment_method_code: 'cash', payment_method_label: 'Cash',
+      },
+    ],
+  };
+  const disputes = new CashDisputesService(createCashDisputesRepository(null, memory));
+  await disputes.create({ transaction_id: 'tx-1', reason: 'Nominal belum sesuai catatan saya', bukti_sanggahan_url: proofUrl }, 'member-1', 'key-0101', 'student-1');
+  await assert.rejects(
+    () => disputes.create({ transaction_id: 'tx-2', reason: 'Catatan kedua juga perlu diperiksa', bukti_sanggahan_url: proofUrl }, 'member-1', 'key-0102', 'student-1'),
+    (error: unknown) => error instanceof CashDisputesServiceError && error.statusCode === 409 && error.errorCode === 'DISPUTE_PENDING',
+  );
+});
+
 test('cash dispute service resolves legacy resolved status to approved', async () => {
   const disputes = service();
   const created = await disputes.create({ transaction_id: 'tx-1', reason: 'Nominal belum sesuai catatan saya', bukti_sanggahan_url: proofUrl }, 'member-1', 'key-0001', 'student-1');

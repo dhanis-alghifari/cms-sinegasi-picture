@@ -20,6 +20,7 @@ import {
   useCashDebtsQuery,
   useBillingRulesQuery,
   useCashReportQuery,
+  useCashDisputesQuery,
   useCashDisputeQuotaQuery,
 } from "../hooks/useCashQuery";
 
@@ -162,8 +163,16 @@ export function CashPage() {
     isTreasurerOrTeacher && isReportView && !reportRangeError,
   );
   const { data: rulesData } = useBillingRulesQuery(cashInOpen || rulesOpen);
+  const {
+    data: pendingDisputesData,
+    isLoading: isPendingDisputeStatusLoading,
+  } = useCashDisputesQuery(
+    { scope: 'own', status: 'pending', limit: 1 },
+    isOwnScope && canSubmitDispute,
+  );
   const { data: disputeQuotaData } = useCashDisputeQuotaQuery(isOwnScope && canSubmitDispute);
   const disputeQuota = disputeQuotaData?.data;
+  const hasActivePendingDispute = (pendingDisputesData?.data.length ?? 0) > 0;
 
   // Mutations
   const cashInMutation = useCreateCashInMutation();
@@ -233,12 +242,28 @@ export function CashPage() {
   };
 
   const handleOpenDispute = (tx: CashTransaction) => {
+    if (isPendingDisputeStatusLoading || hasActivePendingDispute) {
+      toast.add({
+        type: "info",
+        title: "Sanggahan sedang diproses",
+        description: "Tunggu pemeriksaan guru sebelum mengajukan sanggahan berikutnya.",
+      });
+      return;
+    }
     setDisputeTx(tx);
     setDisputeDebt(null);
     setDisputeOpen(true);
   };
 
   const handleOpenDebtDispute = (debt: DebtRecord) => {
+    if (isPendingDisputeStatusLoading || hasActivePendingDispute) {
+      toast.add({
+        type: "info",
+        title: "Sanggahan sedang diproses",
+        description: "Tunggu pemeriksaan guru sebelum mengajukan sanggahan berikutnya.",
+      });
+      return;
+    }
     setDisputeTx(null);
     setDisputeDebt(debt);
     setDisputeOpen(true);
@@ -410,6 +435,8 @@ export function CashPage() {
           onDisputeTransaction: handleOpenDispute,
           onDisputeDebt: handleOpenDebtDispute,
           disputeQuota,
+          hasActivePendingDispute,
+          isPendingStatusLoading: isPendingDisputeStatusLoading,
         }}
       />
 

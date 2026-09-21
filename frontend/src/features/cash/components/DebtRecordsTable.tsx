@@ -21,9 +21,11 @@ interface DebtRecordsTableProps {
   isStudent: boolean;
   onDispute?: (debt: DebtRecord) => void;
   disputeQuota?: CashDisputeQuota;
+  hasActivePendingDispute?: boolean;
+  isPendingStatusLoading?: boolean;
 }
 
-export function DebtRecordsTable({ debts, isStudent, onDispute, disputeQuota }: DebtRecordsTableProps) {
+export function DebtRecordsTable({ debts, isStudent, onDispute, disputeQuota, hasActivePendingDispute = false, isPendingStatusLoading = false }: DebtRecordsTableProps) {
   const canViewAuditHistory = useCanViewAuditHistory();
 
   if (debts.length === 0) {
@@ -72,6 +74,8 @@ export function DebtRecordsTable({ debts, isStudent, onDispute, disputeQuota }: 
                     <CashDisputeAction
                       dispute={debt.dispute}
                       quota={disputeQuota}
+                      hasActivePendingDispute={hasActivePendingDispute}
+                      isPendingStatusLoading={isPendingStatusLoading}
                       settled={debt.status === 'paid'}
                       onSubmit={() => onDispute(debt)}
                     />

@@ -332,6 +332,8 @@ export function createCashDisputesRepository(client: SupabaseLike, memory: CashD
           if (!targetMatches(idempotent, input.transactionId, input.debtRecordId)) return { data: null, error: businessError('IDEMPOTENCY_KEY_REUSED') };
           return { data: { dispute: withoutEvidence(idempotent), quota: buildMemoryQuota(memoryDisputes, input.studentId), idempotentReplay: true }, error: null };
         }
+        const pending = memoryDisputes.find((item) => item.student_id === input.studentId && item.status === 'pending');
+        if (pending) return { data: null, error: businessError('DISPUTE_PENDING') };
         const active = memoryDisputes.find((item) => targetMatches(item, input.transactionId, input.debtRecordId) && ['pending', 'approved'].includes(item.status));
         if (active) return { data: null, error: businessError(active.status === 'pending' ? 'DISPUTE_PENDING' : 'DISPUTE_ALREADY_APPROVED') };
         const quota = buildMemoryQuota(memoryDisputes, input.studentId);

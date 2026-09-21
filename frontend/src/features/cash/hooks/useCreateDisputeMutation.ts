@@ -72,5 +72,13 @@ export function useCreateDisputeMutation() {
         QUERY_KEYS.CASH_DISPUTE_QUOTA,
       ]);
     },
+    onError: async () => {
+      await invalidateActiveQueries(queryClient, [
+        QUERY_KEYS.CASH_TRANSACTIONS,
+        QUERY_KEYS.CASH_DEBT_RECORDS,
+        QUERY_KEYS.CASH_DISPUTES,
+        QUERY_KEYS.CASH_DISPUTE_QUOTA,
+      ]);
+    },
   });
 }

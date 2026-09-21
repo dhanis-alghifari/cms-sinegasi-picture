@@ -56,7 +56,17 @@ export function useBillingRulesQuery(enabled = true) {
   });
 }
 
-export function useCashDisputesQuery(params?: { scope?: CashScope; page?: number; pageSize?: number; status?: DisputeStatus }, enabled = true) {
+export function useCashDisputesQuery(
+  params?: {
+    scope?: CashScope;
+    page?: number;
+    pageSize?: number;
+    status?: DisputeStatus;
+    cursor?: string;
+    limit?: number;
+  },
+  enabled = true,
+) {
   return useQuery({
     queryKey: [...QUERY_KEYS.CASH_DISPUTES, params],
     queryFn: () => cashService.getDisputes(params),

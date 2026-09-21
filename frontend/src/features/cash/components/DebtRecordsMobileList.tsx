@@ -5,7 +5,6 @@ import { formatCurrency } from '@/shared/utils/formatCurrency';
 import { formatDateShort } from '@/shared/utils/formatDate';
 
 import type { CashDisputeQuota, DebtRecord } from '../types/cash.types';
-import { getDisputeAction } from '../utils/disputeState';
 import { CashDisputeAction, CashDisputeStatus } from './CashDisputeState';
 
 interface DebtRecordsMobileListProps {
@@ -13,9 +12,11 @@ interface DebtRecordsMobileListProps {
   isStudent: boolean;
   onDispute?: (debt: DebtRecord) => void;
   disputeQuota?: CashDisputeQuota;
+  hasActivePendingDispute?: boolean;
+  isPendingStatusLoading?: boolean;
 }
 
-export function DebtRecordsMobileList({ debts, isStudent, onDispute, disputeQuota }: DebtRecordsMobileListProps) {
+export function DebtRecordsMobileList({ debts, isStudent, onDispute, disputeQuota, hasActivePendingDispute = false, isPendingStatusLoading = false }: DebtRecordsMobileListProps) {
   if (debts.length === 0) {
     return (
       <EmptyState
@@ -28,8 +29,6 @@ export function DebtRecordsMobileList({ debts, isStudent, onDispute, disputeQuot
   return (
     <div className="space-y-3" aria-label="Daftar tunggakan siswa versi ponsel">
       {debts.map((debt) => {
-        const disputeAction = getDisputeAction(debt.dispute, disputeQuota, debt.status === 'paid');
-
         return (
           <article key={debt.id} className="rounded-xl border border-hairline bg-surface-1 p-3 shadow-sm sm:p-4">
             <div className="flex items-start justify-between gap-3">
@@ -58,9 +57,17 @@ export function DebtRecordsMobileList({ debts, isStudent, onDispute, disputeQuot
 
             {debt.dispute && <div className="mt-2"><CashDisputeStatus dispute={debt.dispute} /></div>}
 
-            {isStudent && onDispute && disputeAction.canSubmit && (
+            {isStudent && onDispute && (
               <div className="mt-3 flex justify-end border-t border-hairline pt-3">
-                <CashDisputeAction dispute={debt.dispute} quota={disputeQuota} settled={debt.status === 'paid'} fullWidth onSubmit={() => onDispute(debt)} />
+                <CashDisputeAction
+                  dispute={debt.dispute}
+                  quota={disputeQuota}
+                  hasActivePendingDispute={hasActivePendingDispute}
+                  isPendingStatusLoading={isPendingStatusLoading}
+                  settled={debt.status === 'paid'}
+                  fullWidth
+                  onSubmit={() => onDispute(debt)}
+                />
               </div>
             )}
           </article>
