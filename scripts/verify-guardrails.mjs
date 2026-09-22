@@ -35,6 +35,7 @@ console.log('🛡️  Running Deployment & Infrastructure Guardrail Checks...\n'
 // ============================================================================
 const devWorkflow = readFile('.github/workflows/deploy-dev.yml');
 const prodWorkflow = readFile('.github/workflows/deploy-prod.yml');
+const devDeployScript = readFile('ops/deploy-dev.sh');
 
 // Rule 1.1: Never use --remove-orphans in deploy workflows (kills Caddy/other compose services)
 assert(
@@ -46,20 +47,37 @@ assert(
   '[GUARDRAIL VIOLATION] .github/workflows/deploy-prod.yml contains "--remove-orphans". This kills caddy-proxy! Remove it.'
 );
 
-// Rule 1.2: Must explicitly ensure caddy proxy is started
+// Rule 1.2: Development deploy must protect the existing Caddy container;
+// production may start its explicitly managed Caddy service.
 assert(
-  devWorkflow.includes('docker-compose.caddy.yml up -d'),
-  '[GUARDRAIL VIOLATION] .github/workflows/deploy-dev.yml must run "docker compose -f docker-compose.caddy.yml up -d" before starting api container.'
+  !devWorkflow.includes('docker-compose.caddy.yml up -d'),
+  '[GUARDRAIL VIOLATION] .github/workflows/deploy-dev.yml must not recreate Caddy; it must use the guarded deploy script.'
 );
 assert(
   prodWorkflow.includes('docker-compose.caddy.yml up -d'),
   '[GUARDRAIL VIOLATION] .github/workflows/deploy-prod.yml must run "docker compose -f docker-compose.caddy.yml up -d" before starting api container.'
 );
+assert(
+  devWorkflow.includes('./ops/deploy-dev.sh'),
+  '[GUARDRAIL VIOLATION] .github/workflows/deploy-dev.yml must deploy through ./ops/deploy-dev.sh so migrations and Caddy protection are enforced.'
+);
+assert(
+  devWorkflow.includes("VPS_HOST_PUBLIC_KEY") && prodWorkflow.includes("VPS_HOST_PUBLIC_KEY"),
+  '[GUARDRAIL VIOLATION] Deploy workflows must pin the VPS SSH host key through the VPS_HOST_PUBLIC_KEY secret.'
+);
+assert(
+  !devWorkflow.includes('StrictHostKeyChecking=no') && !prodWorkflow.includes('StrictHostKeyChecking=no'),
+  '[GUARDRAIL VIOLATION] Deploy workflows must not disable SSH host-key verification.'
+);
+assert(
+  devDeployScript.includes('CADDY_CONTAINER') && devDeployScript.includes('is_caddy_running'),
+  '[GUARDRAIL VIOLATION] ops/deploy-dev.sh must verify the existing Caddy container before and after deployment.'
+);
 
 // Rule 1.3: Must use --force-recreate so containers actually update
 assert(
-  devWorkflow.includes('--force-recreate'),
-  '[GUARDRAIL VIOLATION] .github/workflows/deploy-dev.yml must use "--force-recreate" to ensure container code updates are applied.'
+  devDeployScript.includes('--force-recreate'),
+  '[GUARDRAIL VIOLATION] ops/deploy-dev.sh must use "--force-recreate" to ensure container code updates are applied.'
 );
 assert(
   prodWorkflow.includes('--force-recreate'),

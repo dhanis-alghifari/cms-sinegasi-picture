@@ -52,7 +52,10 @@ jobs:
           fi
           echo "" >> ~/.ssh/id_deploy
           chmod 600 ~/.ssh/id_deploy
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_deploy -p 22 "$VPS_USER@$VPS_HOST" << 'EOF'
+          test -n "$VPS_HOST_PUBLIC_KEY"
+          printf '%s %s\n' "$VPS_HOST" "$VPS_HOST_PUBLIC_KEY" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -i ~/.ssh/id_deploy -p 22 "$VPS_USER@$VPS_HOST" << 'EOF'
             set -e
             cd /opt/sinegasi
             git fetch origin main
@@ -67,3 +70,4 @@ jobs:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
           VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_HOST_PUBLIC_KEY: ${{ secrets.VPS_HOST_PUBLIC_KEY }}
