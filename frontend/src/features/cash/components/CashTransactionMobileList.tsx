@@ -14,8 +14,6 @@ interface CashTransactionMobileListProps {
   onDispute?: (transaction: CashTransaction) => void;
   isStudent: boolean;
   disputeQuota?: CashDisputeQuota;
-  hasActivePendingDispute?: boolean;
-  isPendingStatusLoading?: boolean;
 }
 
 export function CashTransactionMobileList({
@@ -23,8 +21,6 @@ export function CashTransactionMobileList({
   onDispute,
   isStudent,
   disputeQuota,
-  hasActivePendingDispute = false,
-  isPendingStatusLoading = false,
 }: CashTransactionMobileListProps) {
   if (transactions.length === 0) {
     return (
@@ -78,19 +74,17 @@ export function CashTransactionMobileList({
               </div>
             </div>
 
-            {transaction.dispute && (
-              <div className="mt-2">
-                <CashDisputeStatus dispute={transaction.dispute} />
-              </div>
-            )}
+            <div className="mt-2">
+              <CashDisputeStatus
+                dispute={transaction.dispute}
+              />
+            </div>
 
             {canDispute && (
               <div className="mt-3 flex justify-end border-t border-hairline pt-3">
                 <CashDisputeAction
                   dispute={transaction.dispute}
                   quota={disputeQuota}
-                  hasActivePendingDispute={hasActivePendingDispute}
-                  isPendingStatusLoading={isPendingStatusLoading}
                   fullWidth
                   onSubmit={() => onDispute?.(transaction)}
                 />

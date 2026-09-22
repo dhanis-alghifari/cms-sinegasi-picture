@@ -100,8 +100,6 @@ type CashPageTabsProps = {
     onDisputeTransaction: (transaction: CashTransaction) => void;
     onDisputeDebt: (debt: DebtRecord) => void;
     disputeQuota?: CashDisputeQuota;
-    hasActivePendingDispute: boolean;
-    isPendingStatusLoading: boolean;
   };
 };
 
@@ -197,8 +195,6 @@ export function CashPageTabs({
     onDisputeTransaction,
     onDisputeDebt,
     disputeQuota,
-    hasActivePendingDispute,
-    isPendingStatusLoading,
   } = actions;
   const isActivityView = currentView === 'activity';
   const isTransactionsView = currentView === 'transactions';
@@ -238,8 +234,8 @@ export function CashPageTabs({
 
     const transactions = txData?.data ?? [];
     const list = isMobile
-      ? <CashTransactionMobileList transactions={transactions} onDispute={onDisputeTransaction} isStudent={isStudent} disputeQuota={disputeQuota} hasActivePendingDispute={hasActivePendingDispute} isPendingStatusLoading={isPendingStatusLoading} />
-      : <CashTransactionTable transactions={transactions} onDispute={onDisputeTransaction} isStudent={isStudent} disputeQuota={disputeQuota} hasActivePendingDispute={hasActivePendingDispute} isPendingStatusLoading={isPendingStatusLoading} />;
+      ? <CashTransactionMobileList transactions={transactions} onDispute={onDisputeTransaction} isStudent={isStudent} disputeQuota={disputeQuota} />
+      : <CashTransactionTable transactions={transactions} onDispute={onDisputeTransaction} isStudent={isStudent} disputeQuota={disputeQuota} />;
 
     return (
       <div className="space-y-4">
@@ -263,8 +259,8 @@ export function CashPageTabs({
 
     const debts = debtsData?.data ?? [];
     const list = isMobile
-      ? <DebtRecordsMobileList debts={debts} isStudent={isStudent} onDispute={onDisputeDebt} disputeQuota={disputeQuota} hasActivePendingDispute={hasActivePendingDispute} isPendingStatusLoading={isPendingStatusLoading} />
-      : <DebtRecordsTable debts={debts} isStudent={isStudent} onDispute={onDisputeDebt} disputeQuota={disputeQuota} hasActivePendingDispute={hasActivePendingDispute} isPendingStatusLoading={isPendingStatusLoading} />;
+      ? <DebtRecordsMobileList debts={debts} isStudent={isStudent} onDispute={onDisputeDebt} disputeQuota={disputeQuota} />
+      : <DebtRecordsTable debts={debts} isStudent={isStudent} onDispute={onDisputeDebt} disputeQuota={disputeQuota} />;
 
     return (
       <div className="space-y-4">

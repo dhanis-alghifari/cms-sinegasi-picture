@@ -23,7 +23,7 @@ test('cash dispute service enforces ownership and duplicate protection', async (
   await assert.rejects(() => disputes.create({ transaction_id: 'tx-1', reason: 'Nominal belum sesuai catatan saya', bukti_sanggahan_url: proofUrl }, 'member-2', 'key-0003', 'student-2'), (error: unknown) => error instanceof CashDisputesServiceError && error.statusCode === 403);
 });
 
-test('cash dispute service blocks a second target while another dispute is pending', async () => {
+test('cash dispute service permits a second target while another dispute is pending', async () => {
   const memory = {
     transactions: [
       {
@@ -40,10 +40,13 @@ test('cash dispute service blocks a second target while another dispute is pendi
   };
   const disputes = new CashDisputesService(createCashDisputesRepository(null, memory));
   await disputes.create({ transaction_id: 'tx-1', reason: 'Nominal belum sesuai catatan saya', bukti_sanggahan_url: proofUrl }, 'member-1', 'key-0101', 'student-1');
-  await assert.rejects(
-    () => disputes.create({ transaction_id: 'tx-2', reason: 'Catatan kedua juga perlu diperiksa', bukti_sanggahan_url: proofUrl }, 'member-1', 'key-0102', 'student-1'),
-    (error: unknown) => error instanceof CashDisputesServiceError && error.statusCode === 409 && error.errorCode === 'DISPUTE_PENDING',
+  const second = await disputes.create(
+    { transaction_id: 'tx-2', reason: 'Catatan kedua juga perlu diperiksa', bukti_sanggahan_url: proofUrl },
+    'member-1',
+    'key-0102',
+    'student-1',
   );
+  assert.equal(second.dispute.status, 'pending');
 });
 
 test('cash dispute service resolves legacy resolved status to approved', async () => {

@@ -21,11 +21,9 @@ interface DebtRecordsTableProps {
   isStudent: boolean;
   onDispute?: (debt: DebtRecord) => void;
   disputeQuota?: CashDisputeQuota;
-  hasActivePendingDispute?: boolean;
-  isPendingStatusLoading?: boolean;
 }
 
-export function DebtRecordsTable({ debts, isStudent, onDispute, disputeQuota, hasActivePendingDispute = false, isPendingStatusLoading = false }: DebtRecordsTableProps) {
+export function DebtRecordsTable({ debts, isStudent, onDispute, disputeQuota }: DebtRecordsTableProps) {
   const canViewAuditHistory = useCanViewAuditHistory();
 
   if (debts.length === 0) {
@@ -66,7 +64,11 @@ export function DebtRecordsTable({ debts, isStudent, onDispute, disputeQuota, ha
                   variant={debt.status === 'paid' ? 'success' : 'danger'}
                 />
               </TableCell>
-              <TableCell><CashDisputeStatus dispute={debt.dispute} /></TableCell>
+              <TableCell>
+                <CashDisputeStatus
+                  dispute={debt.dispute}
+                />
+              </TableCell>
               {canViewAuditHistory && <TableCell className="text-right"><AuditHistoryButton tableName="debt_records" recordId={debt.id} /></TableCell>}
               {isStudent && (
                 <TableCell className="text-right">
@@ -74,8 +76,6 @@ export function DebtRecordsTable({ debts, isStudent, onDispute, disputeQuota, ha
                     <CashDisputeAction
                       dispute={debt.dispute}
                       quota={disputeQuota}
-                      hasActivePendingDispute={hasActivePendingDispute}
-                      isPendingStatusLoading={isPendingStatusLoading}
                       settled={debt.status === 'paid'}
                       onSubmit={() => onDispute(debt)}
                     />

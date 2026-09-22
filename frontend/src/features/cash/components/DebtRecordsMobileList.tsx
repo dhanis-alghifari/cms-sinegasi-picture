@@ -12,11 +12,9 @@ interface DebtRecordsMobileListProps {
   isStudent: boolean;
   onDispute?: (debt: DebtRecord) => void;
   disputeQuota?: CashDisputeQuota;
-  hasActivePendingDispute?: boolean;
-  isPendingStatusLoading?: boolean;
 }
 
-export function DebtRecordsMobileList({ debts, isStudent, onDispute, disputeQuota, hasActivePendingDispute = false, isPendingStatusLoading = false }: DebtRecordsMobileListProps) {
+export function DebtRecordsMobileList({ debts, isStudent, onDispute, disputeQuota }: DebtRecordsMobileListProps) {
   if (debts.length === 0) {
     return (
       <EmptyState
@@ -55,15 +53,17 @@ export function DebtRecordsMobileList({ debts, isStudent, onDispute, disputeQuot
               </div>
             </div>
 
-            {debt.dispute && <div className="mt-2"><CashDisputeStatus dispute={debt.dispute} /></div>}
+            <div className="mt-2">
+              <CashDisputeStatus
+                dispute={debt.dispute}
+              />
+            </div>
 
             {isStudent && onDispute && (
               <div className="mt-3 flex justify-end border-t border-hairline pt-3">
                 <CashDisputeAction
                   dispute={debt.dispute}
                   quota={disputeQuota}
-                  hasActivePendingDispute={hasActivePendingDispute}
-                  isPendingStatusLoading={isPendingStatusLoading}
                   settled={debt.status === 'paid'}
                   fullWidth
                   onSubmit={() => onDispute(debt)}

@@ -5,7 +5,7 @@ import { StatusBadge } from '@/shared/ui/StatusBadge';
 import { cn } from '@/shared/utils/cn';
 
 import type { CashDisputeQuota, CashDisputeSummary } from '../types/cash.types';
-import { getDisputeAction, getDisputePresentation } from '../utils/disputeState';
+import { getDisputeAction, getDisputePresentation, getDisputeStatus } from '../utils/disputeState';
 
 type CashDisputeStatusProps = {
   dispute?: CashDisputeSummary;
@@ -15,15 +15,14 @@ type CashDisputeActionProps = CashDisputeStatusProps & {
   quota?: CashDisputeQuota;
   settled?: boolean;
   fullWidth?: boolean;
-  hasActivePendingDispute?: boolean;
-  isPendingStatusLoading?: boolean;
   onSubmit: () => void;
 };
 
 export function CashDisputeStatus({ dispute }: CashDisputeStatusProps) {
-  if (!dispute) return <span className="text-xs text-ink-tertiary">-</span>;
+  const status = getDisputeStatus(dispute);
+  if (!status) return <span className="text-xs text-ink-tertiary">-</span>;
 
-  const presentation = getDisputePresentation(dispute.status);
+  const presentation = getDisputePresentation(status);
   return <StatusBadge label={presentation.label} variant={presentation.variant} />;
 }
 
@@ -32,21 +31,18 @@ export function CashDisputeAction({
   quota,
   settled = false,
   fullWidth = false,
-  hasActivePendingDispute = false,
-  isPendingStatusLoading = false,
   onSubmit,
 }: CashDisputeActionProps) {
-  const action = getDisputeAction(
+  const action = getDisputeAction({
     dispute,
     quota,
     settled,
-    hasActivePendingDispute,
-    isPendingStatusLoading,
-  );
+  });
 
   if (!action.canSubmit) {
-    const isPending = dispute?.status === 'pending' || hasActivePendingDispute || isPendingStatusLoading;
-    const isApproved = dispute?.status === 'approved' || dispute?.status === 'resolved';
+    const status = getDisputeStatus(dispute);
+    const isPending = status === 'pending';
+    const isApproved = status === 'approved' || status === 'resolved';
     let Icon = AlertCircle;
     if (isPending) Icon = Clock3;
     if (isApproved) Icon = CheckCircle2;
