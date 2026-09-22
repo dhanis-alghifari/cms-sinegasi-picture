@@ -25,7 +25,10 @@ function resolveMigrationDirectory(): string {
     path.resolve(__dirname, '../migrations'),
     path.resolve(__dirname, '../../src/migrations'),
   ];
-  const migrationDirectory = candidates.find((candidate) => fs.existsSync(candidate));
+  const migrationDirectory = candidates.find((candidate) => {
+    if (!fs.existsSync(candidate)) return false;
+    return fs.readdirSync(candidate).some((name) => migrationFilePattern.test(name));
+  });
   if (!migrationDirectory) throw new Error('Direktori migration tidak ditemukan.');
   return migrationDirectory;
 }
