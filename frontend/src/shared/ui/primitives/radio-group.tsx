@@ -11,7 +11,7 @@ export type RadioGroupOption<Value extends string> = {
 interface RadioGroupProps<Value extends string> {
   name: string;
   legend: ReactNode;
-  value: Value;
+  value: Value | null | undefined;
   options: readonly RadioGroupOption<Value>[];
   onValueChange: (value: Value) => void;
   disabled?: boolean;
@@ -29,36 +29,39 @@ export function RadioGroup<Value extends string>({
 }: RadioGroupProps<Value>) {
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // 1. Simpan posisi 'left' dan lebar 'width' pill putih
-  const [indicator, setIndicator] = useState({ left: 0, width: 0 });
+  // Keep the indicator aligned with the selected option in both row and
+  // column layouts. Mobile switches the options to a column, so width/left
+  // alone would incorrectly make the highlight span the entire group.
+  const [indicator, setIndicator] = useState({ top: 0, left: 0, width: 0, height: 0 });
 
-  // 2. Ukur posisi opsi yang sedang aktif (berdasarkan data-checked)
   const updateIndicator = useCallback(() => {
     const container = containerRef.current;
     if (!container) return;
 
     const activeItem = container.querySelector<HTMLElement>('[data-checked="true"]');
-    if (!activeItem) return;
+    if (!activeItem) {
+      setIndicator({ top: 0, left: 0, width: 0, height: 0 });
+      return;
+    }
 
     setIndicator({
+      top: activeItem.offsetTop,
       left: activeItem.offsetLeft,
       width: activeItem.offsetWidth,
+      height: activeItem.offsetHeight,
     });
   }, []);
 
-  // 3. Jalankan ulang pengukuran saat nilai aktif berubah
   useEffect(() => {
     updateIndicator();
   }, [value, updateIndicator]);
 
-  // 4. Jalankan ulang jika ukuran layar/dialog berubah (responsif)
   useEffect(() => {
     const observer = new ResizeObserver(updateIndicator);
     if (containerRef.current) observer.observe(containerRef.current);
     return () => observer.disconnect();
   }, [updateIndicator]);
 
-  // 5. Handler saat opsi diklik
   const handleSelect = (event: ChangeEvent<HTMLInputElement>, optionValue: Value) => {
     if (event.currentTarget.checked) {
       onValueChange(optionValue);
@@ -69,21 +72,21 @@ export function RadioGroup<Value extends string>({
     <fieldset className={cn('min-w-0 space-y-1.5', className)} disabled={disabled}>
       <legend className="text-xs text-ink-subtle">{legend}</legend>
 
-      {/* Kotak bar abu-abu tempat tombol berada */}
       <div
         ref={containerRef}
         className="relative flex min-h-[var(--touch-target-min)] min-w-0 flex-col items-stretch gap-1 rounded-lg border border-hairline bg-surface-2 p-1 sm:flex-row md:min-h-9"
       >
-        {/* Satu pill putih yang meluncur mulus (spring physics) */}
         <motion.div
           aria-hidden="true"
           className={cn(
-            'pointer-events-none absolute top-1 bottom-1 z-0 rounded-md bg-surface-1 shadow-sm',
+            'pointer-events-none absolute z-0 rounded-md bg-surface-1 shadow-sm',
             indicator.width === 0 && 'opacity-0',
           )}
           animate={{
+            top: indicator.top,
             left: indicator.left,
             width: indicator.width,
+            height: indicator.height,
           }}
           transition={{
             type: 'spring',
@@ -93,7 +96,6 @@ export function RadioGroup<Value extends string>({
           }}
         />
 
-        {/* Daftar opsi pilihan */}
         {options.map((option) => {
           const isChecked = value === option.value;
           const isDisabled = disabled || option.disabled;
@@ -104,7 +106,6 @@ export function RadioGroup<Value extends string>({
               data-checked={isChecked}
               className="relative z-10 min-w-0 flex-1 cursor-pointer"
             >
-              {/* Radio input standar (tersembunyi tapi ramah keyboard & form accessibility) */}
               <input
                 type="radio"
                 name={name}
@@ -115,7 +116,6 @@ export function RadioGroup<Value extends string>({
                 className="peer sr-only"
               />
 
-              {/* Tampilan teks opsi */}
               <span
                 className={cn(
                   'relative flex min-h-[var(--touch-target-min)] w-full items-center justify-center rounded-md border border-transparent px-3 py-2 text-center text-xs font-medium text-ink-subtle transition-colors duration-200 hover:text-ink md:min-h-9',

@@ -16,7 +16,7 @@ import { FormattedNumberInput } from '@/shared/ui/FormattedNumberInput';
 import type { Equipment, EquipmentRecoveryCase, RecoveryType } from '../types/equipment.types';
 
 type RecoveryDialogMode = 'create' | 'repair' | 'replacement';
-type RecoveryField = 'changeReason' | 'photos' | 'inspection' | 'equipmentCode' | 'name';
+type RecoveryField = 'changeReason' | 'photos' | 'inspection' | 'equipmentCode' | 'name' | 'recoveryType';
 type RecoveryFieldErrors = Partial<Record<RecoveryField, string>>;
 
 interface EquipmentRecoveryDialogProps {
@@ -73,7 +73,7 @@ export function EquipmentRecoveryDialog({
     onCompleteRepair,
     onRegisterReplacement,
   } = submission;
-  const [recoveryType, setRecoveryType] = useState<RecoveryType>(() => equipment?.kondisi === 'hilang' ? 'replacement' : 'repair');
+  const [recoveryType, setRecoveryType] = useState<RecoveryType | null>(() => equipment?.kondisi === 'hilang' ? 'replacement' : null);
   const [condition, setCondition] = useState(() => conditionCodeByLabel[equipment?.kondisi || ''] || 'damaged');
   const [notes, setNotes] = useState('');
   const [changeReason, setChangeReason] = useState('');
@@ -106,12 +106,16 @@ export function EquipmentRecoveryDialog({
   const handleRecoveryTypeChange = (value: string) => {
     if (value !== 'repair' && value !== 'replacement') return;
     setRecoveryType(value);
+    clearFieldError('recoveryType');
   };
 
   const handleConditionChange = (nextCondition: string | null) => {
     if (!nextCondition) return;
     setCondition(nextCondition);
-    if (nextCondition === 'lost') setRecoveryType('replacement');
+    if (nextCondition === 'lost') {
+      setRecoveryType('replacement');
+      clearFieldError('recoveryType');
+    }
   };
 
   const handleCategoryChange = (nextCategory: string | null) => {
@@ -122,6 +126,9 @@ export function EquipmentRecoveryDialog({
     setLocalError(null);
     setFieldErrors({});
     const validationErrors: RecoveryFieldErrors = {};
+    if (mode === 'create' && !recoveryType) {
+      validationErrors.recoveryType = 'Pilih jenis tindak lanjut sebelum menyimpan.';
+    }
     if (changeReason.trim().length < 5) validationErrors.changeReason = 'Alasan perubahan minimal 5 karakter.';
     if (mode === 'repair' && photos.length < 2) {
       validationErrors.photos = 'Minimal 2 foto hasil pemeriksaan wajib diunggah.';
@@ -143,7 +150,10 @@ export function EquipmentRecoveryDialog({
       return;
     }
     try {
-      if (mode === 'create') await onCreate({ recovery_type: recoveryType, reported_condition: condition, notes: notes.trim() || undefined, change_reason: changeReason.trim() });
+      if (mode === 'create') {
+        if (!recoveryType) return;
+        await onCreate({ recovery_type: recoveryType, reported_condition: condition, notes: notes.trim() || undefined, change_reason: changeReason.trim() });
+      }
       else if (mode === 'repair') {
         if (!recoveryCase) throw new Error('Tindak lanjut perbaikan tidak ditemukan.');
         await onCompleteRepair({ case_id: recoveryCase.id, inspection_photos: photos, inspection_passed: true, actual_cost: actualCost, notes: notes.trim() || undefined, change_reason: changeReason.trim() });
@@ -166,7 +176,10 @@ export function EquipmentRecoveryDialog({
         <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
           {Boolean(localError || error) && <div role="alert" className="rounded border border-semantic-danger/30 bg-semantic-danger/10 px-3 py-2 text-xs text-semantic-danger">{localError || (error ? getErrorMessage(error) : null)}</div>}
           {mode === 'create' && <>
-            <RadioGroup name="recovery-type" legend="Jenis tindak lanjut *" value={recoveryType} options={condition === 'lost' ? [{ value: 'replacement', label: 'Ganti unit baru' }] : [{ value: 'repair', label: 'Perbaikan / servis' }, { value: 'replacement', label: 'Ganti unit baru' }]} onValueChange={handleRecoveryTypeChange} />
+            <div className="space-y-1">
+              <RadioGroup name="recovery-type" legend="Jenis tindak lanjut *" value={recoveryType} options={condition === 'lost' ? [{ value: 'replacement', label: 'Ganti unit baru' }] : [{ value: 'repair', label: 'Perbaikan / servis' }, { value: 'replacement', label: 'Ganti unit baru' }]} onValueChange={handleRecoveryTypeChange} />
+              <FieldError id="recovery-type-error" message={fieldErrors.recoveryType} />
+            </div>
             <div className="space-y-1"><Label htmlFor="recovery-condition">Kondisi yang dilaporkan *</Label><Select value={condition} onValueChange={handleConditionChange} required><SelectTrigger id="recovery-condition" className="bg-surface-2 text-xs"><SelectValue placeholder="Pilih kondisi" /></SelectTrigger><SelectContent>{conditionOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent></Select></div>
             <div className="space-y-1"><Label htmlFor="recovery-notes">Catatan</Label><Textarea id="recovery-notes" rows={3} value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Jelaskan kerusakan atau alasan penggantian." /></div>
           </>}

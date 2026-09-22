@@ -75,15 +75,15 @@ export function EquipmentAttentionTabs({
               </p>
             </div>
           </div>
-          <div className="flex shrink-0 flex-wrap gap-2">
+          <div className="grid w-full shrink-0 gap-2 sm:flex sm:w-auto sm:flex-wrap">
             {recoveryCount > 0 && (
-              <Button type="button" variant="outline" size="sm" onClick={() => setActiveTab('recovery')} className="min-h-10 text-xs">
+              <Button type="button" variant="outline" size="sm" onClick={() => setActiveTab('recovery')} className="min-h-10 w-full text-xs sm:w-auto">
                 <Wrench size={14} aria-hidden="true" />
                 Lihat tindak lanjut
               </Button>
             )}
             {openCharges.length > 0 && canManage && (
-              <Button type="button" variant="outline" size="sm" onClick={() => setActiveTab('charges')} className="min-h-10 text-xs">
+              <Button type="button" variant="outline" size="sm" onClick={() => setActiveTab('charges')} className="min-h-10 w-full text-xs sm:w-auto">
                 <CreditCard size={14} aria-hidden="true" />
                 Lihat tagihan
               </Button>
