@@ -103,6 +103,10 @@ assert(
   devDeployScript.includes('sinegasi-vps-deploy.lock') && prodDeployScript.includes('sinegasi-vps-deploy.lock'),
   '[GUARDRAIL VIOLATION] Development and production deploy scripts must share one VPS deploy lock.'
 );
+assert(
+  devDeployScript.includes('COMPOSE_IGNORE_ORPHANS') && prodDeployScript.includes('COMPOSE_IGNORE_ORPHANS'),
+  '[GUARDRAIL VIOLATION] Deploy scripts must suppress harmless orphan warnings without using orphan removal.'
+);
 
 // ============================================================================
 // 2. DOCKER COMPOSE CONFIGURATION CHECKS

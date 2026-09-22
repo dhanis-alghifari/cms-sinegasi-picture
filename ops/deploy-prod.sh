@@ -9,6 +9,7 @@ API_SERVICE="${API_SERVICE:-api-prod}"
 CADDY_CONTAINER="${CADDY_CONTAINER:-caddy-proxy}"
 API_HEALTH_URL="${API_HEALTH_URL:-http://127.0.0.1:3002/api/health}"
 LOCK_FILE="${DEPLOY_LOCK_FILE:-${TMPDIR:-/tmp}/sinegasi-vps-deploy.lock}"
+export COMPOSE_IGNORE_ORPHANS="${COMPOSE_IGNORE_ORPHANS:-1}"
 
 fail() {
   echo "[deploy-prod] ERROR: $*" >&2
