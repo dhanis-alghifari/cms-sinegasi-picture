@@ -15,7 +15,8 @@
     "test:conn": "tsx src/testConnection.ts",
     "db:migrate:grades": "npm run build && node dist/scripts/applyGradesMigration.js",
     "db:migrate:cash": "npm run build && node dist/scripts/applyCashMigration.js",
-    "db:migrate:contests": "npm run build && node dist/scripts/applyContestMigration.js"
+    "db:migrate:contests": "npm run build && node dist/scripts/applyContestMigration.js",
+    "db:migrate": "npm run build && node dist/scripts/applyMigrations.js"
   },
   "dependencies": {
     "@fastify/cors": "^10.0.1",

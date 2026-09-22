@@ -3,7 +3,7 @@ import { asDatabaseError } from '../../shared/database/database.types.js';
 import type { AssignmentCategory, GradeRecord } from './grades.types.js';
 import type { DatabaseRow } from '../../shared/database/database.types.js';
 
-export const GRADES_SCHEMA_MIGRATION_MESSAGE = 'Skema nilai belum terpasang. Jalankan "npm run db:migrate:grades" di folder backend, lalu restart backend.';
+export const GRADES_SCHEMA_MIGRATION_MESSAGE = 'Skema nilai belum terpasang. Jalankan "npm run db:migrate" di folder backend, lalu restart backend.';
 
 const CATEGORY_ALIASES: Record<string, AssignmentCategory> = {
   Kelas: 'class_task', 'Crew Film': 'crew_film', Event: 'event_participation', Lainnya: 'other',

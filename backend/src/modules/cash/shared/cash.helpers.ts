@@ -1,7 +1,7 @@
 import type { CashTransactionRecord } from './cash.types.js';
 
-export const CASH_SCHEMA_MIGRATION_MESSAGE = 'Skema kas belum terpasang. Jalankan "npm run db:migrate:cash" di folder backend, lalu restart backend.';
-export const CASH_SCHEMA_COMPATIBILITY_MESSAGE = 'Skema kas belum selaras dengan fitur sanggahan tunggakan. Jalankan "npm run db:migrate:cash" di folder backend, lalu restart backend.';
+export const CASH_SCHEMA_MIGRATION_MESSAGE = 'Skema kas belum terpasang. Jalankan "npm run db:migrate" di folder backend, lalu restart backend.';
+export const CASH_SCHEMA_COMPATIBILITY_MESSAGE = 'Skema kas belum selaras dengan fitur sanggahan tunggakan. Jalankan "npm run db:migrate" di folder backend, lalu restart backend.';
 
 // The frontend compresses proof images to at most 600 KiB before converting
 // them to a data URL. Base64 adds roughly 33% overhead, so 900k leaves a

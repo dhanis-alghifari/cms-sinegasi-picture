@@ -1,5 +1,9 @@
 name: Deploy Development Backend
 
+concurrency:
+  group: sinegasi-vps-deployment
+  cancel-in-progress: false
+
 on:
   push:
     branches: [develop]
@@ -47,10 +51,10 @@ jobs:
             test "$(id -un)" = "ubuntu"
             test "$(stat -c '%U' /opt/sinegasi)" = "ubuntu"
             cd /opt/sinegasi
-            test "$(git branch --show-current)" = "develop"
             test -z "$(git status --porcelain)"
             git fetch origin develop
             git checkout develop
+            test "$(git branch --show-current)" = "develop"
             git pull --ff-only origin develop
             ./ops/deploy-dev.sh
             echo "✅ Development backend deployed successfully"

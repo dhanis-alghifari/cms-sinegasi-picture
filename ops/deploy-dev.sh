@@ -7,7 +7,7 @@ COMPOSE_FILE="${COMPOSE_FILE:-${ROOT_DIR}/docker-compose.dev.yml}"
 API_SERVICE="${API_SERVICE:-api-dev}"
 CADDY_CONTAINER="${CADDY_CONTAINER:-caddy-proxy}"
 API_HEALTH_URL="${API_HEALTH_URL:-http://127.0.0.1:3001/api/health}"
-LOCK_FILE="${DEPLOY_LOCK_FILE:-${TMPDIR:-/tmp}/sinegasi-dev-deploy.lock}"
+LOCK_FILE="${DEPLOY_LOCK_FILE:-${TMPDIR:-/tmp}/sinegasi-vps-deploy.lock}"
 
 fail() {
   echo "[deploy-dev] ERROR: $*" >&2
@@ -48,11 +48,9 @@ cd "$ROOT_DIR"
 echo "[deploy-dev] Building ${API_SERVICE}..."
 docker compose -f "$COMPOSE_FILE" build "$API_SERVICE"
 
-for migration in applyGradesMigration applyCashMigration applyContestMigration; do
-  echo "[deploy-dev] Running ${migration}..."
-  docker compose -f "$COMPOSE_FILE" run --rm --no-deps "$API_SERVICE" \
-    node "dist/scripts/${migration}.js"
-done
+echo "[deploy-dev] Running all pending schema migrations..."
+docker compose -f "$COMPOSE_FILE" run --rm --no-deps "$API_SERVICE" \
+  node dist/scripts/applyMigrations.js
 
 echo "[deploy-dev] Recreating ${API_SERVICE}..."
 docker compose -f "$COMPOSE_FILE" up -d --force-recreate "$API_SERVICE"

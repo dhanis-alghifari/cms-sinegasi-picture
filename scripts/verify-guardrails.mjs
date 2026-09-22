@@ -36,6 +36,7 @@ console.log('🛡️  Running Deployment & Infrastructure Guardrail Checks...\n'
 const devWorkflow = readFile('.github/workflows/deploy-dev.yml');
 const prodWorkflow = readFile('.github/workflows/deploy-prod.yml');
 const devDeployScript = readFile('ops/deploy-dev.sh');
+const prodDeployScript = readFile('ops/deploy-prod.sh');
 
 // Rule 1.1: Never use --remove-orphans in deploy workflows (kills Caddy/other compose services)
 assert(
@@ -47,19 +48,26 @@ assert(
   '[GUARDRAIL VIOLATION] .github/workflows/deploy-prod.yml contains "--remove-orphans". This kills caddy-proxy! Remove it.'
 );
 
-// Rule 1.2: Development deploy must protect the existing Caddy container;
-// production may start its explicitly managed Caddy service.
+// Rule 1.2: Both deployments must protect the existing Caddy container.
 assert(
   !devWorkflow.includes('docker-compose.caddy.yml up -d'),
   '[GUARDRAIL VIOLATION] .github/workflows/deploy-dev.yml must not recreate Caddy; it must use the guarded deploy script.'
 );
 assert(
-  prodWorkflow.includes('docker-compose.caddy.yml up -d'),
-  '[GUARDRAIL VIOLATION] .github/workflows/deploy-prod.yml must run "docker compose -f docker-compose.caddy.yml up -d" before starting api container.'
+  prodWorkflow.includes('./ops/deploy-prod.sh'),
+  '[GUARDRAIL VIOLATION] .github/workflows/deploy-prod.yml must deploy through ./ops/deploy-prod.sh so migrations and Caddy protection are enforced.'
 );
 assert(
   devWorkflow.includes('./ops/deploy-dev.sh'),
   '[GUARDRAIL VIOLATION] .github/workflows/deploy-dev.yml must deploy through ./ops/deploy-dev.sh so migrations and Caddy protection are enforced.'
+);
+assert(
+  devWorkflow.includes('group: sinegasi-vps-deployment') && prodWorkflow.includes('group: sinegasi-vps-deployment'),
+  '[GUARDRAIL VIOLATION] Development and production workflows must serialize shared VPS checkout/deploy operations.'
+);
+assert(
+  devDeployScript.includes('dist/scripts/applyMigrations.js'),
+  '[GUARDRAIL VIOLATION] ops/deploy-dev.sh must run the universal migration runner so new SQL migrations are applied automatically.'
 );
 assert(
   devWorkflow.includes("VPS_HOST_PUBLIC_KEY") && prodWorkflow.includes("VPS_HOST_PUBLIC_KEY"),
@@ -73,6 +81,14 @@ assert(
   devDeployScript.includes('CADDY_CONTAINER') && devDeployScript.includes('is_caddy_running'),
   '[GUARDRAIL VIOLATION] ops/deploy-dev.sh must verify the existing Caddy container before and after deployment.'
 );
+assert(
+  prodDeployScript.includes('CADDY_CONTAINER') && prodDeployScript.includes('is_caddy_running'),
+  '[GUARDRAIL VIOLATION] ops/deploy-prod.sh must verify the existing Caddy container before and after deployment.'
+);
+assert(
+  prodDeployScript.includes('docker compose -f "$CADDY_COMPOSE_FILE" up -d caddy'),
+  '[GUARDRAIL VIOLATION] ops/deploy-prod.sh must ensure the managed Caddy service is running before production deployment.'
+);
 
 // Rule 1.3: Must use --force-recreate so containers actually update
 assert(
@@ -80,8 +96,12 @@ assert(
   '[GUARDRAIL VIOLATION] ops/deploy-dev.sh must use "--force-recreate" to ensure container code updates are applied.'
 );
 assert(
-  prodWorkflow.includes('--force-recreate'),
-  '[GUARDRAIL VIOLATION] .github/workflows/deploy-prod.yml must use "--force-recreate" to ensure container code updates are applied.'
+  prodDeployScript.includes('--force-recreate'),
+  '[GUARDRAIL VIOLATION] ops/deploy-prod.sh must use "--force-recreate" to ensure container code updates are applied.'
+);
+assert(
+  devDeployScript.includes('sinegasi-vps-deploy.lock') && prodDeployScript.includes('sinegasi-vps-deploy.lock'),
+  '[GUARDRAIL VIOLATION] Development and production deploy scripts must share one VPS deploy lock.'
 );
 
 // ============================================================================

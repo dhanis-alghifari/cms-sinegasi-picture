@@ -11,8 +11,28 @@ git pull --ff-only origin develop
 
 The script deliberately does not use `--remove-orphans`. It verifies that
 `caddy-proxy` is running before and after the deploy, takes a lock so deploys
-cannot overlap, builds `api-dev`, runs the idempotent grade/cash/contest
-migrations, recreates only `api-dev`, and waits for `/api/health`.
+cannot overlap, builds `api-dev`, runs every pending numbered SQL migration
+through `dist/scripts/applyMigrations.js`, recreates only `api-dev`, and waits
+for `/api/health`.
+
+Development and production workflows share one VPS checkout, so GitHub Actions
+serializes deployments. Each workflow checks out its target branch immediately
+before deploying; the deploy scripts also share a VPS lock for manual runs.
+
+Production uses the same contract from the `main` branch:
+
+```bash
+cd /opt/sinegasi
+git fetch origin main
+git checkout main
+git pull --ff-only origin main
+./ops/deploy-prod.sh
+```
+
+The migration runner records each filename and SHA-256 checksum in
+`public.schema_migrations`, uses a PostgreSQL advisory lock, and is safe to run
+on every push. Existing databases are baselined through migration `074` on the
+first run; new migrations such as `075_*.sql` are then applied automatically.
 
 If Caddy is stopped or missing, the deploy fails closed. Restore it separately
 without orphan cleanup:
