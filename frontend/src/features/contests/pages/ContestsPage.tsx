@@ -131,7 +131,7 @@ export function ContestsPage() {
         id: selectedContest.id,
         payload: {
           nama_lomba: contestFormPayload.nama_lomba,
-          kota: contestFormPayload.kota,
+          kota: contestFormPayload.kota || null,
           tingkat: contestFormPayload.tingkat,
           ...(contestFormPayload.deadline !== selectedContest.deadline ? { deadline: contestFormPayload.deadline } : {}),
           status: contestFormPayload.status,
@@ -145,7 +145,7 @@ export function ContestsPage() {
       await createContestMutation.mutateAsync({
         payload: {
           nama_lomba: contestFormPayload.nama_lomba,
-          kota: contestFormPayload.kota,
+          kota: contestFormPayload.kota || null,
           tingkat: contestFormPayload.tingkat,
           deadline: contestFormPayload.deadline,
           status: contestFormPayload.status,

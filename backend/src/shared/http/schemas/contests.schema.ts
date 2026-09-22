@@ -11,7 +11,7 @@ const contestFields = {
   result: { type: ['string', 'null'], maxLength: 500 },
   contest_name: { type: 'string', minLength: 1, maxLength: 200 },
   organizer: { type: 'string', minLength: 1, maxLength: 120 },
-  city: { type: 'string', minLength: 2, maxLength: 120 },
+  city: { type: ['string', 'null'], minLength: 2, maxLength: 120 },
   scope: { type: 'string', enum: contestScopeValues },
   deadline: { type: 'string', minLength: 10, maxLength: 10 },
   event_year: { type: 'integer', minimum: 1900, maximum: 2200 },
@@ -55,7 +55,7 @@ export const contestCreateRouteSchema = {
     additionalProperties: false,
     anyOf: [
       { required: ['name', 'contest_type', 'level', 'date'] },
-      { required: ['contest_name', 'city', 'scope', 'status', 'event_year', 'deadline'] },
+      { required: ['contest_name', 'scope', 'status', 'event_year', 'deadline'] },
     ],
     properties: contestFields,
   },

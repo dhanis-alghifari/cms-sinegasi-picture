@@ -164,7 +164,7 @@ export function CreateContestModal({
 
             {/* Kota */}
             <div className="space-y-1">
-              <Label htmlFor="kota" className="text-xs text-ink-muted">Kota <span className="text-semantic-danger" aria-hidden="true">*</span></Label>
+              <Label htmlFor="kota" className="text-xs text-ink-muted">Kota <span className="font-normal text-ink-tertiary">(Opsional)</span></Label>
               <Input id="kota" placeholder="cth. Bekasi" className={cn('bg-surface-2 border-hairline text-ink text-xs', form.formState.errors.kota && 'border-semantic-danger')} {...form.register('kota')} />
               {form.formState.errors.kota && <p className="text-semantic-danger text-[10px]">{form.formState.errors.kota.message}</p>}
             </div>

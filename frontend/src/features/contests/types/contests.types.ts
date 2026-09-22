@@ -82,7 +82,7 @@ export interface ContestSummary {
 
 export interface CreateContestPayload {
   nama_lomba: string;
-  kota: string;
+  kota?: string | null;
   tingkat: ContestScope;
   deadline: string;
   status: ContestStatus;

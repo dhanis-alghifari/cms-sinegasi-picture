@@ -68,6 +68,19 @@ test('contest service normalizes the frontend contract without dropping legacy f
   assert.equal(summary.totalKaryaSubmitted, 1);
 });
 
+test('contest service allows a public event without a city', async () => {
+  const service = new ContestsService(createContestsRepository(null, { contests: [], submissions: [] }));
+  const created = await service.create({
+    nama_lomba: 'Festival Tanpa Kota',
+    tingkat: 'nasional',
+    deadline: '2026-12-01',
+    status: 'buka',
+    tahun_event: 2026,
+  }, 'leader-1');
+
+  assert.equal(created.kota, null);
+});
+
 test('contest service maps PostgREST missing-column errors to a safe schema-unavailable response', async () => {
   const repository = {
     isConfigured: () => true,
