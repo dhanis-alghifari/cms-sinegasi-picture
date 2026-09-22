@@ -62,15 +62,15 @@ export function AgendaDetailDialog({ activity, open, onOpenChange }: AgendaDetai
   return (
     <>
       <Dialog open={open} onOpenChange={handleDetailOpenChange}>
-        <DialogContent className="max-h-[85dvh] overflow-y-auto border-hairline bg-surface-1 text-ink">
-          <DialogHeader>
+        <DialogContent className="grid h-[min(85dvh,48rem)] max-h-[85dvh] max-w-lg grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden border-hairline bg-surface-1 p-0 text-ink">
+          <DialogHeader className="shrink-0 border-b border-hairline px-4 py-4 pr-11">
             <DialogTitle>{activity.activity_name}</DialogTitle>
             <DialogDescription>
               {activity.activity_date} · Dicatat {new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium' }).format(new Date(activity.created_at))}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 text-sm">
+          <div className="min-h-0 space-y-4 overflow-y-auto px-4 py-4 text-sm">
             <p className="whitespace-pre-wrap text-ink-subtle">{activity.activity_description}</p>
             <dl className="grid gap-3 sm:grid-cols-2">
               <div>
@@ -88,7 +88,7 @@ export function AgendaDetailDialog({ activity, open, onOpenChange }: AgendaDetai
             </p>
           </div>
 
-          <DialogFooter className="border-t-0 bg-transparent px-0 pb-1 pt-3 sm:pt-4">
+          <DialogFooter className="shrink-0 border-t border-hairline bg-surface-2/45 px-4 py-3 md:pb-3">
             <Button type="button" variant="outline" onClick={() => handleDetailOpenChange(false)}>Tutup</Button>
           </DialogFooter>
         </DialogContent>

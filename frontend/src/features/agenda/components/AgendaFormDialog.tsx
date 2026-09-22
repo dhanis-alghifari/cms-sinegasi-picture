@@ -29,13 +29,13 @@ export function AgendaFormDialog({ open, onOpenChange, initialData, onSubmit, is
   const visibleError = formError || (error ? getErrorMessage(error) : '');
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="scrollbar-hidden max-h-[calc(100dvh-2rem)] max-w-lg overflow-y-auto border-hairline bg-surface-1 p-4 text-ink sm:max-h-[85dvh] sm:p-5">
-        <DialogHeader>
+      <DialogContent className="grid h-[min(90dvh,48rem)] max-h-[90dvh] max-w-lg grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden border-hairline bg-surface-1 p-0 text-ink">
+        <DialogHeader className="shrink-0 border-b border-hairline px-4 py-4 pr-11 sm:px-5">
           <DialogTitle>{initialData ? 'Edit agenda kegiatan' : 'Tambah agenda kegiatan'}</DialogTitle>
           <DialogDescription>Catat kegiatan yang sudah berlangsung hari ini atau sebelumnya.</DialogDescription>
         </DialogHeader>
 
-        <form noValidate onSubmit={submit} className="space-y-4">
+        <form id="agenda-form" noValidate onSubmit={submit} className="flex min-h-0 min-w-0 flex-1 flex-col space-y-4 overflow-hidden overflow-y-auto overscroll-contain px-4 py-4 sm:px-5">
           <div role="alert" aria-live="polite" className={visibleError ? 'text-xs text-semantic-danger' : 'sr-only'}>
             {visibleError || 'Tidak ada kesalahan.'}
           </div>
@@ -80,14 +80,15 @@ export function AgendaFormDialog({ open, onOpenChange, initialData, onSubmit, is
             </div>
           )}
 
-          <DialogFooter className="border-t-0 bg-transparent px-0 pb-1 pt-3 sm:pt-4">
-            <Button type="button" variant="secondary" onClick={() => onOpenChange(false)} className="sm:min-w-24">Batal</Button>
-            <Button type="submit" disabled={isLoading} className="sm:min-w-32">
-              {isLoading && <Loader2 className="animate-spin" />}
-              {isLoading ? 'Menyimpan...' : 'Simpan agenda'}
-            </Button>
-          </DialogFooter>
         </form>
+
+        <DialogFooter className="shrink-0 border-t border-hairline bg-surface-2/45 px-4 py-3 sm:px-5 md:pb-3">
+          <Button type="button" variant="secondary" onClick={() => onOpenChange(false)} className="sm:min-w-24">Batal</Button>
+          <Button form="agenda-form" type="submit" disabled={isLoading} className="sm:min-w-32">
+            {isLoading && <Loader2 className="animate-spin" />}
+            {isLoading ? 'Menyimpan...' : 'Simpan agenda'}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

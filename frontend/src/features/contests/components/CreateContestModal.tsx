@@ -120,8 +120,8 @@ export function CreateContestModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[min(92dvh,760px)] w-[calc(100%-1rem)] max-w-2xl flex-col gap-3 overflow-hidden border-hairline bg-surface-1 p-3 text-ink sm:w-[calc(100%-2rem)] sm:gap-4 sm:p-4">
-        <DialogHeader className="shrink-0 pr-8">
+      <DialogContent className="grid h-[min(92dvh,760px)] max-h-[min(92dvh,760px)] w-[calc(100%-1rem)] max-w-2xl grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden border-hairline bg-surface-1 p-0 text-ink sm:w-[calc(100%-2rem)]">
+        <DialogHeader className="shrink-0 border-b border-hairline px-3 py-3 pr-11 sm:px-4 sm:py-4">
           <div className="mb-1 flex min-w-0 items-start gap-2">
             <Trophy size={18} className="text-semantic-warning" />
             <DialogTitle className="min-w-0 text-ink text-base font-semibold leading-snug">
@@ -136,7 +136,7 @@ export function CreateContestModal({
           </DialogDescription>
         </DialogHeader>
 
-        <form noValidate onSubmit={handleContestFormSubmit} className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-hidden overflow-y-auto overscroll-contain px-0.5 pb-1 pt-1 pr-1 sm:gap-5">
+        <form id="contest-form" noValidate onSubmit={handleContestFormSubmit} className="flex min-h-0 min-w-0 flex-1 flex-col space-y-4 overflow-hidden overflow-y-auto overscroll-contain px-3 py-3 pr-2 sm:space-y-5 sm:px-4 sm:py-4 sm:pr-3">
           {Boolean(error) && (
             <div role="alert" className="shrink-0 rounded border border-semantic-danger/30 bg-semantic-danger/10 px-3 py-2 text-xs text-semantic-danger">
               {getErrorMessage(error)}
@@ -270,22 +270,23 @@ export function CreateContestModal({
             </section>
           )}
 
-          <DialogFooter className="sticky bottom-0 -mx-0.5 shrink-0 flex-col-reverse gap-2 border-t border-hairline bg-surface-1/95 pt-3 backdrop-blur sm:flex-row sm:justify-end">
-            <Button type="button" variant="secondary" onClick={() => onOpenChange(false)} className="h-10 w-full text-xs sm:w-auto">
-              Batal
-            </Button>
-            <Button type="submit" disabled={isLoading} className="h-10 w-full bg-primary text-xs font-medium text-primary-foreground hover:bg-primary-hover sm:w-auto">
-              {isLoading ? (
-                <>
-                  <Loader2 size={14} className="animate-spin mr-1.5" />
-                  Menyimpan...
-                </>
-              ) : (
-                'Simpan Event Lomba'
-              )}
-            </Button>
-          </DialogFooter>
         </form>
+
+        <DialogFooter className="shrink-0 border-t border-hairline bg-surface-2/45 px-3 py-3 sm:px-4 md:pb-3">
+          <Button type="button" variant="secondary" onClick={() => onOpenChange(false)} className="w-full text-xs sm:w-auto">
+            Batal
+          </Button>
+          <Button form="contest-form" type="submit" disabled={isLoading} className="w-full bg-primary text-xs font-medium text-primary-foreground hover:bg-primary-hover sm:w-auto">
+            {isLoading ? (
+              <>
+                <Loader2 size={14} className="mr-1.5 animate-spin" />
+                Menyimpan...
+              </>
+            ) : (
+              'Simpan Event Lomba'
+            )}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
