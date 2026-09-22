@@ -6,11 +6,11 @@ import { ArrowLeft, ChevronDown, KeyRound, LogOut, MoreHorizontal } from 'lucide
 import { cn } from '@/shared/utils/cn';
 import { Button } from '@/shared/ui/primitives/button';
 import { Separator } from '@/shared/ui/primitives/separator';
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/shared/ui/primitives/sheet';
 import { Toaster } from '@/shared/ui/primitives/toast';
 import { useIsMobile } from '@/shared/hooks/use-mobile';
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import { NotificationDropdown } from '@/features/notifications/components/NotificationDropdown';
+import { MobileNavigationSheet } from './MobileNavigationSheet';
 import {
   getMobileNavigationItems,
   getNavigationLabel,
@@ -122,24 +122,6 @@ export function DashboardLayout() {
     );
   };
 
-  const renderMobileSheetItem = (item: NavigationItem) => {
-    const Icon = item.icon;
-    return (
-      <NavLink
-        key={item.id}
-        to={item.to}
-        onClick={() => setIsMoreOpen(false)}
-        className={({ isActive }) => cn(
-          'flex min-h-11 items-center gap-3 rounded-lg border border-hairline px-3 text-sm text-ink-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
-          isActive ? 'border-primary/50 bg-primary/10 text-primary' : 'bg-surface-2 hover:bg-surface-3 hover:text-ink',
-        )}
-      >
-        <Icon size={18} aria-hidden="true" />
-        <span>{item.label}</span>
-      </NavLink>
-    );
-  };
-
   return (
     <div className="flex h-dvh min-h-0 overflow-hidden bg-canvas">
       <a
@@ -216,49 +198,13 @@ export function DashboardLayout() {
         </button>
       </nav>
 
-      <Sheet open={isMoreOpen} onOpenChange={setIsMoreOpen}>
-        <SheetContent side="bottom" className="max-h-[75dvh] rounded-t-2xl border-hairline bg-surface-1 pb-[calc(1rem+env(safe-area-inset-bottom))]">
-          <SheetHeader className="px-4 pb-2">
-            <SheetTitle className="text-ink">Menu lainnya</SheetTitle>
-            <SheetDescription className="text-ink-subtle">Pilih modul yang tersedia untuk peran Anda.</SheetDescription>
-          </SheetHeader>
-          <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-4 pb-2 [scroll-padding-bottom:1rem]">
-            {mobileSecondaryGroups.map((group) => {
-              if (!group.collapsible) return renderMobileSheetItem(group.items[0]);
-
-              const isExpanded = expandedGroupId === group.id;
-              const groupContentId = `mobile-menu-group-${group.id}`;
-              const GroupIcon = group.icon;
-              return (
-                <div key={group.id} className="space-y-2">
-                  <button
-                    type="button"
-                    onClick={() => toggleGroup(group.id)}
-                    className="flex min-h-11 w-full items-center gap-3 rounded-lg border border-hairline bg-surface-2 px-3 text-left text-sm text-ink-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                    aria-expanded={isExpanded}
-                    aria-controls={groupContentId}
-                  >
-                    <GroupIcon size={18} aria-hidden="true" />
-                    <span>{group.label}</span>
-                    <ChevronDown size={16} className={cn('ml-auto transition-transform duration-150 motion-reduce:transition-none', isExpanded && 'rotate-180')} aria-hidden="true" />
-                  </button>
-                  <div id={groupContentId} hidden={!isExpanded} className="grid grid-cols-2 gap-2 pl-2">
-                    {group.items.map(renderMobileSheetItem)}
-                  </div>
-                </div>
-              );
-            })}
-            <NavLink to="/pengaturan/keamanan" onClick={() => setIsMoreOpen(false)} className="flex min-h-14 items-center gap-3 rounded-xl border border-hairline bg-surface-2 px-3 text-sm text-ink-subtle hover:bg-surface-3 hover:text-ink">
-              <KeyRound size={18} aria-hidden="true" />
-              <span>Ganti Password</span>
-            </NavLink>
-            <button type="button" onClick={handleLogout} className="flex min-h-14 items-center gap-3 rounded-xl border border-hairline bg-surface-2 px-3 text-left text-sm text-ink-subtle hover:bg-surface-3 hover:text-semantic-danger">
-              <LogOut size={18} aria-hidden="true" />
-              <span>Keluar</span>
-            </button>
-          </div>
-        </SheetContent>
-      </Sheet>
+      <MobileNavigationSheet
+        open={isMoreOpen}
+        onOpenChange={setIsMoreOpen}
+        groups={mobileSecondaryGroups}
+        onChangePassword={() => navigate('/pengaturan/keamanan')}
+        onLogout={handleLogout}
+      />
 
       <Toaster />
     </div>

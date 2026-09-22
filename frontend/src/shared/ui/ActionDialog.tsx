@@ -54,6 +54,8 @@ interface ReasonDialogProps {
   destructive?: boolean;
 }
 
+const COMPACT_DIALOG_FOOTER_CLASS = 'border-t-0 bg-transparent pt-2';
+
 function useActionDialogState() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -119,7 +121,7 @@ export function ConfirmDialog({
 
         <ActionError message={errorMessage} />
 
-        <DialogFooter className="pt-2">
+        <DialogFooter className={COMPACT_DIALOG_FOOTER_CLASS}>
           <Button
             type="button"
             variant="secondary"
@@ -239,7 +241,7 @@ export function ReasonDialog({
           <FieldError id={reasonErrorId} message={reasonError} />
         </div>
 
-        <DialogFooter className="pt-2">
+        <DialogFooter className={COMPACT_DIALOG_FOOTER_CLASS}>
           <Button
             type="button"
             variant="secondary"
@@ -295,7 +297,7 @@ export function NoticeDialog({
           </div>
           <DialogDescription className="text-ink-subtle text-xs">{description}</DialogDescription>
         </DialogHeader>
-        <DialogFooter className="pt-2">
+        <DialogFooter className={COMPACT_DIALOG_FOOTER_CLASS}>
           <Button
             type="button"
             variant="secondary"
