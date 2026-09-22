@@ -3,11 +3,19 @@ import type { DatabaseError } from '../../shared/database/database.types.js';
 import { mapAssignmentRow, mapGradeRow, matchesClassFilter } from './grades.helpers.js';
 import type {
   AssignmentListQuery, AssignmentRecord, BulkGradeItem, CreateAssignmentInput, GradeDistribution, GradeListQuery,
-  GradeRecord, GradeSummary, StudentGradeSummary,
+  CreatePklPeriodInput, CreateReportPeriodInput, GradeRecord, GradeReport, GradeReportPeriod, GradeReportQuery,
+  GradeSummary, ReviewPklPeriodInput, StudentGradeSummary, StudentPklPeriod,
 } from './grades.types.js';
+import { calculateGradeReport, type ReportAttendanceEvidence, type ReportGradeEvidence } from './grades.reports.js';
 
 type SupabaseLike = SupabaseClient | null;
-export type GradesMemoryState = { grades: GradeRecord[]; assignments: AssignmentRecord[] };
+export type GradesMemoryState = {
+  grades: GradeRecord[];
+  assignments: AssignmentRecord[];
+  reportPeriods?: GradeReportPeriod[];
+  reports?: GradeReport[];
+  pklPeriods?: StudentPklPeriod[];
+};
 const FILTER_LOOKUP_LIMIT = 5_000;
 export interface GradesRepository {
   isConfigured(): boolean;
@@ -18,6 +26,14 @@ export interface GradesRepository {
   bulkGrade(input: { assignmentId: string; grades: BulkGradeItem[]; actorId: string; changeReason: string }): Promise<{ data: unknown; error: DatabaseError | null }>;
   distribution(query: { category?: string; kelas?: string; periode?: string }): Promise<{ data: { filters: Record<string, string>; totalAssignments: number; data: GradeDistribution[] } | null; error: DatabaseError | null }>;
   studentSummary(): Promise<{ data: StudentGradeSummary[] | null; error: DatabaseError | null }>;
+  listReportPeriods(): Promise<{ data: GradeReportPeriod[] | null; error: DatabaseError | null }>;
+  createReportPeriod(input: CreateReportPeriodInput): Promise<{ data: GradeReportPeriod | null; error: DatabaseError | null }>;
+  listReports(query: GradeReportQuery): Promise<{ data: GradeReport[] | null; error: DatabaseError | null }>;
+  generateReports(input: { periodId: string; actorId: string }): Promise<{ data: GradeReport[] | null; error: DatabaseError | null }>;
+  approveReports(input: { periodId: string; actorId: string }): Promise<{ data: GradeReport[] | null; error: DatabaseError | null }>;
+  listPklPeriods(query: { studentId?: string; kelas?: string }): Promise<{ data: StudentPklPeriod[] | null; error: DatabaseError | null }>;
+  createPklPeriod(input: CreatePklPeriodInput): Promise<{ data: StudentPklPeriod | null; error: DatabaseError | null }>;
+  reviewPklPeriod(input: ReviewPklPeriodInput): Promise<{ data: StudentPklPeriod | null; error: DatabaseError | null }>;
 }
 
 const GRADE_SELECT = 'id,assignment_id,student_id,nilai,status,keterangan,graded_by,created_by,updated_by,created_at,updated_at,students(id,nis,nama,kelas,peminatan),assignments(id,title,category,due_date)';
@@ -56,6 +72,55 @@ function assignmentTargets(studentClass: string): string[] {
   const normalized = studentClass.trim();
   const level = normalized.split(/\s+/)[0];
   return uniqueIds([normalized, level, 'Semua']);
+}
+
+const REPORT_PERIOD_SELECT = 'id,academic_year,semester,start_date,end_date,status,created_by,approved_by,approved_at,created_at,updated_at';
+const PKL_SELECT = 'id,student_id,start_date,end_date,institution,notes,status,requested_by,reviewed_by,reviewed_at,created_at,updated_at,students(id,nis,nama,kelas)';
+const REPORT_SELECT = 'id,period_id,student_id,predikat,status,deskripsi,evidence_count,hadir_count,sakit_count,izin_count,alpha_count,pkl_days,attendance_percentage,generated_at,approved_by,approved_at,updated_by,created_at,updated_at,students(id,nis,nama,kelas)';
+
+function databaseRow(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' ? value as Record<string, unknown> : {};
+}
+
+function mapReportPeriod(row: Record<string, unknown>): GradeReportPeriod {
+  return {
+    id: String(row.id ?? ''), academic_year: String(row.academic_year ?? ''), semester: String(row.semester ?? 'ganjil') as GradeReportPeriod['semester'],
+    start_date: String(row.start_date ?? ''), end_date: String(row.end_date ?? ''), status: String(row.status ?? 'draft') as GradeReportPeriod['status'],
+    created_by: row.created_by == null ? undefined : String(row.created_by), approved_by: row.approved_by == null ? undefined : String(row.approved_by),
+    approved_at: row.approved_at == null ? undefined : String(row.approved_at), created_at: String(row.created_at ?? ''), updated_at: String(row.updated_at ?? row.created_at ?? ''),
+  };
+}
+
+function mapPklPeriod(row: Record<string, unknown>): StudentPklPeriod {
+  const student = databaseRow(row.students);
+  return {
+    id: String(row.id ?? ''), student_id: String(row.student_id ?? ''), start_date: String(row.start_date ?? ''), end_date: String(row.end_date ?? ''),
+    institution: String(row.institution ?? ''), notes: row.notes == null ? undefined : String(row.notes), status: String(row.status ?? 'pending') as StudentPklPeriod['status'],
+    requested_by: row.requested_by == null ? undefined : String(row.requested_by), reviewed_by: row.reviewed_by == null ? undefined : String(row.reviewed_by),
+    reviewed_at: row.reviewed_at == null ? undefined : String(row.reviewed_at), created_at: String(row.created_at ?? ''), updated_at: String(row.updated_at ?? row.created_at ?? ''),
+    student_nis: student.nis == null ? undefined : String(student.nis), student_nama: student.nama == null ? undefined : String(student.nama), kelas: student.kelas == null ? undefined : String(student.kelas),
+  };
+}
+
+function mapGradeReport(row: Record<string, unknown>): GradeReport {
+  const student = databaseRow(row.students);
+  return {
+    id: String(row.id ?? ''), period_id: String(row.period_id ?? ''), student_id: String(row.student_id ?? ''),
+    predikat: row.predikat == null ? undefined : String(row.predikat) as GradeReport['predikat'], status: String(row.status ?? 'draft') as GradeReport['status'],
+    deskripsi: String(row.deskripsi ?? ''), evidence_count: Number(row.evidence_count ?? 0), hadir_count: Number(row.hadir_count ?? 0),
+    sakit_count: Number(row.sakit_count ?? 0), izin_count: Number(row.izin_count ?? 0), alpha_count: Number(row.alpha_count ?? 0), pkl_days: Number(row.pkl_days ?? 0),
+    attendance_percentage: row.attendance_percentage == null ? undefined : Number(row.attendance_percentage), generated_at: String(row.generated_at ?? ''),
+    approved_by: row.approved_by == null ? undefined : String(row.approved_by), approved_at: row.approved_at == null ? undefined : String(row.approved_at),
+    updated_by: row.updated_by == null ? undefined : String(row.updated_by), created_at: String(row.created_at ?? ''), updated_at: String(row.updated_at ?? row.created_at ?? ''),
+    student_nis: student.nis == null ? undefined : String(student.nis), student_nama: student.nama == null ? undefined : String(student.nama), kelas: student.kelas == null ? undefined : String(student.kelas),
+  };
+}
+
+function memoryArrays(state: GradesMemoryState) {
+  state.reportPeriods ??= [];
+  state.reports ??= [];
+  state.pklPeriods ??= [];
+  return { reportPeriods: state.reportPeriods, reports: state.reports, pklPeriods: state.pklPeriods };
 }
 
 export function createGradesRepository(client: SupabaseLike, state: GradesMemoryState): GradesRepository {
@@ -242,5 +307,171 @@ export function createGradesRepository(client: SupabaseLike, state: GradesMemory
       return { data: { filters: { category: query.category || 'all', kelas: query.kelas || 'all', periode: query.periode || 'all' }, totalAssignments: data.length, data }, error: null };
     },
     async studentSummary() { return { data: STUDENT_SUMMARY, error: null }; },
+    async listReportPeriods() {
+      const arrays = memoryArrays(state);
+      if (!client) return { data: [...arrays.reportPeriods].sort((a, b) => b.start_date.localeCompare(a.start_date)), error: null };
+      const result = await client.from('grade_report_periods').select(REPORT_PERIOD_SELECT).order('start_date', { ascending: false }).order('created_at', { ascending: false });
+      return { data: result.data ? result.data.map((row) => mapReportPeriod(row as Record<string, unknown>)) : null, error: result.error };
+    },
+    async createReportPeriod(input) {
+      const arrays = memoryArrays(state);
+      if (!client) {
+        const record: GradeReportPeriod = { id: `period-${Date.now()}`, academic_year: input.academicYear, semester: input.semester, start_date: input.startDate, end_date: input.endDate, status: 'draft', created_by: input.actorId, created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+        arrays.reportPeriods.unshift(record);
+        return { data: record, error: null };
+      }
+      const result = await client.from('grade_report_periods').insert({ academic_year: input.academicYear, semester: input.semester, start_date: input.startDate, end_date: input.endDate, created_by: input.actorId }).select(REPORT_PERIOD_SELECT).single();
+      return { data: result.data ? mapReportPeriod(result.data as Record<string, unknown>) : null, error: result.error };
+    },
+    async listReports(query) {
+      const arrays = memoryArrays(state);
+      if (!client) {
+        let rows = [...arrays.reports];
+        if (query.period_id) rows = rows.filter((row) => row.period_id === query.period_id);
+        if (query.student_id) rows = rows.filter((row) => row.student_id === query.student_id);
+        return { data: rows, error: null };
+      }
+      let dbQuery = client.from('grade_reports').select(REPORT_SELECT).order('student_id', { ascending: true });
+      if (query.period_id) dbQuery = dbQuery.eq('period_id', query.period_id);
+      if (query.student_id) dbQuery = dbQuery.eq('student_id', query.student_id);
+      if (query.kelas && query.kelas !== 'all') dbQuery = dbQuery.eq('students.kelas', query.kelas);
+      const result = await dbQuery;
+      return { data: result.data ? result.data.map((row) => mapGradeReport(row as Record<string, unknown>)) : null, error: result.error };
+    },
+    async generateReports(input) {
+      const arrays = memoryArrays(state);
+      if (!client) {
+        const period = arrays.reportPeriods.find((row) => row.id === input.periodId);
+        if (!period) return { data: null, error: { code: 'REPORT_PERIOD_NOT_FOUND', message: 'Periode laporan tidak ditemukan.' } };
+        const studentIds = [...new Set(state.grades.map((row) => row.student_id))];
+        const reports = studentIds.map((studentId) => {
+          const gradeEvidence: ReportGradeEvidence[] = state.grades.filter((row) => row.student_id === studentId).map((row) => ({ nilai: row.nilai, dueDate: row.updated_at || row.created_at }));
+          const calculated = calculateGradeReport(gradeEvidence, [], [], { startDate: period.start_date, endDate: period.end_date });
+          return { id: `report-${period.id}-${studentId}`, period_id: period.id, student_id: studentId, predikat: calculated.predikat || undefined, status: 'draft' as const, deskripsi: calculated.deskripsi, evidence_count: calculated.evidenceCount, hadir_count: calculated.hadirCount, sakit_count: calculated.sakitCount, izin_count: calculated.izinCount, alpha_count: calculated.alphaCount, pkl_days: calculated.pklDays, attendance_percentage: calculated.attendancePercentage ?? undefined, generated_at: new Date().toISOString(), created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+        });
+        arrays.reports = arrays.reports.filter((row) => row.period_id !== input.periodId).concat(reports);
+        return { data: reports, error: null };
+      }
+
+      const periodResult = await client.from('grade_report_periods').select(REPORT_PERIOD_SELECT).eq('id', input.periodId).maybeSingle();
+      if (periodResult.error) return { data: null, error: periodResult.error };
+      if (!periodResult.data) return { data: null, error: { code: 'REPORT_PERIOD_NOT_FOUND', message: 'Periode laporan tidak ditemukan.' } };
+      const period = periodResult.data;
+
+      const existingResult = await client.from('grade_reports').select('student_id,status').eq('period_id', input.periodId);
+      if (existingResult.error) return { data: null, error: existingResult.error };
+      if ((existingResult.data || []).some((row) => String((row as Record<string, unknown>).status) === 'approved')) {
+        return { data: null, error: { code: 'REPORT_APPROVED_LOCKED', message: 'Laporan yang sudah disahkan tidak dapat dibuat ulang.' } };
+      }
+
+      const [studentsResult, assignmentsResult] = await Promise.all([
+        client.from('students').select('id,nis,nama,kelas').eq('is_active', true).order('nama', { ascending: true }),
+        client.from('assignments').select('id,due_date').gte('due_date', period.start_date).lte('due_date', period.end_date),
+      ]);
+      if (studentsResult.error) return { data: null, error: studentsResult.error };
+      if (assignmentsResult.error) return { data: null, error: assignmentsResult.error };
+      const students = (studentsResult.data || []).map((row) => row as Record<string, unknown>);
+      const assignmentIds = (assignmentsResult.data || []).map((row) => String((row as Record<string, unknown>).id));
+      const [gradesResult, attendanceResult, pklResult] = await Promise.all([
+        assignmentIds.length > 0 ? client.from('grades').select('student_id,nilai,assignments(due_date)').eq('status', 'graded').in('assignment_id', assignmentIds) : Promise.resolve({ data: [], error: null }),
+        client.from('attendance').select('student_id,tanggal,status').gte('tanggal', period.start_date).lte('tanggal', period.end_date),
+        client.from('student_pkl_periods').select(PKL_SELECT).in('status', ['approved', 'completed']),
+      ]);
+      if (gradesResult.error) return { data: null, error: gradesResult.error };
+      if (attendanceResult.error) return { data: null, error: attendanceResult.error };
+      if (pklResult.error) return { data: null, error: pklResult.error };
+
+      const gradesByStudent = new Map<string, ReportGradeEvidence[]>();
+      for (const row of (gradesResult.data || [])) {
+        const value = row as Record<string, unknown>;
+        const assignment = databaseRow(value.assignments);
+        const studentId = String(value.student_id ?? '');
+        const nilai = String(value.nilai ?? '') as ReportGradeEvidence['nilai'];
+        if (studentId && ['A', 'B', 'C', 'D', 'E'].includes(nilai)) {
+          const evidence = gradesByStudent.get(studentId) || [];
+          evidence.push({ nilai, dueDate: String(assignment.due_date ?? '') });
+          gradesByStudent.set(studentId, evidence);
+        }
+      }
+      const attendanceByStudent = new Map<string, ReportAttendanceEvidence[]>();
+      for (const row of (attendanceResult.data || [])) {
+        const value = row as Record<string, unknown>;
+        const status = String(value.status ?? '') as ReportAttendanceEvidence['status'];
+        if (!['hadir', 'sakit', 'izin', 'alpha'].includes(status)) continue;
+        const studentId = String(value.student_id ?? '');
+        const evidence = attendanceByStudent.get(studentId) || [];
+        evidence.push({ tanggal: String(value.tanggal ?? ''), status });
+        attendanceByStudent.set(studentId, evidence);
+      }
+      const pklByStudent = new Map<string, StudentPklPeriod[]>();
+      for (const row of (pklResult.data || [])) {
+        const period = mapPklPeriod(row as Record<string, unknown>);
+        const evidence = pklByStudent.get(period.student_id) || [];
+        evidence.push(period);
+        pklByStudent.set(period.student_id, evidence);
+      }
+
+      const generatedAt = new Date().toISOString();
+      const payload = students.map((student) => {
+        const studentId = String(student.id);
+        const calculated = calculateGradeReport(gradesByStudent.get(studentId) || [], attendanceByStudent.get(studentId) || [], pklByStudent.get(studentId) || [], { startDate: period.start_date, endDate: period.end_date });
+        return { period_id: input.periodId, student_id: studentId, predikat: calculated.predikat, status: 'draft', deskripsi: calculated.deskripsi, evidence_count: calculated.evidenceCount, hadir_count: calculated.hadirCount, sakit_count: calculated.sakitCount, izin_count: calculated.izinCount, alpha_count: calculated.alphaCount, pkl_days: calculated.pklDays, attendance_percentage: calculated.attendancePercentage, generated_at: generatedAt, approved_by: null, approved_at: null, updated_by: input.actorId, updated_at: generatedAt };
+      });
+      if (payload.length === 0) return { data: [], error: null };
+      const upsertResult = await client.from('grade_reports').upsert(payload, { onConflict: 'period_id,student_id' }).select(REPORT_SELECT);
+      return { data: upsertResult.data ? upsertResult.data.map((row) => mapGradeReport(row as Record<string, unknown>)) : null, error: upsertResult.error };
+    },
+    async approveReports(input) {
+      if (!client) {
+        const arrays = memoryArrays(state);
+        const rows = arrays.reports.filter((row) => row.period_id === input.periodId);
+        if (rows.some((row) => !row.predikat)) return { data: null, error: { code: 'REPORT_EVIDENCE_INCOMPLETE', message: 'Semua siswa harus memiliki bukti penilaian sebelum laporan disahkan.' } };
+        const now = new Date().toISOString();
+        rows.forEach((row) => Object.assign(row, { status: 'approved' as const, approved_by: input.actorId, approved_at: now, updated_by: input.actorId, updated_at: now }));
+        return { data: rows, error: null };
+      }
+      const rowsResult = await client.from('grade_reports').select('id,predikat').eq('period_id', input.periodId);
+      if (rowsResult.error) return { data: null, error: rowsResult.error };
+      if (!rowsResult.data?.length || rowsResult.data.some((row) => !(row as Record<string, unknown>).predikat)) return { data: null, error: { code: 'REPORT_EVIDENCE_INCOMPLETE', message: 'Semua siswa harus memiliki bukti penilaian sebelum laporan disahkan.' } };
+      const now = new Date().toISOString();
+      const updateResult = await client.from('grade_reports').update({ status: 'approved', approved_by: input.actorId, approved_at: now, updated_by: input.actorId, updated_at: now }).eq('period_id', input.periodId).select(REPORT_SELECT);
+      if (updateResult.error) return { data: null, error: updateResult.error };
+      await client.from('grade_report_periods').update({ status: 'approved', approved_by: input.actorId, approved_at: now, updated_at: now }).eq('id', input.periodId);
+      return { data: updateResult.data ? updateResult.data.map((row) => mapGradeReport(row as Record<string, unknown>)) : null, error: null };
+    },
+    async listPklPeriods(query) {
+      const arrays = memoryArrays(state);
+      if (!client) {
+        let rows = [...arrays.pklPeriods];
+        if (query.studentId) rows = rows.filter((row) => row.student_id === query.studentId);
+        return { data: rows, error: null };
+      }
+      let dbQuery = client.from('student_pkl_periods').select(PKL_SELECT).order('start_date', { ascending: false });
+      if (query.studentId) dbQuery = dbQuery.eq('student_id', query.studentId);
+      if (query.kelas && query.kelas !== 'all') dbQuery = dbQuery.eq('students.kelas', query.kelas);
+      const result = await dbQuery;
+      return { data: result.data ? result.data.map((row) => mapPklPeriod(row as Record<string, unknown>)) : null, error: result.error };
+    },
+    async createPklPeriod(input) {
+      const arrays = memoryArrays(state);
+      if (!client) {
+        const record: StudentPklPeriod = { id: `pkl-${Date.now()}`, student_id: input.studentId, start_date: input.startDate, end_date: input.endDate, institution: input.institution, notes: input.notes, status: 'pending', requested_by: input.actorId, created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+        arrays.pklPeriods.unshift(record);
+        return { data: record, error: null };
+      }
+      const result = await client.from('student_pkl_periods').insert({ student_id: input.studentId, start_date: input.startDate, end_date: input.endDate, institution: input.institution, notes: input.notes || null, requested_by: input.actorId }).select(PKL_SELECT).single();
+      return { data: result.data ? mapPklPeriod(result.data as Record<string, unknown>) : null, error: result.error };
+    },
+    async reviewPklPeriod(input) {
+      const arrays = memoryArrays(state);
+      if (!client) {
+        const record = arrays.pklPeriods.find((row) => row.id === input.id);
+        if (!record) return { data: null, error: { code: 'PKL_PERIOD_NOT_FOUND', message: 'Periode PKL tidak ditemukan.' } };
+        Object.assign(record, { status: input.status, reviewed_by: input.actorId, reviewed_at: new Date().toISOString(), updated_at: new Date().toISOString() });
+        return { data: record, error: null };
+      }
+      const result = await client.from('student_pkl_periods').update({ status: input.status, reviewed_by: input.actorId, reviewed_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', input.id).select(PKL_SELECT).single();
+      return { data: result.data ? mapPklPeriod(result.data as Record<string, unknown>) : null, error: result.error };
+    },
   };
 }

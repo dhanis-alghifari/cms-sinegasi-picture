@@ -1,7 +1,7 @@
 import { gradesErrorMessage, isMissingGradesSchemaError, normalizeAssignmentCategory } from './grades.helpers.js';
 import { asDatabaseError } from '../../shared/database/database.types.js';
 import type { GradesRepository } from './grades.repository.js';
-import type { AssignmentListQuery, BulkGradeInput, CreateAssignmentInput, GradeListQuery } from './grades.types.js';
+import type { AssignmentListQuery, BulkGradeInput, CreateAssignmentInput, CreatePklPeriodInput, CreateReportPeriodInput, GradeListQuery, GradeReportQuery, ReportSemester, ReviewPklPeriodInput } from './grades.types.js';
 
 export class GradesServiceError extends Error {
   constructor(public readonly statusCode: number, public readonly errorCode: string, message: string) { super(message); this.name = 'GradesServiceError'; }
@@ -9,6 +9,7 @@ export class GradesServiceError extends Error {
 
 function clean(value: unknown): string | null { const normalized = typeof value === 'string' ? value.trim() : ''; return normalized || null; }
 function isUuid(value: string): boolean { return /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(value); }
+function isDate(value: string): boolean { return /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`)); }
 function listError(error: unknown, fallback: string): never {
   const databaseError = asDatabaseError(error);
   const schemaUnavailable = isMissingGradesSchemaError(databaseError);
@@ -79,6 +80,81 @@ export class GradesService {
   async studentSummary() {
     const result = await this.repository.studentSummary();
     if (result.error || !result.data) throw new GradesServiceError(500, 'GRADE_SUMMARY_FAILED', 'Gagal memuat rangkuman nilai siswa.');
+    return result.data;
+  }
+
+  async listReportPeriods() {
+    const result = await this.repository.listReportPeriods();
+    if (result.error || !result.data) listError(result.error, 'Gagal memuat periode raport.');
+    return result.data;
+  }
+
+  async createReportPeriod(input: Record<string, unknown>, actorId: string | null) {
+    const academicYear = clean(input.academic_year ?? input.academicYear);
+    const semester = clean(input.semester) as ReportSemester | null;
+    const startDate = clean(input.start_date ?? input.startDate);
+    const endDate = clean(input.end_date ?? input.endDate);
+    if (!academicYear || !/^\d{4}\/\d{4}$/.test(academicYear) || !semester || !['ganjil', 'genap'].includes(semester) || !startDate || !endDate || !isDate(startDate) || !isDate(endDate) || startDate > endDate) {
+      throw new GradesServiceError(422, 'INVALID_REPORT_PERIOD', 'Tahun ajaran, semester, dan rentang tanggal raport tidak valid.');
+    }
+    if (!actorId) throw new GradesServiceError(503, 'DATABASE_IDENTITY_UNAVAILABLE', 'Akun pengguna tidak memiliki ID database yang valid.');
+    const result = await this.repository.createReportPeriod({ academicYear, semester, startDate, endDate, actorId } satisfies CreateReportPeriodInput);
+    if (result.error || !result.data) throw new GradesServiceError(isMissingGradesSchemaError(result.error) ? 503 : 400, isMissingGradesSchemaError(result.error) ? 'GRADES_SCHEMA_UNAVAILABLE' : 'REPORT_PERIOD_CREATE_FAILED', isMissingGradesSchemaError(result.error) ? gradesErrorMessage(result.error) : 'Gagal membuat periode raport.');
+    return result.data;
+  }
+
+  async listReports(query: GradeReportQuery) {
+    if (query.period_id && !isUuid(query.period_id)) throw new GradesServiceError(422, 'INVALID_REPORT_PERIOD', 'period_id tidak valid.');
+    const result = await this.repository.listReports(query);
+    if (result.error || !result.data) listError(result.error, 'Gagal memuat raport siswa.');
+    return result.data;
+  }
+
+  async generateReports(periodId: string | undefined, actorId: string | null) {
+    if (!periodId || !isUuid(periodId)) throw new GradesServiceError(422, 'INVALID_REPORT_PERIOD', 'period_id tidak valid.');
+    if (!actorId) throw new GradesServiceError(503, 'DATABASE_IDENTITY_UNAVAILABLE', 'Akun pengguna tidak memiliki ID database yang valid.');
+    const result = await this.repository.generateReports({ periodId, actorId });
+    if (result.error || !result.data) throw new GradesServiceError(isMissingGradesSchemaError(result.error) ? 503 : 400, isMissingGradesSchemaError(result.error) ? 'GRADES_SCHEMA_UNAVAILABLE' : result.error?.code || 'REPORT_GENERATE_FAILED', isMissingGradesSchemaError(result.error) ? gradesErrorMessage(result.error) : result.error?.message || 'Gagal membuat rekap raport.');
+    return result.data;
+  }
+
+  async approveReports(periodId: string | undefined, actorId: string | null) {
+    if (!periodId || !isUuid(periodId)) throw new GradesServiceError(422, 'INVALID_REPORT_PERIOD', 'period_id tidak valid.');
+    if (!actorId) throw new GradesServiceError(503, 'DATABASE_IDENTITY_UNAVAILABLE', 'Akun pengguna tidak memiliki ID database yang valid.');
+    const result = await this.repository.approveReports({ periodId, actorId });
+    if (result.error || !result.data) throw new GradesServiceError(isMissingGradesSchemaError(result.error) ? 503 : 400, isMissingGradesSchemaError(result.error) ? 'GRADES_SCHEMA_UNAVAILABLE' : result.error?.code || 'REPORT_APPROVE_FAILED', isMissingGradesSchemaError(result.error) ? gradesErrorMessage(result.error) : result.error?.message || 'Gagal mengesahkan raport.');
+    return result.data;
+  }
+
+  async listPklPeriods(query: { student_id?: string; kelas?: string }) {
+    if (query.student_id && !isUuid(query.student_id)) throw new GradesServiceError(422, 'INVALID_STUDENT', 'student_id tidak valid.');
+    const result = await this.repository.listPklPeriods({ studentId: query.student_id, kelas: query.kelas });
+    if (result.error || !result.data) listError(result.error, 'Gagal memuat periode PKL.');
+    return result.data;
+  }
+
+  async createPklPeriod(input: Record<string, unknown>, actorId: string | null) {
+    const studentId = clean(input.student_id ?? input.studentId);
+    const startDate = clean(input.start_date ?? input.startDate);
+    const endDate = clean(input.end_date ?? input.endDate);
+    const institution = clean(input.institution);
+    const notes = clean(input.notes);
+    if (!studentId || !isUuid(studentId) || !startDate || !endDate || !isDate(startDate) || !isDate(endDate) || startDate > endDate || !institution || institution.length > 200 || (notes && notes.length > 1000)) {
+      throw new GradesServiceError(422, 'INVALID_PKL_PERIOD', 'Siswa, rentang tanggal, dan tempat PKL wajib valid.');
+    }
+    if (!actorId) throw new GradesServiceError(503, 'DATABASE_IDENTITY_UNAVAILABLE', 'Akun pengguna tidak memiliki ID database yang valid.');
+    const result = await this.repository.createPklPeriod({ studentId, startDate, endDate, institution, notes: notes || undefined, actorId } satisfies CreatePklPeriodInput);
+    if (result.error || !result.data) throw new GradesServiceError(isMissingGradesSchemaError(result.error) ? 503 : 400, isMissingGradesSchemaError(result.error) ? 'GRADES_SCHEMA_UNAVAILABLE' : 'PKL_PERIOD_CREATE_FAILED', isMissingGradesSchemaError(result.error) ? gradesErrorMessage(result.error) : 'Gagal menyimpan periode PKL.');
+    return result.data;
+  }
+
+  async reviewPklPeriod(input: Record<string, unknown>, actorId: string | null) {
+    const id = clean(input.id);
+    const status = clean(input.status) as ReviewPklPeriodInput['status'] | null;
+    if (!id || !isUuid(id) || !status || !['approved', 'rejected', 'completed'].includes(status)) throw new GradesServiceError(422, 'INVALID_PKL_REVIEW', 'Status review PKL tidak valid.');
+    if (!actorId) throw new GradesServiceError(503, 'DATABASE_IDENTITY_UNAVAILABLE', 'Akun pengguna tidak memiliki ID database yang valid.');
+    const result = await this.repository.reviewPklPeriod({ id, status, actorId });
+    if (result.error || !result.data) throw new GradesServiceError(isMissingGradesSchemaError(result.error) ? 503 : 400, isMissingGradesSchemaError(result.error) ? 'GRADES_SCHEMA_UNAVAILABLE' : 'PKL_REVIEW_FAILED', isMissingGradesSchemaError(result.error) ? gradesErrorMessage(result.error) : result.error?.message || 'Gagal memperbarui status PKL.');
     return result.data;
   }
 }

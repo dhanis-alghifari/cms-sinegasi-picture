@@ -1,6 +1,6 @@
 
 import { useState } from 'react';
-import { ClipboardList, GraduationCap, PlusCircle } from 'lucide-react';
+import { ClipboardList, FileText, GraduationCap, PlusCircle } from 'lucide-react';
 
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { ResponsivePageActions } from '@/shared/ui/ResponsivePageActions';
@@ -29,6 +29,7 @@ import { GradeTable } from '../components/GradeTable';
 import { GradeMobileList } from '../components/GradeMobileList';
 import { CreateAssignmentModal } from '../components/CreateAssignmentModal';
 import { BulkGradingModal } from '../components/BulkGradingModal';
+import { GradeReportPanel } from '../components/GradeReportPanel';
 
 import { ASSIGNMENT_CATEGORY_VALUES } from '../types/grades.types';
 import type { BulkGradeItem } from '../types/grades.types';
@@ -208,7 +209,7 @@ export function GradesPage() {
       />
 
       <Tabs defaultValue="grades" className="w-full">
-        <TabsList aria-label="Menu nilai" className="grid w-full grid-cols-2 md:flex md:w-fit">
+        <TabsList aria-label="Menu nilai" className={`grid w-full ${isPersonalView ? 'grid-cols-2' : 'grid-cols-3'} md:flex md:w-fit`}>
           <TabsTrigger value="grades" className="min-w-0 gap-1.5 px-2 text-xs leading-tight md:min-w-44 md:flex-none md:whitespace-nowrap md:px-3">
             <GraduationCap size={14} />
             <span className="md:hidden">Nilai</span>
@@ -217,6 +218,9 @@ export function GradesPage() {
           <TabsTrigger value="assignments" className="min-w-0 gap-1.5 px-2 text-xs leading-tight md:min-w-44 md:flex-none md:whitespace-nowrap md:px-3">
             <ClipboardList size={14} /><span className="md:hidden">Tugas</span><span className="hidden md:inline">{isPersonalView ? 'Tugas Saya' : 'Daftar Tugas'}</span>
           </TabsTrigger>
+          {!isPersonalView && <TabsTrigger value="reports" className="min-w-0 gap-1.5 px-2 text-xs leading-tight md:min-w-44 md:flex-none md:whitespace-nowrap md:px-3">
+            <FileText size={14} /><span className="md:hidden">Raport</span><span className="hidden md:inline">Raport Semester</span>
+          </TabsTrigger>}
         </TabsList>
 
         <TabsContent value="grades" className="space-y-6 pt-2">
@@ -287,6 +291,10 @@ export function GradesPage() {
             actions={{ onRetry: refetchAssignments }}
           />
         </TabsContent>
+
+        {!isPersonalView && <TabsContent value="reports" className="pt-2">
+          <GradeReportPanel students={studentsData?.data ?? []} />
+        </TabsContent>}
       </Tabs>
 
       {/* Modals */}
