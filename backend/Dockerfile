@@ -29,6 +29,10 @@ RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
 
 # Copy built output
 COPY --from=builder /app/dist ./dist
+# Migration runners resolve SQL assets from the source migration directory at
+# runtime. Keep those assets in the production image without shipping the
+# full TypeScript source tree.
+COPY --from=builder /app/src/migrations ./src/migrations
 
 # Switch to non-root
 USER appuser
