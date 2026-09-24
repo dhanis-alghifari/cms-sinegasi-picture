@@ -10,6 +10,7 @@ import { formatRoleLabel } from '@/shared/utils/formatLabels';
 import { ActorSummaryText } from './ActorSummaryText';
 
 import type { UserAccount } from '../types/users.types';
+import { canDeleteUnlinkedAccount } from '../utils/userAccountPolicy';
 
 interface UserMobileListProps {
   users: UserAccount[];
@@ -47,7 +48,7 @@ export function UserMobileList({ users, onEdit, onResetPassword, onToggleActive,
                     <DropdownMenuItem onClick={() => onToggleActive(user)} className="min-h-11 cursor-pointer text-sm">
                       {user.is_active ? <><UserX size={16} className="mr-2 text-semantic-warning" aria-hidden="true" />Nonaktifkan akun</> : <><UserCheck size={16} className="mr-2 text-semantic-success" aria-hidden="true" />Aktifkan kembali</>}
                     </DropdownMenuItem>
-                    {!user.is_linked_student && user.role !== 'member' && <DropdownMenuItem onClick={() => onDelete(user)} className="min-h-11 cursor-pointer text-sm text-semantic-danger focus:text-semantic-danger"><Trash2 size={16} className="mr-2" aria-hidden="true" />Hapus akun operasional</DropdownMenuItem>}
+                    {canDeleteUnlinkedAccount(user) && <DropdownMenuItem onClick={() => onDelete(user)} className="min-h-11 cursor-pointer text-sm text-semantic-danger focus:text-semantic-danger"><Trash2 size={16} className="mr-2" aria-hidden="true" />Hapus akun permanen</DropdownMenuItem>}
                   </DropdownMenuContent>
                 </DropdownMenu>
               )}

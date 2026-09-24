@@ -1,6 +1,6 @@
 
 import { useState } from "react";
-import { MoreVertical, Edit2, KeyRound, Link2, UserCheck, UserX } from "lucide-react";
+import { MoreVertical, Edit2, KeyRound, Link2, Trash2, UserCheck, UserX } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -50,6 +50,7 @@ interface StudentTableProps {
   students: Student[];
   onEdit: (student: Student) => void;
   onToggleActive: (student: Student) => void;
+  onDelete?: (student: Student) => void;
   onProvisionAccount?: (student: Student) => void;
   onLinkLegacyAccount?: (student: Student) => void;
   canManage?: boolean;
@@ -60,6 +61,7 @@ export function StudentTable({
   students,
   onEdit,
   onToggleActive,
+  onDelete,
   onProvisionAccount,
   onLinkLegacyAccount,
   canManage = true,
@@ -219,6 +221,15 @@ export function StudentTable({
                               Aktifkan Kembali
                             </>
                           )}
+                        </DropdownMenuItem>
+                      )}
+                      {canManageStatus && !student.is_active && onDelete && (
+                        <DropdownMenuItem
+                          onClick={() => onDelete(student)}
+                          className="cursor-pointer text-xs text-semantic-danger focus:text-semantic-danger"
+                        >
+                          <Trash2 size={14} className="mr-2" aria-hidden="true" />
+                          Hapus data permanen
                         </DropdownMenuItem>
                       )}
                     </DropdownMenuContent>

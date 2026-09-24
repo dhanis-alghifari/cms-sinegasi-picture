@@ -22,6 +22,7 @@ import type {
   StudentOptionsQuery,
   StudentRecord,
   StudentLookupRecord,
+  StudentPurgeResult,
   StudentRepository,
   UnlinkedStudentAccount,
   StudentUpdateInput,
@@ -364,6 +365,58 @@ export function createStudentRepository(client: SupabaseLike, state: StudentsMem
       });
       if (error) return { error };
       return { data: mapStudentRpcResult(data) };
+    },
+
+    async purge(input): Promise<RepositoryResult<StudentPurgeResult>> {
+      if (!client) {
+        const index = state.students.findIndex((student) => student.id === input.id);
+        if (index === -1) return { error: { code: 'P0002', message: 'Siswa tidak ditemukan.' } };
+        const student = state.students[index];
+        if (student.is_active) return { error: { code: 'STUDENT_PURGE_ACTIVE', message: 'Siswa aktif tidak dapat dihapus.' } };
+        state.students.splice(index, 1);
+        let deletedUser = false;
+        if (student.user_id) {
+          const accountIndex = state.accounts.findIndex((account) => account.id === student.user_id);
+          if (accountIndex >= 0) {
+            state.accounts.splice(accountIndex, 1);
+            deletedUser = true;
+          }
+        }
+        return {
+          data: {
+            student_id: student.id,
+            user_id: student.user_id || null,
+            deleted_user: deletedUser,
+            account_deactivated: false,
+            deleted_attendance: 0,
+            deleted_debt_records: 0,
+            deleted_billing_transactions: 0,
+            deleted_equipment_charges: 0,
+            preserved_cash_transactions: 0,
+          },
+        };
+      }
+      const { data, error } = await client.rpc('purge_student_history_atomic', {
+        p_student_id: input.id,
+        p_actor_id: input.actorId,
+        p_change_reason: input.changeReason,
+      });
+      if (error) return { error };
+      const raw = (Array.isArray(data) ? data[0] : data) as Record<string, unknown> | null;
+      if (!raw?.student_id) return { error: { code: 'EMPTY_RESULT', message: 'Penghapusan siswa tidak menghasilkan ringkasan.' } };
+      return {
+        data: {
+          student_id: String(raw.student_id),
+          user_id: raw.user_id ? String(raw.user_id) : null,
+          deleted_user: raw.deleted_user === true,
+          account_deactivated: raw.account_deactivated === true,
+          deleted_attendance: Number(raw.deleted_attendance || 0),
+          deleted_debt_records: Number(raw.deleted_debt_records || 0),
+          deleted_billing_transactions: Number(raw.deleted_billing_transactions || 0),
+          deleted_equipment_charges: Number(raw.deleted_equipment_charges || 0),
+          preserved_cash_transactions: Number(raw.preserved_cash_transactions || 0),
+        },
+      };
     },
   };
 }

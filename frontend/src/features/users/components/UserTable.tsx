@@ -19,6 +19,7 @@ import { StatusBadge } from '@/shared/ui/StatusBadge';
 import { EmptyState } from '@/shared/ui/EmptyState';
 
 import type { UserAccount } from '../types/users.types';
+import { canDeleteUnlinkedAccount } from '../utils/userAccountPolicy';
 import { formatRoleLabel } from '@/shared/utils/formatLabels';
 import { AuditHistoryButton } from '@/features/audit/components/AuditHistoryButton';
 import { useCanViewAuditHistory } from '@/features/audit/hooks/useCanViewAuditHistory';
@@ -132,10 +133,10 @@ export function UserTable({
                           </>
                         )}
                       </DropdownMenuItem>
-                      {!user.is_linked_student && user.role !== 'member' && (
+                      {canDeleteUnlinkedAccount(user) && (
                         <DropdownMenuItem onClick={() => onDelete(user)} className="text-xs cursor-pointer text-semantic-danger focus:text-semantic-danger">
                           <Trash2 size={14} className="mr-2" />
-                          Hapus Akun Operasional
+                          Hapus akun permanen
                         </DropdownMenuItem>
                       )}
                     </DropdownMenuContent>

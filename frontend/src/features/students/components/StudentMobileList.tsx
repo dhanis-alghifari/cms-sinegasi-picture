@@ -1,4 +1,4 @@
-import { KeyRound, Link2, MoreVertical, UserCheck, UserRound, UserX } from 'lucide-react';
+import { KeyRound, Link2, MoreVertical, Trash2, UserCheck, UserRound, UserX } from 'lucide-react';
 import { Button } from '@/shared/ui/primitives/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/shared/ui/primitives/dropdown-menu';
 import { StatusBadge } from '@/shared/ui/StatusBadge';
@@ -11,6 +11,7 @@ interface StudentMobileListProps {
   onOpenDetail: (student: Student) => void;
   onEdit: (student: Student) => void;
   onToggleActive: (student: Student) => void;
+  onDelete?: (student: Student) => void;
   onProvisionAccount?: (student: Student) => void;
   onLinkLegacyAccount?: (student: Student) => void;
   canManage?: boolean;
@@ -32,6 +33,7 @@ export function StudentMobileList({
   onOpenDetail,
   onEdit,
   onToggleActive,
+  onDelete,
   onProvisionAccount,
   onLinkLegacyAccount,
   canManage = true,
@@ -79,6 +81,11 @@ export function StudentMobileList({
                     <DropdownMenuItem onClick={() => onToggleActive(student)} className="min-h-11 cursor-pointer text-sm">
                       {student.is_active ? <><UserX size={16} className="mr-2 text-semantic-warning" aria-hidden="true" />Nonaktifkan sebagai alumni</>
                         : <><UserCheck size={16} className="mr-2 text-semantic-success" aria-hidden="true" />Aktifkan kembali</>}
+                    </DropdownMenuItem>
+                  )}
+                  {canManageStatus && !student.is_active && onDelete && (
+                    <DropdownMenuItem onClick={() => onDelete(student)} className="min-h-11 cursor-pointer text-sm text-semantic-danger focus:text-semantic-danger">
+                      <Trash2 size={16} className="mr-2" aria-hidden="true" />Hapus data permanen
                     </DropdownMenuItem>
                   )}
                 </DropdownMenuContent>

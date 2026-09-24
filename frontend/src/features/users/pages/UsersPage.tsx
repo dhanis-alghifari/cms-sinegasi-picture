@@ -301,8 +301,8 @@ export function UsersPage() {
               onOpenChange: (open) => { if (!open) setDeleteTargetUser(null); },
             }}
             content={{
-              title: 'Hapus Akun Operasional',
-              description: `Akun @${deleteTargetUser.username} akan dihapus permanen. Akun yang terhubung ke siswa tidak dapat dihapus; gunakan status Alumni dari halaman Data Siswa.`,
+              title: 'Hapus Akun Permanen',
+              description: `Akun tanpa tautan siswa @${deleteTargetUser.username} akan dihapus permanen. Akun yang masih terhubung ke data siswa hanya dapat dihapus melalui purge data siswa nonaktif.`,
             }}
             action={{ confirmLabel: 'Hapus Akun', onConfirm: handleConfirmDelete }}
             reason={{ label: 'Alasan Penghapusan *', placeholder: 'Contoh: Akun duplikat dan tidak memiliki histori' }}

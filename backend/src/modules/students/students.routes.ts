@@ -9,6 +9,7 @@ import { requireAnyCapability, requireCapability } from '../../middleware/capabi
 import {
   studentCreateRouteSchema,
   studentIdRouteSchema,
+  studentPurgeRouteSchema,
   studentLinkAccountRouteSchema,
   studentLinkExistingProfileRouteSchema,
   studentProvisionRouteSchema,
@@ -320,12 +321,50 @@ const studentRoutes: FastifyPluginAsync<StudentRoutesOptions> = async (fastify, 
   });
 
   fastify.delete('/api/students/:id', {
-    schema: studentIdRouteSchema,
-    preHandler: [authenticate, requireCapability('students.manage')],
-  }, async (_request, reply) => reply.status(409).send({
-    statusCode: 409,
-    message: 'Penghapusan permanen data siswa dinonaktifkan untuk menjaga histori. Gunakan aksi Nonaktifkan (Alumni); akun login akan ikut dinonaktifkan.',
-  }));
+    schema: studentPurgeRouteSchema,
+    preHandler: [authenticate, requireCapability('users.manage')],
+  }, async (request, reply) => {
+    try {
+      const params = request.params as { id: string };
+      const body = bodyOf(request);
+      const changeReason = reasonFrom(request, body, 'Menghapus data siswa nonaktif secara permanen');
+      const previous = await options.studentsService.getByIdentifier(params.id);
+      const result = await options.studentsService.purge(params.id, await actorIdFor(request), changeReason);
+      await options.persistAuditLog(request, {
+        action: 'DELETE',
+        tableName: 'students',
+        recordId: result.student_id,
+        oldValues: previous as unknown as Record<string, unknown>,
+        newValues: null,
+        changeReason,
+        metadata: { operation: 'student_history_purge', purge: result },
+      });
+      if (result.deleted_user && result.user_id) {
+        await options.persistAuditLog(request, {
+          action: 'DELETE',
+          tableName: 'users',
+          recordId: result.user_id,
+          oldValues: { id: result.user_id, nama: previous.nama },
+          newValues: null,
+          changeReason,
+          metadata: { operation: 'student_account_purge', student_id: result.student_id },
+        });
+      } else if (result.account_deactivated && result.user_id) {
+        await options.persistAuditLog(request, {
+          action: 'UPDATE',
+          tableName: 'users',
+          recordId: result.user_id,
+          oldValues: { id: result.user_id },
+          newValues: { id: result.user_id, is_active: false },
+          changeReason,
+          metadata: { operation: 'student_account_tombstone', student_id: result.student_id },
+        });
+      }
+      return reply.status(204).send();
+    } catch (error) {
+      return sendServiceError(error, reply);
+    }
+  });
 };
 
 export default studentRoutes;

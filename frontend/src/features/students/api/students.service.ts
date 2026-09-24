@@ -123,6 +123,7 @@ export const studentsService = {
 
   deleteStudent(id: string, changeReason: string): Promise<void> {
     return apiClient.deleteParsed(`/api/students/${id}`, decodeVoidResponse, {
+      body: JSON.stringify({ change_reason: changeReason }),
       changeReason,
     });
   },

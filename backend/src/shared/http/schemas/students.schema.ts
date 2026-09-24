@@ -124,3 +124,14 @@ export const studentUpdateRouteSchema = {
 } as const;
 
 export const studentIdRouteSchema = { params: studentIdParams } as const;
+
+export const studentPurgeRouteSchema = {
+  params: studentIdParams,
+  body: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      change_reason: { type: 'string', minLength: 5, maxLength: 500 },
+    },
+  },
+} as const;

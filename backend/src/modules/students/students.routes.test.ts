@@ -68,6 +68,35 @@ test('student status changes require teacher capability and options stay bounded
   assert.equal(options.json().data.length, 0);
 });
 
+test('teacher can purge only an inactive student through the atomic boundary', async (t) => {
+  const state = createStudentsMemoryState();
+  const studentId = '55555555-5555-4555-a555-555555555555';
+  const accountId = '33333333-3333-4333-a333-333333333333';
+  state.students.push({
+    id: studentId,
+    user_id: accountId,
+    nis: '20260030',
+    nama: 'Data Uji',
+    kelas: 'XI AK 1',
+    is_active: false,
+    created_at: new Date().toISOString(),
+  });
+  state.accounts.push({ id: accountId, username: 'siswa_uji', nama: 'Data Uji', role: 'member', is_active: false, is_first_login: false });
+  const app = await createApp(state);
+  t.after(() => app.close());
+  const teacher = app.jwt.sign({ userId: 'teacher-1', username: 'guru', role: 'teacher', isFirstLogin: false });
+
+  const purged = await app.inject({
+    method: 'DELETE',
+    url: `/api/students/${studentId}`,
+    headers: { authorization: `Bearer ${teacher}`, 'x-change-reason': 'Menghapus data uji nonaktif' },
+    payload: {},
+  });
+  assert.equal(purged.statusCode, 204);
+  assert.equal(state.students.length, 0);
+  assert.equal(state.accounts.length, 0);
+});
+
 test('cash managers can use the minimal student selector without student administration access', async (t) => {
   const app = await createApp();
   t.after(() => app.close());

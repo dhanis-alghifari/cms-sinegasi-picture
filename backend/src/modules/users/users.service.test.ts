@@ -83,6 +83,9 @@ test('users service does not promote legacy unlinked student accounts through us
     'Memperbaiki username akun lama',
   );
   assert.equal(updated.data.role, 'leader');
+
+  await usersService.remove(legacy.data.id, 'teacher-1', 'Menghapus akun duplikat lama');
+  assert.equal(state.users.some(({ id }) => id === legacy.data.id), false);
 });
 
 test('users service updates login username without changing the stable user id', async () => {

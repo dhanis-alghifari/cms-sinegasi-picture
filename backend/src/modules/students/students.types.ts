@@ -109,6 +109,18 @@ export type StudentExistingProfileLinkInput = {
   changeReason: string;
 };
 
+export type StudentPurgeResult = {
+  student_id: string;
+  user_id: string | null;
+  deleted_user: boolean;
+  account_deactivated: boolean;
+  deleted_attendance: number;
+  deleted_debt_records: number;
+  deleted_billing_transactions: number;
+  deleted_equipment_charges: number;
+  preserved_cash_transactions: number;
+};
+
 export type StudentsMemoryState = {
   students: StudentRecord[];
   accounts: Array<UnlinkedStudentAccount & { is_active: boolean; is_first_login: boolean }>;
@@ -126,5 +138,6 @@ export interface StudentRepository {
   provisionAccount?(input: { id: string; username: string; passwordHash: string; actorId: string }): Promise<{ data: StudentAccountOperationResult; error?: never } | { data?: never; error: DatabaseError }>;
   updateStatus?(input: { id: string; isActive: boolean; actorId: string | null }): Promise<{ data: StudentRecord | null; error?: never } | { data?: never; error: DatabaseError }>;
   updateProfile?(input: { id: string; changes: StudentUpdateInput; actorId: string | null }): Promise<{ data: StudentRecord | null; error?: never } | { data?: never; error: DatabaseError }>;
+  purge?(input: { id: string; actorId: string; changeReason: string }): Promise<{ data: StudentPurgeResult; error?: never } | { data?: never; error: DatabaseError }>;
 }
 import type { DatabaseError } from '../../shared/database/database.types.js';

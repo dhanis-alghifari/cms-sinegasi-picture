@@ -38,7 +38,7 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
   const token = getToken();
 
   const headers = new Headers(customHeaders);
-  if (!headers.has('Content-Type')) {
+  if (typeof rest.body === 'string' && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
   }
 

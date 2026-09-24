@@ -17,6 +17,7 @@ import { useUpdateStudentMutation } from '../hooks/useUpdateStudentMutation';
 import { useProvisionStudentAccountMutation } from '../hooks/useProvisionStudentAccountMutation';
 import { useLinkExistingStudentAccountMutation } from '../hooks/useLinkExistingStudentAccountMutation';
 import { useLinkAccountToExistingProfileMutation } from '../hooks/useLinkAccountToExistingProfileMutation';
+import { useDeleteStudentMutation } from '../hooks/useDeleteStudentMutation';
 import { StudentFilter } from '../components/StudentFilter';
 import { StudentTable } from '../components/StudentTable';
 import { StudentMobileList } from '../components/StudentMobileList';
@@ -97,6 +98,7 @@ export function StudentsPage() {
   const [credentialsStudentName, setCredentialsStudentName] = useState<string | undefined>();
   const [detailStudent, setDetailStudent] = useState<Student | null>(null);
   const [linkTargetStudent, setLinkTargetStudent] = useState<Student | null>(null);
+  const [purgeTargetStudent, setPurgeTargetStudent] = useState<Student | null>(null);
 
   // Queries & Mutations
   const { data, isLoading, isFetching, isError, error, refetch } = useStudentsQuery({
@@ -112,6 +114,7 @@ export function StudentsPage() {
   const provisionMutation = useProvisionStudentAccountMutation();
   const linkNewProfileMutation = useLinkExistingStudentAccountMutation();
   const linkExistingProfileMutation = useLinkAccountToExistingProfileMutation();
+  const deleteMutation = useDeleteStudentMutation();
 
   const handleOpenAdd = () => {
     createMutation.reset();
@@ -143,6 +146,18 @@ export function StudentsPage() {
   const handleOpenLinkDialog = (student: Student) => {
     linkExistingProfileMutation.reset();
     setLinkTargetStudent(student);
+  };
+
+  const handleOpenPurgeDialog = (student: Student) => {
+    deleteMutation.reset();
+    setDetailStudent(null);
+    setPurgeTargetStudent(student);
+  };
+
+  const handlePurgeSubmit = async (reason: string) => {
+    if (!purgeTargetStudent) return;
+    await deleteMutation.mutateAsync({ id: purgeTargetStudent.id, changeReason: reason });
+    setPurgeTargetStudent(null);
   };
 
   const handleLinkExistingProfile = async (userId: string, changeReason: string) => {
@@ -220,8 +235,8 @@ export function StudentsPage() {
 
     const students = data?.data ?? [];
     const list = isMobile
-      ? <StudentMobileList students={students} onOpenDetail={setDetailStudent} onEdit={handleOpenEdit} onToggleActive={handleOpenStatusDialog} onProvisionAccount={handleOpenProvisionDialog} onLinkLegacyAccount={handleOpenLinkDialog} canManage={canManage} canManageStatus={canManageStatus} />
-      : <StudentTable students={students} onEdit={handleOpenEdit} onToggleActive={handleOpenStatusDialog} onProvisionAccount={handleOpenProvisionDialog} onLinkLegacyAccount={handleOpenLinkDialog} canManage={canManage} canManageStatus={canManageStatus} />;
+      ? <StudentMobileList students={students} onOpenDetail={setDetailStudent} onEdit={handleOpenEdit} onToggleActive={handleOpenStatusDialog} onDelete={handleOpenPurgeDialog} onProvisionAccount={handleOpenProvisionDialog} onLinkLegacyAccount={handleOpenLinkDialog} canManage={canManage} canManageStatus={canManageStatus} />
+      : <StudentTable students={students} onEdit={handleOpenEdit} onToggleActive={handleOpenStatusDialog} onDelete={handleOpenPurgeDialog} onProvisionAccount={handleOpenProvisionDialog} onLinkLegacyAccount={handleOpenLinkDialog} canManage={canManage} canManageStatus={canManageStatus} />;
 
     return (
       <div className="space-y-4">
@@ -283,6 +298,7 @@ export function StudentsPage() {
               actions={{
                 onEdit: handleOpenEdit,
                 onToggleActive: handleOpenStatusDialog,
+                onDelete: handleOpenPurgeDialog,
                 onProvisionAccount: handleOpenProvisionDialog,
                 onLinkLegacyAccount: handleOpenLinkDialog,
               }}
@@ -331,6 +347,21 @@ export function StudentsPage() {
               onSubmit={handleLinkExistingProfile}
               isLoading={linkExistingProfileMutation.isPending}
               error={linkExistingProfileMutation.error}
+            />
+          )}
+          {purgeTargetStudent && (
+            <LazyReasonDialog
+              dialog={{
+                open: true,
+                onOpenChange: (open) => { if (!open) setPurgeTargetStudent(null); },
+              }}
+              content={{
+                title: 'Hapus data siswa permanen',
+                description: `Data ${purgeTargetStudent.nama} yang sudah nonaktif akan dihapus permanen, termasuk absensi, tunggakan, dan tagihan billing. Transaksi kas yang benar-benar sudah masuk atau keluar tetap dipertahankan agar saldo dan cashflow tidak berubah.`,
+              }}
+              action={{ confirmLabel: 'Hapus permanen', onConfirm: handlePurgeSubmit }}
+              reason={{ label: 'Alasan penghapusan *', placeholder: 'Contoh: akun tes dan data siswa sudah tidak aktif' }}
+              destructive
             />
           )}
           {credentials && (

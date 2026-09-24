@@ -358,8 +358,8 @@ paths:
         '422': { description: Invalid update or missing change reason }
         '503': { description: Users schema (including migration 041) or database identity is unavailable }
     delete:
-      summary: Delete an unlinked user account
-      description: Deletion is blocked for the current account and any account linked to a student; use inactive/alumni lifecycle changes for linked accounts.
+      summary: Delete an unlinked account
+      description: Standalone accounts can be deleted for duplicate/test cleanup. Self-delete and accounts linked to a student are blocked; linked student lifecycle and history are managed through Data Siswa.
       parameters:
         - $ref: '#/components/parameters/UserId'
         - $ref: '#/components/parameters/ChangeReason'
@@ -619,15 +619,27 @@ paths:
         '422': { description: Invalid update, mixed lifecycle/profile fields, or missing change reason }
         '503': { description: Students schema or database identity is unavailable }
     delete:
-      summary: Reject permanent student deletion
-      description: Permanent deletion is disabled to preserve financial, attendance, and borrowing history. Use the lifecycle update with is_active=false.
+      summary: Purge an inactive student's school history
+      description: Deletes an inactive student's profile, attendance, debt records, billing-only receivables, and related school history in one transaction. Real cash movements remain in the ledger and are detached from the deleted student. A linked account is deleted when no immutable audit/restricted actor history depends on it; otherwise it is deactivated so audit history remains intact.
       parameters:
         - $ref: '#/components/parameters/StudentId'
         - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                change_reason: { type: string, minLength: 5, maxLength: 500 }
       responses:
-        '409': { description: Permanent deletion is disabled }
+        '204': { description: Student history purged }
         '401': { description: Unauthenticated }
         '403': { description: Teacher role required }
+        '409': { description: Student is active or account/history dependency prevents the requested purge }
+        '422': { description: Invalid student ID or change reason }
+        '503': { description: Students schema or database identity is unavailable }
   /api/students/{id}/provision-account:
     post:
       summary: Provision a member account for a legacy student

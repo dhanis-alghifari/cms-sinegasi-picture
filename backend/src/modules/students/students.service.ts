@@ -17,6 +17,7 @@ import type {
   StudentListQuery,
   StudentOptionsQuery,
   StudentRecord,
+  StudentPurgeResult,
   StudentRepository,
   StudentUpdateInput,
   UnlinkedStudentAccount,
@@ -87,13 +88,19 @@ function mapRepositoryError(error: unknown, fallbackStatus = 500, fallbackMessag
   if (candidate?.code === 'STUDENT_ACTOR_FORBIDDEN' || candidate?.message?.includes('STUDENT_ACTOR_FORBIDDEN')) {
     return new StudentServiceError(403, 'STUDENT_ACTOR_FORBIDDEN', 'Hanya akun operasional yang berwenang dapat menautkan akun siswa.');
   }
-  if (isMissingStudentsSchemaError(error)) return new StudentServiceError(503, 'STUDENTS_SCHEMA_UNAVAILABLE', 'Skema siswa atau fungsi akun belum tersedia. Jalankan migration 019_student_account_provisioning.sql, 067_allow_student_committee_roles.sql, dan 076_student_account_boundaries.sql.');
+  if (candidate?.code === 'STUDENT_PURGE_ACTIVE' || candidate?.message?.includes('STUDENT_PURGE_ACTIVE')) {
+    return new StudentServiceError(409, 'STUDENT_PURGE_ACTIVE', 'Siswa masih aktif. Nonaktifkan sebagai alumni terlebih dahulu sebelum menghapus data permanen.');
+  }
+  if (candidate?.code === 'STUDENT_PURGE_ACTOR_FORBIDDEN' || candidate?.message?.includes('STUDENT_PURGE_ACTOR_FORBIDDEN')) {
+    return new StudentServiceError(403, 'STUDENT_PURGE_ACTOR_FORBIDDEN', 'Hanya Guru Pembina yang dapat menghapus data siswa secara permanen.');
+  }
+  if (isMissingStudentsSchemaError(error)) return new StudentServiceError(503, 'STUDENTS_SCHEMA_UNAVAILABLE', 'Skema siswa atau fungsi akun belum tersedia. Jalankan migration 019_student_account_provisioning.sql, 067_allow_student_committee_roles.sql, 076_student_account_boundaries.sql, dan 077_student_history_purge.sql.');
   return new StudentServiceError(fallbackStatus, 'STUDENT_OPERATION_FAILED', safeStudentErrorMessage(error, fallbackMessage));
 }
 
-function fullRepository(repository: StudentRepository): Required<Pick<StudentRepository, 'list' | 'listOptions' | 'createWithAccount' | 'provisionAccount' | 'updateStatus' | 'updateProfile'>> {
+function fullRepository(repository: StudentRepository): Required<Pick<StudentRepository, 'list' | 'listOptions' | 'createWithAccount' | 'provisionAccount' | 'updateStatus' | 'updateProfile' | 'purge'>> {
   const candidate = repository as StudentRepository & Record<string, unknown>;
-  const methods = ['list', 'listOptions', 'createWithAccount', 'provisionAccount', 'updateStatus', 'updateProfile'] as const;
+  const methods = ['list', 'listOptions', 'createWithAccount', 'provisionAccount', 'updateStatus', 'updateProfile', 'purge'] as const;
   for (const method of methods) {
     if (typeof candidate[method] !== 'function') throw new StudentServiceError(500, 'STUDENTS_MODULE_MISCONFIGURED', 'Modul siswa belum dikonfigurasi lengkap.');
   }
@@ -275,5 +282,21 @@ export class StudentService {
     if ('error' in result) throw mapRepositoryError(result.error, 400, 'Gagal memperbarui profil siswa.');
     if (!result.data) throw new StudentNotFoundError();
     return { data: result.data, previous };
+  }
+
+  async purge(id: string, actorId: string | null, changeReason: string): Promise<StudentPurgeResult> {
+    const studentId = text(id, 'id siswa', 1, 128);
+    const reason = text(changeReason, 'Alasan penghapusan', 5, 500);
+    if (!isUuid(studentId)) throw new StudentServiceError(422, 'INVALID_STUDENT_ID', 'ID siswa tidak valid.');
+    if (this.repositoryIsConfigured() && !actorId) {
+      throw new StudentServiceError(503, 'DATABASE_IDENTITY_UNAVAILABLE', 'Akun login belum terhubung ke users.id database yang valid.');
+    }
+    const previous = await this.getByIdentifier(studentId);
+    if (previous.is_active) {
+      throw new StudentServiceError(409, 'STUDENT_PURGE_ACTIVE', 'Siswa masih aktif. Nonaktifkan sebagai alumni terlebih dahulu sebelum menghapus data permanen.');
+    }
+    const result = await fullRepository(this.repository).purge({ id: previous.id, actorId: actorId || '', changeReason: reason });
+    if ('error' in result) throw mapRepositoryError(result.error, 400, 'Gagal menghapus data siswa secara permanen.');
+    return result.data;
   }
 }
