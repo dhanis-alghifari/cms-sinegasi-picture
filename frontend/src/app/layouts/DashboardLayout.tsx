@@ -2,7 +2,8 @@
 import { useState } from 'react';
 import '@/app/styles/fonts.css';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ChevronDown, KeyRound, LogOut, MoreHorizontal } from 'lucide-react';
+import { Popover } from '@base-ui/react/popover';
+import { ArrowLeft, ChevronRight, KeyRound, LogOut, MoreHorizontal } from 'lucide-react';
 import { cn } from '@/shared/utils/cn';
 import { Button } from '@/shared/ui/primitives/button';
 import { Separator } from '@/shared/ui/primitives/separator';
@@ -30,6 +31,14 @@ export function DashboardLayout() {
   const visibleNavigationGroups = getVisibleNavigationGroups(user);
   const mobileNavItems = getMobileNavigationItems(user);
   const mobileNavigationItemIds = new Set(mobileNavItems.map((item) => item.id));
+  const [openDesktopGroupState, setOpenDesktopGroupState] = useState<{ pathname: string; groupId: string | null }>({
+    pathname: location.pathname,
+    groupId: null,
+  });
+  const openDesktopGroupId = openDesktopGroupState.pathname === location.pathname
+    ? openDesktopGroupState.groupId
+    : null;
+
   const mobileSecondaryGroups = visibleNavigationGroups.flatMap((group) => {
     const items = group.items.filter((item) => !mobileNavigationItemIds.has(item.id));
     if (items.length === 0) return [];
@@ -41,23 +50,6 @@ export function DashboardLayout() {
     }];
   });
   const pageLabel = getNavigationLabel(location.pathname);
-  const activeGroupId = visibleNavigationGroups.find((group) => (
-    group.collapsible && group.items.some((item) => isNavigationItemActive(item, location.pathname))
-  ))?.id ?? null;
-  const [expandedGroupState, setExpandedGroupState] = useState<{ pathname: string; groupId: string | null }>({
-    pathname: location.pathname,
-    groupId: activeGroupId,
-  });
-  const expandedGroupId = expandedGroupState.pathname === location.pathname
-    ? expandedGroupState.groupId
-    : activeGroupId;
-
-  const toggleGroup = (groupId: string): void => {
-    setExpandedGroupState({
-      pathname: location.pathname,
-      groupId: expandedGroupId === groupId ? null : groupId,
-    });
-  };
 
   const handleLogout = () => {
     logout();
@@ -70,7 +62,10 @@ export function DashboardLayout() {
       <NavLink
         key={item.id}
         to={item.to}
-        onClick={() => setIsMoreOpen(false)}
+        onClick={() => {
+          setIsMoreOpen(false);
+          setOpenDesktopGroupState({ pathname: location.pathname, groupId: null });
+        }}
         className={({ isActive }) => cn(
           mobile
             ? 'flex min-h-16 min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-lg px-1 py-2 text-[11px]'
@@ -93,31 +88,52 @@ export function DashboardLayout() {
     }
 
     const GroupIcon = group.icon;
-    const isExpanded = expandedGroupId === group.id;
+    const isExpanded = openDesktopGroupId === group.id;
     const isActive = group.items.some((item) => isNavigationItemActive(item, location.pathname));
-    const groupContentId = `sidebar-group-${group.id}`;
 
     return (
       <li key={group.id}>
-        <button
-          type="button"
-          onClick={() => toggleGroup(group.id)}
-          className={cn(
-            'flex min-h-11 w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-primary focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar',
-            isActive || isExpanded
-              ? 'bg-sidebar-accent/80 text-sidebar-foreground'
-              : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground',
-          )}
-          aria-expanded={isExpanded}
-          aria-controls={groupContentId}
+        <Popover.Root
+          open={isExpanded}
+          onOpenChange={(open) => setOpenDesktopGroupState({
+            pathname: location.pathname,
+            groupId: open ? group.id : null,
+          })}
         >
-          <GroupIcon size={17} strokeWidth={1.75} aria-hidden="true" />
-          <span>{group.label}</span>
-          <ChevronDown size={15} className={cn('ml-auto transition-transform duration-150 motion-reduce:transition-none', isExpanded && 'rotate-180')} aria-hidden="true" />
-        </button>
-        <ul id={groupContentId} hidden={!isExpanded} className="mt-0.5 space-y-0.5" aria-label={`Menu ${group.label}`}>
-          {group.items.map((item) => <li key={item.id}>{renderNavItem(item, false, true)}</li>)}
-        </ul>
+          <Popover.Trigger
+            type="button"
+            className={cn(
+              'flex min-h-11 w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-primary focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar motion-reduce:transition-none',
+              isActive || isExpanded
+                ? 'bg-sidebar-accent/80 text-sidebar-foreground'
+                : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground',
+            )}
+          >
+            <GroupIcon size={17} strokeWidth={1.75} aria-hidden="true" />
+            <span>{group.label}</span>
+            <ChevronRight size={15} className="ml-auto" aria-hidden="true" />
+          </Popover.Trigger>
+          <Popover.Portal>
+            <Popover.Positioner
+              side="right"
+              align="start"
+              sideOffset={8}
+              collisionAvoidance={{ side: 'flip', align: 'shift' }}
+              className="z-[70] outline-none"
+            >
+              <Popover.Popup className="max-h-[min(var(--available-height),24rem)] min-w-52 max-w-[calc(100vw-1rem)] overscroll-contain overflow-y-auto rounded-lg border border-sidebar-border bg-sidebar p-1.5 text-sidebar-foreground shadow-xl outline-none transition-[opacity,transform] duration-150 ease-out data-starting-style:translate-x-1 data-starting-style:opacity-0 data-ending-style:translate-x-1 data-ending-style:opacity-0 motion-reduce:transition-none motion-reduce:data-starting-style:translate-x-0 motion-reduce:data-ending-style:translate-x-0">
+                <div className="px-2.5 pb-2 pt-1 text-xs font-semibold text-sidebar-foreground/60">
+                  {group.label}
+                </div>
+                <nav aria-label={`Menu ${group.label}`}>
+                  <ul className="space-y-0.5">
+                    {group.items.map((item) => <li key={item.id}>{renderNavItem(item)}</li>)}
+                  </ul>
+                </nav>
+              </Popover.Popup>
+            </Popover.Positioner>
+          </Popover.Portal>
+        </Popover.Root>
       </li>
     );
   };

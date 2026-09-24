@@ -1,4 +1,4 @@
-import { KeyRound, Pencil, Phone, UserCheck, UserRound, UserX } from 'lucide-react';
+import { KeyRound, Link2, Pencil, Phone, UserCheck, UserRound, UserX } from 'lucide-react';
 import { Button } from '@/shared/ui/primitives/button';
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/shared/ui/primitives/sheet';
 import { StatusBadge } from '@/shared/ui/StatusBadge';
@@ -22,6 +22,7 @@ interface StudentDetailSheetProps {
     onEdit: (student: Student) => void;
     onToggleActive: (student: Student) => void;
     onProvisionAccount?: (student: Student) => void;
+    onLinkLegacyAccount?: (student: Student) => void;
   };
 }
 
@@ -35,7 +36,7 @@ export function StudentDetailSheet({
   const { open, onOpenChange } = dialog;
   const { isMobile } = viewport;
   const { canManage = true, canManageStatus = false } = permissions ?? {};
-  const { onEdit, onToggleActive, onProvisionAccount } = actions;
+  const { onEdit, onToggleActive, onProvisionAccount, onLinkLegacyAccount } = actions;
   if (!student) return null;
 
   const handleEdit = () => {
@@ -46,6 +47,11 @@ export function StudentDetailSheet({
   const handleProvisionAccount = () => {
     onOpenChange(false);
     onProvisionAccount?.(student);
+  };
+
+  const handleLinkLegacyAccount = () => {
+    onOpenChange(false);
+    onLinkLegacyAccount?.(student);
   };
 
   const handleToggleActive = () => {
@@ -92,6 +98,7 @@ export function StudentDetailSheet({
             <div className="grid grid-cols-2 gap-2">
               <Button type="button" variant="outline" onClick={handleEdit} className="min-h-11 border-hairline text-ink"><Pencil size={16} className="mr-2" aria-hidden="true" />Edit</Button>
               {canManageStatus && !student.user_id && onProvisionAccount && <Button type="button" onClick={handleProvisionAccount} className="min-h-11"><KeyRound size={16} className="mr-2" aria-hidden="true" />Buat akun</Button>}
+              {canManageStatus && student.is_active && !student.user_id && onLinkLegacyAccount && <Button type="button" variant="outline" onClick={handleLinkLegacyAccount} className="col-span-2 min-h-11 border-hairline text-ink"><Link2 size={16} className="mr-2 text-primary" aria-hidden="true" />Tautkan akun lama</Button>}
               {canManageStatus && student.user_id && <Button type="button" variant="outline" onClick={handleToggleActive} className="col-span-2 min-h-11 border-hairline text-ink">{student.is_active ? <><UserX size={16} className="mr-2 text-semantic-warning" aria-hidden="true" />Nonaktifkan sebagai alumni</> : <><UserCheck size={16} className="mr-2 text-semantic-success" aria-hidden="true" />Aktifkan kembali</>}</Button>}
             </div>
           </SheetFooter>

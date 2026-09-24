@@ -9,9 +9,12 @@ import { requireAnyCapability, requireCapability } from '../../middleware/capabi
 import {
   studentCreateRouteSchema,
   studentIdRouteSchema,
+  studentLinkAccountRouteSchema,
+  studentLinkExistingProfileRouteSchema,
   studentProvisionRouteSchema,
   studentsListRouteSchema,
   studentsOptionsRouteSchema,
+  studentsUnlinkedAccountsRouteSchema,
   studentUpdateRouteSchema,
 } from '../../shared/http/schemas/students.schema.js';
 import { sendServiceError } from '../../shared/http/sendServiceError.js';
@@ -89,6 +92,21 @@ const studentRoutes: FastifyPluginAsync<StudentRoutesOptions> = async (fastify, 
     }
   });
 
+  fastify.get('/api/students/unlinked-accounts', {
+    schema: studentsUnlinkedAccountsRouteSchema,
+    preHandler: [authenticate, requireCapability('users.manage')],
+  }, async (request, reply) => {
+    try {
+      const query = request.query as { q?: string; limit?: string };
+      return reply.send({
+        success: true,
+        data: await options.studentsService.listUnlinkedAccounts({ search: query.q, limit: Number(query.limit || 20) }, await actorIdFor(request)),
+      });
+    } catch (error) {
+      return sendServiceError(error, reply);
+    }
+  });
+
   fastify.get('/api/students', {
     schema: studentsListRouteSchema,
     preHandler: [authenticate, requireAnyCapability('students.read', 'borrowing.manage')],
@@ -147,6 +165,102 @@ const studentRoutes: FastifyPluginAsync<StudentRoutesOptions> = async (fastify, 
         success: true,
         data: result.data.student,
         account: { ...result.data.account, temporary_password: result.temporaryPassword },
+      });
+    } catch (error) {
+      return sendServiceError(error, reply);
+    }
+  });
+
+  fastify.post('/api/students/account-links', {
+    schema: studentLinkAccountRouteSchema,
+    preHandler: [authenticate, requireCapability('users.manage')],
+  }, async (request, reply) => {
+    try {
+      const body = studentInput(bodyOf(request));
+      const userId = typeof body.user_id === 'string' ? body.user_id : '';
+      const changeReason = reasonFrom(request, body, 'Menautkan akun lama ke data siswa');
+      const result = await options.studentsService.linkExistingAccount({
+        userId,
+        nis: body.nis as string,
+        nama: body.nama as string,
+        kelas: body.kelas as string,
+        peminatan: body.peminatan as string | undefined,
+        no_telepon: body.no_telepon as string | undefined,
+        foto_url: body.foto_url as string | undefined,
+        actorId: (await actorIdFor(request)) || '',
+        changeReason,
+      });
+      await options.persistAuditLog(request, {
+        action: 'UPDATE', tableName: 'users', recordId: result.data.account.user_id,
+        oldValues: result.data.previousAccount,
+        newValues: {
+          id: result.data.account.user_id,
+          username: result.data.account.username,
+          nama: result.data.student.nama,
+          role: result.data.account.role,
+          is_active: result.data.student.is_active,
+          is_first_login: result.data.account.is_first_login,
+        },
+        changeReason,
+        metadata: { operation: 'student_account_linking', student_id: result.data.student.id },
+      });
+      await options.persistAuditLog(request, {
+        action: 'INSERT', tableName: 'students', recordId: result.data.student.id,
+        newValues: result.data.student as unknown as Record<string, unknown>,
+        changeReason,
+        metadata: { operation: 'student_account_linking', user_id: result.data.account.user_id },
+      });
+      return reply.status(201).send({
+        success: true,
+        data: result.data.student,
+        account: result.data.account,
+        linked_existing_account: true,
+      });
+    } catch (error) {
+      return sendServiceError(error, reply);
+    }
+  });
+
+  fastify.post('/api/students/:id/account-links', {
+    schema: studentLinkExistingProfileRouteSchema,
+    preHandler: [authenticate, requireCapability('users.manage')],
+  }, async (request, reply) => {
+    try {
+      const body = bodyOf(request);
+      const params = request.params as { id: string };
+      const userId = typeof body.user_id === 'string' ? body.user_id : '';
+      const changeReason = reasonFrom(request, body, 'Menautkan akun lama ke profil siswa yang sudah ada');
+      const result = await options.studentsService.linkAccountToExistingProfile({
+        studentId: params.id,
+        userId,
+        actorId: (await actorIdFor(request)) || '',
+        changeReason,
+      });
+      await options.persistAuditLog(request, {
+        action: 'UPDATE', tableName: 'users', recordId: result.data.account.user_id,
+        oldValues: result.data.previousAccount,
+        newValues: {
+          id: result.data.account.user_id,
+          username: result.data.account.username,
+          nama: result.data.student.nama,
+          role: result.data.account.role,
+          is_active: result.data.student.is_active,
+          is_first_login: result.data.account.is_first_login,
+        },
+        changeReason,
+        metadata: { operation: 'student_account_linking', student_id: result.data.student.id },
+      });
+      await options.persistAuditLog(request, {
+        action: 'UPDATE', tableName: 'students', recordId: result.data.student.id,
+        oldValues: { user_id: null }, newValues: { user_id: result.data.account.user_id },
+        changeReason,
+        metadata: { operation: 'student_account_linking', user_id: result.data.account.user_id },
+      });
+      return reply.status(200).send({
+        success: true,
+        data: result.data.student,
+        account: result.data.account,
+        linked_existing_account: true,
       });
     } catch (error) {
       return sendServiceError(error, reply);

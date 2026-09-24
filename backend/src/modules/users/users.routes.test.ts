@@ -37,6 +37,14 @@ test('users routes require teacher role and preserve list/create envelopes', asy
   assert.equal(typeof created.json().temporary_password, 'string');
   assert.equal(Object.prototype.hasOwnProperty.call(created.json().data, 'password_hash'), false);
 
+  const invalidStudentRole = await app.inject({
+    method: 'POST',
+    url: '/api/users',
+    headers,
+    payload: { username: 'route_leader', name: 'Route Leader', role: 'leader', password: 'Strong123' },
+  });
+  assert.equal(invalidStudentRole.statusCode, 400);
+
   const list = await app.inject({ method: 'GET', url: '/api/users?page=1&pageSize=1', headers });
   assert.equal(list.statusCode, 200);
   assert.equal(list.json().success, true);
@@ -51,7 +59,7 @@ test('users routes validate change reasons and reset response', async (t) => {
   const headers = { authorization: `Bearer ${token}` };
   const created = await app.inject({
     method: 'POST', url: '/api/users', headers,
-    payload: { username: 'reset_route', name: 'Reset Route', role: 'leader', password: 'Strong123' },
+    payload: { username: 'reset_route', name: 'Reset Route', role: 'treasurer', password: 'Strong123' },
   });
   const id = created.json().data.id;
   const invalid = await app.inject({ method: 'PUT', url: `/api/users/${id}`, headers, payload: { name: 'Nama Baru' } });

@@ -34,7 +34,6 @@ export type UserRole = typeof USER_ROLE_VALUES[number];
 export const STUDENT_ROLE_VALUES = [
   'leader',
   'vice_leader',
-  'treasurer',
   'secretary',
   'equipment_team',
   'contest_team',

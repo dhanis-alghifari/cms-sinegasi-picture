@@ -15,11 +15,14 @@ import { useStudentsQuery } from '../hooks/useStudentsQuery';
 import { useCreateStudentMutation } from '../hooks/useCreateStudentMutation';
 import { useUpdateStudentMutation } from '../hooks/useUpdateStudentMutation';
 import { useProvisionStudentAccountMutation } from '../hooks/useProvisionStudentAccountMutation';
+import { useLinkExistingStudentAccountMutation } from '../hooks/useLinkExistingStudentAccountMutation';
+import { useLinkAccountToExistingProfileMutation } from '../hooks/useLinkAccountToExistingProfileMutation';
 import { StudentFilter } from '../components/StudentFilter';
 import { StudentTable } from '../components/StudentTable';
 import { StudentMobileList } from '../components/StudentMobileList';
 import { PEMINATAN_VALUES } from '../types/students.types';
 import type { Student, StudentAccountCredentials } from '../types/students.types';
+import type { StudentAccountSubmission } from '../components/StudentFormDialog';
 import { isOneOf } from '@/shared/utils/isOneOf';
 import type { StudentFormValues } from '../schemas/studentSchema';
 import { useIsMobile } from '@/shared/hooks/use-mobile';
@@ -38,6 +41,9 @@ const LazyStudentAccountCredentialsDialog = lazy(() =>
   import('../components/StudentAccountCredentialsDialog').then(({ StudentAccountCredentialsDialog }) => ({
     default: StudentAccountCredentialsDialog,
   })),
+);
+const LazyLinkLegacyAccountDialog = lazy(() =>
+  import('../components/LinkLegacyAccountDialog').then(({ LinkLegacyAccountDialog }) => ({ default: LinkLegacyAccountDialog })),
 );
 const LazyReasonDialog = lazy(() =>
   import('@/shared/ui/ActionDialog').then(({ ReasonDialog }) => ({ default: ReasonDialog })),
@@ -90,6 +96,7 @@ export function StudentsPage() {
   const [credentials, setCredentials] = useState<StudentAccountCredentials | null>(null);
   const [credentialsStudentName, setCredentialsStudentName] = useState<string | undefined>();
   const [detailStudent, setDetailStudent] = useState<Student | null>(null);
+  const [linkTargetStudent, setLinkTargetStudent] = useState<Student | null>(null);
 
   // Queries & Mutations
   const { data, isLoading, isFetching, isError, error, refetch } = useStudentsQuery({
@@ -103,10 +110,13 @@ export function StudentsPage() {
   const createMutation = useCreateStudentMutation();
   const updateMutation = useUpdateStudentMutation();
   const provisionMutation = useProvisionStudentAccountMutation();
+  const linkNewProfileMutation = useLinkExistingStudentAccountMutation();
+  const linkExistingProfileMutation = useLinkAccountToExistingProfileMutation();
 
   const handleOpenAdd = () => {
     createMutation.reset();
     updateMutation.reset();
+    linkNewProfileMutation.reset();
     setSelectedStudent(null);
     setDialogOpen(true);
   };
@@ -114,6 +124,7 @@ export function StudentsPage() {
   const handleOpenEdit = (student: Student) => {
     createMutation.reset();
     updateMutation.reset();
+    linkNewProfileMutation.reset();
     setSelectedStudent(student);
     setDialogOpen(true);
   };
@@ -127,6 +138,21 @@ export function StudentsPage() {
   const handleOpenProvisionDialog = (student: Student) => {
     provisionMutation.reset();
     setProvisionTargetStudent(student);
+  };
+
+  const handleOpenLinkDialog = (student: Student) => {
+    linkExistingProfileMutation.reset();
+    setLinkTargetStudent(student);
+  };
+
+  const handleLinkExistingProfile = async (userId: string, changeReason: string) => {
+    if (!linkTargetStudent) return;
+    await linkExistingProfileMutation.mutateAsync({
+      studentId: linkTargetStudent.id,
+      userId,
+      changeReason,
+    });
+    setLinkTargetStudent(null);
   };
 
   const handleProvisionSubmit = async (reason: string) => {
@@ -146,7 +172,7 @@ export function StudentsPage() {
     });
   };
 
-  const handleFormSubmit = async (values: StudentFormValues) => {
+  const handleFormSubmit = async (values: StudentFormValues, account: StudentAccountSubmission) => {
     const profilePayload = {
       nis: values.nis,
       nama: values.nama,
@@ -163,11 +189,21 @@ export function StudentsPage() {
         changeReason: values.change_reason ?? '',
       });
     } else {
-      const result = await createMutation.mutateAsync({
-        payload: { ...profilePayload, role: values.role ?? 'member' },
-      });
-      setCredentials(result.account);
-      setCredentialsStudentName(values.nama);
+      if (account.mode === 'existing') {
+        await linkNewProfileMutation.mutateAsync({
+          ...profilePayload,
+          user_id: account.userId,
+          change_reason: values.change_reason,
+        });
+      } else {
+        const result = await createMutation.mutateAsync({
+          payload: { ...profilePayload, role: values.role ?? 'member' },
+        });
+        if (result.account.temporary_password) {
+          setCredentials(result.account);
+          setCredentialsStudentName(values.nama);
+        }
+      }
       // Reset filter & page so newly added student immediately appears at the top of the table
       setSearch('');
       setKelas(UI_CONSTANTS.ALL_FILTER_VALUE);
@@ -184,8 +220,8 @@ export function StudentsPage() {
 
     const students = data?.data ?? [];
     const list = isMobile
-      ? <StudentMobileList students={students} onOpenDetail={setDetailStudent} onEdit={handleOpenEdit} onToggleActive={handleOpenStatusDialog} onProvisionAccount={handleOpenProvisionDialog} canManage={canManage} canManageStatus={canManageStatus} />
-      : <StudentTable students={students} onEdit={handleOpenEdit} onToggleActive={handleOpenStatusDialog} onProvisionAccount={handleOpenProvisionDialog} canManage={canManage} canManageStatus={canManageStatus} />;
+      ? <StudentMobileList students={students} onOpenDetail={setDetailStudent} onEdit={handleOpenEdit} onToggleActive={handleOpenStatusDialog} onProvisionAccount={handleOpenProvisionDialog} onLinkLegacyAccount={handleOpenLinkDialog} canManage={canManage} canManageStatus={canManageStatus} />
+      : <StudentTable students={students} onEdit={handleOpenEdit} onToggleActive={handleOpenStatusDialog} onProvisionAccount={handleOpenProvisionDialog} onLinkLegacyAccount={handleOpenLinkDialog} canManage={canManage} canManageStatus={canManageStatus} />;
 
     return (
       <div className="space-y-4">
@@ -248,6 +284,7 @@ export function StudentsPage() {
                 onEdit: handleOpenEdit,
                 onToggleActive: handleOpenStatusDialog,
                 onProvisionAccount: handleOpenProvisionDialog,
+                onLinkLegacyAccount: handleOpenLinkDialog,
               }}
             />
           )}
@@ -256,9 +293,10 @@ export function StudentsPage() {
               open
               onOpenChange={setDialogOpen}
               student={selectedStudent}
+              canLinkExistingAccount={canManageStatus}
               onSubmit={handleFormSubmit}
-              isLoading={createMutation.isPending || updateMutation.isPending}
-              error={createMutation.error || updateMutation.error}
+              isLoading={createMutation.isPending || updateMutation.isPending || linkNewProfileMutation.isPending}
+              error={createMutation.error || updateMutation.error || linkNewProfileMutation.error}
             />
           )}
           {statusDialogOpen && (
@@ -283,6 +321,16 @@ export function StudentsPage() {
               }}
               action={{ confirmLabel: 'Buat Akun', onConfirm: handleProvisionSubmit }}
               reason={{ label: 'Alasan Pembuatan Akun *', placeholder: 'Contoh: Melengkapi akun siswa lama' }}
+            />
+          )}
+          {linkTargetStudent && (
+            <LazyLinkLegacyAccountDialog
+              open
+              onOpenChange={(open) => { if (!open) setLinkTargetStudent(null); }}
+              student={linkTargetStudent}
+              onSubmit={handleLinkExistingProfile}
+              isLoading={linkExistingProfileMutation.isPending}
+              error={linkExistingProfileMutation.error}
             />
           )}
           {credentials && (

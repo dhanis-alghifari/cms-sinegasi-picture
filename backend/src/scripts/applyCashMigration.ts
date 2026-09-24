@@ -18,6 +18,7 @@ const migrationNames = [
   '071_cash_personal_scope_and_teacher_dispute_review.sql',
   '072_cash_dispute_single_pending.sql',
   '073_cash_dispute_per_target_pending.sql',
+  '075_cash_dispute_derive_debt_amount.sql',
 ] as const;
 
 type MigrationName = (typeof migrationNames)[number];
@@ -167,6 +168,12 @@ const migrationProbes: Record<MigrationName, MigrationProbe> = {
     SELECT to_regprocedure('public.create_cash_dispute_atomic(uuid,uuid,uuid,text,text,uuid,text)') IS NOT NULL
       AND COALESCE(pg_get_functiondef(to_regprocedure('public.create_cash_dispute_atomic(uuid,uuid,uuid,text,text,uuid,text)')), '') LIKE '%active-target check is intentionally scoped%'
       AND COALESCE(pg_get_functiondef(to_regprocedure('public.create_cash_dispute_atomic(uuid,uuid,uuid,text,text,uuid,text)')), '') NOT LIKE '%A student resolves one dispute at a time across both transactions and debts.%'
+      AS complete
+  `),
+  '075_cash_dispute_derive_debt_amount.sql': (client) => schemaProbe(client, `
+    SELECT to_regprocedure('public.review_cash_dispute_atomic(uuid,text,text,uuid,date,numeric,text)') IS NOT NULL
+      AND COALESCE(pg_get_functiondef(to_regprocedure('public.review_cash_dispute_atomic(uuid,text,text,uuid,date,numeric,text)')), '') LIKE '%p_resolution_amount IS NOT NULL%'
+      AND COALESCE(pg_get_functiondef(to_regprocedure('public.review_cash_dispute_atomic(uuid,text,text,uuid,date,numeric,text)')), '') LIKE '%v_debt.amount%'
       AS complete
   `),
 };

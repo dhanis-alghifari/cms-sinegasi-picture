@@ -29,6 +29,10 @@ export function useUpdateStudentMutation() {
           queryKey: QUERY_KEYS.STUDENT_DETAIL(variables.id),
           refetchType: 'active',
         }),
+        queryClient.invalidateQueries({
+          queryKey: QUERY_KEYS.USERS,
+          refetchType: 'active',
+        }),
       ]);
     },
   });

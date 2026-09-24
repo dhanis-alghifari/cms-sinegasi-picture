@@ -21,6 +21,7 @@ import { isOneOf } from '@/shared/utils/isOneOf';
 
 interface StudentFormFieldsProps {
   form: UseFormReturn<StudentFormValues>;
+  showRoleSelection?: boolean;
   state: {
     isEditing: boolean;
     selectedKelas?: string;
@@ -44,6 +45,7 @@ interface StudentFormFieldsProps {
 
 export function StudentFormFields({
   form,
+  showRoleSelection = true,
   state,
   classes,
   image,
@@ -165,7 +167,7 @@ export function StudentFormFields({
               />
             </div>
 
-            {!isEditing && (
+            {!isEditing && showRoleSelection && (
               <div className="space-y-1">
                 <Label className="text-ink-muted text-xs">Peran Akun Siswa *</Label>
                 <Select value={selectedRole ?? 'member'} onValueChange={handleRoleChange}>
@@ -178,7 +180,7 @@ export function StudentFormFields({
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-ink-tertiary text-[10px]">Peran mengatur hak akses akun; siswa tidak dapat diberi peran Guru.</p>
+                <p className="text-ink-tertiary text-[10px]">Role kepengurusan untuk siswa; Teacher dan Treasurer adalah akun operasional.</p>
                 {form.formState.errors.role && (
                   <p className="text-semantic-danger text-[10px]">{form.formState.errors.role.message}</p>
                 )}

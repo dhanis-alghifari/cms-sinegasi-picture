@@ -194,7 +194,7 @@ export const cashService = {
   },
 
   // Resolve or reject a dispute
-  resolveDispute(disputeId: string, input: { status: DisputeStatus; review_note: string; resolution_date?: string; resolution_amount?: number; payment_method_code?: string }, changeReason: string): Promise<{ success: boolean; data: { dispute: CashDispute; resolutionTransactionId?: string; idempotentReplay: boolean } }> {
+  resolveDispute(disputeId: string, input: { status: DisputeStatus; review_note: string; resolution_date?: string; payment_method_code?: string }, changeReason: string): Promise<{ success: boolean; data: { dispute: CashDispute; resolutionTransactionId?: string; idempotentReplay: boolean } }> {
     return apiClient.patchParsed(`/api/cash/disputes/${disputeId}`, { ...input, status: input.status === 'resolved' ? 'approved' : input.status }, decodeResolveDispute, {
       changeReason,
     });

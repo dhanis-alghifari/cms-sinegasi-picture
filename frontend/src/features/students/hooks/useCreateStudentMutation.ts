@@ -16,10 +16,11 @@ export function useCreateStudentMutation() {
     onSuccess: async () => {
       // Do not manually prepend the record to every filtered/paginated cache variant.
       // Refetch the active list from the server so pagination and filters stay correct.
-      await queryClient.invalidateQueries({
-        queryKey: QUERY_KEYS.STUDENTS,
-        refetchType: 'active',
-      });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.STUDENTS, refetchType: 'active' }),
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.USERS, refetchType: 'active' }),
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.STUDENT_UNLINKED_ACCOUNTS }),
+      ]);
     },
   });
 }

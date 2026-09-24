@@ -36,6 +36,17 @@ export const studentsOptionsRouteSchema = {
   },
 } as const;
 
+export const studentsUnlinkedAccountsRouteSchema = {
+  querystring: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      q: { type: 'string', maxLength: 100 },
+      limit: { type: 'string', pattern: '^[1-9][0-9]*$' },
+    },
+  },
+} as const;
+
 export const studentCreateRouteSchema = {
   body: {
     type: 'object',
@@ -50,6 +61,37 @@ export const studentCreateRouteSchema = {
       photo_url: { type: 'string', maxLength: 2_000_000 },
       role: { type: 'string', enum: STUDENT_ACCOUNT_ROLE_VALUES },
       change_reason: { type: 'string', maxLength: 500 },
+    },
+  },
+} as const;
+
+export const studentLinkAccountRouteSchema = {
+  body: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['user_id', 'student_number', 'name', 'class_name', 'change_reason'],
+    properties: {
+      user_id: { type: 'string', pattern: '^[0-9a-fA-F-]{36}$' },
+      student_number: { type: 'string', minLength: 1, maxLength: 40 },
+      name: { type: 'string', minLength: 2, maxLength: 120 },
+      class_name: { type: 'string', minLength: 1, maxLength: 80 },
+      specialization: { type: 'string', enum: specializations },
+      phone_number: { type: 'string', maxLength: 40 },
+      photo_url: { type: 'string', maxLength: 2_000_000 },
+      change_reason: { type: 'string', minLength: 5, maxLength: 500 },
+    },
+  },
+} as const;
+
+export const studentLinkExistingProfileRouteSchema = {
+  params: studentIdParams,
+  body: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['user_id', 'change_reason'],
+    properties: {
+      user_id: { type: 'string', pattern: '^[0-9a-fA-F-]{36}$' },
+      change_reason: { type: 'string', minLength: 5, maxLength: 500 },
     },
   },
 } as const;

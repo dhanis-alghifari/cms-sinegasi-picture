@@ -1,6 +1,6 @@
 
 import { useState } from "react";
-import { MoreVertical, Edit2, KeyRound, UserCheck, UserX } from "lucide-react";
+import { MoreVertical, Edit2, KeyRound, Link2, UserCheck, UserX } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -51,6 +51,7 @@ interface StudentTableProps {
   onEdit: (student: Student) => void;
   onToggleActive: (student: Student) => void;
   onProvisionAccount?: (student: Student) => void;
+  onLinkLegacyAccount?: (student: Student) => void;
   canManage?: boolean;
   canManageStatus?: boolean;
 }
@@ -60,6 +61,7 @@ export function StudentTable({
   onEdit,
   onToggleActive,
   onProvisionAccount,
+  onLinkLegacyAccount,
   canManage = true,
   canManageStatus = false,
 }: StudentTableProps) {
@@ -190,6 +192,15 @@ export function StudentTable({
                         >
                           <KeyRound size={14} className="mr-2 text-primary" />
                           Buat Akun Anggota
+                        </DropdownMenuItem>
+                      )}
+                      {canManageStatus && student.is_active && !student.user_id && onLinkLegacyAccount && (
+                        <DropdownMenuItem
+                          onClick={() => onLinkLegacyAccount(student)}
+                          className="text-xs cursor-pointer"
+                        >
+                          <Link2 size={14} className="mr-2 text-primary" />
+                          Tautkan akun lama
                         </DropdownMenuItem>
                       )}
                       {canManageStatus && (

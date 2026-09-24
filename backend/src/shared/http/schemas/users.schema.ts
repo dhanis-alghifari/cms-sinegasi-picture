@@ -1,3 +1,5 @@
+import { OPERATIONAL_USER_ROLE_VALUES, USER_ROLE_VALUES } from '../../auth/auth.types.js';
+
 const userIdParams = {
   type: 'object',
   additionalProperties: false,
@@ -5,7 +7,7 @@ const userIdParams = {
   properties: { id: { type: 'string', minLength: 1, maxLength: 128 } },
 } as const;
 
-const roles = ['teacher', 'leader', 'vice_leader', 'treasurer', 'secretary', 'equipment_team', 'contest_team', 'member'];
+const roles = USER_ROLE_VALUES;
 
 export const usersListRouteSchema = {
   querystring: {
@@ -31,7 +33,7 @@ export const userCreateRouteSchema = {
     properties: {
       username: { type: 'string', minLength: 3, maxLength: 30, pattern: '^[a-zA-Z0-9._-]+$' },
       name: { type: 'string', minLength: 2, maxLength: 200 },
-      role: { type: 'string', enum: roles.filter((role) => role !== 'member') },
+      role: { type: 'string', enum: OPERATIONAL_USER_ROLE_VALUES },
       password: { type: 'string', minLength: 1, maxLength: 128 },
       change_reason: { type: 'string', maxLength: 500 },
     },

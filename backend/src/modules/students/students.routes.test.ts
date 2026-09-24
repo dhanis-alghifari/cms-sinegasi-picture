@@ -7,10 +7,9 @@ import { createStudentRepository } from './students.repository.js';
 import { StudentService } from './students.service.js';
 import studentRoutes from './students.routes.js';
 
-async function createApp() {
+async function createApp(state = createStudentsMemoryState()) {
   const app = Fastify();
   await app.register(jwt, { secret: 'test-secret-that-is-long-enough' });
-  const state = createStudentsMemoryState();
   await app.register(studentRoutes, {
     studentsService: new StudentService(createStudentRepository(null, state), () => state.students),
     persistAuditLog: async () => undefined,
@@ -94,4 +93,94 @@ test('cash managers can use the minimal student selector without student adminis
 
   const fullStudentList = await app.inject({ method: 'GET', url: '/api/students', headers: treasurerHeaders });
   assert.equal(fullStudentList.statusCode, 403);
+});
+
+test('teacher can explicitly link an eligible legacy account without changing its credentials', async (t) => {
+  const state = createStudentsMemoryState();
+  const accountId = '33333333-3333-4333-a333-333333333333';
+  const teacherId = 'teacher-1';
+  state.accounts.push({
+    id: accountId,
+    username: 'ketua',
+    nama: 'Ketua Ekstra',
+    role: 'leader',
+    is_active: true,
+    is_first_login: false,
+  });
+  const app = await createApp(state);
+  t.after(() => app.close());
+  const teacherToken = app.jwt.sign({ userId: teacherId, username: 'guru', role: 'teacher', isFirstLogin: false });
+  const headers = { authorization: `Bearer ${teacherToken}` };
+
+  const candidates = await app.inject({ method: 'GET', url: '/api/students/unlinked-accounts?q=ketua', headers });
+  assert.equal(candidates.statusCode, 200);
+  assert.deepEqual(candidates.json().data, [{ id: accountId, username: 'ketua', nama: 'Ketua Ekstra', role: 'leader' }]);
+
+  const linked = await app.inject({
+    method: 'POST',
+    url: '/api/students/account-links',
+    headers: { ...headers, 'x-change-reason': 'Tautkan akun ketua siswa lama' },
+    payload: { user_id: accountId, student_number: '20260005', name: 'Ketua Ekstra', class_name: 'XI AK 1', change_reason: 'Tautkan akun ketua siswa lama' },
+  });
+  assert.equal(linked.statusCode, 201);
+  assert.equal(linked.json().account.user_id, accountId);
+  assert.equal(linked.json().account.role, 'leader');
+  assert.equal('temporary_password' in linked.json().account, false);
+  assert.equal(linked.json().data.user_id, accountId);
+  assert.equal(state.accounts[0].is_first_login, false);
+  assert.equal(state.accounts[0].username, 'ketua');
+
+  const candidatesAfterLink = await app.inject({ method: 'GET', url: '/api/students/unlinked-accounts', headers });
+  assert.deepEqual(candidatesAfterLink.json().data, []);
+});
+
+test('teacher can attach an eligible account to an existing unlinked student profile', async (t) => {
+  const state = createStudentsMemoryState();
+  const accountId = '33333333-3333-4333-a333-333333333333';
+  const studentId = '55555555-5555-4555-a555-555555555555';
+  state.accounts.push({
+    id: accountId,
+    username: 'ketua',
+    nama: 'Nama lama',
+    role: 'leader',
+    is_active: true,
+    is_first_login: false,
+  });
+  state.students.push({
+    id: studentId,
+    nis: '20260022',
+    nama: 'Ketua Ekstra',
+    kelas: 'XI AK 1',
+    is_active: true,
+    created_at: new Date().toISOString(),
+  });
+  const app = await createApp(state);
+  t.after(() => app.close());
+  const teacherToken = app.jwt.sign({ userId: 'teacher-1', username: 'guru', role: 'teacher', isFirstLogin: false });
+  const linked = await app.inject({
+    method: 'POST',
+    url: `/api/students/${studentId}/account-links`,
+    headers: { authorization: `Bearer ${teacherToken}` },
+    payload: { user_id: accountId, change_reason: 'Tautkan akun ke profil siswa lama' },
+  });
+
+  assert.equal(linked.statusCode, 200);
+  assert.equal(linked.json().data.id, studentId);
+  assert.equal(linked.json().data.user_id, accountId);
+  assert.equal(linked.json().account.username, 'ketua');
+  assert.equal(linked.json().account.role, 'leader');
+  assert.equal('temporary_password' in linked.json().account, false);
+  assert.equal(state.students.length, 1);
+});
+
+test('student-role accounts cannot access the legacy account linking flow', async (t) => {
+  const app = await createApp();
+  t.after(() => app.close());
+  const leaderToken = app.jwt.sign({ userId: 'leader-1', username: 'ketua', role: 'leader', isFirstLogin: false });
+  const denied = await app.inject({
+    method: 'GET',
+    url: '/api/students/unlinked-accounts',
+    headers: { authorization: `Bearer ${leaderToken}` },
+  });
+  assert.equal(denied.statusCode, 403);
 });

@@ -388,17 +388,21 @@ export function createCashDisputesRepository(client: SupabaseLike, memory: CashD
         if (input.status === 'approved' && current.debt_record_id) {
           const debt = memory.debts?.find((item) => item.id === current.debt_record_id);
           if (!debt || debt.status !== 'unpaid') return { data: null, error: businessError('DISPUTE_DEBT_ALREADY_SETTLED') };
-          if (!input.resolutionDate || !input.resolutionAmount || !input.paymentMethodCode || input.resolutionAmount !== debt.amount) {
+          if (!input.resolutionDate || !input.paymentMethodCode) {
             return { data: null, error: businessError('DISPUTE_RESOLUTION_REQUIRED') };
           }
+          if (input.resolutionAmount !== undefined && (input.resolutionAmount <= 0 || input.resolutionAmount !== debt.amount)) {
+            return { data: null, error: businessError('DISPUTE_RESOLUTION_AMOUNT_INVALID') };
+          }
+          const settlementAmount = debt.amount;
           const balance = memory.transactions.reduce((sum, item) => sum + (item.type === 'pengeluaran' ? -Number(item.nominal) : Number(item.nominal)), 0);
           resolutionTransactionId = crypto.randomUUID();
           memory.transactions.unshift({
-            id: resolutionTransactionId, student_id: current.student_id, type: 'iuran_wajib', nominal: input.resolutionAmount,
+            id: resolutionTransactionId, student_id: current.student_id, type: 'iuran_wajib', nominal: settlementAmount,
             keterangan: 'Pembayaran terverifikasi melalui sanggahan kas', tanggal: input.resolutionDate,
             idempotency_key: `cash-dispute-resolution:${current.id}`,
             created_by: input.actorId, created_at: new Date().toISOString(), is_billing: false,
-            saldo_sebelum: balance, saldo_sesudah: balance + input.resolutionAmount,
+            saldo_sebelum: balance, saldo_sesudah: balance + settlementAmount,
           } as CashTransactionRecord);
           debt.status = 'paid';
         }

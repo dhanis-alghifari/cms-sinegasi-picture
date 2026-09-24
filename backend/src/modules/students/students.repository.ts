@@ -11,6 +11,10 @@ import {
 } from './students.helpers.js';
 import type {
   StudentAccountOperationResult,
+  StudentAccountLinkInput,
+  StudentAccountLinkResult,
+  StudentExistingProfileLinkInput,
+  StudentAccount,
   StudentCreateInput,
   StudentListQuery,
   StudentListResult,
@@ -19,9 +23,11 @@ import type {
   StudentRecord,
   StudentLookupRecord,
   StudentRepository,
+  UnlinkedStudentAccount,
   StudentUpdateInput,
   StudentsMemoryState,
 } from './students.types.js';
+import { STUDENT_ACCOUNT_ROLE_VALUES } from './students.types.js';
 
 export type { StudentRepository, StudentRecord } from './students.types.js';
 
@@ -55,7 +61,7 @@ function mapAccountOperation(student: StudentRecord, rawAccount: { userId: strin
   };
 }
 
-export function createStudentRepository(client: SupabaseLike, state: StudentsMemoryState = { students: [] }): StudentRepository {
+export function createStudentRepository(client: SupabaseLike, state: StudentsMemoryState = { students: [], accounts: [] }): StudentRepository {
   return {
     isConfigured: () => client !== null,
 
@@ -116,6 +122,37 @@ export function createStudentRepository(client: SupabaseLike, state: StudentsMem
       return { data: { data: (result.data || []).map((row: Record<string, unknown>) => mapStudentOption(row)), total: result.count ?? result.data?.length ?? 0 } };
     },
 
+    async listUnlinkedAccounts(query): Promise<RepositoryResult<UnlinkedStudentAccount[]>> {
+      const limit = Math.min(20, Math.max(1, Math.floor(query.limit || 20)));
+      const search = sanitizeStudentSearch(query.search).toLowerCase();
+      if (!client) {
+        const linkedUserIds = new Set(state.students.flatMap((student) => student.user_id ? [student.user_id] : []));
+        const accounts = state.accounts
+          .filter((account) => account.is_active && !linkedUserIds.has(account.id) && account.id !== query.actorId)
+          .filter((account) => STUDENT_ACCOUNT_ROLE_VALUES.includes(account.role as typeof STUDENT_ACCOUNT_ROLE_VALUES[number]))
+          .filter((account) => !search || `${account.nama} ${account.username}`.toLowerCase().includes(search))
+          .sort((left, right) => left.nama.localeCompare(right.nama) || left.id.localeCompare(right.id))
+          .slice(0, limit)
+          .map(({ id, username, nama, role }) => ({ id, username, nama, role }));
+        return { data: accounts };
+      }
+      const { data, error } = await client.rpc('list_unlinked_student_accounts', {
+        p_search: search || null,
+        p_limit: limit,
+        p_actor_id: query.actorId,
+      });
+      if (error) return { error };
+      const rows = Array.isArray(data) ? data : [];
+      return {
+        data: rows.map((row: Record<string, unknown>) => ({
+          id: String(row.id),
+          username: String(row.username),
+          nama: String(row.nama),
+          role: String(row.role),
+        })),
+      };
+    },
+
     async createWithAccount(input): Promise<RepositoryResult<StudentAccountOperationResult>> {
       if (!client) {
         if (state.students.some((student) => student.nis.toLowerCase() === input.nis.toLowerCase())) return { error: { code: '23505' } };
@@ -130,6 +167,14 @@ export function createStudentRepository(client: SupabaseLike, state: StudentsMem
           ...(input.actorId ? { created_by: input.actorId, updated_by: input.actorId, updated_at: now } : {}),
         };
         state.students.unshift(student);
+        state.accounts.push({
+          id: userId,
+          username: input.username,
+          nama: input.nama,
+          role: input.role || 'member',
+          is_active: true,
+          is_first_login: true,
+        });
         return { data: mapAccountOperation(student, { userId, username: input.username, role: input.role || 'member', isFirstLogin: true }) };
       }
       const { data: accountData, error } = await client.rpc('create_student_with_account_atomic', {
@@ -143,6 +188,124 @@ export function createStudentRepository(client: SupabaseLike, state: StudentsMem
       const result = await client.from('students').select(STUDENT_SELECT).eq('id', (Array.isArray(accountData) ? accountData[0] : accountData)?.student_id).single();
       if (result.error || !result.data) return { error: result.error || { code: 'EMPTY_RESULT' } };
       return { data: mapAccountOperation(mapStudentRow(result.data as Record<string, unknown>), account) };
+    },
+
+    async linkExistingAccount(input: StudentAccountLinkInput): Promise<RepositoryResult<StudentAccountLinkResult>> {
+      if (!client) {
+        const account = state.accounts.find((candidate) => candidate.id === input.userId);
+        if (!account || !account.is_active || account.id === input.actorId
+          || !STUDENT_ACCOUNT_ROLE_VALUES.includes(account.role as typeof STUDENT_ACCOUNT_ROLE_VALUES[number])
+          || state.students.some((student) => student.user_id === account.id)) {
+          return { error: { code: 'STUDENT_ACCOUNT_NOT_ELIGIBLE', message: 'STUDENT_ACCOUNT_NOT_ELIGIBLE' } };
+        }
+        if (state.students.some((student) => student.nis.toLowerCase() === input.nis.toLowerCase())) return { error: { code: '23505' } };
+        const previousAccount = { id: account.id, username: account.username, nama: account.nama, role: account.role };
+        const now = new Date().toISOString();
+        const student: StudentRecord = {
+          id: crypto.randomUUID(), user_id: account.id, nis: input.nis, nama: input.nama, kelas: input.kelas,
+          ...(input.peminatan ? { peminatan: input.peminatan } : {}),
+          ...(input.no_telepon ? { no_telepon: input.no_telepon } : {}),
+          ...(input.foto_url ? { foto_url: input.foto_url } : {}),
+          is_active: account.is_active, created_at: now,
+        };
+        account.nama = input.nama;
+        state.students.unshift(student);
+        return {
+          data: {
+            student,
+            account: { user_id: account.id, username: account.username, role: account.role, is_first_login: account.is_first_login },
+            previousAccount,
+          },
+        };
+      }
+      const { data: rawData, error } = await client.rpc('link_existing_student_account_atomic', {
+        p_user_id: input.userId,
+        p_nis: input.nis,
+        p_nama: input.nama,
+        p_kelas: input.kelas,
+        p_peminatan: input.peminatan || null,
+        p_no_telepon: input.no_telepon || null,
+        p_foto_url: input.foto_url || null,
+        p_actor_id: input.actorId,
+        p_change_reason: input.changeReason,
+      });
+      if (error) return { error };
+      const raw = (Array.isArray(rawData) ? rawData[0] : rawData) as Record<string, unknown> | null;
+      if (!raw?.student_id || !raw.user_id) return { error: { code: 'EMPTY_RESULT', message: 'Pengaitan akun siswa tidak menghasilkan identitas.' } };
+      const studentResult = await client.from('students').select(STUDENT_SELECT).eq('id', String(raw.student_id)).single();
+      if (studentResult.error || !studentResult.data) return { error: studentResult.error || { code: 'EMPTY_RESULT' } };
+      const account: StudentAccount = {
+        user_id: String(raw.user_id),
+        username: String(raw.username),
+        role: String(raw.role),
+        is_first_login: raw.is_first_login === true,
+      };
+      const previousRaw = raw.previous_account as Record<string, unknown> | undefined;
+      return {
+        data: {
+          student: mapStudentRow(studentResult.data as Record<string, unknown>),
+          account,
+          previousAccount: {
+            id: account.user_id,
+            username: String(previousRaw?.username ?? raw.username),
+            nama: String(previousRaw?.nama ?? raw.nama),
+            role: String(previousRaw?.role ?? raw.role),
+          },
+        },
+      };
+    },
+
+    async linkAccountToExistingProfile(input: StudentExistingProfileLinkInput): Promise<RepositoryResult<StudentAccountLinkResult>> {
+      if (!client) {
+        const account = state.accounts.find((candidate) => candidate.id === input.userId);
+        const student = state.students.find((candidate) => candidate.id === input.studentId);
+        if (!student) return { error: { code: 'STUDENT_NOT_FOUND', message: 'STUDENT_NOT_FOUND' } };
+        if (!account || !account.is_active || !student.is_active || account.id === input.actorId
+          || !STUDENT_ACCOUNT_ROLE_VALUES.includes(account.role as typeof STUDENT_ACCOUNT_ROLE_VALUES[number])
+          || student.user_id || state.students.some((candidate) => candidate.user_id === account.id)) {
+          return { error: { code: 'STUDENT_LINK_TARGET_NOT_ELIGIBLE', message: 'STUDENT_LINK_TARGET_NOT_ELIGIBLE' } };
+        }
+        const previousAccount = { id: account.id, username: account.username, nama: account.nama, role: account.role };
+        student.user_id = account.id;
+        account.nama = student.nama;
+        return {
+          data: {
+            student: { ...student },
+            account: { user_id: account.id, username: account.username, role: account.role, is_first_login: account.is_first_login },
+            previousAccount,
+          },
+        };
+      }
+      const { data: rawData, error } = await client.rpc('link_account_to_existing_student_atomic', {
+        p_student_id: input.studentId,
+        p_user_id: input.userId,
+        p_actor_id: input.actorId,
+        p_change_reason: input.changeReason,
+      });
+      if (error) return { error };
+      const raw = (Array.isArray(rawData) ? rawData[0] : rawData) as Record<string, unknown> | null;
+      if (!raw?.student_id || !raw.user_id) return { error: { code: 'EMPTY_RESULT', message: 'Pengaitan profil siswa tidak menghasilkan identitas.' } };
+      const studentResult = await client.from('students').select(STUDENT_SELECT).eq('id', String(raw.student_id)).single();
+      if (studentResult.error || !studentResult.data) return { error: studentResult.error || { code: 'EMPTY_RESULT' } };
+      const previousRaw = raw.previous_account as Record<string, unknown> | undefined;
+      const account: StudentAccount = {
+        user_id: String(raw.user_id),
+        username: String(raw.username),
+        role: String(raw.role),
+        is_first_login: raw.is_first_login === true,
+      };
+      return {
+        data: {
+          student: mapStudentRow(studentResult.data as Record<string, unknown>),
+          account,
+          previousAccount: {
+            id: account.user_id,
+            username: String(previousRaw?.username ?? raw.username),
+            nama: String(previousRaw?.nama ?? raw.nama),
+            role: String(previousRaw?.role ?? raw.role),
+          },
+        },
+      };
     },
 
     async provisionAccount(input): Promise<RepositoryResult<StudentAccountOperationResult>> {

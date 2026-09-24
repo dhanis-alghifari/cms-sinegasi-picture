@@ -5,6 +5,7 @@ import {
   decodeStudentAccountResponse,
   decodeStudentList,
   decodeStudentOptions,
+  decodeUnlinkedStudentAccounts,
 } from './students.responses';
 import { decodeVoidResponse } from '@/shared/api/responseValidation';
 import type { PaginatedResponse } from '@/shared/types/common';
@@ -15,6 +16,8 @@ import type {
   UpdateStudentPayload,
   StudentAccountResponse,
   StudentOption,
+  LinkExistingStudentAccountPayload,
+  UnlinkedStudentAccount,
 } from '../types/students.types';
 
 const specializationValues: Readonly<Record<string, string>> = {
@@ -73,9 +76,32 @@ export const studentsService = {
     return apiClient.getParsed(endpoint, decodeStudentOptions, options);
   },
 
+  getUnlinkedAccounts(
+    params?: { search?: string; limit?: number },
+    options: Pick<RequestInit, 'signal'> = {},
+  ): Promise<UnlinkedStudentAccount[]> {
+    const query = new URLSearchParams();
+    if (params?.search?.trim()) query.append('q', params.search.trim());
+    if (params?.limit) query.append('limit', String(params.limit));
+    const endpoint = `/api/students/unlinked-accounts${query.toString() ? `?${query.toString()}` : ''}`;
+    return apiClient.getParsed(endpoint, decodeUnlinkedStudentAccounts, options);
+  },
+
   createStudent(payload: CreateStudentPayload): Promise<StudentAccountResponse> {
     return apiClient.postParsed('/api/students', toStudentRequest(payload), decodeStudentAccountResponse, {
       changeReason: payload.change_reason || 'Menambahkan siswa dan membuat akun sesuai peran',
+    });
+  },
+
+  linkExistingAccount(payload: LinkExistingStudentAccountPayload): Promise<StudentAccountResponse> {
+    return apiClient.postParsed('/api/students/account-links', toStudentRequest(payload), decodeStudentAccountResponse, {
+      changeReason: payload.change_reason || 'Menautkan akun lama ke data siswa',
+    });
+  },
+
+  linkAccountToExistingProfile(studentId: string, userId: string, changeReason: string): Promise<StudentAccountResponse> {
+    return apiClient.postParsed(`/api/students/${studentId}/account-links`, { user_id: userId, change_reason: changeReason }, decodeStudentAccountResponse, {
+      changeReason,
     });
   },
 

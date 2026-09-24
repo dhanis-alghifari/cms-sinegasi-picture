@@ -5,12 +5,12 @@ import type {
   UserMemoryState,
   UserRole,
 } from './users.types.js';
+import { OPERATIONAL_USER_ROLE_VALUES, STUDENT_ACCOUNT_ROLE_VALUES } from '../../shared/auth/auth.types.js';
 import { USER_ROLE_VALUES } from './users.types.js';
 
 export const USER_ROLES: ReadonlySet<string> = new Set(USER_ROLE_VALUES);
-export const OPERATIONAL_USER_ROLES: ReadonlySet<string> = new Set(
-  USER_ROLE_VALUES.filter((role) => role !== 'member'),
-);
+export const OPERATIONAL_USER_ROLES: ReadonlySet<string> = new Set(OPERATIONAL_USER_ROLE_VALUES);
+export const STUDENT_ACCOUNT_ROLES: ReadonlySet<string> = new Set(STUDENT_ACCOUNT_ROLE_VALUES);
 
 export const USER_SELECT = 'id,username,nama,role,is_active,is_first_login,created_at,updated_at,created_by,updated_by';
 

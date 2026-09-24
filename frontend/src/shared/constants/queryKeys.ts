@@ -9,6 +9,7 @@ export const QUERY_KEYS = {
   // Students
   STUDENTS: ['students'] as const,
   STUDENT_OPTIONS: ['students', 'options'] as const,
+  STUDENT_UNLINKED_ACCOUNTS: ['students', 'unlinked-accounts'] as const,
   STUDENT_DETAIL: (id: string) => ['students', id] as const,
 
   // Users

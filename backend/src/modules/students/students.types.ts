@@ -1,17 +1,10 @@
 import type { ActorSummary } from '../../shared/actors/actors.types.js';
+import { STUDENT_ACCOUNT_ROLE_VALUES } from '../../shared/auth/auth.types.js';
 
 export const STUDENT_PEMINATAN_VALUES = ['kamera', 'editing', 'naskah'] as const;
 export type StudentPeminatan = typeof STUDENT_PEMINATAN_VALUES[number];
 
-export const STUDENT_ACCOUNT_ROLE_VALUES = [
-  'leader',
-  'vice_leader',
-  'treasurer',
-  'secretary',
-  'equipment_team',
-  'contest_team',
-  'member',
-] as const;
+export { STUDENT_ACCOUNT_ROLE_VALUES };
 export type StudentAccountRole = typeof STUDENT_ACCOUNT_ROLE_VALUES[number];
 
 export type StudentRecord = {
@@ -94,8 +87,31 @@ export type StudentAccountOperationResult = {
   account: StudentAccount;
 };
 
+export type UnlinkedStudentAccount = Pick<StudentAccount, 'username' | 'role'> & {
+  id: string;
+  nama: string;
+};
+
+export type StudentAccountLinkResult = StudentAccountOperationResult & {
+  previousAccount: Pick<UnlinkedStudentAccount, 'id' | 'username' | 'nama' | 'role'>;
+};
+
+export type StudentAccountLinkInput = Pick<StudentCreateInput, 'nis' | 'nama' | 'kelas' | 'peminatan' | 'no_telepon' | 'foto_url'> & {
+  userId: string;
+  actorId: string;
+  changeReason: string;
+};
+
+export type StudentExistingProfileLinkInput = {
+  studentId: string;
+  userId: string;
+  actorId: string;
+  changeReason: string;
+};
+
 export type StudentsMemoryState = {
   students: StudentRecord[];
+  accounts: Array<UnlinkedStudentAccount & { is_active: boolean; is_first_login: boolean }>;
 };
 
 export interface StudentRepository {
@@ -103,7 +119,10 @@ export interface StudentRepository {
   findByIdentifier(identifier: string): Promise<{ data: StudentLookupRecord | null; error: DatabaseError | null }>;
   list?(query: StudentListQuery): Promise<{ data: StudentListResult; error?: never } | { data?: never; error: DatabaseError }>;
   listOptions?(query: StudentOptionsQuery): Promise<{ data: { data: StudentOption[]; total: number }; error?: never } | { data?: never; error: DatabaseError }>;
+  listUnlinkedAccounts?(query: { search?: string; limit?: number; actorId: string }): Promise<{ data: UnlinkedStudentAccount[]; error?: never } | { data?: never; error: DatabaseError }>;
   createWithAccount?(input: StudentCreateInput & { username: string; passwordHash: string; actorId: string | null }): Promise<{ data: StudentAccountOperationResult; error?: never } | { data?: never; error: DatabaseError }>;
+  linkExistingAccount?(input: StudentAccountLinkInput): Promise<{ data: StudentAccountLinkResult; error?: never } | { data?: never; error: DatabaseError }>;
+  linkAccountToExistingProfile?(input: StudentExistingProfileLinkInput): Promise<{ data: StudentAccountLinkResult; error?: never } | { data?: never; error: DatabaseError }>;
   provisionAccount?(input: { id: string; username: string; passwordHash: string; actorId: string }): Promise<{ data: StudentAccountOperationResult; error?: never } | { data?: never; error: DatabaseError }>;
   updateStatus?(input: { id: string; isActive: boolean; actorId: string | null }): Promise<{ data: StudentRecord | null; error?: never } | { data?: never; error: DatabaseError }>;
   updateProfile?(input: { id: string; changes: StudentUpdateInput; actorId: string | null }): Promise<{ data: StudentRecord | null; error?: never } | { data?: never; error: DatabaseError }>;

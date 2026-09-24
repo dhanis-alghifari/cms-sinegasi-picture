@@ -19,7 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { cn } from '@/shared/utils/cn';
 import { ApiError, getErrorMessage } from '@/shared/api/errors';
 import { FieldError } from '@/shared/ui/FieldError';
-import { type UserRole } from '@/shared/types/common';
+import { STUDENT_ROLE_VALUES, type StudentRole, type UserRole } from '@/shared/types/common';
 import { isOneOf } from '@/shared/utils/isOneOf';
 
 import { userSchema, type UserFormValues } from '../schemas/userSchema';
@@ -36,17 +36,21 @@ interface UserFormDialogProps {
 
 const ROLE_OPTIONS: ReadonlyArray<{ value: UserRole; label: string }> = [
   { value: 'teacher', label: 'Teacher (Guru Pembina)' },
-  { value: 'leader', label: 'Leader (Ketua)' },
-  { value: 'vice_leader', label: 'Vice Leader (Wakil Ketua)' },
   { value: 'treasurer', label: 'Treasurer (Bendahara)' },
-  { value: 'secretary', label: 'Secretary (Sekretaris)' },
-  { value: 'equipment_team', label: 'Equipment Team' },
-  { value: 'contest_team', label: 'Contest Team' },
-  { value: 'member', label: 'Member (Siswa)' },
 ];
 
-const STUDENT_ROLE_OPTIONS = ROLE_OPTIONS.filter(({ value }) => value !== 'teacher');
-const OPERATIONAL_ROLE_OPTIONS = ROLE_OPTIONS.filter(({ value }) => value !== 'member');
+const STUDENT_ROLE_LABELS: Record<StudentRole, string> = {
+  leader: 'Leader (Ketua)',
+  vice_leader: 'Vice Leader (Wakil Ketua)',
+  secretary: 'Secretary (Sekretaris)',
+  equipment_team: 'Equipment Team',
+  contest_team: 'Contest Team',
+  member: 'Member (Siswa)',
+};
+const STUDENT_ROLE_OPTIONS: ReadonlyArray<{ value: StudentRole; label: string }> = STUDENT_ROLE_VALUES.map((value) => ({
+  value,
+  label: STUDENT_ROLE_LABELS[value],
+}));
 
 export function UserFormDialog({
   open,
@@ -58,7 +62,23 @@ export function UserFormDialog({
 }: UserFormDialogProps) {
   const isEditing = Boolean(userAccount);
   const isLinkedStudent = Boolean(userAccount?.is_linked_student);
-  const roleOptions = isEditing && isLinkedStudent ? STUDENT_ROLE_OPTIONS : OPERATIONAL_ROLE_OPTIONS;
+  const isLegacyStudentAccount = Boolean(
+    userAccount && !isLinkedStudent && isOneOf(userAccount.role, STUDENT_ROLE_VALUES),
+  );
+  let roleOptions: ReadonlyArray<{ value: UserRole; label: string }> = ROLE_OPTIONS;
+  if (isLinkedStudent) roleOptions = STUDENT_ROLE_OPTIONS;
+  if (isLegacyStudentAccount && userAccount) {
+    roleOptions = [{ value: userAccount.role, label: STUDENT_ROLE_LABELS[userAccount.role as StudentRole] }];
+  }
+  let roleFieldLabel = 'Peran Akses';
+  if (isLinkedStudent) roleFieldLabel = 'Peran Siswa';
+  if (isLegacyStudentAccount) roleFieldLabel = 'Peran Akun Siswa Lama';
+  let dialogDescription = isEditing
+    ? 'Ubah username login, nama, atau peran pengguna. Wajib mencantumkan alasan perubahan.'
+    : 'Buat akun operasional. Akun siswa baru dan penautan akun siswa lama dikelola dari halaman Data Siswa.';
+  if (isLegacyStudentAccount) {
+    dialogDescription = 'Akun siswa lama ini belum terhubung ke profil. Tautkan melalui Data Siswa sebelum mengubah perannya.';
+  }
 
   const form = useForm<UserFormValues>({
     resolver: zodResolver(userSchema),
@@ -153,9 +173,7 @@ export function UserFormDialog({
             {isEditing ? 'Edit Akun Pengguna' : 'Tambah Akun Pengguna Baru'}
           </DialogTitle>
           <DialogDescription className="text-ink-subtle text-xs">
-            {isEditing
-              ? 'Ubah username login, nama, atau peran pengguna. Wajib mencantumkan alasan perubahan.'
-              : 'Buat akun operasional. Akun siswa dibuat otomatis dari halaman Data Siswa.'}
+            {dialogDescription}
           </DialogDescription>
         </DialogHeader>
 
@@ -209,10 +227,11 @@ export function UserFormDialog({
 
           {/* Role */}
           <div className="space-y-1">
-            <Label className="text-ink-muted text-xs">{isLinkedStudent ? 'Peran Siswa' : 'Peran Akses'} *</Label>
+            <Label className="text-ink-muted text-xs">{roleFieldLabel} *</Label>
             <Select
               value={selectedRole}
               onValueChange={handleRoleValueChange}
+              disabled={isLegacyStudentAccount}
             >
               <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs">
                 <SelectValue placeholder="Pilih Role" />
@@ -224,8 +243,11 @@ export function UserFormDialog({
             {form.formState.errors.role && (
               <p className="text-semantic-danger text-[10px]">{form.formState.errors.role.message}</p>
             )}
+            {isLegacyStudentAccount && !form.formState.errors.role && (
+              <p className="text-ink-tertiary text-[10px]">Tautkan akun ini dari halaman Data Siswa sebelum mengubah perannya.</p>
+            )}
             {isLinkedStudent && !form.formState.errors.role && (
-              <p className="text-ink-tertiary text-[10px]">Role kepengurusan dapat diberikan kepada akun siswa. Teacher hanya untuk akun guru.</p>
+              <p className="text-ink-tertiary text-[10px]">Role kepengurusan hanya untuk akun siswa. Teacher dan Treasurer hanya untuk akun operasional.</p>
             )}
           </div>
 

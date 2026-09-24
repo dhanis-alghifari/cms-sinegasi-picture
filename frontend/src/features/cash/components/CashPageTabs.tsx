@@ -4,6 +4,7 @@ import { lazy, Suspense } from 'react';
 import { Pagination } from '@/shared/ui/Pagination';
 import { AnimatedTabs } from '@/shared/ui/motion/animated-tabs';
 import { PanelSkeleton } from '@/shared/ui/LoadingSkeletons';
+import { StatusBadge } from '@/shared/ui/StatusBadge';
 import type { ReportPrintFormat } from '@/shared/types/report';
 import type { PaginatedResponse } from '@/shared/types/common';
 import type { StudentOption } from '@/features/students/types/students.types';
@@ -15,6 +16,7 @@ import { CashTransactionMobileList } from './CashTransactionMobileList';
 import { DebtRecordsTable } from './DebtRecordsTable';
 import { DebtRecordsMobileList } from './DebtRecordsMobileList';
 import { CashDisputeQueue } from './CashDisputeQueue';
+import { useCashDisputesQuery } from '../hooks/useCashQuery';
 import type {
   CashDisputeQuota,
   CashPaymentMethod,
@@ -133,6 +135,11 @@ export function CashPageTabs({
     pageSize,
     onChange: setActiveView,
   } = navigation;
+  const pendingDisputesQuery = useCashDisputesQuery(
+    { scope: 'manage', page: 1, pageSize: 1, status: 'pending' },
+    isTreasurerOrTeacher,
+  );
+  const pendingDisputeCount = pendingDisputesQuery.data?.total;
   const handleViewChange = (value: string) => {
     if (!isCashView(value)) return;
     setActiveView(value);
@@ -289,7 +296,18 @@ export function CashPageTabs({
           ...(isTreasurerOrTeacher ? [{ value: 'activity', label: <><span className="md:hidden">Aktivitas</span><span className="hidden md:inline">Aktivitas Kas</span></> }] : []),
           { value: 'transactions', label: <><span className="md:hidden">Transaksi</span><span className="hidden md:inline">Riwayat Transaksi Kas</span></> },
           { value: 'debts', label: <><span className="md:hidden">Tunggakan</span><span className="hidden md:inline">{isStudent ? 'Tunggakan Saya' : 'Daftar Tunggakan Siswa'}</span></> },
-          { value: 'disputes', label: <><span className="md:hidden">Sanggahan</span><span className="hidden md:inline">Sanggahan Kas</span></> },
+          {
+            value: 'disputes',
+            label: (
+              <>
+                <span className="md:hidden">Sanggahan</span>
+                <span className="hidden md:inline">Sanggahan Kas</span>
+                {isTreasurerOrTeacher && pendingDisputeCount !== undefined && pendingDisputeCount > 0 && (
+                  <StatusBadge label={String(pendingDisputeCount)} variant="warning" className="ml-1 px-1.5" />
+                )}
+              </>
+            ),
+          },
           ...(isTreasurerOrTeacher ? [{ value: 'report', label: <><span className="md:hidden">Laporan</span><span className="hidden md:inline">Laporan Kas</span></> }] : []),
         ]}
       />

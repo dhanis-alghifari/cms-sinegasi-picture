@@ -9,7 +9,7 @@ export const STUDENT_CLASS_LEVELS = new Set(['X', 'XI', 'XII']);
 export const STUDENT_PEMINATAN = new Set(['kamera', 'editing', 'naskah']);
 
 export function createStudentsMemoryState(): StudentsMemoryState {
-  return { students: [] };
+  return { students: [], accounts: [] };
 }
 
 export function isUuid(value: string | undefined): value is string {
@@ -83,6 +83,9 @@ export function isMissingStudentsSchemaError(error: unknown): boolean {
     ['PGRST202', 'PGRST205', '42P01', '42703', '42883'].includes(candidate.code || '')
     || candidate.message?.toLowerCase().includes('student')
     || candidate.message?.toLowerCase().includes('create_student_with_account_atomic')
+    || candidate.message?.toLowerCase().includes('list_unlinked_student_accounts')
+    || candidate.message?.toLowerCase().includes('link_existing_student_account_atomic')
+    || candidate.message?.toLowerCase().includes('link_account_to_existing_student_atomic')
     || candidate.message?.toLowerCase().includes('provision_student_account_atomic')
     || candidate.message?.toLowerCase().includes('set_student_account_status_atomic')
     || candidate.message?.toLowerCase().includes('update_student_profile_atomic')

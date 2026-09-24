@@ -14,6 +14,17 @@ export const USER_ROLE_VALUES = [
   'member',
 ] as const;
 
+export const OPERATIONAL_USER_ROLE_VALUES = ['teacher', 'treasurer'] as const;
+
+export const STUDENT_ACCOUNT_ROLE_VALUES = [
+  'leader',
+  'vice_leader',
+  'secretary',
+  'equipment_team',
+  'contest_team',
+  'member',
+] as const;
+
 export type UserRole = typeof USER_ROLE_VALUES[number];
 
 export interface JwtPayload {

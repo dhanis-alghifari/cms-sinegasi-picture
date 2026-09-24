@@ -339,7 +339,7 @@ paths:
         '503': { description: Users schema or database identity is unavailable }
     put:
       summary: Update a user account
-      description: Username, role, name, and active status changes require an auditable reason. Username is the mutable login identifier; stable feature relationships continue to use users.id. Linked student accounts may use committee roles, but cannot use the Teacher role; student-owned name/status invariants remain enforced. The backend commits the update and one redacted audit event through update_user_account_atomic; an effective no-op is safe to retry.
+      description: Username, role, name, and active status changes require an auditable reason. Username is the mutable login identifier; stable feature relationships continue to use users.id. Standalone accounts are restricted to Teacher or Treasurer; student accounts use student/committee roles and student-owned name/status invariants remain enforced. Legacy unlinked student accounts must be linked through Data Siswa, not promoted from this endpoint.
       parameters:
         - $ref: '#/components/parameters/UserId'
         - $ref: '#/components/parameters/ChangeReason'
@@ -503,6 +503,58 @@ paths:
         '401': { description: Unauthenticated }
         '403': { description: Teacher or treasurer role required }
         '503': { description: Students schema is unavailable }
+  /api/students/unlinked-accounts:
+    get:
+      summary: Search eligible student accounts not linked to a student record
+      description: Requires users.manage. Results are active legacy student-role accounts only, exclude the signed-in account, and contain no credential data.
+      parameters:
+        - { name: q, in: query, required: false, schema: { type: string, maxLength: 100 } }
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 20, default: 20 } }
+      responses:
+        '200': { description: Bounded eligible account options ordered by name }
+        '401': { description: Unauthenticated }
+        '403': { description: users.manage capability required }
+        '503': { description: Student account linking migration or database identity is unavailable }
+  /api/students/account-links:
+    post:
+      summary: Create a student profile for an explicitly selected legacy account
+      description: Requires users.manage. Links an active, unlinked student-role account while retaining its ID, username, role, first-login state, and password. The student profile and relationship are committed atomically and audited.
+      parameters:
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StudentAccountLinkRequest'
+      responses:
+        '201': { description: Existing account linked to a student record; no password is returned or changed }
+        '401': { description: Unauthenticated }
+        '403': { description: users.manage capability required }
+        '409': { description: Account is inactive, already linked, or NIS is already used }
+        '422': { description: Invalid student data or change reason }
+        '503': { description: Student account linking migration or database identity is unavailable }
+  /api/students/{id}/account-links:
+    post:
+      summary: Attach an eligible legacy account to an existing student profile
+      description: Requires users.manage. Only active student profiles without an account and active unlinked student-role accounts are eligible. Username, password, role, and first-login state are retained.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StudentExistingProfileAccountLinkRequest'
+      responses:
+        '200': { description: Existing profile linked to the selected account without changing credentials }
+        '401': { description: Unauthenticated }
+        '403': { description: users.manage capability required }
+        '404': { description: Student profile not found }
+        '409': { description: Account or student profile is inactive or already linked }
+        '422': { description: Invalid identifiers or change reason }
+        '503': { description: Student account linking migration or database identity is unavailable }
   /api/students:
     get:
       summary: List students with server-side filters and pagination
@@ -521,7 +573,7 @@ paths:
         '503': { description: Students schema or database identity is unavailable }
     post:
       summary: Create a student and linked member account atomically
-      description: Secretary-only operation. A one-time temporary password is returned in the immediate response and is never stored in audit values.
+      description: Creates a student and linked account together. Student/committee roles are allowed; Teacher and Treasurer are reserved for operational accounts. A one-time temporary password is returned once and is never stored in audit values.
       parameters:
         - $ref: '#/components/parameters/ChangeReason'
       requestBody:
@@ -2238,11 +2290,11 @@ components:
     UserCreateRequest:
       type: object
       additionalProperties: false
-      required: [username, nama, role, password]
+      required: [username, name, role, password]
       properties:
         username: { type: string, minLength: 3, maxLength: 30, pattern: '^[a-zA-Z0-9._-]+$' }
-        nama: { type: string, minLength: 2, maxLength: 200 }
-        role: { type: string, enum: [teacher, leader, vice_leader, treasurer, secretary, equipment_team, contest_team] }
+        name: { type: string, minLength: 2, maxLength: 200 }
+        role: { type: string, enum: [teacher, treasurer] }
         password: { type: string, minLength: 1, maxLength: 128 }
         change_reason: { type: string, maxLength: 500 }
     UserUpdateRequest:
@@ -2251,7 +2303,7 @@ components:
       minProperties: 1
       properties:
         username: { type: string, minLength: 3, maxLength: 30, pattern: '^[a-zA-Z0-9._-]+$' }
-        nama: { type: string, minLength: 2, maxLength: 200 }
+        name: { type: string, minLength: 2, maxLength: 200 }
         role: { type: string, enum: [teacher, leader, vice_leader, treasurer, secretary, equipment_team, contest_team, member] }
         is_active: { type: boolean }
     AgendaActivityRequest:
@@ -2383,29 +2435,49 @@ components:
     StudentCreateRequest:
       type: object
       additionalProperties: false
-      required: [nis, nama, kelas]
+      required: [student_number, name, class_name]
       properties:
-        nis: { type: string, minLength: 1, maxLength: 40 }
-        nama: { type: string, minLength: 2, maxLength: 120 }
-        kelas: { type: string, minLength: 1, maxLength: 80 }
-        peminatan: { type: string, enum: [kamera, editing, naskah] }
-        no_telepon: { type: string, maxLength: 40 }
-        foto_url: { type: string, maxLength: 2000000 }
+        student_number: { type: string, minLength: 1, maxLength: 40 }
+        name: { type: string, minLength: 2, maxLength: 120 }
+        class_name: { type: string, minLength: 1, maxLength: 80 }
+        specialization: { type: string, enum: [camera, editing, screenwriting, kamera, naskah] }
+        phone_number: { type: string, maxLength: 40 }
+        photo_url: { type: string, maxLength: 2000000 }
         role:
           type: string
-          enum: [leader, vice_leader, treasurer, secretary, equipment_team, contest_team, member]
-          description: Peran akun siswa. Teacher hanya dapat dipakai akun yang tidak terhubung ke siswa.
+          enum: [leader, vice_leader, secretary, equipment_team, contest_team, member]
+          description: Role for the linked student account. Teacher and Treasurer are operational-account roles.
         change_reason: { type: string, maxLength: 500 }
+    StudentAccountLinkRequest:
+      type: object
+      additionalProperties: false
+      required: [user_id, student_number, name, class_name, change_reason]
+      properties:
+        user_id: { type: string, format: uuid }
+        student_number: { type: string, minLength: 1, maxLength: 40 }
+        name: { type: string, minLength: 2, maxLength: 120 }
+        class_name: { type: string, minLength: 1, maxLength: 80 }
+        specialization: { type: string, enum: [camera, editing, screenwriting, kamera, naskah] }
+        phone_number: { type: string, maxLength: 40 }
+        photo_url: { type: string, maxLength: 2000000 }
+        change_reason: { type: string, minLength: 5, maxLength: 500 }
+    StudentExistingProfileAccountLinkRequest:
+      type: object
+      additionalProperties: false
+      required: [user_id, change_reason]
+      properties:
+        user_id: { type: string, format: uuid }
+        change_reason: { type: string, minLength: 5, maxLength: 500 }
     StudentUpdateRequest:
       type: object
       additionalProperties: false
       minProperties: 1
       properties:
-        nama: { type: string, minLength: 2, maxLength: 120 }
-        kelas: { type: string, minLength: 1, maxLength: 80 }
-        peminatan: { type: string, enum: [kamera, editing, naskah] }
-        no_telepon: { type: string, maxLength: 40 }
-        foto_url: { type: string, maxLength: 2000000 }
+        name: { type: string, minLength: 2, maxLength: 120 }
+        class_name: { type: string, minLength: 1, maxLength: 80 }
+        specialization: { type: string, enum: [camera, editing, screenwriting, kamera, naskah] }
+        phone_number: { type: string, maxLength: 40 }
+        photo_url: { type: string, maxLength: 2000000 }
         is_active: { type: boolean }
         change_reason: { type: string, minLength: 5, maxLength: 500 }
     StudentProvisionRequest:

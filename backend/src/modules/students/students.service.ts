@@ -9,6 +9,9 @@ import {
 } from './students.helpers.js';
 import type {
   StudentAccountOperationResult,
+  StudentAccountLinkInput,
+  StudentAccountLinkResult,
+  StudentExistingProfileLinkInput,
   StudentAccountRole,
   StudentCreateInput,
   StudentListQuery,
@@ -16,6 +19,7 @@ import type {
   StudentRecord,
   StudentRepository,
   StudentUpdateInput,
+  UnlinkedStudentAccount,
 } from './students.types.js';
 import { STUDENT_ACCOUNT_ROLE_VALUES } from './students.types.js';
 
@@ -69,12 +73,21 @@ function normalizeStudentAccountRole(value: unknown): StudentAccountRole {
 }
 
 function mapRepositoryError(error: unknown, fallbackStatus = 500, fallbackMessage = 'Operasi data siswa gagal.'): StudentServiceError {
-  const candidate = error as { code?: string } | null | undefined;
+  const candidate = error as { code?: string; message?: string } | null | undefined;
   if (candidate?.code === '23505') return new StudentServiceError(409, 'STUDENT_CONFLICT', safeStudentErrorMessage(error, 'NIS siswa atau username akun tersebut sudah digunakan.'));
   if (candidate?.code === 'P0002' || candidate?.code === 'STUDENT_NOT_FOUND') return new StudentNotFoundError();
   if (candidate?.code === 'DATABASE_REQUIRED') return new StudentServiceError(503, 'DATABASE_REQUIRED', 'Provisioning akun siswa membutuhkan koneksi database.');
   if (candidate?.code === 'EMPTY_RESULT') return new StudentServiceError(500, 'EMPTY_RESULT', 'Server gagal membaca hasil operasi siswa.');
-  if (isMissingStudentsSchemaError(error)) return new StudentServiceError(503, 'STUDENTS_SCHEMA_UNAVAILABLE', 'Skema siswa atau fungsi provisioning belum tersedia. Jalankan migration 019_student_account_provisioning.sql dan 067_allow_student_committee_roles.sql.');
+  if (candidate?.code === 'STUDENT_ACCOUNT_NOT_ELIGIBLE' || candidate?.message?.includes('STUDENT_ACCOUNT_NOT_ELIGIBLE')) {
+    return new StudentServiceError(409, 'STUDENT_ACCOUNT_NOT_ELIGIBLE', 'Akun tidak tersedia untuk ditautkan. Muat ulang daftar akun lalu pilih akun siswa yang belum terhubung.');
+  }
+  if (candidate?.code === 'STUDENT_LINK_TARGET_NOT_ELIGIBLE' || candidate?.message?.includes('STUDENT_LINK_TARGET_NOT_ELIGIBLE')) {
+    return new StudentServiceError(409, 'STUDENT_LINK_TARGET_NOT_ELIGIBLE', 'Akun atau profil siswa tidak tersedia untuk ditautkan. Pastikan keduanya aktif dan belum memiliki tautan akun.');
+  }
+  if (candidate?.code === 'STUDENT_ACTOR_FORBIDDEN' || candidate?.message?.includes('STUDENT_ACTOR_FORBIDDEN')) {
+    return new StudentServiceError(403, 'STUDENT_ACTOR_FORBIDDEN', 'Hanya akun operasional yang berwenang dapat menautkan akun siswa.');
+  }
+  if (isMissingStudentsSchemaError(error)) return new StudentServiceError(503, 'STUDENTS_SCHEMA_UNAVAILABLE', 'Skema siswa atau fungsi akun belum tersedia. Jalankan migration 019_student_account_provisioning.sql, 067_allow_student_committee_roles.sql, dan 076_student_account_boundaries.sql.');
   return new StudentServiceError(fallbackStatus, 'STUDENT_OPERATION_FAILED', safeStudentErrorMessage(error, fallbackMessage));
 }
 
@@ -85,6 +98,22 @@ function fullRepository(repository: StudentRepository): Required<Pick<StudentRep
     if (typeof candidate[method] !== 'function') throw new StudentServiceError(500, 'STUDENTS_MODULE_MISCONFIGURED', 'Modul siswa belum dikonfigurasi lengkap.');
   }
   return candidate as Required<Pick<StudentRepository, typeof methods[number]>>;
+}
+
+function accountLinkRepository(repository: StudentRepository): Required<Pick<StudentRepository, 'listUnlinkedAccounts' | 'linkExistingAccount'>> {
+  const candidate = repository as StudentRepository & Record<string, unknown>;
+  if (typeof candidate.listUnlinkedAccounts !== 'function' || typeof candidate.linkExistingAccount !== 'function') {
+    throw new StudentServiceError(500, 'STUDENTS_MODULE_MISCONFIGURED', 'Fitur pengaitan akun siswa belum dikonfigurasi lengkap.');
+  }
+  return candidate as Required<Pick<StudentRepository, 'listUnlinkedAccounts' | 'linkExistingAccount'>>;
+}
+
+function existingProfileLinkRepository(repository: StudentRepository): Required<Pick<StudentRepository, 'linkAccountToExistingProfile'>> {
+  const candidate = repository as StudentRepository & Record<string, unknown>;
+  if (typeof candidate.linkAccountToExistingProfile !== 'function') {
+    throw new StudentServiceError(500, 'STUDENTS_MODULE_MISCONFIGURED', 'Fitur pengaitan akun ke profil siswa belum dikonfigurasi lengkap.');
+  }
+  return candidate as Required<Pick<StudentRepository, 'linkAccountToExistingProfile'>>;
 }
 
 export class StudentService {
@@ -123,6 +152,18 @@ export class StudentService {
     return result.data;
   }
 
+  async listUnlinkedAccounts(query: { search?: string; limit?: number }, actorId: string | null): Promise<UnlinkedStudentAccount[]> {
+    if (!actorId) throw new StudentServiceError(503, 'DATABASE_IDENTITY_UNAVAILABLE', 'Akun login belum terhubung ke users.id database yang valid.');
+    const search = optionalText(query.search, 'Pencarian akun', 100);
+    const requestedLimit = Number(query.limit);
+    const limit = Number.isFinite(requestedLimit)
+      ? Math.min(20, Math.max(1, Math.floor(requestedLimit)))
+      : 20;
+    const result = await accountLinkRepository(this.repository).listUnlinkedAccounts({ search, limit, actorId });
+    if ('error' in result) throw mapRepositoryError(result.error, 500, 'Gagal memuat akun siswa yang belum tertaut.');
+    return result.data;
+  }
+
   async create(input: StudentCreateInput, actorId: string | null): Promise<{ data: StudentAccountOperationResult; temporaryPassword: string }> {
     const nis = text(input.nis, 'NIS', 1, 40);
     if (!/[a-z0-9]/i.test(nis)) throw new StudentServiceError(422, 'INVALID_NIS', 'NIS harus memiliki minimal satu huruf atau angka.');
@@ -140,6 +181,48 @@ export class StudentService {
     });
     if ('error' in result) throw mapRepositoryError(result.error, 400, 'Gagal menyimpan siswa dan membuat akun.');
     return { data: result.data, temporaryPassword };
+  }
+
+  async linkExistingAccount(
+    input: StudentAccountLinkInput,
+  ): Promise<{ data: StudentAccountLinkResult }> {
+    const userId = text(input.userId, 'Akun siswa', 36, 36);
+    if (!isUuid(userId)) throw new StudentServiceError(422, 'INVALID_ACCOUNT_ID', 'ID akun siswa tidak valid.');
+    if (!input.actorId) throw new StudentServiceError(503, 'DATABASE_IDENTITY_UNAVAILABLE', 'Akun login belum terhubung ke users.id database yang valid.');
+    const actorId = text(input.actorId, 'Aktor', 1, 128);
+    if (this.repositoryIsConfigured() && !isUuid(actorId)) {
+      throw new StudentServiceError(503, 'DATABASE_IDENTITY_UNAVAILABLE', 'Akun login belum terhubung ke users.id database yang valid.');
+    }
+    if (actorId === userId) throw new StudentServiceError(409, 'SELF_LINK_FORBIDDEN', 'Akun yang sedang digunakan tidak dapat ditautkan sebagai akun siswa lain.');
+    const changeReason = text(input.changeReason, 'Alasan perubahan', 5, 500);
+    const nis = text(input.nis, 'NIS', 1, 40);
+    if (!/[a-z0-9]/i.test(nis)) throw new StudentServiceError(422, 'INVALID_NIS', 'NIS harus memiliki minimal satu huruf atau angka.');
+    const nama = text(input.nama, 'Nama siswa', 2, 120);
+    const kelas = text(input.kelas, 'Kelas', 1, 80);
+    const peminatan = normalizePeminatan(input.peminatan);
+    const noTelepon = optionalText(input.no_telepon, 'Nomor telepon', 40);
+    const fotoUrl = normalizePhotoUrl(input.foto_url);
+    const result = await accountLinkRepository(this.repository).linkExistingAccount({
+      userId, actorId, changeReason, nis, nama, kelas,
+      peminatan, no_telepon: noTelepon, foto_url: fotoUrl,
+    });
+    if ('error' in result) throw mapRepositoryError(result.error, 400, 'Gagal menautkan akun lama ke data siswa.');
+    return { data: result.data };
+  }
+
+  async linkAccountToExistingProfile(input: StudentExistingProfileLinkInput): Promise<{ data: StudentAccountLinkResult }> {
+    const studentId = text(input.studentId, 'ID siswa', 36, 36);
+    const userId = text(input.userId, 'Akun siswa', 36, 36);
+    const actorId = text(input.actorId, 'Aktor', 1, 128);
+    const changeReason = text(input.changeReason, 'Alasan perubahan', 5, 500);
+    if (!isUuid(studentId) || !isUuid(userId)) throw new StudentServiceError(422, 'INVALID_LINK_TARGET', 'ID siswa atau akun tidak valid.');
+    if (this.repositoryIsConfigured() && !isUuid(actorId)) {
+      throw new StudentServiceError(503, 'DATABASE_IDENTITY_UNAVAILABLE', 'Akun login belum terhubung ke users.id database yang valid.');
+    }
+    if (actorId === userId) throw new StudentServiceError(409, 'SELF_LINK_FORBIDDEN', 'Akun yang sedang digunakan tidak dapat ditautkan sebagai akun siswa lain.');
+    const result = await existingProfileLinkRepository(this.repository).linkAccountToExistingProfile({ studentId, userId, actorId, changeReason });
+    if ('error' in result) throw mapRepositoryError(result.error, 400, 'Gagal menautkan akun ke profil siswa.');
+    return { data: result.data };
   }
 
   async provisionAccount(id: string, actorId: string | null, changeReason: string): Promise<{ data: StudentAccountOperationResult; temporaryPassword: string }> {

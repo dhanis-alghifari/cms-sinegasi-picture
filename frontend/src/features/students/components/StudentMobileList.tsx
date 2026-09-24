@@ -1,4 +1,4 @@
-import { KeyRound, MoreVertical, UserCheck, UserRound, UserX } from 'lucide-react';
+import { KeyRound, Link2, MoreVertical, UserCheck, UserRound, UserX } from 'lucide-react';
 import { Button } from '@/shared/ui/primitives/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/shared/ui/primitives/dropdown-menu';
 import { StatusBadge } from '@/shared/ui/StatusBadge';
@@ -12,6 +12,7 @@ interface StudentMobileListProps {
   onEdit: (student: Student) => void;
   onToggleActive: (student: Student) => void;
   onProvisionAccount?: (student: Student) => void;
+  onLinkLegacyAccount?: (student: Student) => void;
   canManage?: boolean;
   canManageStatus?: boolean;
 }
@@ -32,6 +33,7 @@ export function StudentMobileList({
   onEdit,
   onToggleActive,
   onProvisionAccount,
+  onLinkLegacyAccount,
   canManage = true,
   canManageStatus = false,
 }: StudentMobileListProps) {
@@ -65,6 +67,12 @@ export function StudentMobileList({
                     <DropdownMenuItem onClick={() => onProvisionAccount(student)} className="min-h-11 cursor-pointer text-sm">
                       <KeyRound size={16} className="mr-2 text-primary" aria-hidden="true" />
                       Buat akun anggota
+                    </DropdownMenuItem>
+                  )}
+                  {canManageStatus && student.is_active && !student.user_id && onLinkLegacyAccount && (
+                    <DropdownMenuItem onClick={() => onLinkLegacyAccount(student)} className="min-h-11 cursor-pointer text-sm">
+                      <Link2 size={16} className="mr-2 text-primary" aria-hidden="true" />
+                      Tautkan akun lama
                     </DropdownMenuItem>
                   )}
                   {canManageStatus && (

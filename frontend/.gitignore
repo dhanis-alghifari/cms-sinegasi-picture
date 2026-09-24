@@ -15,6 +15,7 @@ coverage/
 playwright-report/
 test-results/
 .vite/
+.vite-sidebar-check*/
 .cache/
 .turbo/
 *.tsbuildinfo

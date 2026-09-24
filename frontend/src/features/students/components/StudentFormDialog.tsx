@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState, useRef } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { User, Loader2 } from 'lucide-react';
+import { User, Loader2, UserRound } from 'lucide-react';
 
 import {
   Dialog,
@@ -13,6 +13,11 @@ import {
   DialogFooter,
 } from '@/shared/ui/primitives/dialog';
 import { Button } from '@/shared/ui/primitives/button';
+import { Input } from '@/shared/ui/primitives/input';
+import { Label } from '@/shared/ui/primitives/label';
+import { FieldError } from '@/shared/ui/FieldError';
+import { RadioGroup } from '@/shared/ui/primitives/radio-group';
+import { formatRoleLabel } from '@/shared/utils/formatLabels';
 import { getErrorMessage } from '@/shared/api/errors';
 import { compressImageFile, MAX_SOURCE_IMAGE_BYTES } from '@/shared/utils/compressImage';
 import { UI_CONSTANTS } from '@/shared/constants/ui';
@@ -20,14 +25,21 @@ import { StudentFormFields } from './StudentFormFields';
 
 import { studentSchema, type StudentFormValues } from '../schemas/studentSchema';
 import type { Student } from '../types/students.types';
+import type { UnlinkedStudentAccount } from '../types/students.types';
 import { classesService } from '@/features/classes/api/classes.service';
 import type { ClassSelectorOption } from '@/features/classes/types/classes.types';
+import { LegacyStudentAccountPicker } from './LegacyStudentAccountPicker';
+
+export type StudentAccountSubmission =
+  | { mode: 'new' }
+  | { mode: 'existing'; userId: string };
 
 interface StudentFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   student?: Student | null;
-  onSubmit: (values: StudentFormValues) => Promise<void>;
+  canLinkExistingAccount?: boolean;
+  onSubmit: (values: StudentFormValues, account: StudentAccountSubmission) => Promise<void>;
   isLoading?: boolean;
   error?: unknown;
 }
@@ -36,6 +48,7 @@ export function StudentFormDialog({
   open,
   onOpenChange,
   student,
+  canLinkExistingAccount = false,
   onSubmit,
   isLoading,
   error,
@@ -49,6 +62,9 @@ export function StudentFormDialog({
   const [isProcessingImage, setIsProcessingImage] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const [accountMode, setAccountMode] = useState<'new' | 'existing'>('new');
+  const [selectedLegacyAccount, setSelectedLegacyAccount] = useState<UnlinkedStudentAccount | null>(null);
+  const [accountSelectionError, setAccountSelectionError] = useState<string | null>(null);
 
   const loadClassOptions = useCallback(async () => {
     setClassOptionsLoading(true);
@@ -135,6 +151,9 @@ export function StudentFormDialog({
 
   // Active preview: priority to local file preview, or react-hook-form watched foto_url
   const activePreview = selectedFilePreview || (watchedFotoUrl ? watchedFotoUrl : null);
+  let formDescription = 'Perbarui informasi identitas siswa atau peminatan crew.';
+  if (!isEditing && canLinkExistingAccount) formDescription = 'Daftarkan profil siswa dan pilih alur akun login yang sesuai.';
+  if (!isEditing && !canLinkExistingAccount) formDescription = 'Daftarkan profil siswa dan buat akun login untuknya.';
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -183,6 +202,18 @@ export function StudentFormDialog({
     onOpenChange(nextOpen);
   };
 
+  const handleAccountModeChange = (mode: 'new' | 'existing') => {
+    setAccountMode(mode);
+    setFormError(null);
+    setAccountSelectionError(null);
+    if (mode === 'new') setSelectedLegacyAccount(null);
+  };
+
+  const handleLegacyAccountChange = (account: UnlinkedStudentAccount | null) => {
+    setSelectedLegacyAccount(account);
+    setAccountSelectionError(null);
+  };
+
   const handleSubmit = form.handleSubmit(async (data: StudentFormValues) => {
     setFormError(null);
     form.clearErrors('change_reason');
@@ -194,7 +225,19 @@ export function StudentFormDialog({
       return;
     }
     try {
-      await onSubmit(data);
+      if (!isEditing && canLinkExistingAccount && accountMode === 'existing' && !selectedLegacyAccount) {
+        setAccountSelectionError('Pilih akun lama yang akan ditautkan ke profil siswa ini.');
+        return;
+      }
+      setAccountSelectionError(null);
+      if (!isEditing && canLinkExistingAccount && accountMode === 'existing' && (data.change_reason?.trim().length ?? 0) < 5) {
+        form.setError('change_reason', { type: 'manual', message: 'Alasan penautan wajib diisi minimal 5 karakter.' });
+        return;
+      }
+      const submission: StudentAccountSubmission = accountMode === 'existing' && selectedLegacyAccount
+        ? { mode: 'existing', userId: selectedLegacyAccount.id }
+        : { mode: 'new' };
+      await onSubmit(data, submission);
       handleDialogOpenChange(false);
     } catch (error) {
       setFormError(getErrorMessage(error));
@@ -212,9 +255,7 @@ export function StudentFormDialog({
             </DialogTitle>
           </div>
           <DialogDescription className="text-ink-subtle text-xs">
-            {isEditing
-              ? 'Perbarui informasi identitas siswa atau peminatan crew.'
-              : 'Isi formulir untuk mendaftarkan siswa. Akun dibuat dengan username dari NIS dan peran yang dipilih.'}
+            {formDescription}
           </DialogDescription>
         </DialogHeader>
 
@@ -225,8 +266,59 @@ export function StudentFormDialog({
             </div>
           )}
 
+          {!isEditing && canLinkExistingAccount && (
+            <section className="space-y-3 rounded-lg border border-hairline bg-surface-2/50 p-3" aria-label="Pengaturan akun login siswa">
+              <RadioGroup
+                name="student-account-mode"
+                legend="Akun login siswa"
+                value={accountMode}
+                options={[
+                  { value: 'new', label: 'Buat akun baru' },
+                  { value: 'existing', label: 'Tautkan akun lama' },
+                ]}
+                onValueChange={handleAccountModeChange}
+              />
+              {accountMode === 'existing' ? (
+                <div className="space-y-2">
+                  <p className="text-xs text-ink-subtle">Pilih akun lama yang belum terhubung. Nama akun akan mengikuti profil siswa; username, password, dan role tetap.</p>
+                  <LegacyStudentAccountPicker
+                    selectedAccount={selectedLegacyAccount}
+                    onSelectedAccountChange={handleLegacyAccountChange}
+                    disabled={isLoading}
+                    errorMessage={accountSelectionError}
+                    errorId="student-link-account-error"
+                  />
+                  <FieldError id="student-link-account-error" message={accountSelectionError} />
+                  {selectedLegacyAccount && (
+                    <div className="flex items-center gap-2 rounded-md border border-hairline bg-surface-1 px-3 py-2 text-xs text-ink">
+                      <UserRound size={15} className="shrink-0 text-primary" aria-hidden="true" />
+                      <span className="min-w-0 truncate">{selectedLegacyAccount.nama} · {formatRoleLabel(selectedLegacyAccount.role)}</span>
+                    </div>
+                  )}
+                  <div className="space-y-1">
+                    <Label htmlFor="student-link-reason" className="text-xs text-ink-muted">Alasan penautan *</Label>
+                    <Input
+                      id="student-link-reason"
+                      placeholder="Contoh: Menautkan akun siswa yang sudah digunakan"
+                      aria-invalid={Boolean(form.formState.errors.change_reason)}
+                      aria-describedby={form.formState.errors.change_reason ? 'student-link-reason-error' : undefined}
+                      className="bg-surface-2 text-xs"
+                      {...form.register('change_reason')}
+                    />
+                    {form.formState.errors.change_reason && (
+                      <p id="student-link-reason-error" className="text-[10px] text-semantic-danger">{form.formState.errors.change_reason.message}</p>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs text-ink-subtle">Sistem membuat username dari NIS dan password sementara untuk akun baru.</p>
+              )}
+            </section>
+          )}
+
           <StudentFormFields
             form={form}
+            showRoleSelection={accountMode === 'new'}
             state={{ isEditing, selectedKelas, selectedPeminatan, selectedRole, activePreview }}
             classes={{
               options: classOptions,

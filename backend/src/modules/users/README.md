@@ -37,13 +37,18 @@ mengunci target, memvalidasi capability dan aturan akun-siswa, mengatur
 konteks audit trigger, lalu menulis satu event audit kanonik. Perubahan yang
 tidak menghasilkan state baru dikembalikan sebagai no-op tanpa audit duplikat.
 
-Siswa baru memakai `member` sebagai default dan dapat langsung diberi role
-`leader`, `vice_leader`, `treasurer`, `secretary`, `equipment_team`, atau
-`contest_team`. Role `teacher` hanya untuk akun yang tidak terhubung ke siswa.
+Pembuatan akun di Pengguna hanya untuk akun operasional: `teacher` dan
+`treasurer`. Akun siswa dibuat dari Data Siswa dengan default `member` atau
+role `leader`, `vice_leader`, `secretary`, `equipment_team`, dan `contest_team`.
+Akun siswa lama yang belum punya profil tidak boleh dipromosikan dari Pengguna;
+Guru menautkannya secara eksplisit dari Data Siswa. Relasi dapat dibuat saat
+membuat profil baru atau dipasang ke profil siswa aktif yang belum berakun,
+tanpa mengganti username atau password.
 
 Error penting: `DUPLICATE_USERNAME` (409), `USER_LINKED_STUDENT_ROLE` atau
+`USER_UNLINKED_STUDENT_ROLE`/`UNLINKED_STUDENT_ROLE`,
 `USER_LINKED_STUDENT_NAME` (422), `USER_INACTIVE_STUDENT` (409), dan
-`USERS_SCHEMA_UNAVAILABLE` (503 ketika migration 041 atau 067 belum diterapkan).
+`USERS_SCHEMA_UNAVAILABLE` (503 ketika migration akun yang diperlukan belum diterapkan).
 
 ## Error contract
 
@@ -53,8 +58,9 @@ message, request_id }`. Kode penting: `RESET_USER_NOT_FOUND` (404),
 `RESET_REASON_INVALID`/`RESET_OPERATION_KEY_INVALID` (422).
 
 Migration `040_admin_password_reset_atomic.sql` dan
-`041_user_account_update_atomic.sql` wajib diterapkan setelah migration 039
-dan `067_allow_student_committee_roles.sql` setelahnya sebelum endpoint
-production digunakan. Migration 040 memperbaiki audit trigger
+`041_user_account_update_atomic.sql` wajib diterapkan setelah migration 039,
+kemudian migration `067_allow_student_committee_roles.sql` dan
+`076_student_account_boundaries.sql` sebelum endpoint production digunakan.
+Migration 040 memperbaiki audit trigger
 untuk seluruh perubahan users baru; audit historis immutable yang terlanjur
 mengandung hash tidak ditulis ulang otomatis.

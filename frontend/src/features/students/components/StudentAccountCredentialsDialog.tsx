@@ -12,6 +12,7 @@ import {
 import { Button } from '@/shared/ui/primitives/button';
 import { Label } from '@/shared/ui/primitives/label';
 import { UI_CONSTANTS } from '@/shared/constants/ui';
+import { formatRoleLabel } from '@/shared/utils/formatLabels';
 import type { StudentAccountCredentials } from '../types/students.types';
 
 interface StudentAccountCredentialsDialogProps {
@@ -29,9 +30,10 @@ export function StudentAccountCredentialsDialog({
 }: StudentAccountCredentialsDialogProps) {
   const [copied, setCopied] = useState(false);
 
-  if (!credentials) return null;
+  if (!credentials?.temporary_password) return null;
 
   const copyCredentials = async () => {
+    if (!credentials.temporary_password) return;
     const text = `Username: ${credentials.username}\nPassword sementara: ${credentials.temporary_password}`;
     try {
       await navigator.clipboard.writeText(text);
@@ -58,7 +60,7 @@ export function StudentAccountCredentialsDialog({
         <div className="space-y-3 rounded-md border border-semantic-warning/30 bg-semantic-warning/10 p-3">
           <div className="flex items-center gap-2 text-xs text-ink-muted">
             <UserRound size={14} className="text-primary" />
-            <span>Role: <strong className="text-ink">Anggota</strong></span>
+            <span>Role: <strong className="text-ink">{formatRoleLabel(credentials.role)}</strong></span>
           </div>
           <div className="space-y-1">
             <Label className="text-ink-tertiary text-[10px]">Username</Label>
@@ -66,7 +68,7 @@ export function StudentAccountCredentialsDialog({
           </div>
           <div className="space-y-1">
             <Label className="text-ink-tertiary text-[10px]">Password sementara</Label>
-            <div className="rounded bg-surface-2 px-3 py-2 font-mono text-sm text-ink select-all">{credentials.temporary_password}</div>
+            <div className="rounded bg-surface-2 px-3 py-2 font-mono text-sm text-ink select-all">{credentials.temporary_password ?? 'Tidak tersedia'}</div>
           </div>
           <p className="text-[11px] text-ink-muted">
             Akun akan diwajibkan mengganti password saat login pertama. Jangan simpan password di audit log.
