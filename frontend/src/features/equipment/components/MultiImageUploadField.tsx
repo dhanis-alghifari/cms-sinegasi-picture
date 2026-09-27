@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react';
-import { Image as ImageIcon, Loader2, Plus, Upload, X } from 'lucide-react';
+import { useState } from 'react';
+import { Image as ImageIcon, Plus, X } from 'lucide-react';
 
 import { Button } from '@/shared/ui/primitives/button';
 import { FieldError } from '@/shared/ui/FieldError';
@@ -9,6 +9,7 @@ import { cn } from '@/shared/utils/cn';
 import { getErrorMessage } from '@/shared/api/errors';
 import { compressImageFile, MAX_SOURCE_IMAGE_BYTES } from '@/shared/utils/compressImage';
 import { formatNumber } from '@/shared/utils/formatNumber';
+import { PhotoSourcePicker } from '@/shared/ui/PhotoSourcePicker';
 
 interface MultiImageUploadFieldProps {
   field: {
@@ -45,7 +46,6 @@ export function MultiImageUploadField({
   } = field;
   const { error, required, minFiles = 3 } = validation ?? {};
   const { disabled, onProcessingChange } = state ?? {};
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const [urlValue, setUrlValue] = useState('');
@@ -55,8 +55,7 @@ export function MultiImageUploadField({
     onProcessingChange?.(next);
   };
 
-  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files ?? []);
+  const handleFilesSelected = async (files: File[]) => {
     if (files.length === 0) return;
 
     const invalidType = files.find(
@@ -64,14 +63,12 @@ export function MultiImageUploadField({
     );
     if (invalidType) {
       setLocalError('Semua file harus berupa gambar JPEG, PNG, atau WebP.');
-      event.target.value = '';
       return;
     }
 
     const oversized = files.find((file) => file.size < 1 || file.size > MAX_SOURCE_IMAGE_BYTES);
     if (oversized) {
       setLocalError('Ukuran setiap foto sumber maksimal 5 MB.');
-      event.target.value = '';
       return;
     }
 
@@ -84,7 +81,6 @@ export function MultiImageUploadField({
       setLocalError(getErrorMessage(err));
     } finally {
       setProcessing(false);
-      event.target.value = '';
     }
   };
 
@@ -113,19 +109,6 @@ export function MultiImageUploadField({
       <Label htmlFor={id} className="text-ink-muted text-xs font-medium">
         {label} {required && '*'}
       </Label>
-      <input
-        ref={fileInputRef}
-        id={id}
-        type="file"
-        accept="image/jpeg,image/png,image/webp"
-        multiple
-        onChange={handleFileChange}
-        disabled={disabled || isProcessing}
-        className="hidden"
-        aria-invalid={hasError}
-        aria-describedby={hasError ? `${id}-error` : undefined}
-      />
-
       <div className={cn('rounded-md border border-dashed bg-surface-2 p-3', hasError ? 'border-semantic-danger' : 'border-hairline')}>
         {values.length > 0 ? (
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
@@ -159,19 +142,17 @@ export function MultiImageUploadField({
         )}
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => fileInputRef.current?.click()}
+          <PhotoSourcePicker
+            id={id}
+            accept="image/jpeg,image/png,image/webp"
+            multiple
             disabled={disabled || isProcessing}
+            onFilesSelected={handleFilesSelected}
+            galleryLabel={isProcessing ? 'Memproses...' : 'Pilih dari Galeri'}
             aria-invalid={hasError}
             aria-describedby={hasError ? `${id}-error` : undefined}
-            size="sm"
-            className="border-hairline bg-surface-1 text-ink text-xs"
-          >
-            {isProcessing ? <Loader2 size={14} className="mr-1.5 animate-spin" /> : <Upload size={14} className="mr-1.5" />}
-            {isProcessing ? 'Memproses...' : 'Upload Foto'}
-          </Button>
+            buttonClassName="border-hairline bg-surface-1 text-ink text-xs"
+          />
           <span className="text-[10px] text-ink-tertiary">Bisa pilih beberapa file sekaligus.</span>
         </div>
 

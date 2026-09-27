@@ -9,6 +9,7 @@ import { Label } from '@/shared/ui/primitives/label';
 import { RadioGroup } from '@/shared/ui/primitives/radio-group';
 import { Textarea } from '@/shared/ui/primitives/textarea';
 import { cn } from '@/shared/utils/cn';
+import { PhotoSourcePicker } from '@/shared/ui/PhotoSourcePicker';
 import { isOneOf } from '@/shared/utils/isOneOf';
 
 import { useContestEntryPipelineMutation } from '../hooks/useContestEntryPipelineMutation';
@@ -83,8 +84,8 @@ export function ContestPipelineUpdateForm({
     setSelectedEvidenceFile(null);
   };
 
-  const handleEvidenceFileSelected = (event: ChangeEvent<HTMLInputElement>) => {
-    const evidenceFile = event.target.files?.[0];
+  const handleEvidenceFilesSelected = (files: File[]) => {
+    const evidenceFile = files[0];
     clearSelectedEvidence();
     setEvidenceError(null);
     if (!evidenceFile) return;
@@ -92,7 +93,6 @@ export function ContestPipelineUpdateForm({
     const fileError = getEvidenceFileError(evidenceFile);
     if (fileError) {
       setEvidenceError(fileError);
-      event.target.value = '';
       return;
     }
 
@@ -248,12 +248,11 @@ export function ContestPipelineUpdateForm({
           <Label htmlFor="contest-evidence" className="text-xs text-ink-muted">
             Screenshot / foto bukti *
           </Label>
-          <label
-            htmlFor="contest-evidence"
+          <div
             aria-invalid={Boolean(evidenceError)}
             aria-describedby={evidenceError ? 'contest-evidence-error' : undefined}
             className={cn(
-              'flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed bg-surface-1 px-4 py-5 text-center transition-colors hover:border-primary/60 hover:bg-primary/5',
+              'flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed bg-surface-1 px-4 py-5 text-center',
               evidenceError ? 'border-semantic-danger' : 'border-hairline',
             )}
           >
@@ -266,15 +265,17 @@ export function ContestPipelineUpdateForm({
             <span className="text-[11px] text-ink-tertiary">
               JPG, PNG, atau WebP · ukuran sumber maksimal 5 MB
             </span>
-          </label>
-          <input
+          </div>
+          <PhotoSourcePicker
             id="contest-evidence"
-            type="file"
             accept="image/jpeg,image/png,image/webp"
-            className="sr-only"
+            disabled={isPipelineSaving}
+            onFilesSelected={handleEvidenceFilesSelected}
+            galleryLabel={selectedEvidenceFile ? 'Ganti dari Galeri' : 'Pilih dari Galeri'}
+            cameraLabel={selectedEvidenceFile ? 'Ambil Foto Baru' : 'Ambil Foto'}
             aria-invalid={Boolean(evidenceError)}
             aria-describedby={evidenceError ? 'contest-evidence-error' : undefined}
-            onChange={handleEvidenceFileSelected}
+            buttonClassName="flex-1"
           />
           <FieldError id="contest-evidence-error" message={evidenceError} />
           {selectedEvidenceFile && (

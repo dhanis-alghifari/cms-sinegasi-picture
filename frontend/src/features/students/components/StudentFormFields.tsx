@@ -1,6 +1,6 @@
 
-import { useMemo, type ChangeEvent, type RefObject } from 'react';
-import { Image as ImageIcon, Upload, X } from 'lucide-react';
+import { useMemo } from 'react';
+import { X } from 'lucide-react';
 import type { UseFormReturn } from 'react-hook-form';
 
 import { Button } from '@/shared/ui/primitives/button';
@@ -18,6 +18,7 @@ import { STUDENT_ROLE_VALUES, type StudentRole } from '@/shared/types/common';
 import type { StudentFormValues } from '../schemas/studentSchema';
 import { PEMINATAN_VALUES, type Peminatan } from '../types/students.types';
 import { isOneOf } from '@/shared/utils/isOneOf';
+import { PhotoSourcePicker } from '@/shared/ui/PhotoSourcePicker';
 
 interface StudentFormFieldsProps {
   form: UseFormReturn<StudentFormValues>;
@@ -28,6 +29,7 @@ interface StudentFormFieldsProps {
     selectedPeminatan?: Peminatan;
     selectedRole?: StudentRole;
     activePreview: string | null;
+    isProcessingImage: boolean;
   };
   classes: {
     options: ClassSelectorOption[];
@@ -36,8 +38,7 @@ interface StudentFormFieldsProps {
     onRetry: () => void | Promise<void>;
   };
   image: {
-    fileInputRef: RefObject<HTMLInputElement | null>;
-    onFileChange: (event: ChangeEvent<HTMLInputElement>) => void;
+    onFilesSelected: (files: File[]) => void;
     onRemove: () => void;
     error?: string | null;
   };
@@ -50,14 +51,14 @@ export function StudentFormFields({
   classes,
   image,
 }: StudentFormFieldsProps) {
-  const { isEditing, selectedKelas, selectedPeminatan, selectedRole, activePreview } = state;
+  const { isEditing, selectedKelas, selectedPeminatan, selectedRole, activePreview, isProcessingImage } = state;
   const {
     options: classOptions,
     isLoading: classOptionsLoading,
     error: classOptionsError,
     onRetry: onRetryLoadClasses,
   } = classes;
-  const { fileInputRef, onFileChange, onRemove: onRemoveImage, error: imageError } = image;
+  const { onFilesSelected, onRemove: onRemoveImage, error: imageError } = image;
   const searchableClassOptions = useMemo(
     () => classOptions.map((option) => ({
       id: option.id,
@@ -202,16 +203,6 @@ export function StudentFormFields({
           <div className="space-y-1">
             <Label className="text-ink-muted text-xs font-medium">Foto Profil Siswa (Upload File Gambar)</Label>
 
-            <input
-              type="file"
-              ref={fileInputRef}
-              accept="image/jpeg,image/png,image/webp"
-              onChange={onFileChange}
-              aria-invalid={Boolean(imageError)}
-              aria-describedby={imageError ? 'student-photo-error' : undefined}
-              className="hidden"
-            />
-
             {activePreview ? (
               <div className="flex items-center gap-3 p-2 rounded-lg border border-hairline bg-surface-2">
                 <img
@@ -230,34 +221,27 @@ export function StudentFormFields({
                   variant="ghost"
                   size="icon"
                   onClick={onRemoveImage}
-                  className="h-8 w-8 text-ink-subtle hover:text-semantic-danger"
+                  disabled={isProcessingImage}
+                  aria-label="Hapus foto profil"
+                  className="min-h-11 min-w-11 text-ink-subtle hover:text-semantic-danger"
                 >
                   <X size={16} />
                 </Button>
               </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                aria-invalid={Boolean(imageError)}
-                aria-describedby={imageError ? 'student-photo-error' : undefined}
-                className={cn(
-                  'w-full rounded-lg border-2 border-dashed bg-surface-2/50 p-3 flex items-center justify-center gap-2.5 transition-colors cursor-pointer group hover:border-primary/50 hover:bg-surface-2',
-                  imageError ? 'border-semantic-danger' : 'border-hairline',
-                )}
-              >
-                <div className="w-8 h-8 rounded-full bg-primary/10 group-hover:bg-primary/20 flex items-center justify-center shrink-0">
-                  <Upload size={16} className="text-primary" />
-                </div>
-                <div className="text-left">
-                  <p className="text-xs font-medium text-ink flex items-center gap-1">
-                    <span>Pilih Foto Profil dari Komputer</span>
-                    <ImageIcon size={12} className="text-ink-tertiary" />
-                  </p>
-                  <p className="text-[10px] text-ink-tertiary">PNG, JPG, atau WebP (Sumber maksimal 5 MB)</p>
-                </div>
-              </button>
-            )}
+            ) : null}
+            <PhotoSourcePicker
+              id="student-photo"
+              accept="image/jpeg,image/png,image/webp"
+              disabled={isProcessingImage}
+              onFilesSelected={onFilesSelected}
+              galleryLabel={isProcessingImage ? 'Memproses foto...' : activePreview ? 'Ganti dari Galeri' : 'Pilih dari Galeri'}
+              cameraLabel={activePreview ? 'Ambil Foto Baru' : 'Ambil Foto'}
+              className="w-full"
+              buttonClassName={cn('flex-1 bg-surface-1', imageError && 'border-semantic-danger')}
+              aria-invalid={Boolean(imageError)}
+              aria-describedby={imageError ? 'student-photo-error' : undefined}
+            />
+            <p className="text-[10px] text-ink-tertiary">JPG, PNG, atau WebP · ukuran sumber maksimal 5 MB.</p>
             <FieldError id="student-photo-error" message={imageError} />
           </div>
 

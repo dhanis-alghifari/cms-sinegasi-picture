@@ -1,5 +1,5 @@
 
-import { useCallback, useEffect, useState, useRef } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { User, Loader2, UserRound } from 'lucide-react';
@@ -54,7 +54,6 @@ export function StudentFormDialog({
   error,
 }: StudentFormDialogProps) {
   const isEditing = Boolean(student);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFilePreview, setSelectedFilePreview] = useState<string | null>(null);
   const [classOptions, setClassOptions] = useState<ClassSelectorOption[]>([]);
   const [classOptionsLoading, setClassOptionsLoading] = useState(false);
@@ -145,18 +144,14 @@ export function StudentFormDialog({
     };
   }, [selectedFilePreview]);
 
-  useEffect(() => {
-    if (!open && fileInputRef.current) fileInputRef.current.value = '';
-  }, [open]);
-
   // Active preview: priority to local file preview, or react-hook-form watched foto_url
   const activePreview = selectedFilePreview || (watchedFotoUrl ? watchedFotoUrl : null);
   let formDescription = 'Perbarui informasi identitas siswa atau peminatan crew.';
   if (!isEditing && canLinkExistingAccount) formDescription = 'Daftarkan profil siswa dan pilih alur akun login yang sesuai.';
   if (!isEditing && !canLinkExistingAccount) formDescription = 'Daftarkan profil siswa dan buat akun login untuknya.';
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleFilesSelected = async (files: File[]) => {
+    const file = files[0];
     if (!file) return;
 
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
@@ -188,9 +183,6 @@ export function StudentFormDialog({
     setSelectedFilePreview(null);
     setImageError(null);
     form.setValue('foto_url', '', { shouldValidate: true, shouldDirty: true });
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
   };
 
   const handleDialogOpenChange = (nextOpen: boolean) => {
@@ -319,7 +311,7 @@ export function StudentFormDialog({
           <StudentFormFields
             form={form}
             showRoleSelection={accountMode === 'new'}
-            state={{ isEditing, selectedKelas, selectedPeminatan, selectedRole, activePreview }}
+            state={{ isEditing, selectedKelas, selectedPeminatan, selectedRole, activePreview, isProcessingImage }}
             classes={{
               options: classOptions,
               isLoading: classOptionsLoading,
@@ -327,8 +319,7 @@ export function StudentFormDialog({
               onRetry: loadClassOptions,
             }}
             image={{
-              fileInputRef,
-              onFileChange: handleFileChange,
+              onFilesSelected: handleFilesSelected,
               onRemove: handleRemoveImage,
               error: imageError,
             }}
