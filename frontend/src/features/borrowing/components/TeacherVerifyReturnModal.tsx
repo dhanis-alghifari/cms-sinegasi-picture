@@ -21,7 +21,8 @@ interface TeacherVerifyReturnModalProps {
   error?: unknown;
 }
 
-type ConditionState = Record<string, { condition: string; settlement_method: 'none' | 'repair' | 'replacement'; repair_cost?: number }>;
+type ConditionState = Record<string, { condition: string; repair_cost?: number }>;
+type ItemOutcome = { status: 'returned' | 'pending_resolution'; condition: string };
 type ItemErrors = Record<string, string>;
 
 const conditionLabels: Record<string, string> = {
@@ -40,17 +41,13 @@ function defaultSettlement(condition: string): 'none' | 'repair' | 'replacement'
 }
 
 function defaultConditionState(record?: BorrowingRecord | null): ConditionState {
-  return Object.fromEntries((record?.items ?? []).map((item) => [item.equipment_id, { condition: 'belum_diperiksa', settlement_method: 'none' as const }]));
-}
-
-function isReturned(item: BorrowedItem): boolean {
-  return item.status === 'returned';
+  return Object.fromEntries((record?.items ?? []).map((item) => [item.equipment_id, { condition: 'belum_diperiksa' }]));
 }
 
 export function TeacherVerifyReturnModal({ open, onOpenChange, record, onSubmit, isLoading, error }: TeacherVerifyReturnModalProps) {
   const [verificationMethod, setVerificationMethod] = useState<ReturnReportVerificationMethod>('photo');
   const [itemStates, setItemStates] = useState<ConditionState>(() => defaultConditionState(record));
-  const [acceptedEquipmentIds, setAcceptedEquipmentIds] = useState<string[]>([]);
+  const [itemOutcomes, setItemOutcomes] = useState<Record<string, ItemOutcome>>({});
   const [isRejectFlowOpen, setIsRejectFlowOpen] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [changeReason, setChangeReason] = useState('Memverifikasi laporan pengembalian alat siswa');
@@ -70,19 +67,21 @@ export function TeacherVerifyReturnModal({ open, onOpenChange, record, onSubmit,
   }, [evidenceQuery.data]);
 
   const items = record?.items ?? [];
-  const acceptedIds = useMemo(() => new Set([
-    ...items.filter(isReturned).map((item) => item.equipment_id),
-    ...acceptedEquipmentIds,
-  ]), [acceptedEquipmentIds, items]);
-  const pendingItems = items.filter((item) => !acceptedIds.has(item.equipment_id));
-  const acceptedCount = Math.min(items.length, acceptedIds.size);
+  const handledIds = useMemo(() => new Set(items
+    .filter((item) => item.status === 'returned' || item.status === 'pending_resolution')
+    .map((item) => item.equipment_id)
+    .concat(Object.keys(itemOutcomes))), [itemOutcomes, items]);
+  const pendingItems = items.filter((item) => !handledIds.has(item.equipment_id));
+  const completedCount = items.filter((item) => item.status === 'returned' || itemOutcomes[item.equipment_id]?.status === 'returned').length;
+  const waitingRecoveryCount = items.filter((item) => item.status === 'pending_resolution' || itemOutcomes[item.equipment_id]?.status === 'pending_resolution').length;
+  const handledCount = Math.min(items.length, handledIds.size);
   const isReportLoading = reportQuery.isLoading || evidenceQuery.isLoading;
   const canProcess = Boolean(reportQuery.data?.id) && !isReportLoading && !isBusy;
 
   const reset = () => {
     setVerificationMethod('photo');
     setItemStates(defaultConditionState(record));
-    setAcceptedEquipmentIds([]);
+    setItemOutcomes({});
     setIsRejectFlowOpen(false);
     setRejectionReason('');
     setChangeReason('Memverifikasi laporan pengembalian alat siswa');
@@ -99,20 +98,26 @@ export function TeacherVerifyReturnModal({ open, onOpenChange, record, onSubmit,
 
   const reportId = reportQuery.data?.id;
 
-  const handleAcceptItem = async (item: BorrowedItem) => {
+  const handleVerifyItem = async (item: BorrowedItem) => {
     if (!record || isBusy) return;
     if (changeReason.trim().length < 5) {
       setLocalError('Alasan audit minimal 5 karakter.');
       return;
     }
 
-    const state = itemStates[item.equipment_id] ?? { condition: 'belum_diperiksa', settlement_method: 'none' as const };
+    const state = itemStates[item.equipment_id] ?? { condition: 'belum_diperiksa' };
     if (state.condition === 'belum_diperiksa') {
-      setItemErrors((current) => ({ ...current, [item.equipment_id]: `Pilih kondisi alat ${item.kode_alat} sebelum menerima.` }));
+      setItemErrors((current) => ({ ...current, [item.equipment_id]: `Pilih kondisi alat ${item.kode_alat} sebelum memprosesnya.` }));
       return;
     }
-    if (state.condition !== 'bagus' && state.settlement_method === 'repair'
-      && (!state.repair_cost || state.repair_cost <= 0)) {
+    const itemEvidence = evidenceByEquipment[item.equipment_id] ?? [];
+    if (state.condition !== 'hilang' && itemEvidence.length < 2) {
+      setItemErrors((current) => ({ ...current, [item.equipment_id]: `Minimal 2 foto kondisi diperlukan untuk ${item.kode_alat}.` }));
+      return;
+    }
+    const settlementMethod = defaultSettlement(state.condition);
+    if (state.condition !== 'bagus' && state.condition !== 'hilang'
+      && (state.repair_cost === undefined || !Number.isFinite(state.repair_cost) || state.repair_cost <= 0)) {
       setItemErrors((current) => ({ ...current, [item.equipment_id]: `Masukkan biaya perbaikan untuk ${item.kode_alat}.` }));
       return;
     }
@@ -124,7 +129,7 @@ export function TeacherVerifyReturnModal({ open, onOpenChange, record, onSubmit,
     setLocalError(null);
     setItemErrors((current) => ({ ...current, [item.equipment_id]: '' }));
     try {
-      const acceptedCountBefore = acceptedCount;
+      const handledCountBefore = handledCount;
       await onSubmit({
         borrowing_id: record.id,
         report_id: reportId,
@@ -133,15 +138,21 @@ export function TeacherVerifyReturnModal({ open, onOpenChange, record, onSubmit,
         item_conditions: [{
           equipment_id: item.equipment_id,
           kondisi_kembali: state.condition,
-          settlement_method: state.settlement_method,
+          settlement_method: settlementMethod,
           ...(state.repair_cost !== undefined ? { repair_cost: state.repair_cost } : {}),
         }],
         change_reason: changeReason.trim(),
       });
 
-      setAcceptedEquipmentIds((current) => current.includes(item.equipment_id) ? current : [...current, item.equipment_id]);
+      setItemOutcomes((current) => ({
+        ...current,
+        [item.equipment_id]: {
+          status: state.condition === 'bagus' ? 'returned' : 'pending_resolution',
+          condition: state.condition,
+        },
+      }));
       setIsRejectFlowOpen(false);
-      if (acceptedCountBefore + 1 >= items.length) {
+      if (handledCountBefore + 1 >= items.length) {
         reset();
         onOpenChange(false);
       }
@@ -204,8 +215,11 @@ export function TeacherVerifyReturnModal({ open, onOpenChange, record, onSubmit,
               {activeError && <div role="alert" aria-live="polite" className="rounded-lg border border-semantic-danger/25 bg-semantic-danger/8 px-3 py-2.5 text-xs leading-5 text-semantic-danger">{activeError}</div>}
               {isReportLoading && <div role="status" aria-live="polite" className="rounded-lg border border-hairline bg-surface-2 px-3 py-2.5 text-xs text-ink-subtle">Memuat laporan dan foto bukti...</div>}
               <div className="flex items-center justify-between gap-3 rounded-lg border border-primary/20 bg-primary/5 px-3 py-3 text-xs" role="status" aria-live="polite">
-                <div><p className="font-semibold text-ink">Progres verifikasi</p><p className="mt-1 text-ink-subtle">{acceptedCount} dari {items.length} alat sudah diterima</p></div>
-                <span className="shrink-0 rounded-full bg-surface-1 px-2.5 py-1 font-semibold text-primary">{acceptedCount}/{items.length}</span>
+                <div>
+                  <p className="font-semibold text-ink">Progres pemeriksaan</p>
+                  <p className="mt-1 text-ink-subtle">{completedCount} diterima{waitingRecoveryCount > 0 ? ` · ${waitingRecoveryCount} menunggu tindak lanjut` : ''}{pendingItems.length > 0 ? ` · ${pendingItems.length} belum diperiksa` : ''}</p>
+                </div>
+                <span className="shrink-0 rounded-full bg-surface-1 px-2.5 py-1 font-semibold text-primary">{handledCount}/{items.length}</span>
               </div>
               <div className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-3 text-xs leading-5 text-ink-subtle">
                 <p className="font-semibold text-ink">Catatan siswa</p>
@@ -214,15 +228,27 @@ export function TeacherVerifyReturnModal({ open, onOpenChange, record, onSubmit,
 
               <div className="space-y-3">
                 {items.map((item) => {
-                  const state = itemStates[item.equipment_id] ?? { condition: 'belum_diperiksa', settlement_method: 'none' as const };
-                  const alreadyAccepted = acceptedIds.has(item.equipment_id);
+                  const state = itemStates[item.equipment_id] ?? { condition: 'belum_diperiksa' };
+                  const alreadyHandled = handledIds.has(item.equipment_id);
+                  const waitingRecovery = item.status === 'pending_resolution' || itemOutcomes[item.equipment_id]?.status === 'pending_resolution';
                   const itemEvidence = evidenceByEquipment[item.equipment_id] ?? [];
                   const itemError = itemErrors[item.equipment_id];
-                  const acceptedCondition = item.kondisi_kembali
-                    ?? (acceptedEquipmentIds.includes(item.equipment_id) ? state.condition : undefined);
+                  const outcomeCondition = item.kondisi_kembali ?? itemOutcomes[item.equipment_id]?.condition;
+                  const actionLabel = state.condition === 'bagus'
+                    ? 'Terima pengembalian'
+                    : state.condition === 'hilang'
+                      ? 'Catat kehilangan'
+                      : state.condition === 'belum_diperiksa'
+                        ? 'Pilih kondisi alat'
+                        : 'Catat kerusakan & minta perbaikan';
+                  const canVerifyItem = canProcess
+                    && state.condition !== 'belum_diperiksa'
+                    && (state.condition === 'hilang' || itemEvidence.length >= 2)
+                    && (state.condition === 'bagus' || state.condition === 'hilang'
+                      || (state.repair_cost !== undefined && Number.isFinite(state.repair_cost) && state.repair_cost > 0));
 
                   return (
-                    <section key={item.equipment_id} aria-label={`${item.kode_alat} ${item.nama_alat}`} className={cn('space-y-3 rounded-lg border p-3', alreadyAccepted ? 'border-semantic-success/30 bg-semantic-success/5' : 'border-hairline bg-surface-2/35')}>
+                    <section key={item.equipment_id} aria-label={`${item.kode_alat} ${item.nama_alat}`} className={cn('space-y-3 rounded-lg border p-3', alreadyHandled ? (waitingRecovery ? 'border-semantic-warning/30 bg-semantic-warning/5' : 'border-semantic-success/30 bg-semantic-success/5') : 'border-hairline bg-surface-2/35')}>
                       <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="font-mono text-[11px] font-bold text-primary">{item.kode_alat}</p><p className="truncate text-xs font-semibold text-ink">{item.nama_alat}</p></div><span className="shrink-0 text-[10px] text-ink-tertiary">{itemEvidence.length} foto</span></div>
                       {itemEvidence.length > 0 ? (
                         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -245,10 +271,12 @@ export function TeacherVerifyReturnModal({ open, onOpenChange, record, onSubmit,
                         </div>
                       )}
 
-                      {alreadyAccepted ? (
-                        <div className="flex min-h-11 items-center gap-2 rounded-md bg-semantic-success/10 px-3 py-2 text-xs text-semantic-success" role="status">
-                          <CheckCircle2 size={16} aria-hidden="true" />
-                          <span>Sudah diterima{acceptedCondition && acceptedCondition !== 'belum_diperiksa' ? ` · kondisi ${conditionLabels[acceptedCondition] ?? acceptedCondition}` : ''}</span>
+                      {alreadyHandled ? (
+                        <div className={cn('flex min-h-11 items-center gap-2 rounded-md px-3 py-2 text-xs', waitingRecovery ? 'bg-semantic-warning/10 text-semantic-warning' : 'bg-semantic-success/10 text-semantic-success')} role="status">
+                          {waitingRecovery ? <ShieldCheck size={16} aria-hidden="true" /> : <CheckCircle2 size={16} aria-hidden="true" />}
+                          <span>{waitingRecovery
+                            ? outcomeCondition === 'hilang' ? 'Kehilangan dicatat · menunggu unit pengganti' : 'Kerusakan dicatat · menunggu perbaikan dan inspeksi'
+                            : `Pengembalian diterima${outcomeCondition && outcomeCondition !== 'belum_diperiksa' ? ` · kondisi ${conditionLabels[outcomeCondition] ?? outcomeCondition}` : ''}`}</span>
                         </div>
                       ) : (
                         <>
@@ -263,7 +291,6 @@ export function TeacherVerifyReturnModal({ open, onOpenChange, record, onSubmit,
                                   [item.equipment_id]: {
                                     ...current[item.equipment_id],
                                     condition: value,
-                                    settlement_method: defaultSettlement(value),
                                     repair_cost: value === 'belum_diperiksa' || value === 'bagus' || value === 'hilang' ? undefined : current[item.equipment_id]?.repair_cost,
                                   },
                                 }));
@@ -272,34 +299,37 @@ export function TeacherVerifyReturnModal({ open, onOpenChange, record, onSubmit,
                                 <SelectContent>{Object.entries(conditionLabels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent>
                               </Select>
                             </div>
-                            {state.condition !== 'bagus' && state.condition !== 'belum_diperiksa' && <div className="space-y-1">
-                              <Label htmlFor={`return-settlement-${item.equipment_id}`} className="text-[10px] text-ink-muted">Penyelesaian</Label>
-                              <Select value={state.settlement_method} onValueChange={(value) => {
-                                if (value !== 'repair' && value !== 'replacement') return;
-                                setItemStates((current) => ({ ...current, [item.equipment_id]: { ...current[item.equipment_id], settlement_method: value } }));
-                              }} disabled={state.condition === 'hilang'}>
-                                <SelectTrigger id={`return-settlement-${item.equipment_id}`} className="h-11 bg-surface-2 text-xs"><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="repair">Perbaikan / servis</SelectItem>
-                                  <SelectItem value="replacement">Ganti dengan nilai alat</SelectItem>
-                                </SelectContent>
-                              </Select>
+                            {state.condition !== 'bagus' && state.condition !== 'belum_diperiksa' && <div className="sm:col-span-2 rounded-md border border-semantic-warning/25 bg-semantic-warning/5 px-2.5 py-2 text-[10px] leading-4 text-ink-subtle">
+                              {state.condition === 'hilang'
+                                ? 'Kehilangan akan dicatat. Pinjaman tetap terbuka sampai unit pengganti didaftarkan.'
+                                : 'Kerusakan akan dicatat sebagai tindak lanjut. Pinjaman tetap terbuka sampai servis selesai dan inspeksi akhir lulus.'}
                             </div>}
-                            {state.settlement_method === 'repair' && <div className="space-y-1 sm:col-span-2">
+                            {defaultSettlement(state.condition) === 'repair' && <div className="space-y-1 sm:col-span-2">
                               <Label htmlFor={`return-repair-cost-${item.equipment_id}`} className="text-[10px] text-ink-muted">Biaya perbaikan <span className="text-semantic-danger">*</span></Label>
                               <Input id={`return-repair-cost-${item.equipment_id}`} type="number" min="1" step="1" value={state.repair_cost ?? ''} onChange={(event) => {
                                 setItemErrors((current) => ({ ...current, [item.equipment_id]: '' }));
                                 setItemStates((current) => ({ ...current, [item.equipment_id]: { ...current[item.equipment_id], repair_cost: event.target.value ? Number(event.target.value) : undefined } }));
                               }} className="h-11 bg-surface-2 text-xs" placeholder="Masukkan nominal biaya" />
                             </div>}
-                            {state.settlement_method === 'replacement' && <p className="sm:col-span-2 rounded-md border border-dashed border-hairline bg-surface-2 px-2.5 py-2 text-[10px] leading-4 text-ink-subtle">
+                            {defaultSettlement(state.condition) === 'replacement' && <p className="sm:col-span-2 rounded-md border border-dashed border-hairline bg-surface-2 px-2.5 py-2 text-[10px] leading-4 text-ink-subtle">
                               Nilai penggantian dihitung dari valuasi alat yang aktif.
                             </p>}
+                            {state.condition !== 'hilang' && itemEvidence.length < 2 && <p className="sm:col-span-2 text-[10px] text-semantic-warning">Minimal 2 foto bukti harus tersedia agar kondisi alat dapat diverifikasi.</p>}
                           </div>
                           {itemError && <p role="alert" className="text-xs leading-5 text-semantic-danger">{itemError}</p>}
-                          <Button type="button" onClick={() => void handleAcceptItem(item)} disabled={!canProcess} className="min-h-11 w-full bg-semantic-success text-white hover:bg-semantic-success/90 sm:w-auto">
-                            {isBusy ? <Loader2 size={15} className="motion-safe:animate-spin" aria-hidden="true" /> : <CheckCircle2 size={15} aria-hidden="true" />}
-                            Terima alat ini
+                          <Button
+                            type="button"
+                            onClick={() => void handleVerifyItem(item)}
+                            disabled={!canVerifyItem}
+                            className={cn(
+                              'min-h-11 w-full text-white sm:w-auto',
+                              state.condition === 'bagus' ? 'bg-semantic-success hover:bg-semantic-success/90'
+                                : state.condition === 'hilang' ? 'bg-semantic-danger hover:bg-semantic-danger/90'
+                                  : 'bg-semantic-warning hover:bg-semantic-warning/90',
+                            )}
+                          >
+                            {isBusy ? <Loader2 size={15} className="motion-safe:animate-spin" aria-hidden="true" /> : state.condition === 'bagus' ? <CheckCircle2 size={15} aria-hidden="true" /> : <ShieldCheck size={15} aria-hidden="true" />}
+                            {actionLabel}
                           </Button>
                         </>
                       )}
@@ -309,8 +339,10 @@ export function TeacherVerifyReturnModal({ open, onOpenChange, record, onSubmit,
               </div>
 
               {pendingItems.length === 0 ? (
-                <div className="rounded-lg border border-semantic-success/30 bg-semantic-success/5 px-3 py-3 text-xs text-semantic-success" role="status">
-                  Semua alat dari laporan ini sudah diterima.
+                <div className={cn('rounded-lg border px-3 py-3 text-xs', waitingRecoveryCount > 0 ? 'border-semantic-warning/30 bg-semantic-warning/5 text-semantic-warning' : 'border-semantic-success/30 bg-semantic-success/5 text-semantic-success')} role="status">
+                  {waitingRecoveryCount > 0
+                    ? 'Pemeriksaan laporan selesai. Pinjaman tetap terbuka untuk alat yang menunggu perbaikan atau penggantian.'
+                    : 'Semua alat dari laporan ini sudah diterima dalam kondisi baik.'}
                 </div>
               ) : (
                 <div className="space-y-3 rounded-lg border border-hairline bg-surface-2/35 p-3">
@@ -336,7 +368,7 @@ export function TeacherVerifyReturnModal({ open, onOpenChange, record, onSubmit,
                     </Button>
                   ) : (
                     <div className="space-y-2 rounded-md border border-semantic-danger/25 bg-semantic-danger/5 p-3">
-                      <p className="text-xs leading-5 text-ink-subtle">Penolakan meminta siswa memperbaiki bukti untuk {pendingItems.length} alat yang belum diterima. Alat yang sudah diterima tidak terpengaruh.</p>
+                      <p className="text-xs leading-5 text-ink-subtle">Penolakan meminta siswa memperbaiki bukti untuk {pendingItems.length} alat yang belum diperiksa. Alat yang sudah diperiksa tidak terpengaruh.</p>
                       <div className="space-y-1.5">
                         <Label htmlFor="return-rejection-reason" className="text-xs text-ink-muted">Alasan penolakan <span className="text-semantic-danger">*</span></Label>
                         <Textarea id="return-rejection-reason" rows={3} value={rejectionReason} onChange={(event) => setRejectionReason(event.target.value)} placeholder="Contoh: foto belum menunjukkan kondisi alat secara jelas..." className="min-h-20 resize-y bg-surface-2 text-xs" />

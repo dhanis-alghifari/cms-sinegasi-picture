@@ -330,6 +330,22 @@ export class BorrowingMutationsService {
       if (equipmentIds.some((equipmentId) => !activeIds.has(equipmentId))) {
         throw new BorrowingMutationsServiceError(422, 'RETURN_ITEM_NOT_ACTIVE', 'Verifikasi hanya dapat dilakukan untuk alat yang masih dipinjam.');
       }
+      for (const item of itemConditions) {
+        if (!RETURN_CONDITIONS.has(item.kondisi_kembali)) {
+          throw new BorrowingMutationsServiceError(422, 'INVALID_RETURN_CONDITION', 'Pilih kondisi alat yang valid sebelum memverifikasi.');
+        }
+        const method = item.settlement_method
+          ?? (item.kondisi_kembali === 'bagus' ? 'none' : item.kondisi_kembali === 'hilang' ? 'replacement' : 'repair');
+        if ((item.kondisi_kembali === 'bagus' && method !== 'none')
+          || (item.kondisi_kembali === 'hilang' && method !== 'replacement')
+          || (PHYSICAL_RETURN_CONDITIONS.has(item.kondisi_kembali) && item.kondisi_kembali !== 'bagus' && method !== 'repair')) {
+          throw new BorrowingMutationsServiceError(422, 'RETURN_RECOVERY_METHOD_INVALID', 'Alat rusak wajib diperbaiki; alat hilang wajib diganti dengan unit baru.');
+        }
+        if (item.kondisi_kembali !== 'bagus' && item.kondisi_kembali !== 'hilang'
+          && (item.repair_cost === undefined || !Number.isFinite(item.repair_cost) || item.repair_cost <= 0)) {
+          throw new BorrowingMutationsServiceError(422, 'REPAIR_COST_REQUIRED', 'Biaya perbaikan wajib diisi dengan nominal lebih dari nol.');
+        }
+      }
     }
     const result = await this.repository.verifyReturnReport({
       borrowingId: id, reportId, decision: input.decision, verificationMethod: input.verification_method || null,

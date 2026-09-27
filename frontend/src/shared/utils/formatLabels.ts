@@ -50,6 +50,7 @@ const STATUS_LABELS: Record<string, string> = {
   approved: 'Disetujui',
   rejected: 'Ditolak',
   borrowed: 'Dipinjam',
+  pending_resolution: 'Menunggu tindak lanjut',
   returned: 'Dikembalikan',
   partial: 'Sebagian diproses',
   menunggu_persetujuan: 'Menunggu persetujuan',

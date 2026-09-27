@@ -8,6 +8,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { formatCurrency } from '@/shared/utils/formatCurrency';
 import { formatDateShort } from '@/shared/utils/formatDate';
 import { formatStatusLabel } from '@/shared/utils/formatLabels';
+import { cn } from '@/shared/utils/cn';
 
 import type { BorrowingRecord } from '../types/borrowing.types';
 
@@ -53,11 +54,12 @@ export function BorrowingMobileList({
     <div className="space-y-3" aria-label="Daftar peminjaman versi ponsel">
       {borrowings.map((borrowing) => {
         const totalFine = borrowing.total_denda ?? 0;
+        const hasBorrowedItems = borrowing.items.some((item) => item.status === 'borrowed');
         const hasAction = (canManage || canReportReturn || canVerifyReturn) && (
           (canApprove && borrowing.status === 'menunggu_persetujuan')
           || (canHandoverOrReturn && borrowing.status === 'disetujui')
-          || (canHandoverOrReturn && (borrowing.status === 'dipinjam' || borrowing.status === 'terlambat'))
-          || (canReportReturn && borrowing.borrower_id === reportStudentId && (borrowing.status === 'dipinjam' || borrowing.status === 'terlambat'))
+          || (canHandoverOrReturn && hasBorrowedItems && (borrowing.status === 'dipinjam' || borrowing.status === 'terlambat'))
+          || (canReportReturn && hasBorrowedItems && borrowing.borrower_id === reportStudentId && (borrowing.status === 'dipinjam' || borrowing.status === 'terlambat'))
           || (canVerifyReturn && borrowing.status === 'menunggu_verifikasi')
         );
 
@@ -90,13 +92,13 @@ export function BorrowingMobileList({
                           Serahkan alat
                         </DropdownMenuItem>
                       )}
-                      {canHandoverOrReturn && (borrowing.status === 'dipinjam' || borrowing.status === 'terlambat') && (
+                      {canHandoverOrReturn && hasBorrowedItems && (borrowing.status === 'dipinjam' || borrowing.status === 'terlambat') && (
                         <DropdownMenuItem onClick={() => onReturn(borrowing)} className="min-h-11 cursor-pointer text-sm">
                           <RotateCcw size={16} className="mr-2 text-semantic-warning" aria-hidden="true" />
                           Proses pengembalian
                         </DropdownMenuItem>
                       )}
-                      {canReportReturn && borrowing.borrower_id === reportStudentId && (borrowing.status === 'dipinjam' || borrowing.status === 'terlambat') && onReportReturn && (
+                      {canReportReturn && hasBorrowedItems && borrowing.borrower_id === reportStudentId && (borrowing.status === 'dipinjam' || borrowing.status === 'terlambat') && onReportReturn && (
                         <DropdownMenuItem onClick={() => onReportReturn(borrowing)} className="min-h-11 cursor-pointer text-sm">
                           <Camera size={16} className="mr-2 text-primary" aria-hidden="true" />
                           Laporkan pengembalian
@@ -123,7 +125,7 @@ export function BorrowingMobileList({
                   <li key={item.borrowing_item_id ?? item.equipment_id} className="flex min-w-0 items-center gap-2 text-xs text-ink-subtle">
                     <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-primary">{item.kode_alat}</span>
                     <span className="min-w-0 truncate">{item.nama_alat}</span>
-                    {item.status && <span className="shrink-0 text-[10px] text-ink-tertiary">({formatStatusLabel(item.status)})</span>}
+                    {item.status && <span className={cn('shrink-0 text-[10px]', item.status === 'pending_resolution' ? 'font-medium text-semantic-warning' : 'text-ink-tertiary')}>({formatStatusLabel(item.status)})</span>}
                   </li>
                 ))}
               </ul>
@@ -139,6 +141,7 @@ export function BorrowingMobileList({
               <div className="rounded-lg border border-hairline p-2.5 text-right">
                 <p className="text-[10px] uppercase tracking-wide text-ink-tertiary">Status</p>
                 <div className="mt-1 flex justify-end"><BorrowingStatusBadge status={borrowing.status} /></div>
+                {borrowing.items.some((item) => item.status === 'pending_resolution') && <p className="mt-1 text-right text-[10px] font-medium text-semantic-warning">Menunggu perbaikan atau penggantian</p>}
                 {borrowing.status === 'terlambat' && <p className="mt-1 flex items-center justify-end gap-1 text-[10px] font-semibold text-semantic-danger"><AlertTriangle size={11} aria-hidden="true" />Terlambat</p>}
               </div>
             </div>

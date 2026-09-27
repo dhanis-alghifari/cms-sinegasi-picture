@@ -17,7 +17,7 @@ export interface BorrowedItem {
   equipment_id: string;
   kode_alat: string;
   nama_alat: string;
-  status?: 'pending' | 'approved' | 'borrowed' | 'returned' | 'rejected';
+  status?: 'pending' | 'approved' | 'borrowed' | 'pending_resolution' | 'returned' | 'rejected';
   kondisi_awal: string;
   kondisi_kembali?: string;
   denda_kerusakan?: number;

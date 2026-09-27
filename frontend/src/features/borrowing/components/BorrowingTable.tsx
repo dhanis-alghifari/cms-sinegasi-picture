@@ -94,7 +94,7 @@ export function BorrowingTable({
                     <li key={item.borrowing_item_id ?? item.equipment_id} className="flex items-center gap-1.5">
                       <span className="font-mono text-[10px] text-primary font-semibold bg-primary/10 px-1 rounded">{item.kode_alat}</span>
                       <span className="truncate">{item.nama_alat}</span>
-                      {item.status && <span className="text-[9px] text-ink-tertiary">({formatStatusLabel(item.status)})</span>}
+                      {item.status && <span className={item.status === 'pending_resolution' ? 'text-[9px] font-medium text-semantic-warning' : 'text-[9px] text-ink-tertiary'}>({formatStatusLabel(item.status)})</span>}
                     </li>
                   ))}
                 </ul>
@@ -117,6 +117,9 @@ export function BorrowingTable({
               <TableCell>
                 <div className="space-y-1">
                   <BorrowingStatusBadge status={b.status} />
+                  {b.items.some((item) => item.status === 'pending_resolution') && (
+                    <p className="text-[10px] font-medium text-semantic-warning">Masih ada alat menunggu perbaikan atau penggantian.</p>
+                  )}
                   {b.status === 'terlambat' && (
                     <p className="text-[10px] font-semibold text-semantic-danger flex items-center gap-1">
                       <AlertTriangle size={10} />
@@ -163,7 +166,7 @@ export function BorrowingTable({
                     </Button>
                   )}
 
-                  {canHandoverOrReturn && (b.status === 'dipinjam' || b.status === 'terlambat') && (
+                  {canHandoverOrReturn && (b.status === 'dipinjam' || b.status === 'terlambat') && b.items.some((item) => item.status === 'borrowed') && (
                     <Button
                       size="sm"
                       variant="outline"
@@ -175,7 +178,7 @@ export function BorrowingTable({
                     </Button>
                   )}
 
-                  {canReportReturn && b.borrower_id === reportStudentId && (b.status === 'dipinjam' || b.status === 'terlambat') && onReportReturn && (
+                  {canReportReturn && b.borrower_id === reportStudentId && (b.status === 'dipinjam' || b.status === 'terlambat') && b.items.some((item) => item.status === 'borrowed') && onReportReturn && (
                     <Button
                       size="sm"
                       variant="outline"

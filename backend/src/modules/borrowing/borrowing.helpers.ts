@@ -1,7 +1,7 @@
 import { runtimeConfig } from '../../config/env.js';
 import type { BorrowingDatabaseError } from './borrowing.mutations.types.js';
 
-export const BORROWING_SCHEMA_MIGRATION_MESSAGE = 'Skema peminjaman belum lengkap. Jalankan migration 014_borrowing_items_hardening.sql, 060_equipment_valuation_return_assessment.sql, 062_borrowing_return_evidence.sql, 063_equipment_recovery_and_charges.sql, 068_borrowing_self_return_verification.sql, dan 080_partial_borrowing_return_verification.sql di Supabase, lalu restart backend.';
+export const BORROWING_SCHEMA_MIGRATION_MESSAGE = 'Skema peminjaman belum lengkap. Jalankan migration 014_borrowing_items_hardening.sql, 060_equipment_valuation_return_assessment.sql, 062_borrowing_return_evidence.sql, 063_equipment_recovery_and_charges.sql, 068_borrowing_self_return_verification.sql, 080_partial_borrowing_return_verification.sql, dan 081_return_recovery_gate.sql di Supabase, lalu restart backend.';
 
 export function isIsoDate(value: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
@@ -48,6 +48,8 @@ export function getBorrowingErrorMessage(error: BorrowingDatabaseError | null | 
   if (/invalid return condition/i.test(message)) return 'Kondisi pengembalian alat tidak valid.';
   if (/good equipment cannot have a settlement charge/i.test(message)) return 'Alat dalam kondisi baik tidak boleh memiliki tagihan.';
   if (/lost equipment must use replacement settlement/i.test(message)) return 'Alat yang hilang harus menggunakan penyelesaian penggantian.';
+  if (/return_recovery_method_invalid|return_assessment_recovery_settlement_check/i.test(message)) return 'Alat rusak wajib ditindaklanjuti dengan perbaikan; alat hilang wajib diganti dengan unit baru.';
+  if (/return_recovery_item_not_active/i.test(message)) return 'Status alat berubah. Muat ulang peminjaman sebelum memverifikasi lagi.';
   if (/replacement valuation is missing/i.test(message)) return 'Nilai penggantian alat belum dikonfigurasi.';
   if (/positive repair cost is required/i.test(message)) return 'Biaya perbaikan wajib diisi dengan nominal lebih dari nol.';
   if (/invalid settlement method/i.test(message)) return 'Metode penyelesaian tidak valid.';
@@ -76,6 +78,7 @@ export function borrowingMutationStatus(error: BorrowingDatabaseError | null | u
   const message = String(error?.message || '').toLowerCase();
   if (error?.code === '23505' || error?.code === 'ALREADY_PROCESSED' || error?.code === 'CONFLICT'
     || message.includes('return_verification_transition_invalid') || message.includes('return_verification_item_not_active')
+    || message.includes('return_recovery_item_not_active')
     || message.includes('tidak tersedia') || message.includes('sudah diproses') || message.includes('dipesan')
     || message.includes('student_has_outstanding_equipment_charge')) return 409;
   if (error?.code === 'NOT_FOUND' || error?.code === 'PGRST116' || message.includes('tidak ditemukan')) return 404;
