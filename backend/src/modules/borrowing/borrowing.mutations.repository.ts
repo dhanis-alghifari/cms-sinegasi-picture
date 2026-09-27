@@ -43,6 +43,7 @@ export interface BorrowingMutationsRepository {
   approveReject(input: ApproveInput): Promise<{ data: BorrowingMutationRecord | null; error: BorrowingDatabaseError | null }>;
   handover(input: HandoverInput): Promise<{ data: BorrowingMutationRecord | null; error: BorrowingDatabaseError | null }>;
   returnBorrowing(input: ReturnInput): Promise<{ data: BorrowingMutationRecord | null; error: BorrowingDatabaseError | null }>;
+  getActiveBorrowingEquipmentIds(borrowingId: string): Promise<{ data: string[] | null; error: BorrowingDatabaseError | null }>;
   previewReturn(input: { borrowingId: string; returnedAt: string; itemConditions: BorrowingReturnItemCondition[] }): Promise<{ data: BorrowingReturnAssessmentPreview | null; error: BorrowingDatabaseError | null }>;
   reserveReturnEvidence(input: {
     borrowingId: string;
@@ -58,6 +59,7 @@ export interface BorrowingMutationsRepository {
   reserveReturnReportEvidence(input: ReturnReportEvidenceInput): Promise<{ data: (BorrowingReturnEvidenceRecord & { report_id?: string | null }) | null; error: BorrowingDatabaseError | null }>;
   submitReturnReport(input: { borrowingId: string; reportId: string; evidenceIds: string[]; notes: string | null; actorId: string; idempotencyKey: string; changeReason: string }): Promise<{ data: BorrowingMutationRecord | null; error: BorrowingDatabaseError | null }>;
   verifyReturnReport(input: { borrowingId: string; reportId: string; decision: string; verificationMethod: string | null; itemConditions: BorrowingReturnItemCondition[]; rejectionReason: string | null; actorId: string; idempotencyKey: string; changeReason: string }): Promise<{ data: BorrowingMutationRecord | null; error: BorrowingDatabaseError | null }>;
+  hasReturnVerificationOperation(idempotencyKey: string): Promise<{ data: boolean | null; error: BorrowingDatabaseError | null }>;
   getReturnReportStatus(reportId: string): Promise<{ data: { id: string; borrowing_id: string; reporter_id: string; status: BorrowingReturnReportRecord['status'] } | null; error: BorrowingDatabaseError | null }>;
   getReturnReport(borrowingId: string): Promise<{ data: BorrowingReturnReportRecord | null; error: BorrowingDatabaseError | null }>;
 }
@@ -203,18 +205,22 @@ function memoryHandover(state: BorrowingMutationMemoryState, input: HandoverInpu
 function memoryReturn(state: BorrowingMutationMemoryState, input: ReturnInput): { data: BorrowingMutationRecord | null; error: BorrowingDatabaseError | null } {
   const record = state.borrowings.find((item) => item.id === input.borrowingId);
   if (!record) return { data: null, error: error('NOT_FOUND', 'Peminjaman tidak ditemukan.') };
-  if (record.raw_status !== 'borrowed') return { data: null, error: error('CONFLICT', 'Peminjaman belum berada pada status dapat dikembalikan.') };
+  if (record.raw_status !== 'borrowed' && record.raw_status !== 'partial') return { data: null, error: error('CONFLICT', 'Peminjaman belum berada pada status dapat dikembalikan.') };
   const activeIds = record.items.filter((item) => item.status === 'borrowed').map((item) => item.equipment_id).sort();
   const returnedIds = input.itemConditions.map((item) => item.equipment_id).sort();
-  if (activeIds.length !== returnedIds.length || activeIds.some((id, index) => id !== returnedIds[index])) {
-    return { data: null, error: error('INVALID_INPUT', 'Kondisi pengembalian harus diisi untuk setiap alat yang masih dipinjam.') };
+  if (returnedIds.length === 0 || new Set(returnedIds).size !== returnedIds.length || returnedIds.some((id) => !activeIds.includes(id))) {
+    return { data: null, error: error('INVALID_INPUT', 'Kondisi pengembalian hanya dapat diisi untuk alat aktif yang belum dikembalikan.') };
   }
-  let totalFine = 0;
-  for (const condition of input.itemConditions) {
+  const assessedItems = input.itemConditions.map((condition) => {
     const equipment = state.equipment.find((entry) => entry.id === condition.equipment_id);
     const fine = memoryCharge(condition, equipment);
-    if (condition.kondisi_kembali !== 'bagus' && fine <= 0) return { data: null, error: error('INVALID_INPUT', 'Nilai penggantian atau biaya perbaikan wajib tersedia.') };
-    totalFine += fine;
+    return { condition, equipment, fine };
+  });
+  if (assessedItems.some(({ condition, fine }) => condition.kondisi_kembali !== 'bagus' && fine <= 0)) {
+    return { data: null, error: error('INVALID_INPUT', 'Nilai penggantian atau biaya perbaikan wajib tersedia.') };
+  }
+  const totalFine = assessedItems.reduce((total, item) => total + item.fine, 0);
+  for (const { condition, equipment } of assessedItems) {
     for (const evidenceId of condition.evidence_ids ?? []) {
       const evidence = state.returnEvidence?.find((candidate) => candidate.id === evidenceId);
       if (evidence) {
@@ -227,11 +233,16 @@ function memoryReturn(state: BorrowingMutationMemoryState, input: ReturnInput): 
   const conditionMap = new Map(input.itemConditions.map((item) => [item.equipment_id, item]));
   record.items = record.items.map((item) => {
     const condition = conditionMap.get(item.equipment_id);
-    const fine = condition ? memoryCharge(condition, state.equipment.find((entry) => entry.id === condition.equipment_id)) : 0;
-    return { ...item, status: 'returned', kondisi_kembali: condition?.kondisi_kembali, denda_kerusakan: fine };
+    if (!condition) return item;
+    const fine = memoryCharge(condition, state.equipment.find((entry) => entry.id === condition.equipment_id));
+    return { ...item, status: 'returned', kondisi_kembali: condition.kondisi_kembali, denda_kerusakan: fine };
   });
-  record.raw_status = 'returned'; record.status = 'dikembalikan'; record.tanggal_dikembalikan = input.returnedAt;
-  record.catatan_pengembalian = input.catatan || undefined; record.total_denda = totalFine;
+  const hasActiveItems = record.items.some((item) => item.status === 'borrowed');
+  record.raw_status = hasActiveItems ? 'partial' : 'returned';
+  record.status = hasActiveItems ? 'dipinjam' : 'dikembalikan';
+  if (!hasActiveItems) record.tanggal_dikembalikan = input.returnedAt;
+  record.catatan_pengembalian = input.catatan || record.catatan_pengembalian;
+  record.total_denda = Number(record.total_denda || 0) + totalFine;
   record.processed_return_by = input.actorId; record.updated_by = input.actorId; record.updated_at = new Date().toISOString();
   return { data: asMemoryRecord(record), error: null };
 }
@@ -275,6 +286,22 @@ export function createBorrowingMutationsRepository(client: SupabaseLike, state: 
       });
       if (result.error) return { data: null, error: result.error };
       return findById(client, input.borrowingId);
+    },
+    async getActiveBorrowingEquipmentIds(borrowingId) {
+      if (!client) {
+        const record = state.borrowings.find((item) => item.id === borrowingId);
+        if (!record) return { data: null, error: error('NOT_FOUND', 'Peminjaman tidak ditemukan.') };
+        return {
+          data: record.items.filter((item) => item.status === 'borrowed').map((item) => item.equipment_id),
+          error: null,
+        };
+      }
+      const result = await client.from('borrowing_items')
+        .select('equipment_id')
+        .eq('borrowing_id', borrowingId)
+        .eq('status', 'borrowed');
+      if (result.error) return { data: null, error: result.error };
+      return { data: (result.data || []).map((row) => String(row.equipment_id)), error: null };
     },
     async previewReturn(input) {
       if (!client) {
@@ -399,6 +426,15 @@ export function createBorrowingMutationsRepository(client: SupabaseLike, state: 
       });
       if (result.error) return { data: null, error: result.error };
       return findById(client, input.borrowingId);
+    },
+    async hasReturnVerificationOperation(idempotencyKey) {
+      if (!client) return { data: false, error: null };
+      const result = await client.from('borrowing_return_operations')
+        .select('idempotency_key')
+        .eq('idempotency_key', idempotencyKey)
+        .maybeSingle();
+      if (result.error) return { data: null, error: result.error };
+      return { data: Boolean(result.data), error: null };
     },
     async getReturnReportStatus(reportId) {
       if (!client) return { data: null, error: null };

@@ -30,8 +30,14 @@ export function StudentReturnReportModal({ open, onOpenChange, record, onSubmit,
   const [isUploading, setIsUploading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const items = record?.items ?? [];
-  const totalPhotos = useMemo(() => Object.values(filesByEquipment).reduce((total, files) => total + files.length, 0), [filesByEquipment]);
+  const items = useMemo(
+    () => (record?.items ?? []).filter((item) => item.status === 'borrowed' || item.status === undefined),
+    [record?.items],
+  );
+  const totalPhotos = useMemo(
+    () => items.reduce((total, item) => total + (filesByEquipment[item.equipment_id]?.length ?? 0), 0),
+    [filesByEquipment, items],
+  );
   const isBusy = Boolean(isLoading || isUploading || isSubmitting);
   const submitLabel = (() => {
     if (isUploading) return 'Mengunggah foto...';
@@ -59,6 +65,10 @@ export function StudentReturnReportModal({ open, onOpenChange, record, onSubmit,
     if (!record) return;
     if (changeReason.trim().length < 5) {
       setLocalError('Alasan laporan minimal 5 karakter.');
+      return;
+    }
+    if (items.length === 0) {
+      setLocalError('Semua alat pada peminjaman ini sudah diterima. Tidak ada alat tersisa untuk dilaporkan.');
       return;
     }
     const missingItems = items.filter((item) => (filesByEquipment[item.equipment_id]?.length ?? 0) < 2);
@@ -119,7 +129,7 @@ export function StudentReturnReportModal({ open, onOpenChange, record, onSubmit,
             </div>
 
             <div className="space-y-3">
-              {items.length === 0 ? <p className="rounded-lg border border-semantic-danger/25 px-3 py-4 text-xs text-semantic-danger">Detail alat belum tersedia.</p> : items.map((item) => (
+              {items.length === 0 ? <p role="status" className="rounded-lg border border-hairline px-3 py-4 text-xs text-ink-subtle">Semua alat pada peminjaman ini sudah diterima guru.</p> : items.map((item) => (
                 <section key={item.equipment_id} className="space-y-2 rounded-lg border border-hairline bg-surface-2/35 p-3">
                   <div className="flex items-start gap-2">
                     <Camera size={16} className="mt-0.5 shrink-0 text-primary" aria-hidden="true" />

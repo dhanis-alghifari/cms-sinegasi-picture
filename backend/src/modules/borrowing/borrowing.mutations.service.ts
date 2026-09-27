@@ -301,7 +301,7 @@ export class BorrowingMutationsService {
   async verifyReturnReport(borrowingId: string, input: BorrowingReturnReportVerifyInput, actorId: string) {
     const id = ensureId(borrowingId, 'borrowing_id');
     const reportId = ensureId(input.report_id, 'report_id');
-    const reportLookup = await this.repository.getReturnReport(id);
+    const reportLookup = await this.repository.getReturnReportStatus(reportId);
     if (reportLookup.error) repositoryFailure(reportLookup.error, 'Gagal memuat laporan pengembalian.');
     if (!reportLookup.data || reportLookup.data.id !== reportId || reportLookup.data.borrowing_id !== id) {
       throw new BorrowingMutationsServiceError(404, 'RETURN_REPORT_NOT_FOUND', 'Laporan pengembalian tidak ditemukan untuk peminjaman ini.');
@@ -313,7 +313,24 @@ export class BorrowingMutationsService {
     if (input.decision === 'reject' && (!nonEmpty(input.rejection_reason) || String(input.rejection_reason).trim().length < 5)) throw new BorrowingMutationsServiceError(422, 'REJECTION_REASON_REQUIRED', 'Alasan penolakan minimal 5 karakter.');
     const idempotencyKey = nonEmpty(input.idempotency_key) || `return-verify-${actorId}-${crypto.randomUUID()}`;
     const itemConditions = Array.isArray(input.item_conditions) ? input.item_conditions : [];
-    if (input.decision === 'approve' && itemConditions.length === 0) throw new BorrowingMutationsServiceError(422, 'ITEM_CONDITIONS_REQUIRED', 'Kondisi setiap alat wajib diisi saat menyetujui pengembalian.');
+    const existingOperation = await this.repository.hasReturnVerificationOperation(idempotencyKey);
+    if (existingOperation.error) repositoryFailure(existingOperation.error, 'Gagal memeriksa idempotensi verifikasi.');
+    if (input.decision === 'approve' && !existingOperation.data) {
+      if (itemConditions.length === 0) throw new BorrowingMutationsServiceError(422, 'ITEM_CONDITIONS_REQUIRED', 'Pilih minimal satu alat untuk diverifikasi.');
+      const equipmentIds = itemConditions.map((item) => ensureId(item.equipment_id, 'equipment_id'));
+      if (new Set(equipmentIds).size !== equipmentIds.length) {
+        throw new BorrowingMutationsServiceError(422, 'DUPLICATE_EQUIPMENT', 'Daftar alat yang diverifikasi tidak boleh berisi duplikasi.');
+      }
+      const activeItems = await this.repository.getActiveBorrowingEquipmentIds(id);
+      if (activeItems.error) repositoryFailure(activeItems.error, 'Gagal memuat alat yang masih dipinjam.');
+      if (!activeItems.data || activeItems.data.length === 0) {
+        throw new BorrowingMutationsServiceError(409, 'RETURN_ITEMS_UNAVAILABLE', 'Tidak ada alat aktif yang menunggu verifikasi.');
+      }
+      const activeIds = new Set(activeItems.data);
+      if (equipmentIds.some((equipmentId) => !activeIds.has(equipmentId))) {
+        throw new BorrowingMutationsServiceError(422, 'RETURN_ITEM_NOT_ACTIVE', 'Verifikasi hanya dapat dilakukan untuk alat yang masih dipinjam.');
+      }
+    }
     const result = await this.repository.verifyReturnReport({
       borrowingId: id, reportId, decision: input.decision, verificationMethod: input.verification_method || null,
       itemConditions, rejectionReason: nonEmpty(input.rejection_reason), actorId, idempotencyKey, changeReason: reason,

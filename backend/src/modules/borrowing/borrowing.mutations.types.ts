@@ -67,7 +67,7 @@ export type BorrowingMemoryEquipment = {
 
 export type BorrowingMemoryRecord = BorrowingReadRecord & {
   idempotency_key?: string;
-  raw_status: 'pending' | 'approved' | 'rejected' | 'borrowed' | 'returned';
+  raw_status: 'pending' | 'approved' | 'rejected' | 'borrowed' | 'partial' | 'returned';
   items: BorrowingReadItem[];
 };
 
