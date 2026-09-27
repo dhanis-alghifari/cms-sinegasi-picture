@@ -133,6 +133,11 @@ export function usePullToRefresh({
         return;
       }
 
+      // The gesture starts at the top of this scroll container, so a downward
+      // drag has no useful content scroll to preserve. Claim it before the
+      // browser takes over and emits touchcancel (notably on Android Chrome).
+      if (event.cancelable) event.preventDefault();
+
       if (deltaY >= PULL_THRESHOLD) setPhase('ready');
       else if (deltaY >= INDICATOR_THRESHOLD) setPhase('pulling');
       else setPhase('idle');
@@ -158,11 +163,12 @@ export function usePullToRefresh({
       }
     };
 
-    const listenerOptions: AddEventListenerOptions = { capture: true, passive: true };
-    container.addEventListener('touchstart', handleTouchStart, listenerOptions);
-    container.addEventListener('touchmove', handleTouchMove, listenerOptions);
-    container.addEventListener('touchend', handleTouchEnd, listenerOptions);
-    container.addEventListener('touchcancel', clearPull, listenerOptions);
+    const passiveOptions: AddEventListenerOptions = { capture: true, passive: true };
+    const touchMoveOptions: AddEventListenerOptions = { capture: true, passive: false };
+    container.addEventListener('touchstart', handleTouchStart, passiveOptions);
+    container.addEventListener('touchmove', handleTouchMove, touchMoveOptions);
+    container.addEventListener('touchend', handleTouchEnd, passiveOptions);
+    container.addEventListener('touchcancel', clearPull, passiveOptions);
 
     return () => {
       container.removeEventListener('touchstart', handleTouchStart, true);

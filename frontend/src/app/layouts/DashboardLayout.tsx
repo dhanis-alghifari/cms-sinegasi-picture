@@ -40,7 +40,7 @@ export function DashboardLayout() {
 
     return queryClient.refetchQueries(
       { type: 'active' },
-      { cancelRefetch: false, throwOnError: true },
+      { cancelRefetch: true, throwOnError: true },
     );
   }, [queryClient]);
   const { phase: refreshPhase, refresh } = usePullToRefresh({
