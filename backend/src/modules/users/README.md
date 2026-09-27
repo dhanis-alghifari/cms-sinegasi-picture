@@ -39,7 +39,9 @@ tidak menghasilkan state baru dikembalikan sebagai no-op tanpa audit duplikat.
 
 Pembuatan akun di Pengguna hanya untuk akun operasional: `teacher` dan
 `treasurer`. Akun siswa dibuat dari Data Siswa dengan default `member` atau
-role `leader`, `vice_leader`, `secretary`, `equipment_team`, dan `contest_team`.
+role `leader`, `vice_leader`, `secretary`, `treasurer`, `equipment_team`, dan
+`contest_team`. Role `treasurer` dapat dipakai oleh akun operasional maupun
+siswa yang ditugaskan sebagai bendahara.
 Akun siswa lama yang belum punya profil tidak boleh dipromosikan dari Pengguna;
 Guru menautkannya secara eksplisit dari Data Siswa. Relasi dapat dibuat saat
 membuat profil baru atau dipasang ke profil siswa aktif yang belum berakun,
@@ -61,6 +63,8 @@ Migration `040_admin_password_reset_atomic.sql` dan
 `041_user_account_update_atomic.sql` wajib diterapkan setelah migration 039,
 kemudian migration `067_allow_student_committee_roles.sql` dan
 `076_student_account_boundaries.sql` sebelum endpoint production digunakan.
+Migration `078_allow_student_treasurer_role.sql` diperlukan agar `treasurer`
+dapat dipakai pada akun siswa tanpa mengubah batas role `teacher`.
 Migration 040 memperbaiki audit trigger
 untuk seluruh perubahan users baru; audit historis immutable yang terlanjur
 mengandung hash tidak ditulis ulang otomatis.

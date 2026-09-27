@@ -41,10 +41,8 @@ test('student service validates account creation, search pagination, and lifecyc
     service.create({ nis: '20260012', nama: 'Tono', kelas: 'X TB 1', role: 'teacher' }, 'secretary-1'),
     (error: unknown) => (error as { errorCode?: string }).errorCode === 'INVALID_ACCOUNT_ROLE',
   );
-  await assert.rejects(
-    service.create({ nis: '20260013', nama: 'Dina', kelas: 'X TB 1', role: 'treasurer' }, 'secretary-1'),
-    (error: unknown) => (error as { errorCode?: string }).errorCode === 'INVALID_ACCOUNT_ROLE',
-  );
+  const treasurer = await service.create({ nis: '20260013', nama: 'Dina', kelas: 'X TB 1', role: 'treasurer' }, 'secretary-1');
+  assert.equal(treasurer.data.account.role, 'treasurer');
   await assert.rejects(
     service.create({ nis: '20260010', nama: 'Sinta Lain', kelas: 'X TB 2' }, 'secretary-1'),
     (error: unknown) => (error as { statusCode?: number }).statusCode === 409,
@@ -63,28 +61,28 @@ test('student service links an explicitly selected legacy account without provis
   const actorId = '44444444-4444-4444-a444-444444444444';
   state.accounts.push({
     id: accountId,
-    username: 'ketua',
-    nama: 'Ketua Ekstra',
-    role: 'leader',
+    username: 'bendahara',
+    nama: 'Bendahara Ekstra',
+    role: 'treasurer',
     is_active: true,
     is_first_login: false,
   });
   const service = new StudentService(createStudentRepository(null, state), () => state.students);
 
-  const candidates = await service.listUnlinkedAccounts({ search: 'ketua' }, actorId);
-  assert.deepEqual(candidates, [{ id: accountId, username: 'ketua', nama: 'Ketua Ekstra', role: 'leader' }]);
+  const candidates = await service.listUnlinkedAccounts({ search: 'bendahara' }, actorId);
+  assert.deepEqual(candidates, [{ id: accountId, username: 'bendahara', nama: 'Bendahara Ekstra', role: 'treasurer' }]);
 
   const result = await service.linkExistingAccount({
     userId: accountId,
     actorId,
-    changeReason: 'Tautkan akun lama ke profil siswa',
+    changeReason: 'Tautkan akun bendahara lama ke profil siswa',
     nis: '20260020',
-    nama: 'Ketua Ekstra',
+    nama: 'Bendahara Ekstra',
     kelas: 'XI AK 1',
   });
   assert.equal(result.data.account.user_id, accountId);
-  assert.equal(result.data.account.username, 'ketua');
-  assert.equal(result.data.account.role, 'leader');
+  assert.equal(result.data.account.username, 'bendahara');
+  assert.equal(result.data.account.role, 'treasurer');
   assert.equal(result.data.account.is_first_login, false);
   assert.equal(result.data.student.user_id, accountId);
   assert.equal(state.accounts[0].is_first_login, false);
@@ -94,9 +92,9 @@ test('student service links an explicitly selected legacy account without provis
     service.linkExistingAccount({
       userId: accountId,
       actorId,
-      changeReason: 'Tautkan akun lama ke profil siswa',
+      changeReason: 'Tautkan akun bendahara lama ke profil siswa',
       nis: '20260021',
-      nama: 'Ketua Ekstra',
+      nama: 'Bendahara Ekstra',
       kelas: 'XI AK 1',
     }),
     (error: unknown) => (error as { errorCode?: string }).errorCode === 'STUDENT_ACCOUNT_NOT_ELIGIBLE',

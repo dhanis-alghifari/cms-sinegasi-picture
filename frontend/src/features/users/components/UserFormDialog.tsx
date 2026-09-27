@@ -43,6 +43,7 @@ const STUDENT_ROLE_LABELS: Record<StudentRole, string> = {
   leader: 'Leader (Ketua)',
   vice_leader: 'Vice Leader (Wakil Ketua)',
   secretary: 'Secretary (Sekretaris)',
+  treasurer: 'Treasurer (Bendahara)',
   equipment_team: 'Equipment Team',
   contest_team: 'Contest Team',
   member: 'Member (Siswa)',
@@ -63,7 +64,10 @@ export function UserFormDialog({
   const isEditing = Boolean(userAccount);
   const isLinkedStudent = Boolean(userAccount?.is_linked_student);
   const isLegacyStudentAccount = Boolean(
-    userAccount && !isLinkedStudent && isOneOf(userAccount.role, STUDENT_ROLE_VALUES),
+    userAccount
+    && !isLinkedStudent
+    && userAccount.role !== 'treasurer'
+    && isOneOf(userAccount.role, STUDENT_ROLE_VALUES),
   );
   let roleOptions: ReadonlyArray<{ value: UserRole; label: string }> = ROLE_OPTIONS;
   if (isLinkedStudent) roleOptions = STUDENT_ROLE_OPTIONS;
@@ -247,7 +251,7 @@ export function UserFormDialog({
               <p className="text-ink-tertiary text-[10px]">Tautkan akun ini dari halaman Data Siswa sebelum mengubah perannya.</p>
             )}
             {isLinkedStudent && !form.formState.errors.role && (
-              <p className="text-ink-tertiary text-[10px]">Role kepengurusan hanya untuk akun siswa. Teacher dan Treasurer hanya untuk akun operasional.</p>
+              <p className="text-ink-tertiary text-[10px]">Teacher khusus akun operasional; Bendahara dapat menjadi role siswa maupun akun operasional.</p>
             )}
           </div>
 

@@ -36,6 +36,11 @@ test('student management keeps secretary guard and account response contract', a
   assert.equal(leaderCreated.statusCode, 201);
   assert.equal(leaderCreated.json().account.role, 'leader');
 
+  const treasurerCreated = await app.inject({ method: 'POST', url: '/api/students', headers, payload: { student_number: '20260006', name: 'Bendahara Baru', class_name: 'XII AK 4', specialization: 'screenwriting', role: 'treasurer' } });
+  assert.equal(treasurerCreated.statusCode, 201);
+  assert.equal(treasurerCreated.json().account.role, 'treasurer');
+  assert.equal(treasurerCreated.json().data.peminatan, 'naskah');
+
   const listed = await app.inject({ method: 'GET', url: '/api/students?search=Budi&pageSize=10', headers });
   assert.equal(listed.statusCode, 200);
   assert.equal(listed.json().total, 1);

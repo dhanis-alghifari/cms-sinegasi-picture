@@ -20,6 +20,7 @@ export const STUDENT_ACCOUNT_ROLE_VALUES = [
   'leader',
   'vice_leader',
   'secretary',
+  'treasurer',
   'equipment_team',
   'contest_team',
   'member',

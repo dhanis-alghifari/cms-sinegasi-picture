@@ -41,10 +41,8 @@ test('users service enforces account role boundaries for linked and standalone u
     usersService.update(created.data.id, { role: 'teacher' }, 'teacher-1', 'Ubah role akun'),
     (error: unknown) => error instanceof UsersServiceError && error.errorCode === 'LINKED_STUDENT_ROLE',
   );
-  await assert.rejects(
-    usersService.update(created.data.id, { role: 'treasurer' }, 'teacher-1', 'Ubah role akun'),
-    (error: unknown) => error instanceof UsersServiceError && error.errorCode === 'LINKED_STUDENT_ROLE',
-  );
+  const linkedTreasurerRole = await usersService.update(created.data.id, { role: 'treasurer' }, 'teacher-1', 'Tetapkan bendahara siswa');
+  assert.equal(linkedTreasurerRole.data.role, 'treasurer');
 
   const standalone = await usersService.create({ username: 'standalone_user', nama: 'Akun Operasional', role: 'teacher', password: 'Strong123' }, 'teacher-1');
   await assert.rejects(
@@ -53,6 +51,8 @@ test('users service enforces account role boundaries for linked and standalone u
   );
   const operationalRole = await usersService.update(standalone.data.id, { role: 'treasurer' }, 'teacher-1', 'Tetapkan bendahara');
   assert.equal(operationalRole.data.role, 'treasurer');
+  const restoredOperationalRole = await usersService.update(standalone.data.id, { role: 'teacher' }, 'teacher-1', 'Kembalikan role guru');
+  assert.equal(restoredOperationalRole.data.role, 'teacher');
 
   await assert.rejects(
     usersService.update(created.data.id, { is_active: true }, 'teacher-1', 'Aktifkan akun'),

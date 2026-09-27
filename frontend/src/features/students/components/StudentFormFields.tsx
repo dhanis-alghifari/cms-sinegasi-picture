@@ -180,7 +180,7 @@ export function StudentFormFields({
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-ink-tertiary text-[10px]">Role kepengurusan untuk siswa; Teacher dan Treasurer adalah akun operasional.</p>
+                <p className="text-ink-tertiary text-[10px]">Role Bendahara memberi akses kelola kas; pilih hanya untuk siswa yang ditugaskan. Teacher khusus akun operasional.</p>
                 {form.formState.errors.role && (
                   <p className="text-semantic-danger text-[10px]">{form.formState.errors.role.message}</p>
                 )}

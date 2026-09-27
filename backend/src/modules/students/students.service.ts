@@ -94,7 +94,13 @@ function mapRepositoryError(error: unknown, fallbackStatus = 500, fallbackMessag
   if (candidate?.code === 'STUDENT_PURGE_ACTOR_FORBIDDEN' || candidate?.message?.includes('STUDENT_PURGE_ACTOR_FORBIDDEN')) {
     return new StudentServiceError(403, 'STUDENT_PURGE_ACTOR_FORBIDDEN', 'Hanya Guru Pembina yang dapat menghapus data siswa secara permanen.');
   }
-  if (isMissingStudentsSchemaError(error)) return new StudentServiceError(503, 'STUDENTS_SCHEMA_UNAVAILABLE', 'Skema siswa atau fungsi akun belum tersedia. Jalankan migration 019_student_account_provisioning.sql, 067_allow_student_committee_roles.sql, 076_student_account_boundaries.sql, dan 077_student_history_purge.sql.');
+  if (isMissingStudentsSchemaError(error)) {
+    return new StudentServiceError(
+      503,
+      'STUDENTS_SCHEMA_UNAVAILABLE',
+      'Skema siswa atau fungsi akun belum tersedia. Jalankan migration 019_student_account_provisioning.sql, 067_allow_student_committee_roles.sql, 076_student_account_boundaries.sql, 077_student_history_purge.sql, dan 078_allow_student_treasurer_role.sql.',
+    );
+  }
   return new StudentServiceError(fallbackStatus, 'STUDENT_OPERATION_FAILED', safeStudentErrorMessage(error, fallbackMessage));
 }
 

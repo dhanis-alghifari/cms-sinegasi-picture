@@ -2,7 +2,9 @@
 
 Route menangani options dan lifecycle student. Service mengatur validasi profil,
 provisioning akun, pengaitan akun lama, dan status alumni. Akun baru dibuat
-bersama profil siswa; akun operasional tidak dibuat dari jalur ini. Guru dengan
+bersama profil siswa; role `treasurer` tersedia untuk siswa yang ditugaskan
+sebagai bendahara, sementara role akun operasional `teacher` tidak tersedia
+dari jalur ini. Guru dengan
 `users.manage` dapat mencari akun siswa lama yang aktif tetapi belum tertaut,
 lalu menautkannya ke profil baru atau profil siswa aktif yang sudah ada tanpa
 mengganti username atau password.

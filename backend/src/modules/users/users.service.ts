@@ -73,7 +73,7 @@ function updateFailure(error: unknown): never {
     throw new UsersServiceError(
       503,
       'USERS_SCHEMA_UNAVAILABLE',
-      'Fitur pembaruan akun belum siap. Jalankan migration 041_user_account_update_atomic.sql, 067_allow_student_committee_roles.sql, dan 076_student_account_boundaries.sql di Supabase.',
+      'Fitur pembaruan akun belum siap. Jalankan migration 041_user_account_update_atomic.sql, 067_allow_student_committee_roles.sql, 076_student_account_boundaries.sql, dan 078_allow_student_treasurer_role.sql di Supabase.',
     );
   }
   const code = userUpdateErrorCode(error);
@@ -88,7 +88,7 @@ function updateFailure(error: unknown): never {
     USER_UPDATE_NAME_INVALID: { status: 422, message: 'Nama pengguna tidak valid.' },
     USER_UPDATE_ROLE_INVALID: { status: 422, message: 'Role pengguna tidak valid.' },
     USER_UPDATE_STATUS_INVALID: { status: 422, message: 'Status akun harus berupa boolean.' },
-    USER_LINKED_STUDENT_ROLE: { status: 422, message: 'Akun siswa hanya dapat memakai peran siswa. Teacher dan Treasurer adalah akun operasional.' },
+    USER_LINKED_STUDENT_ROLE: { status: 422, message: 'Akun siswa hanya dapat memakai peran siswa. Teacher adalah role akun operasional.' },
     USER_UNLINKED_STUDENT_ROLE: { status: 422, message: 'Peran siswa hanya dapat diberikan saat akun ditautkan melalui halaman Data Siswa.' },
     USER_LINKED_STUDENT_NAME: { status: 422, message: 'Nama akun siswa mengikuti data siswa. Ubah nama melalui halaman Data Siswa.' },
     USER_INACTIVE_STUDENT: { status: 409, message: 'Aktifkan siswa sebagai siswa aktif terlebih dahulu sebelum mengaktifkan akunnya.' },
@@ -170,13 +170,18 @@ export class UsersService {
     if (input.nama !== undefined) changes.nama = requiredText(input.nama, 'Nama', 2, 200);
     if (input.role !== undefined) {
       if (!USER_ROLES.has(input.role)) throw new UsersServiceError(422, 'INVALID_ROLE', 'Role pengguna tidak valid.');
-      if (!linked.data && STUDENT_ACCOUNT_ROLES.has(current.role) && input.role !== current.role) {
+      if (
+        !linked.data
+        && STUDENT_ACCOUNT_ROLES.has(current.role)
+        && !OPERATIONAL_USER_ROLES.has(current.role)
+        && input.role !== current.role
+      ) {
         throw new UsersServiceError(422, 'UNLINKED_STUDENT_ROLE', 'Akun siswa lama harus ditautkan ke data siswa sebelum perannya dapat dikelola.');
       }
       const permittedRoles = linked.data ? STUDENT_ACCOUNT_ROLES : OPERATIONAL_USER_ROLES;
       if (!permittedRoles.has(input.role) && input.role !== current.role) {
         if (linked.data) {
-          throw new UsersServiceError(422, 'LINKED_STUDENT_ROLE', 'Akun siswa hanya dapat memakai peran siswa. Teacher dan Treasurer adalah akun operasional.');
+          throw new UsersServiceError(422, 'LINKED_STUDENT_ROLE', 'Akun siswa hanya dapat memakai peran siswa. Teacher adalah role akun operasional.');
         }
         throw new UsersServiceError(422, 'UNLINKED_STUDENT_ROLE', 'Peran siswa hanya dapat diberikan saat akun dibuat atau ditautkan melalui halaman Data Siswa.');
       }
