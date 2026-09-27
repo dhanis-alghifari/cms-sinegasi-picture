@@ -4,6 +4,7 @@ import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { ProtectedRoute } from './ProtectedRoute';
 import { PublicRoute } from './PublicRoute';
 import { FirstLoginRoute } from './FirstLoginRoute';
+import { RouteErrorBoundary } from './RouteErrorBoundary';
 import { PageLoader } from '@/shared/ui/LoadingSpinner';
 import { authRoutes, firstLoginRoutes, passwordRoutes } from '@/features/auth/routes';
 import { dashboardRoutes } from '@/features/dashboard/routes';
@@ -34,12 +35,14 @@ export const router = createBrowserRouter([
   // Public Routes (Auth)
   {
     element: <PublicRoute />,
+    errorElement: <RouteErrorBoundary />,
     children: authRoutes,
   },
 
   // Protected Dashboard Application Routes
   {
     element: <ProtectedRoute />,
+    errorElement: <RouteErrorBoundary />,
     children: [
       {
         element: <FirstLoginRoute />,
@@ -80,6 +83,7 @@ export const router = createBrowserRouter([
   // 404 Catch-all
   {
     path: '*',
+    errorElement: <RouteErrorBoundary />,
     element: <Navigate to="/dashboard" replace />,
   },
 ]);

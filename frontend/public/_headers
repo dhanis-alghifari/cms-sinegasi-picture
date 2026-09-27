@@ -1,0 +1,4 @@
+# JavaScript, CSS and fonts are public build assets. They may be requested from
+# the project's stable domain while pinned to a hash-based deployment origin.
+/assets/*
+  Access-Control-Allow-Origin: *

@@ -8,6 +8,7 @@
     "check:select-labels": "node --import ./scripts/register-frontend-tsconfig.mjs --import ../backend/node_modules/tsx/dist/loader.mjs scripts/check-select-labels.mjs",
     "check:class-options-contract": "node --import ./scripts/register-frontend-tsconfig.mjs --import ../backend/node_modules/tsx/dist/loader.mjs scripts/check-class-options-contract.mjs",
     "check:attendance-contract": "node --import ./scripts/register-frontend-tsconfig.mjs --import ../backend/node_modules/tsx/dist/loader.mjs scripts/check-attendance-contract.mjs",
+    "check:deployment-assets": "node --import ./scripts/register-frontend-tsconfig.mjs --import ../backend/node_modules/tsx/dist/loader.mjs --test tests/deploymentAssets.test.ts tests/deploymentBuild.test.ts",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "check:api-boundaries": "node scripts/check-api-boundaries.mjs",

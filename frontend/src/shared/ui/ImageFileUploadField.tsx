@@ -82,7 +82,6 @@ export function ImageFileUploadField({
         id={id}
         type="file"
         accept={SUPPORTED_IMAGE_TYPES.join(',')}
-        capture="environment"
         onChange={handleFileChange}
         disabled={disabled}
         className="sr-only"

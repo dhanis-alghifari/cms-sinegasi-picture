@@ -206,7 +206,6 @@ export function StudentFormFields({
               type="file"
               ref={fileInputRef}
               accept="image/jpeg,image/png,image/webp"
-              capture="user"
               onChange={onFileChange}
               aria-invalid={Boolean(imageError)}
               aria-describedby={imageError ? 'student-photo-error' : undefined}

@@ -271,7 +271,6 @@ export function ContestPipelineUpdateForm({
             id="contest-evidence"
             type="file"
             accept="image/jpeg,image/png,image/webp"
-            capture="environment"
             className="sr-only"
             aria-invalid={Boolean(evidenceError)}
             aria-describedby={evidenceError ? 'contest-evidence-error' : undefined}

@@ -106,7 +106,6 @@ export function ReturnEvidenceUploadField({
         id={id}
         type="file"
         accept="image/jpeg,image/png,image/webp"
-        capture="environment"
         multiple
         aria-required={required}
         aria-invalid={hasError}

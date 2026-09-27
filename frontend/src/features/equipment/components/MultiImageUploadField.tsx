@@ -118,7 +118,6 @@ export function MultiImageUploadField({
         id={id}
         type="file"
         accept="image/jpeg,image/png,image/webp"
-        capture="environment"
         multiple
         onChange={handleFileChange}
         disabled={disabled || isProcessing}

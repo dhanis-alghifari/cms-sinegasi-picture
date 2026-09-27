@@ -214,6 +214,43 @@ Pemeriksaan seluruh route dijalankan dengan:
 
     node scripts/check-lazy-loading.mjs
 
+### Aset tetap konsisten setelah deployment Cloudflare Pages
+
+Pada build Cloudflare (`CF_PAGES=1`), `vite.config.ts` menggunakan
+`CF_PAGES_URL` sebagai base aset. URL hash deployment tersebut disediakan
+otomatis oleh Cloudflare; jangan menggantinya dengan domain project atau alias
+branch. Build gagal dengan pesan yang jelas jika URL deployment tidak valid.
+Build lokal dan `npm run dev` tetap menggunakan `/`.
+
+Dengan demikian, tab yang sudah terbuka tetap memuat chunk halaman/modal dari
+deployment asal ketika domain development berpindah ke deployment terbaru.
+Alamat navigasi dan konfigurasi API tidak berubah. `_headers` mengizinkan CORS
+hanya untuk aset publik `/assets/*` (JavaScript, CSS, font), bukan endpoint API.
+
+Deployment hash yang masih digunakan harus tetap tersedia; jangan menghapusnya
+atau memasang Cloudflare Access pada origin aset tanpa menyesuaikan strategi
+pemuatan aset. Jika menggunakan CSP, izinkan origin deployment untuk script,
+style, dan font. Lihat [variabel build Cloudflare](https://developers.cloudflare.com/pages/configuration/build-configuration/)
+dan [URL deployment atomik](https://developers.cloudflare.com/pages/configuration/preview-deployments/#preview-aliases).
+
+Error pemuatan tetap ditangani oleh route error boundary dan root error boundary
+yang eager, dengan pesan Bahasa Indonesia dan tombol muat ulang. Tidak ada
+reload otomatis atau pengulangan tanpa batas; pengguna diberi peringatan tentang
+data yang belum disimpan. Tidak perlu mengubah puluhan pemanggilan React.lazy.
+
+Validasi dari folder `frontend` (dependency backend diperlukan untuk runner tsx):
+
+    npm run check:deployment-assets
+    npm run build
+    npm run check:bundle
+
+Setelah patch pertama kali terdeploy, tab yang masih menjalankan bundle lama
+harus dimuat ulang sekali untuk menerima strategi ini. Verifikasi di Network:
+request JS/CSS mengarah ke `<hash>.<project>.pages.dev`, berstatus 200 dengan
+Content-Type yang sesuai. Biarkan tab terbuka saat deploy berikutnya, kemudian
+buka halaman dan modal yang belum pernah dimuat; chunk tetap berasal dari hash
+deployment tab tersebut.
+
 ## Batas ukuran file
 
 Batas ini adalah alat bantu review, bukan target untuk menambah isi file:
