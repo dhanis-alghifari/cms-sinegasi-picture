@@ -12,6 +12,7 @@ test('cash dispute routes enforce ownership and manager resolution', async (t) =
   let listCalls = 0;
   let lastListStudentId: string | null | undefined;
   let evidenceCalls = 0;
+  let lastEvidenceStudentId: string | null | undefined;
   await app.register(cashDisputesRoutes, {
     disputesService: {
       repositoryIsConfigured: () => false,
@@ -19,7 +20,7 @@ test('cash dispute routes enforce ownership and manager resolution', async (t) =
       list: async (_query: unknown, studentId: string | null) => { listCalls += 1; lastListStudentId = studentId; return { data: [], total: 0, nextCursor: null, hasMore: false }; },
       resolve: async () => ({ dispute: { id: 'dispute-1', status: 'approved', review_note: 'Bukti telah diverifikasi' } }),
       getQuota: async () => ({ period: '2026-08', period_start: '2026-08-01', limit: 2, used: 1, remaining: 1, resets_at: '2026-09-01T00:00:00.000Z' }),
-      getEvidence: async () => { evidenceCalls += 1; return { url: 'data:image/jpeg;base64,proof' }; },
+      getEvidence: async (_id: string, studentId: string | null) => { evidenceCalls += 1; lastEvidenceStudentId = studentId; return { url: 'data:image/jpeg;base64,proof' }; },
     } as any,
     persistAuditLog: async () => undefined,
   });
@@ -32,14 +33,15 @@ test('cash dispute routes enforce ownership and manager resolution', async (t) =
   assert.equal(create.statusCode, 201);
   assert.equal(created, true);
   const treasurerGlobalList = await app.inject({ method: 'GET', url: '/api/cash/disputes?scope=manage', headers: { authorization: `Bearer ${treasurer}` } });
-  assert.equal(treasurerGlobalList.statusCode, 403);
-  assert.equal(listCalls, 0);
+  assert.equal(treasurerGlobalList.statusCode, 200);
+  assert.equal(lastListStudentId, null);
   const treasurerOwnList = await app.inject({ method: 'GET', url: '/api/cash/disputes?scope=own', headers: { authorization: `Bearer ${treasurer}` } });
   assert.equal(treasurerOwnList.statusCode, 200);
   assert.equal(lastListStudentId, 'student-1');
   const treasurerGlobalEvidence = await app.inject({ method: 'GET', url: '/api/cash/disputes/dispute-1/evidence?scope=manage', headers: { authorization: `Bearer ${treasurer}` } });
-  assert.equal(treasurerGlobalEvidence.statusCode, 403);
-  assert.equal(evidenceCalls, 0);
+  assert.equal(treasurerGlobalEvidence.statusCode, 200);
+  assert.equal(lastEvidenceStudentId, null);
+  assert.equal(evidenceCalls, 1);
   const teacherGlobalList = await app.inject({ method: 'GET', url: '/api/cash/disputes?scope=manage', headers: { authorization: `Bearer ${teacher}` } });
   assert.equal(teacherGlobalList.statusCode, 200);
   assert.equal(lastListStudentId, null);
@@ -50,6 +52,8 @@ test('cash dispute routes enforce ownership and manager resolution', async (t) =
   assert.equal(resolve.json().data.dispute.status, 'approved');
 
   const member = app.jwt.sign({ userId: 'usr-3', username: 'member', role: 'member', studentId: 'student-1', isFirstLogin: false });
+  const memberGlobalList = await app.inject({ method: 'GET', url: '/api/cash/disputes?scope=manage', headers: { authorization: `Bearer ${member}` } });
+  assert.equal(memberGlobalList.statusCode, 403);
   const quota = await app.inject({ method: 'GET', url: '/api/cash/disputes/quota', headers: { authorization: `Bearer ${member}` } });
   assert.equal(quota.statusCode, 200);
   assert.equal(quota.json().data.remaining, 1);

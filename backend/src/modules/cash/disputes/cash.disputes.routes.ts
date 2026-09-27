@@ -36,7 +36,14 @@ async function resolveDisputeScope(user: JwtPayload, requestedScope: unknown, fa
   const canReview = user.role === 'teacher' && hasCapability(user.role, 'cash.dispute.review');
   if (canReview) return resolveCashScope(user, 'manage', fallbackStudentId);
 
-  if (requestedScope === 'manage' || !hasCapability(user.role, 'cash.dispute.read.own')) {
+  if (requestedScope === 'manage') {
+    if (!hasCapability(user.role, 'cash.dispute.read.all')) {
+      return { scope: 'own' as const, studentId: null, errorCode: 'CASH_SCOPE_FORBIDDEN' as const };
+    }
+    return { scope: 'manage' as const, studentId: null };
+  }
+
+  if (!hasCapability(user.role, 'cash.dispute.read.own')) {
     return { scope: 'own' as const, studentId: null, errorCode: 'CASH_SCOPE_FORBIDDEN' as const };
   }
 
@@ -100,7 +107,7 @@ const cashDisputesRoutes: FastifyPluginAsync<CashDisputesRoutesOptions> = async 
 
   fastify.get('/api/cash/disputes', {
     schema: cashDisputeListRouteSchema,
-    preHandler: [authenticate, requireAnyCapability('cash.dispute.review', 'cash.dispute.read.own')],
+    preHandler: [authenticate, requireAnyCapability('cash.dispute.review', 'cash.dispute.read.all', 'cash.dispute.read.own')],
   }, async (request, reply) => {
     const user = request.user as JwtPayload;
     const resolved = await resolveDisputeScope(user, (request.query as CashDisputeListQuery).scope, options.disputesService.repositoryIsConfigured() ? undefined : user.studentId);
@@ -115,7 +122,7 @@ const cashDisputesRoutes: FastifyPluginAsync<CashDisputesRoutesOptions> = async 
 
   fastify.get('/api/cash/disputes/:id/evidence', {
     schema: cashDisputeEvidenceRouteSchema,
-    preHandler: [authenticate, requireAnyCapability('cash.dispute.review', 'cash.dispute.read.own')],
+    preHandler: [authenticate, requireAnyCapability('cash.dispute.review', 'cash.dispute.read.all', 'cash.dispute.read.own')],
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const user = request.user as JwtPayload;

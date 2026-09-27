@@ -21,6 +21,7 @@ export const CAPABILITY_VALUES = [
   'cash.read.own',
   'cash.dispute.create',
   'cash.dispute.read.own',
+  'cash.dispute.read.all',
   'cash.dispute.review',
   'cash.manage',
   'grades.read',
@@ -74,7 +75,7 @@ export const ROLE_CAPABILITIES: Readonly<Record<UserRole, readonly Capability[]>
     'agenda.read', 'agenda.write',
   ],
   treasurer: [
-    'dashboard.read.own', 'cash.read', 'cash.read.own', 'cash.manage', 'cash.dispute.create', 'cash.dispute.read.own',
+    'dashboard.read.own', 'cash.read', 'cash.read.own', 'cash.manage', 'cash.dispute.create', 'cash.dispute.read.own', 'cash.dispute.read.all',
     'borrowing.read', 'borrowing.request', 'borrowing.return.report', 'grades.read.own', 'notifications.read',
   ],
   secretary: [

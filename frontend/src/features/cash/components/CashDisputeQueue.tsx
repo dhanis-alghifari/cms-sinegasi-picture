@@ -60,10 +60,16 @@ export function CashDisputeQueue({ reviewer = false, scope = reviewer ? 'manage'
   const [resolutionDate, setResolutionDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [paymentMethodCode, setPaymentMethodCode] = useState('');
   const disputes = data?.data ?? [];
+  const globalQueue = scope === 'manage';
 
   if (isLoading) return <DataTableSkeleton columns={6} rows={5} label="Memuat daftar sanggahan..." />;
   if (error) return <div role="alert" className="rounded-lg border border-semantic-danger/30 bg-semantic-danger/10 p-4 text-sm text-semantic-danger">{getErrorMessage(error)}</div>;
-  if (disputes.length === 0) return <EmptyState title="Belum ada sanggahan" description={reviewer ? 'Laporan sanggahan baru akan muncul di sini.' : 'Riwayat sanggahan Anda masih kosong.'} />;
+  if (disputes.length === 0) {
+    const description = globalQueue
+      ? 'Belum ada sanggahan yang tercatat.'
+      : 'Riwayat sanggahan Anda masih kosong.';
+    return <EmptyState title="Belum ada sanggahan" description={description} />;
+  }
 
   const closeProof = () => { setSelectedProof(null); setDownloadState('idle'); };
   const openProof = async (dispute: CashDispute) => {
@@ -171,7 +177,7 @@ export function CashDisputeQueue({ reviewer = false, scope = reviewer ? 'manage'
           return (
             <article key={dispute.id} className="rounded-xl border border-hairline bg-surface-1 p-3 sm:p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0"><p className="truncate text-sm font-semibold text-ink">{reviewer ? (dispute.student_nama ?? 'Siswa') : 'Laporan sanggahan kas'}</p><p className="mt-1 text-xs text-ink-tertiary">Dikirim {formatDateShort(dispute.created_at)}{dispute.transaction_tanggal ? ` · transaksi ${formatDateShort(dispute.transaction_tanggal)}` : ''} · attempt {formatNumber(dispute.attempt_number)}</p></div>
+                <div className="min-w-0"><p className="truncate text-sm font-semibold text-ink">{globalQueue ? (dispute.student_nama ?? 'Siswa') : 'Laporan sanggahan kas'}</p><p className="mt-1 text-xs text-ink-tertiary">Dikirim {formatDateShort(dispute.created_at)}{dispute.transaction_tanggal ? ` · transaksi ${formatDateShort(dispute.transaction_tanggal)}` : ''} · attempt {formatNumber(dispute.attempt_number)}</p></div>
                 <StatusBadge label={status.label} variant={status.variant} />
               </div>
               {dispute.transaction_nominal !== undefined && <p className="mt-3 text-sm text-ink">Nominal dipermasalahkan: <strong>{formatCurrency(dispute.transaction_nominal)}</strong></p>}

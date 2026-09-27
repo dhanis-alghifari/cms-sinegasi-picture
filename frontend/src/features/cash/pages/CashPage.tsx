@@ -58,6 +58,7 @@ export function CashPage() {
   const canReadOwnCash = hasCapability(user, "cash.read.own");
   const canSubmitDispute = hasCapability(user, "cash.dispute.create");
   const canReviewCashDisputes = user?.role === "teacher" && hasCapability(user, "cash.dispute.review");
+  const canReadAllCashDisputes = hasCapability(user, "cash.dispute.read.all");
   const canReadOwnCashDisputes = hasCapability(user, "cash.dispute.read.own");
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedOwnScope = searchParams.get("scope") === "own";
@@ -351,6 +352,7 @@ export function CashPage() {
           isTreasurerOrTeacher,
           isStudent,
           canReviewDisputes: canReviewCashDisputes,
+          canReadAllDisputes: canReadAllCashDisputes,
           canReadOwnDisputes: canReadOwnCashDisputes,
           isMobile,
           pageSize,

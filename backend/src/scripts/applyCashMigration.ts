@@ -19,6 +19,7 @@ const migrationNames = [
   '072_cash_dispute_single_pending.sql',
   '073_cash_dispute_per_target_pending.sql',
   '075_cash_dispute_derive_debt_amount.sql',
+  '079_cash_dispute_read_all.sql',
 ] as const;
 
 type MigrationName = (typeof migrationNames)[number];
@@ -175,6 +176,20 @@ const migrationProbes: Record<MigrationName, MigrationProbe> = {
       AND COALESCE(pg_get_functiondef(to_regprocedure('public.review_cash_dispute_atomic(uuid,text,text,uuid,date,numeric,text)')), '') LIKE '%p_resolution_amount IS NOT NULL%'
       AND COALESCE(pg_get_functiondef(to_regprocedure('public.review_cash_dispute_atomic(uuid,text,text,uuid,date,numeric,text)')), '') LIKE '%v_debt.amount%'
       AS complete
+  `),
+  '079_cash_dispute_read_all.sql': (client) => schemaProbe(client, `
+    SELECT EXISTS (
+        SELECT 1 FROM public.access_permissions
+        WHERE permission_key = 'cash.dispute.read.all'
+      )
+      AND EXISTS (
+        SELECT 1 FROM public.access_role_permissions
+        WHERE role_key = 'treasurer' AND permission_key = 'cash.dispute.read.all'
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM public.access_role_permissions
+        WHERE role_key = 'treasurer' AND permission_key = 'cash.dispute.review'
+      ) AS complete
   `),
 };
 

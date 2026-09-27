@@ -61,6 +61,8 @@ test('cash ledger is personal for student-backed roles and review is teacher-onl
     assert.equal(hasCapability(role, 'cash.dispute.create'), true);
     assert.equal(hasCapability(role, 'cash.dispute.read.own'), true);
   }
+  assert.equal(hasCapability('treasurer', 'cash.dispute.read.all'), true);
+  assert.equal(hasCapability('member', 'cash.dispute.read.all'), false);
   assert.equal(hasCapability('teacher', 'cash.dispute.review'), true);
   assert.equal(hasCapability('teacher', 'cash.dispute.create'), false);
   assert.equal(hasCapability('treasurer', 'cash.dispute.review'), false);

@@ -38,6 +38,7 @@ type CashPageTabsProps = {
     isTreasurerOrTeacher: boolean;
     isStudent: boolean;
     canReviewDisputes: boolean;
+    canReadAllDisputes: boolean;
     canReadOwnDisputes: boolean;
     isMobile: boolean;
     pageSize: number;
@@ -134,14 +135,16 @@ export function CashPageTabs({
     isTreasurerOrTeacher,
     isStudent,
     canReviewDisputes,
+    canReadAllDisputes,
     canReadOwnDisputes,
     isMobile,
     pageSize,
     onChange: setActiveView,
   } = navigation;
-  const canViewDisputes = canReviewDisputes || canReadOwnDisputes;
+  const canViewDisputes = canReviewDisputes || canReadAllDisputes || canReadOwnDisputes;
+  const disputeScope = canReviewDisputes || canReadAllDisputes ? 'manage' : 'own';
   const pendingDisputesQuery = useCashDisputesQuery(
-    { scope: canReviewDisputes ? 'manage' : 'own', page: 1, pageSize: 1, status: 'pending' },
+    { scope: disputeScope, page: 1, pageSize: 1, status: 'pending' },
     canViewDisputes,
   );
   const pendingDisputeCount = pendingDisputesQuery.data?.total;
@@ -425,7 +428,7 @@ export function CashPageTabs({
           <div>
             <CashDisputeQueue
               reviewer={canReviewDisputes}
-              scope={canReviewDisputes ? 'manage' : 'own'}
+              scope={disputeScope}
             />
           </div>
         )}
