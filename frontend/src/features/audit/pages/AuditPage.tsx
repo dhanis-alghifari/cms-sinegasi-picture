@@ -46,7 +46,7 @@ export function AuditPage() {
 
   const auditContent = (() => {
     if (isLoading) return <DataTableSkeleton columns={6} rows={7} mobile={isMobile} label="Memuat riwayat audit..." />;
-    if (isError) {
+    if (isError && !data) {
       return (
         <div role="alert" className="flex items-start gap-2 rounded-lg border border-semantic-danger/30 bg-semantic-danger/10 p-4 text-semantic-danger text-xs">
           <AlertCircle size={16} className="mt-0.5 shrink-0" />

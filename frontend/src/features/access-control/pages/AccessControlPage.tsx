@@ -16,7 +16,7 @@ for (const permission of CAPABILITY_VALUES) {
 }
 
 export function AccessControlPage() {
-  const { data, isLoading, isError, error } = useAccessControlMatrixQuery();
+  const { data, isLoading, error } = useAccessControlMatrixQuery();
   const mutation = useUpdateRoleCapabilitiesMutation();
   const [drafts, setDrafts] = useState<Partial<Record<UserRole, Capability[]>>>({});
   const [reasons, setReasons] = useState<Partial<Record<UserRole, string>>>({});
@@ -31,7 +31,7 @@ export function AccessControlPage() {
   }, [data]);
 
   if (isLoading) return <PanelSkeleton rows={5} label="Memuat matriks akses..." />;
-  if (isError || !data) {
+  if (!data) {
     return <div className="mx-auto max-w-4xl p-6" role="alert"><div className="rounded-lg border border-semantic-danger/30 bg-semantic-danger/10 p-4 text-sm text-semantic-danger"><AlertCircle className="mr-2 inline size-4" />{error instanceof Error ? error.message : 'Policy akses belum dapat dimuat.'}</div></div>;
   }
 

@@ -229,7 +229,7 @@ export function StudentsPage() {
 
   const studentContent = (() => {
     if (isLoading) return <DataTableSkeleton columns={6} rows={6} mobile={isMobile} label="Memuat daftar siswa..." />;
-    if (isError) {
+    if (isError && !data) {
       return <QueryErrorState title="Daftar siswa belum dapat dimuat" error={error} onRetry={refetch} />;
     }
 

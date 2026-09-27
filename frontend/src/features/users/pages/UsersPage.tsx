@@ -191,7 +191,7 @@ export function UsersPage() {
 
   const userContent = (() => {
     if (isLoading) return <DataTableSkeleton columns={6} rows={6} mobile={isMobile} label="Memuat daftar akun..." />;
-    if (isError) {
+    if (isError && !data) {
       return <QueryErrorState title="Daftar akun belum dapat dimuat" error={error} onRetry={refetch} />;
     }
 

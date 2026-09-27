@@ -152,7 +152,7 @@ export function AttendancePage() {
 
   const dailySummaryContent = (() => {
     if (summaryQuery.isPending) return <MetricCardsSkeleton count={4} label="Memuat ringkasan absensi..." />;
-    if (summaryQuery.isError) {
+    if (summaryQuery.isError && !summaryQuery.data) {
       return (
         <AttendanceQueryError
           error={summaryQuery.error}
@@ -166,7 +166,7 @@ export function AttendancePage() {
 
   const dailyAttendanceContent = (() => {
     if (attendanceQuery.isPending) return <DataTableSkeleton columns={9} rows={7} mobile={isMobile} label="Memuat daftar absensi..." />;
-    if (attendanceQuery.isError) {
+    if (attendanceQuery.isError && !attendanceQuery.data) {
       return (
         <AttendanceQueryError
           error={attendanceQuery.error}

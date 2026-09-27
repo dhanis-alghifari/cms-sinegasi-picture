@@ -1,14 +1,16 @@
 
-import { useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import '@/app/styles/fonts.css';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Popover } from '@base-ui/react/popover';
-import { ArrowLeft, ChevronRight, KeyRound, LogOut, MoreHorizontal } from 'lucide-react';
+import { ArrowLeft, Check, ChevronRight, KeyRound, LoaderCircle, LogOut, MoreHorizontal, RefreshCw } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/shared/utils/cn';
 import { Button } from '@/shared/ui/primitives/button';
 import { Separator } from '@/shared/ui/primitives/separator';
 import { Toaster } from '@/shared/ui/primitives/toast';
 import { useIsMobile } from '@/shared/hooks/use-mobile';
+import { usePullToRefresh } from '@/shared/hooks/usePullToRefresh';
 import { formatRoleLabel } from '@/shared/utils/formatLabels';
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import { NotificationDropdown } from '@/features/notifications/components/NotificationDropdown';
@@ -28,6 +30,25 @@ export function DashboardLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const isMobile = useIsMobile();
+  const queryClient = useQueryClient();
+  const mainContentRef = useRef<HTMLElement | null>(null);
+
+  const refreshActiveQueries = useCallback(() => {
+    if (!navigator.onLine) {
+      return Promise.reject(new Error('REFRESH_OFFLINE'));
+    }
+
+    return queryClient.refetchQueries(
+      { type: 'active' },
+      { cancelRefetch: false, throwOnError: true },
+    );
+  }, [queryClient]);
+  const { phase: refreshPhase, refresh } = usePullToRefresh({
+    containerRef: mainContentRef,
+    enabled: isMobile,
+    resetKey: location.key,
+    onRefresh: refreshActiveQueries,
+  });
 
   const visibleNavigationGroups = getVisibleNavigationGroups(user);
   const mobileNavItems = getMobileNavigationItems(user);
@@ -193,10 +214,48 @@ export function DashboardLayout() {
             )}
             <span className="truncate text-sm font-medium text-ink lg:hidden">{pageLabel}</span>
           </div>
-          <NotificationDropdown />
+          <div className="flex shrink-0 items-center gap-1">
+            {isMobile && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => void refresh()}
+                disabled={refreshPhase === 'refreshing'}
+                aria-label={refreshPhase === 'refreshing' ? 'Memperbarui data' : 'Perbarui data'}
+                title="Perbarui data"
+              >
+                <RefreshCw
+                  size={18}
+                  aria-hidden="true"
+                  className={refreshPhase === 'refreshing' ? 'motion-safe:animate-spin' : undefined}
+                />
+              </Button>
+            )}
+            <NotificationDropdown />
+          </div>
         </header>
 
-        <main id="main-content" className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable] pb-[calc(8.5rem+env(safe-area-inset-bottom))] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] md:pb-[calc(4.5rem+env(safe-area-inset-bottom))] lg:pb-0">
+        <main
+          id="main-content"
+          ref={mainContentRef}
+          className="relative min-h-0 flex-1 overflow-y-auto overscroll-y-contain [scrollbar-gutter:stable] pb-[calc(8.5rem+env(safe-area-inset-bottom))] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] md:pb-[calc(4.5rem+env(safe-area-inset-bottom))] lg:pb-0"
+        >
+          {isMobile && refreshPhase !== 'idle' && (
+            <div className="pointer-events-none absolute inset-x-0 top-2 z-30 flex justify-center px-3">
+              <div
+                role="status"
+                aria-live="polite"
+                className="flex min-h-10 items-center gap-2 rounded-full border border-hairline bg-surface-1 px-4 py-2 text-xs font-medium text-ink shadow-md"
+              >
+                {refreshPhase === 'pulling' && 'Tarik untuk memperbarui'}
+                {refreshPhase === 'ready' && 'Lepaskan untuk memperbarui'}
+                {refreshPhase === 'refreshing' && <><LoaderCircle size={15} className="motion-safe:animate-spin" aria-hidden="true" /> Memperbarui data…</>}
+                {refreshPhase === 'success' && <><Check size={15} aria-hidden="true" /> Data diperbarui</>}
+                {refreshPhase === 'error' && 'Pembaruan gagal. Periksa koneksi, lalu ketuk ikon refresh untuk mencoba lagi.'}
+              </div>
+            </div>
+          )}
           <Outlet />
         </main>
       </div>
