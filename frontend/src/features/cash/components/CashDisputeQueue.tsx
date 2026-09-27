@@ -78,6 +78,7 @@ export function CashDisputeQueue({ reviewer = false, scope = reviewer ? 'manage'
     } finally { setEvidenceLoadingId(null); }
   };
   const openReview = (dispute: CashDispute, status: 'approved' | 'rejected') => {
+    if (!reviewer) return;
     setReviewDraft({ dispute, status });
     setReviewNote('');
     setReviewFieldErrors({});
@@ -86,7 +87,7 @@ export function CashDisputeQueue({ reviewer = false, scope = reviewer ? 'manage'
   };
   const submitReview = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!reviewDraft) return;
+    if (!reviewer || !reviewDraft) return;
 
     const normalizedReviewNote = reviewNote.trim();
     setReviewFieldErrors({});

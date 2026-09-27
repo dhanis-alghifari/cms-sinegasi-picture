@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
-import { authenticate, type JwtPayload } from '../../../middleware/authMiddleware.js';
-import { requireAnyCapability, requireCapability } from '../../../middleware/capabilities.js';
+import { authenticate, requireAnyRole, type JwtPayload } from '../../../middleware/authMiddleware.js';
+import { hasCapability, requireAnyCapability, requireCapability } from '../../../middleware/capabilities.js';
 import { resolveDatabaseStudentId, resolveDatabaseUserId } from '../../auth/auth.identity.js';
 import { resolveCashScope, scopeErrorMessage } from '../shared/cash.scope.js';
 import {
@@ -29,7 +29,19 @@ export interface CashDisputesRoutesOptions {
   persistAuditLog: (request: FastifyRequest, input: AuditInput) => Promise<void>;
 }
 
-const managerGuard = requireCapability('cash.dispute.review');
+const managerCapabilityGuard = requireCapability('cash.dispute.review');
+
+/** Dispute visibility is narrower than ledger access: only teachers review the global queue. */
+async function resolveDisputeScope(user: JwtPayload, requestedScope: unknown, fallbackStudentId?: string) {
+  const canReview = user.role === 'teacher' && hasCapability(user.role, 'cash.dispute.review');
+  if (canReview) return resolveCashScope(user, 'manage', fallbackStudentId);
+
+  if (requestedScope === 'manage' || !hasCapability(user.role, 'cash.dispute.read.own')) {
+    return { scope: 'own' as const, studentId: null, errorCode: 'CASH_SCOPE_FORBIDDEN' as const };
+  }
+
+  return resolveCashScope(user, 'own', fallbackStudentId);
+}
 
 async function resolveActorStudentId(
   service: CashDisputesService,
@@ -91,7 +103,7 @@ const cashDisputesRoutes: FastifyPluginAsync<CashDisputesRoutesOptions> = async 
     preHandler: [authenticate, requireAnyCapability('cash.dispute.review', 'cash.dispute.read.own')],
   }, async (request, reply) => {
     const user = request.user as JwtPayload;
-    const resolved = await resolveCashScope(user, (request.query as CashDisputeListQuery).scope, options.disputesService.repositoryIsConfigured() ? undefined : user.studentId);
+    const resolved = await resolveDisputeScope(user, (request.query as CashDisputeListQuery).scope, options.disputesService.repositoryIsConfigured() ? undefined : user.studentId);
     if (resolved.errorCode) return reply.status(403).send({ success: false, error_code: resolved.errorCode, message: scopeErrorMessage(resolved.errorCode) });
     try {
       const data = await options.disputesService.list(request.query as CashDisputeListQuery, resolved.studentId);
@@ -108,7 +120,7 @@ const cashDisputesRoutes: FastifyPluginAsync<CashDisputesRoutesOptions> = async 
     const { id } = request.params as { id: string };
     const user = request.user as JwtPayload;
     const requestedScope = (request.query as { scope?: string }).scope;
-    const resolved = await resolveCashScope(user, requestedScope, options.disputesService.repositoryIsConfigured() ? undefined : user.studentId);
+    const resolved = await resolveDisputeScope(user, requestedScope, options.disputesService.repositoryIsConfigured() ? undefined : user.studentId);
     const studentId = resolved.scope === 'own' ? resolved.studentId : null;
     if (resolved.errorCode) return reply.status(403).send({ success: false, error_code: resolved.errorCode, message: scopeErrorMessage(resolved.errorCode) });
     try {
@@ -121,7 +133,7 @@ const cashDisputesRoutes: FastifyPluginAsync<CashDisputesRoutesOptions> = async 
 
   fastify.patch('/api/cash/disputes/:id', {
     schema: cashDisputeUpdateRouteSchema,
-    preHandler: [authenticate, managerGuard],
+    preHandler: [authenticate, requireAnyRole('teacher'), managerCapabilityGuard],
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const body = (request.body || {}) as ResolveCashDisputeInput;

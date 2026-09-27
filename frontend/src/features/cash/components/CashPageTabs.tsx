@@ -37,6 +37,8 @@ type CashPageTabsProps = {
     currentView: CashView;
     isTreasurerOrTeacher: boolean;
     isStudent: boolean;
+    canReviewDisputes: boolean;
+    canReadOwnDisputes: boolean;
     isMobile: boolean;
     pageSize: number;
     onChange: (view: CashView) => void;
@@ -131,13 +133,16 @@ export function CashPageTabs({
     currentView,
     isTreasurerOrTeacher,
     isStudent,
+    canReviewDisputes,
+    canReadOwnDisputes,
     isMobile,
     pageSize,
     onChange: setActiveView,
   } = navigation;
+  const canViewDisputes = canReviewDisputes || canReadOwnDisputes;
   const pendingDisputesQuery = useCashDisputesQuery(
-    { scope: 'manage', page: 1, pageSize: 1, status: 'pending' },
-    isTreasurerOrTeacher,
+    { scope: canReviewDisputes ? 'manage' : 'own', page: 1, pageSize: 1, status: 'pending' },
+    canViewDisputes,
   );
   const pendingDisputeCount = pendingDisputesQuery.data?.total;
   const handleViewChange = (value: string) => {
@@ -296,18 +301,18 @@ export function CashPageTabs({
           ...(isTreasurerOrTeacher ? [{ value: 'activity', label: <><span className="md:hidden">Aktivitas</span><span className="hidden md:inline">Aktivitas Kas</span></> }] : []),
           { value: 'transactions', label: <><span className="md:hidden">Transaksi</span><span className="hidden md:inline">Riwayat Transaksi Kas</span></> },
           { value: 'debts', label: <><span className="md:hidden">Tunggakan</span><span className="hidden md:inline">{isStudent ? 'Tunggakan Saya' : 'Daftar Tunggakan Siswa'}</span></> },
-          {
+          ...(canViewDisputes ? [{
             value: 'disputes',
             label: (
               <>
                 <span className="md:hidden">Sanggahan</span>
                 <span className="hidden md:inline">Sanggahan Kas</span>
-                {isTreasurerOrTeacher && pendingDisputeCount !== undefined && pendingDisputeCount > 0 && (
+                {pendingDisputeCount !== undefined && pendingDisputeCount > 0 && (
                   <StatusBadge label={String(pendingDisputeCount)} variant="warning" className="ml-1 px-1.5" />
                 )}
               </>
             ),
-          },
+          }] : []),
           ...(isTreasurerOrTeacher ? [{ value: 'report', label: <><span className="md:hidden">Laporan</span><span className="hidden md:inline">Laporan Kas</span></> }] : []),
         ]}
       />
@@ -416,9 +421,12 @@ export function CashPageTabs({
           </div>
         )}
 
-        {isDisputesView && (
+        {canViewDisputes && isDisputesView && (
           <div>
-            <CashDisputeQueue reviewer={isTreasurerOrTeacher} scope={isStudent ? 'own' : 'manage'} />
+            <CashDisputeQueue
+              reviewer={canReviewDisputes}
+              scope={canReviewDisputes ? 'manage' : 'own'}
+            />
           </div>
         )}
       </div>
