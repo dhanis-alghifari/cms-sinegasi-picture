@@ -9,6 +9,7 @@ import { Button } from '@/shared/ui/primitives/button';
 import { Separator } from '@/shared/ui/primitives/separator';
 import { Toaster } from '@/shared/ui/primitives/toast';
 import { useIsMobile } from '@/shared/hooks/use-mobile';
+import { formatRoleLabel } from '@/shared/utils/formatLabels';
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import { NotificationDropdown } from '@/features/notifications/components/NotificationDropdown';
 import { MobileNavigationSheet } from './MobileNavigationSheet';
@@ -168,7 +169,7 @@ export function DashboardLayout() {
             </div>
             <div className="min-w-0 flex-1">
               <p className="truncate text-xs font-medium text-sidebar-foreground">{user?.nama ?? 'Pengguna'}</p>
-              <p className="truncate text-xs capitalize text-sidebar-foreground/60">{user?.role ?? ''}</p>
+              <p className="truncate text-xs text-sidebar-foreground/60">{user ? formatRoleLabel(user.role) : ''}</p>
             </div>
           </div>
           <Button variant="ghost" size="sm" onClick={handleLogout} className="w-full justify-start gap-2 text-xs text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-semantic-danger">

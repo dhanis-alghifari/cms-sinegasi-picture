@@ -25,6 +25,15 @@ test('access-control routes expose matrix only to authorized teachers', async (t
   assert.equal(matrix.statusCode, 200);
   assert.equal(matrix.json().success, true);
 
+  const invalidUpdate = await app.inject({
+    method: 'PUT',
+    url: '/api/access-control/roles/member/capabilities',
+    headers: { authorization: `Bearer ${teacher}` },
+    payload: { capabilities: ['dashboard.read.own'], change_reason: '' },
+  });
+  assert.equal(invalidUpdate.statusCode, 400);
+  assert.equal(updated, false);
+
   const update = await app.inject({
     method: 'PUT',
     url: '/api/access-control/roles/member/capabilities',
