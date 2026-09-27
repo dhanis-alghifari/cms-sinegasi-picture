@@ -42,6 +42,7 @@ export function createAppDependencies(fastify: FastifyInstance): AppDependencies
     filmWorksService: catalog.filmWorksService,
     accessControlService: catalog.accessControlService,
     agendaService: catalog.agendaService,
+    socialMediaService: catalog.socialMediaService,
     ...cash,
     ...borrowing,
   };

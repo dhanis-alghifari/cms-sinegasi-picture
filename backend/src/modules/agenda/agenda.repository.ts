@@ -26,7 +26,7 @@ function memoryList(state: AgendaMemoryState, query: { id?: string; search?: str
     if (!query.includeArchived && item.archived_at) return false;
     if (query.dateFrom && item.activity_date < query.dateFrom) return false;
     if (query.dateTo && item.activity_date > query.dateTo) return false;
-    if (search && ![item.activity_name, item.activity_description, item.instructor_name, ...item.pic_names].some((value) => value.toLocaleLowerCase('id-ID').includes(search))) return false;
+    if (search && ![item.activity_name, item.activity_description, item.instructor_name || '', ...item.pic_names].some((value) => value.toLocaleLowerCase('id-ID').includes(search))) return false;
     return true;
   }).sort((a, b) => b.activity_date.localeCompare(a.activity_date) || b.id.localeCompare(a.id));
   const from = (query.page - 1) * query.pageSize;

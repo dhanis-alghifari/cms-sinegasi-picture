@@ -91,7 +91,7 @@ function A4Document({ rows, periodLabel, truncated, onResolved, onPreview }: { r
                   <p className="mt-1 whitespace-pre-wrap text-ink-subtle">{row.activity_description}</p>
                 </td>
                 <td className="border-b border-hairline px-2 py-2.5 text-ink-subtle">{formatDate(row.activity_date)}</td>
-                <td className="border-b border-hairline px-2 py-2.5">{row.instructor_name}</td>
+                <td className="border-b border-hairline px-2 py-2.5">{row.instructor_name || '—'}</td>
                 <td className="border-b border-hairline px-2 py-2.5">{row.pic_names.join(', ')}</td>
                 <td className="border-b border-hairline px-2 py-2.5"><PhotoCell row={row} onResolved={onResolved} onPreview={onPreview} /></td>
               </tr>
@@ -159,7 +159,7 @@ function PresentationDocument({ rows, periodLabel, onResolved, onPreview }: { ro
             <h2 className="mt-3 text-3xl font-semibold leading-snug tracking-[-0.01em]">{row.activity_name}</h2>
             <p className="mt-4 max-h-32 overflow-hidden whitespace-pre-wrap text-lg leading-normal text-ink-subtle">{row.activity_description}</p>
             <dl className="mt-6 grid gap-4 text-base sm:grid-cols-2">
-              <div><dt className="text-ink-tertiary">Pengajar</dt><dd className="mt-1 font-semibold">{row.instructor_name}</dd></div>
+              <div><dt className="text-ink-tertiary">Pengajar</dt><dd className="mt-1 font-semibold">{row.instructor_name || '—'}</dd></div>
               <div><dt className="text-ink-tertiary">PIC/BPH</dt><dd className="mt-1 font-semibold">{row.pic_names.join(', ')}</dd></div>
             </dl>
           </div>

@@ -16,10 +16,10 @@ export const agendaService = {
     return apiClient.getParsed(`/api/agenda/report?${queryString(filters)}`, decodeAgendaReport);
   },
   async create(values: AgendaFormValues, idempotencyKey: string): Promise<AgendaActivity> {
-    return apiClient.postParsed('/api/agenda', { activity_date: values.activity_date, activity_name: values.activity_name, activity_description: values.activity_description, instructor_name: values.instructor_name, pic_names: values.pic_names.split(',').map((name) => name.trim()).filter(Boolean) }, decodeAgendaActivity, { changeReason: 'Membuat agenda kegiatan', idempotencyKey });
+    return apiClient.postParsed('/api/agenda', { activity_date: values.activity_date, activity_name: values.activity_name, activity_description: values.activity_description, instructor_name: values.instructor_name.trim() || null, pic_names: values.pic_names.split(',').map((name) => name.trim()).filter(Boolean) }, decodeAgendaActivity, { changeReason: 'Membuat agenda kegiatan', idempotencyKey });
   },
   async update(id: string, values: AgendaFormValues, version: number, idempotencyKey: string): Promise<AgendaActivity> {
-    return apiClient.patchParsed(`/api/agenda/${id}`, { activity_date: values.activity_date, activity_name: values.activity_name, activity_description: values.activity_description, instructor_name: values.instructor_name, pic_names: values.pic_names.split(',').map((name) => name.trim()).filter(Boolean), expected_version: version, change_reason: values.change_reason }, decodeAgendaActivity, { changeReason: values.change_reason, idempotencyKey });
+    return apiClient.patchParsed(`/api/agenda/${id}`, { activity_date: values.activity_date, activity_name: values.activity_name, activity_description: values.activity_description, instructor_name: values.instructor_name.trim() || null, pic_names: values.pic_names.split(',').map((name) => name.trim()).filter(Boolean), expected_version: version, change_reason: values.change_reason }, decodeAgendaActivity, { changeReason: values.change_reason, idempotencyKey });
   },
   async archive(id: string, reason: string, idempotencyKey: string): Promise<AgendaActivity> {
     return apiClient.deleteParsed(`/api/agenda/${id}`, decodeAgendaActivity, { body: JSON.stringify({ change_reason: reason }), changeReason: reason, idempotencyKey });

@@ -1,7 +1,7 @@
 import type { ElementType } from 'react';
 import {
   Bell, CalendarCheck, CalendarDays, Camera, GraduationCap, History, Layers, LayoutDashboard,
-  PackageCheck, ShieldCheck, Trophy, Users, Wallet,
+  Megaphone, PackageCheck, ShieldCheck, Trophy, Users, Wallet,
 } from 'lucide-react';
 import type { AuthUser } from '@/features/auth/types/auth.types';
 import type { UserRole } from '@/shared/types/common';
@@ -39,6 +39,7 @@ export const NAVIGATION_ITEMS: readonly NavigationItem[] = [
   { id: 'borrowing', to: '/borrowing', icon: PackageCheck, label: 'Peminjaman', requiredCapabilities: ['borrowing.read'], mobilePriority: 3 },
   { id: 'contests', to: '/contests', icon: Trophy, label: 'Lomba', requiredCapabilities: ['contests.read'] },
   { id: 'agenda', to: '/agenda', icon: CalendarDays, label: 'Agenda', requiredCapabilities: ['agenda.read'] },
+  { id: 'social-media', to: '/social-media', icon: Megaphone, label: 'Humas & Media Sosial', requiredCapabilities: ['social_media.read'], mobilePriority: 2 },
   { id: 'notifications', to: '/notifications', icon: Bell, label: 'Notifikasi', requiredCapabilities: ['notifications.read'], mobilePriority: 4 },
   { id: 'audit', to: '/audit-logs', icon: History, label: 'Audit Trail', requiredCapabilities: ['audit.read'] },
   { id: 'users', to: '/users', icon: Users, label: 'Pengguna', requiredCapabilities: ['users.manage'] },
@@ -59,6 +60,7 @@ const NAVIGATION_GROUPS: readonly NavigationGroupDefinition[] = [
   { id: 'cash', label: 'Uang Kas', icon: Wallet, itemIds: ['cash'], collapsible: false },
   { id: 'inventory', label: 'Inventaris', icon: PackageCheck, itemIds: ['equipment', 'borrowing'], collapsible: true },
   { id: 'activities', label: 'Kegiatan', icon: CalendarDays, itemIds: ['contests', 'agenda'], collapsible: true },
+  { id: 'social-media', label: 'Publikasi', icon: Megaphone, itemIds: ['social-media'], collapsible: false },
   { id: 'notifications', label: 'Notifikasi', icon: Bell, itemIds: ['notifications'], collapsible: false },
   { id: 'administration', label: 'Administrasi', icon: ShieldCheck, itemIds: ['audit', 'users', 'access-control'], collapsible: true },
 ];

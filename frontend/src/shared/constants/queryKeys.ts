@@ -81,4 +81,12 @@ export const QUERY_KEYS = {
   AGENDA_DETAIL: (id: string) => ['agenda', 'detail', id] as const,
   AGENDA_PHOTO: (id: string) => ['agenda', 'photo', id] as const,
   AGENDA_REPORT: ['agenda', 'report'] as const,
+
+  // Social media / Humas
+  SOCIAL_MEDIA: ['social-media'] as const,
+  SOCIAL_MEDIA_ACCOUNTS: ['social-media', 'accounts'] as const,
+  SOCIAL_MEDIA_PUBLICATIONS: ['social-media', 'publications'] as const,
+  SOCIAL_MEDIA_METRICS: ['social-media', 'metrics'] as const,
+  SOCIAL_MEDIA_REPORT: ['social-media', 'report'] as const,
+  SOCIAL_MEDIA_EVIDENCE: (scope: 'publications' | 'insight-periods', id: string) => ['social-media', scope, id, 'evidence'] as const,
 } as const;

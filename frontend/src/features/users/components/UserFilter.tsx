@@ -61,6 +61,7 @@ export function UserFilter({
           <SelectItem value="secretary">{formatRoleLabel('secretary')}</SelectItem>
           <SelectItem value="equipment_team">{formatRoleLabel('equipment_team')}</SelectItem>
           <SelectItem value="contest_team">{formatRoleLabel('contest_team')}</SelectItem>
+          <SelectItem value="social_media_team">{formatRoleLabel('social_media_team')}</SelectItem>
           <SelectItem value="member">{formatRoleLabel('member')}</SelectItem>
         </SelectContent>
       </Select>

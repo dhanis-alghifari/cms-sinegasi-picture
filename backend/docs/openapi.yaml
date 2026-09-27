@@ -874,6 +874,238 @@ paths:
         '200': { description: Signed private GET URL }
         '403': { description: Agenda read capability missing }
         '404': { description: Attached photo not found }
+  /api/social-media/accounts:
+    get:
+      summary: List active official social accounts
+      parameters:
+        - { name: include_inactive, in: query, required: false, schema: { type: string, enum: ['true', 'false'] } }
+      responses:
+        '200': { description: Active accounts; inactive accounts are visible only to teachers when explicitly requested }
+        '401': { description: Unauthenticated }
+        '403': { description: Social media read capability missing }
+    post:
+      summary: Register an official social account (teacher only)
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKeyRequired'
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SocialAccountRequest' }
+      responses:
+        '201': { description: Official account created }
+        '403': { description: Teacher-only account management }
+        '409': { description: Duplicate account name or idempotency conflict }
+        '422': { description: Account URL is not HTTPS on the selected platform }
+  /api/social-media/accounts/{id}:
+    patch:
+      summary: Update or reactivate an official social account (teacher only)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - $ref: '#/components/parameters/IdempotencyKeyRequired'
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SocialAccountUpdateRequest' }
+      responses:
+        '200': { description: Official account updated }
+        '403': { description: Teacher-only account management }
+        '404': { description: Account not found }
+        '409': { description: Account version conflict }
+  /api/social-media/publications:
+    get:
+      summary: List social publications with bounded pagination
+      parameters:
+        - { name: from, in: query, required: false, schema: { type: string, format: date } }
+        - { name: to, in: query, required: false, schema: { type: string, format: date } }
+        - { name: platform, in: query, required: false, schema: { type: string, enum: [instagram, tiktok, youtube, whatsapp] } }
+        - { name: page, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 10000, default: 1 } }
+        - { name: pageSize, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+      responses:
+        '200': { description: Paginated publications and safe evidence metadata }
+        '403': { description: Social media read capability missing }
+        '422': { description: Invalid date range or pagination }
+    post:
+      summary: Create a social publication as a draft or recorded post
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKeyRequired'
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SocialPublicationRequest' }
+      responses:
+        '201': { description: Publication created }
+        '403': { description: Publication management capability missing }
+        '409': { description: Idempotency key conflict }
+        '422': { description: Invalid platform/content/date/link or evidence required before recording }
+  /api/social-media/publications/{id}:
+    patch:
+      summary: Finalize a publication after required evidence is verified
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - $ref: '#/components/parameters/IdempotencyKeyRequired'
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SocialFinalizeRequest' }
+      responses:
+        '200': { description: Publication marked recorded }
+        '403': { description: Publication management capability missing }
+        '404': { description: Publication not found }
+        '409': { description: Publication version conflict }
+        '422': { description: Required link or verified evidence is missing }
+  /api/social-media/publications/{id}/evidence-uploads:
+    post:
+      summary: Reserve private photo evidence upload for a draft publication
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - $ref: '#/components/parameters/IdempotencyKeyRequired'
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SocialEvidenceReserveRequest' }
+      responses:
+        '201': { description: Short-lived private R2 upload URL issued; object key is not returned }
+        '403': { description: Publication management capability missing }
+        '409': { description: Another evidence upload is pending or publication is no longer a draft }
+        '422': { description: Invalid image metadata }
+  /api/social-media/publications/{id}/evidence-uploads/{evidenceId}/complete:
+    post:
+      summary: Verify uploaded publication evidence and attach it
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: evidenceId, in: path, required: true, schema: { type: string, format: uuid } }
+        - $ref: '#/components/parameters/IdempotencyKeyRequired'
+        - $ref: '#/components/parameters/ChangeReason'
+      responses:
+        '200': { description: Evidence verified with a short-lived private access URL }
+        '403': { description: Publication management capability missing }
+        '410': { description: Upload reservation expired }
+        '422': { description: Uploaded image bytes do not match declared metadata }
+  /api/social-media/publications/{id}/evidence-access:
+    get:
+      summary: Issue short-lived private access URLs for attached publication evidence
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Attached evidence IDs and expiring URLs; private object keys are never exposed }
+        '403': { description: Social media read capability missing }
+  /api/social-media/metrics:
+    get:
+      summary: Read account snapshots and insight periods for a bounded range
+      parameters:
+        - { name: from, in: query, required: false, schema: { type: string, format: date } }
+        - { name: to, in: query, required: false, schema: { type: string, format: date } }
+      responses:
+        '200': { description: Snapshots with growth compared to the preceding account snapshot and recorded insight periods }
+        '403': { description: Social media read capability missing }
+        '422': { description: Invalid or oversized date range }
+  /api/social-media/snapshots:
+    post:
+      summary: Record an account audience snapshot as of a real date
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKeyRequired'
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SocialSnapshotRequest' }
+      responses:
+        '201': { description: Audience snapshot recorded }
+        '403': { description: Metrics management capability missing }
+        '409': { description: Snapshot already exists for this account and date }
+        '422': { description: Invalid account, date, or audience count }
+  /api/social-media/insight-periods:
+    post:
+      summary: Create a draft account insight period with uploaded graph evidence
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKeyRequired'
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SocialInsightRequest' }
+      responses:
+        '201': { description: Draft insight period created }
+        '403': { description: Metrics management capability missing }
+        '409': { description: Duplicate account period or idempotency conflict }
+        '422': { description: Invalid period or metric values }
+  /api/social-media/insight-periods/{id}:
+    patch:
+      summary: Finalize an insight period after a graph screenshot is verified
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - $ref: '#/components/parameters/IdempotencyKeyRequired'
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SocialFinalizeRequest' }
+      responses:
+        '200': { description: Insight period marked recorded }
+        '403': { description: Metrics management capability missing }
+        '409': { description: Insight period version conflict }
+        '422': { description: At least one verified graph screenshot is required }
+  /api/social-media/insight-periods/{id}/evidence-uploads:
+    post:
+      summary: Reserve private graph screenshot upload for a draft insight period
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - $ref: '#/components/parameters/IdempotencyKeyRequired'
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SocialEvidenceReserveRequest' }
+      responses:
+        '201': { description: Short-lived private R2 upload URL issued }
+        '403': { description: Metrics management capability missing }
+        '409': { description: Another evidence upload is pending or insight is no longer a draft }
+        '422': { description: Invalid image metadata }
+  /api/social-media/insight-periods/{id}/evidence-uploads/{evidenceId}/complete:
+    post:
+      summary: Verify uploaded insight evidence and attach it
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: evidenceId, in: path, required: true, schema: { type: string, format: uuid } }
+        - $ref: '#/components/parameters/IdempotencyKeyRequired'
+        - $ref: '#/components/parameters/ChangeReason'
+      responses:
+        '200': { description: Evidence verified with a short-lived private access URL }
+        '403': { description: Metrics management capability missing }
+        '410': { description: Upload reservation expired }
+        '422': { description: Uploaded image bytes do not match declared metadata }
+  /api/social-media/insight-periods/{id}/evidence-access:
+    get:
+      summary: Issue short-lived private access URLs for attached insight evidence
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Attached evidence IDs and expiring URLs; private object keys are never exposed }
+        '403': { description: Social media read capability missing }
+  /api/social-media/reports:
+    get:
+      summary: Read a complete report for all matching activities and social media records
+      parameters:
+        - { name: from, in: query, required: true, schema: { type: string, format: date } }
+        - { name: to, in: query, required: true, schema: { type: string, format: date } }
+      responses:
+        '200': { description: Complete bounded report with signed private evidence URLs and explicit section totals }
+        '403': { description: Social media read capability missing }
+        '422': { description: Invalid range or any report section exceeds the safe row limit }
   /api/attendance/summary:
     get:
       summary: Summarize attendance for one date

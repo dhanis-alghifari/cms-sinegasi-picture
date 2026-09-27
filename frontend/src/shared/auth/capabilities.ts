@@ -9,6 +9,7 @@ export const CAPABILITY_VALUES = [
   'contests.read', 'contests.submit', 'contests.manage', 'overdue.manage', 'notifications.read',
   'audit.read', 'users.manage', 'access_control.read', 'access_control.manage',
   'agenda.read', 'agenda.write', 'agenda.archive',
+  'social_media.read', 'social_media.publications.manage', 'social_media.metrics.manage', 'social_media.accounts.manage',
 ] as const;
 
 export type Capability = typeof CAPABILITY_VALUES[number];
@@ -41,6 +42,11 @@ export const ROLE_CAPABILITIES: Readonly<Record<UserRole, readonly Capability[]>
   contest_team: [
     'dashboard.read.own', 'borrowing.read', 'borrowing.return.report', 'contests.read', 'contests.submit', 'contests.manage',
     'grades.read.own', 'notifications.read', 'cash.read.own', 'cash.dispute.create', 'cash.dispute.read.own',
+  ],
+  social_media_team: [
+    'dashboard.read.own', 'grades.read.own', 'notifications.read',
+    'social_media.read', 'social_media.publications.manage', 'social_media.metrics.manage',
+    'agenda.read', 'agenda.write',
   ],
   member: ['dashboard.read.own', 'attendance.read.own', 'cash.read.own', 'cash.dispute.create', 'cash.dispute.read.own', 'borrowing.read', 'borrowing.return.report', 'grades.read.own', 'notifications.read'],
 };

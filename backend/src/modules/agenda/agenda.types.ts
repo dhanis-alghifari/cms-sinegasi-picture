@@ -14,7 +14,7 @@ export interface AgendaActivity {
   activity_date: string;
   activity_name: string;
   activity_description: string;
-  instructor_name: string;
+  instructor_name: string | null;
   pic_names: string[];
   version: number;
   created_by: string | null;
@@ -57,7 +57,7 @@ export interface AgendaCreateInput {
   activity_date: string;
   activity_name: string;
   activity_description: string;
-  instructor_name: string;
+  instructor_name?: string | null;
   pic_names: string[] | string;
   idempotency_key?: string;
 }
@@ -78,8 +78,8 @@ export interface AgendaRepository {
   isConfigured(): boolean;
   list(query: { id?: string; search?: string; dateFrom?: string; dateTo?: string; includeArchived: boolean; page: number; pageSize: number }): Promise<AgendaListResult | { error: unknown }>;
   report(query: { search?: string; dateFrom?: string; dateTo?: string; page: number; pageSize: number }): Promise<AgendaListResult | { error: unknown }>;
-  create(input: { activityDate: string; activityName: string; activityDescription: string; instructorName: string; picNames: string[]; actorId: string; idempotencyKey: string; requestId?: string | null; operationId?: string | null; userAgent?: string | null }): Promise<{ data: AgendaActivity; idempotentReplay: boolean } | { error: unknown }>;
-  update(input: { activityId: string; activityDate: string; activityName: string; activityDescription: string; instructorName: string; picNames: string[]; expectedVersion: number; changeReason: string; actorId: string; idempotencyKey: string; requestId?: string | null; operationId?: string | null; userAgent?: string | null }): Promise<{ data: AgendaActivity; idempotentReplay: boolean } | { error: unknown }>;
+  create(input: { activityDate: string; activityName: string; activityDescription: string; instructorName: string | null; picNames: string[]; actorId: string; idempotencyKey: string; requestId?: string | null; operationId?: string | null; userAgent?: string | null }): Promise<{ data: AgendaActivity; idempotentReplay: boolean } | { error: unknown }>;
+  update(input: { activityId: string; activityDate: string; activityName: string; activityDescription: string; instructorName: string | null; picNames: string[]; expectedVersion: number; changeReason: string; actorId: string; idempotencyKey: string; requestId?: string | null; operationId?: string | null; userAgent?: string | null }): Promise<{ data: AgendaActivity; idempotentReplay: boolean } | { error: unknown }>;
   archive(input: { activityId: string; changeReason: string; actorId: string; idempotencyKey: string; requestId?: string | null; operationId?: string | null; userAgent?: string | null }): Promise<{ data: AgendaActivity; idempotentReplay: boolean } | { error: unknown }>;
   reservePhoto(input: { activityId: string; objectKey: string; contentType: string; fileSizeBytes: number; originalFilename: string; actorId: string; idempotencyKey: string }): Promise<{ photo: AgendaPhoto; idempotentReplay: boolean } | { error: unknown }>;
   attachPhoto(input: { activityId: string; photoId: string; actorId: string; idempotencyKey: string }): Promise<{ photo: AgendaPhoto; idempotentReplay: boolean } | { error: unknown }>;

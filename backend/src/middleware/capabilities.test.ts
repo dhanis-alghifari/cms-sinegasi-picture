@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { hasCapability } from './capabilities.js';
+import { hasMinRole } from './authMiddleware.js';
 
 test('member capability is limited to personal data and return reporting', () => {
   assert.equal(hasCapability('member', 'dashboard.read.own'), true);
@@ -53,6 +54,28 @@ test('module capabilities follow the approved role matrix', () => {
   assert.equal(hasCapability('secretary', 'classes.read'), true);
   assert.equal(hasCapability('equipment_team', 'borrowing.manage'), false);
   assert.equal(hasCapability('contest_team', 'contests.manage'), true);
+});
+
+test('specialized social media role has no rank-based minimum-role access', () => {
+  assert.equal(hasMinRole('social_media_team', 'member'), false);
+  assert.equal(hasMinRole('social_media_team', 'teacher'), false);
+  assert.equal(hasMinRole('teacher', 'teacher'), true);
+});
+
+test('social media role has only approved publication, metrics, and agenda access', () => {
+  for (const capability of [
+    'social_media.read',
+    'social_media.publications.manage',
+    'social_media.metrics.manage',
+    'agenda.read',
+    'agenda.write',
+  ] as const) {
+    assert.equal(hasCapability('social_media_team', capability), true);
+  }
+
+  assert.equal(hasCapability('social_media_team', 'social_media.accounts.manage'), false);
+  assert.equal(hasCapability('social_media_team', 'access_control.manage'), false);
+  assert.equal(hasCapability('teacher', 'social_media.accounts.manage'), true);
 });
 
 test('cash ledger is personal for student-backed roles and review is teacher-only', () => {

@@ -22,7 +22,7 @@ interface AgendaFormDialogProps {
 function jakartaToday(): string { return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date()); }
 
 export function AgendaFormDialog({ open, onOpenChange, initialData, onSubmit, isLoading = false, error }: AgendaFormDialogProps) {
-  const [values, setValues] = useState<AgendaFormValues>(() => initialData ? { activity_date: initialData.activity_date, activity_name: initialData.activity_name, activity_description: initialData.activity_description, instructor_name: initialData.instructor_name, pic_names: initialData.pic_names.join(', '), photo: null, change_reason: '' } : { activity_date: jakartaToday(), activity_name: '', activity_description: '', instructor_name: '', pic_names: '', photo: null, change_reason: '' });
+  const [values, setValues] = useState<AgendaFormValues>(() => initialData ? { activity_date: initialData.activity_date, activity_name: initialData.activity_name, activity_description: initialData.activity_description, instructor_name: initialData.instructor_name ?? '', pic_names: initialData.pic_names.join(', '), photo: null, change_reason: '' } : { activity_date: jakartaToday(), activity_name: '', activity_description: '', instructor_name: '', pic_names: '', photo: null, change_reason: '' });
   const [formError, setFormError] = useState('');
   const update = (field: keyof AgendaFormValues, value: string | File | null) => setValues((current) => ({ ...current, [field]: value }));
   const submit = async (event: FormEvent) => { event.preventDefault(); setFormError(''); const parsed = agendaSchema.safeParse(values); if (!parsed.success) { setFormError(parsed.error.issues[0]?.message || 'Periksa kembali isian agenda.'); return; } if (values.activity_date > jakartaToday()) { setFormError('Tanggal agenda tidak boleh di masa depan.'); return; } if (initialData && (values.change_reason || '').trim().length < 5) { setFormError('Alasan perubahan minimal 5 karakter.'); return; } try { await onSubmit(values); onOpenChange(false); } catch (submitError) { setFormError(getErrorMessage(submitError)); } };
@@ -53,7 +53,7 @@ export function AgendaFormDialog({ open, onOpenChange, initialData, onSubmit, is
             <Textarea id="agenda-description" rows={4} value={values.activity_description} onChange={(event) => update('activity_description', event.target.value)} placeholder="Apa yang dikerjakan di kelas hari ini?" />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="agenda-instructor">Nama pengajar *</Label>
+            <Label htmlFor="agenda-instructor">Nama pengajar (opsional)</Label>
             <Input id="agenda-instructor" value={values.instructor_name} onChange={(event) => update('instructor_name', event.target.value)} placeholder="Nama pengajar atau pembimbing" />
           </div>
           <div className="space-y-1">

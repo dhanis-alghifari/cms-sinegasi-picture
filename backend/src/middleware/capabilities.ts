@@ -46,6 +46,10 @@ export const CAPABILITY_VALUES = [
   'agenda.read',
   'agenda.write',
   'agenda.archive',
+  'social_media.read',
+  'social_media.publications.manage',
+  'social_media.metrics.manage',
+  'social_media.accounts.manage',
 ] as const;
 
 export type Capability = typeof CAPABILITY_VALUES[number];
@@ -90,6 +94,11 @@ export const ROLE_CAPABILITIES: Readonly<Record<UserRole, readonly Capability[]>
   contest_team: [
     'dashboard.read.own', 'borrowing.read', 'borrowing.return.report', 'contests.read', 'contests.submit', 'contests.manage',
     'grades.read.own', 'notifications.read', 'cash.read.own', 'cash.dispute.create', 'cash.dispute.read.own',
+  ],
+  social_media_team: [
+    'dashboard.read.own', 'grades.read.own', 'notifications.read',
+    'agenda.read', 'agenda.write',
+    'social_media.read', 'social_media.publications.manage', 'social_media.metrics.manage',
   ],
   member: [
     'dashboard.read.own', 'attendance.read.own', 'cash.read.own', 'cash.dispute.create', 'borrowing.read', 'borrowing.return.report',

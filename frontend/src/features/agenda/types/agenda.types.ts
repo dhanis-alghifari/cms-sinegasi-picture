@@ -13,7 +13,7 @@ export interface AgendaActivity {
   activity_date: string;
   activity_name: string;
   activity_description: string;
-  instructor_name: string;
+  instructor_name: string | null;
   pic_names: string[];
   version: number;
   created_by: string | null;

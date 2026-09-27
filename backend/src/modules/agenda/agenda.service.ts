@@ -14,6 +14,17 @@ function requiredText(value: unknown, field: string, maxLength: number): string 
   return text;
 }
 
+function optionalInstructor(value: unknown): string | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== 'string') throw new AgendaServiceError(422, 'AGENDA_INSTRUCTOR_INVALID', 'Nama pengajar harus berupa teks.');
+  const text = value.trim().replace(/\s+/g, ' ');
+  if (!text) return null;
+  if (text.length < 2 || text.length > 120 || /[\u0000-\u001f\u007f]/.test(text)) {
+    throw new AgendaServiceError(422, 'AGENDA_INSTRUCTOR_INVALID', 'Nama pengajar harus 2–120 karakter jika diisi.');
+  }
+  return text;
+}
+
 function normalizedIdempotency(value: unknown): string { return cleanAgendaText(value, 128) || randomUUID(); }
 
 export class AgendaService {
@@ -85,7 +96,7 @@ export class AgendaService {
     if (!activityDate) throw new AgendaServiceError(422, 'AGENDA_DATE_INVALID', `Tanggal agenda wajib berupa tanggal hari ini (${getJakartaDate()}) atau tanggal sebelumnya.`);
     const picNames = normalizePicNames(input.pic_names);
     if (!picNames) throw new AgendaServiceError(422, 'AGENDA_PIC_INVALID', 'PIC wajib diisi 1 sampai 10 nama yang valid.');
-    const result = await this.repository.create({ activityDate, activityName: requiredText(input.activity_name, 'Nama kegiatan', 120), activityDescription: requiredText(input.activity_description, 'Uraian kegiatan', 2000), instructorName: requiredText(input.instructor_name, 'Nama pengajar', 120), picNames, actorId, idempotencyKey: normalizedIdempotency(input.idempotency_key), ...context });
+    const result = await this.repository.create({ activityDate, activityName: requiredText(input.activity_name, 'Nama kegiatan', 120), activityDescription: requiredText(input.activity_description, 'Uraian kegiatan', 2000), instructorName: optionalInstructor(input.instructor_name), picNames, actorId, idempotencyKey: normalizedIdempotency(input.idempotency_key), ...context });
     if ('error' in result) mapAgendaRepositoryError(result.error, 'Gagal menyimpan agenda kegiatan.');
     return result;
   }
@@ -97,7 +108,7 @@ export class AgendaService {
     if (!picNames) throw new AgendaServiceError(422, 'AGENDA_PIC_INVALID', 'PIC wajib diisi 1 sampai 10 nama yang valid.');
     const reason = requiredText(input.change_reason, 'Alasan perubahan', 500);
     if (reason.length < 5) throw new AgendaServiceError(422, 'AGENDA_CHANGE_REASON_INVALID', 'Alasan perubahan minimal 5 karakter.');
-    const result = await this.repository.update({ activityId: requiredText(id, 'id', 64), activityDate, activityName: requiredText(input.activity_name, 'Nama kegiatan', 120), activityDescription: requiredText(input.activity_description, 'Uraian kegiatan', 2000), instructorName: requiredText(input.instructor_name, 'Nama pengajar', 120), picNames, expectedVersion: input.expected_version, changeReason: reason, actorId, idempotencyKey: normalizedIdempotency(input.idempotency_key), ...context });
+    const result = await this.repository.update({ activityId: requiredText(id, 'id', 64), activityDate, activityName: requiredText(input.activity_name, 'Nama kegiatan', 120), activityDescription: requiredText(input.activity_description, 'Uraian kegiatan', 2000), instructorName: optionalInstructor(input.instructor_name), picNames, expectedVersion: input.expected_version, changeReason: reason, actorId, idempotencyKey: normalizedIdempotency(input.idempotency_key), ...context });
     if ('error' in result) mapAgendaRepositoryError(result.error, 'Gagal memperbarui agenda kegiatan.');
     return result;
   }

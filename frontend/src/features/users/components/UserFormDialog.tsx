@@ -46,6 +46,7 @@ const STUDENT_ROLE_LABELS: Record<StudentRole, string> = {
   treasurer: 'Treasurer (Bendahara)',
   equipment_team: 'Equipment Team',
   contest_team: 'Contest Team',
+  social_media_team: 'Tim Humas',
   member: 'Member (Siswa)',
 };
 const STUDENT_ROLE_OPTIONS: ReadonlyArray<{ value: StudentRole; label: string }> = STUDENT_ROLE_VALUES.map((value) => ({

@@ -73,7 +73,9 @@ const ROLE_HIERARCHY: UserRole[] = [
 export function hasMinRole(userRole: UserRole, minRole: UserRole): boolean {
   const userLevel = ROLE_HIERARCHY.indexOf(userRole);
   const minLevel = ROLE_HIERARCHY.indexOf(minRole);
-  return userLevel >= minLevel;
+  // Specialized roles intentionally omitted from the rank ladder must never
+  // inherit a minimum-role permission through the `-1 >= -1` comparison.
+  return userLevel >= 0 && minLevel >= 0 && userLevel >= minLevel;
 }
 
 /**

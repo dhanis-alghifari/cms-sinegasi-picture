@@ -68,7 +68,7 @@ export function AgendaTable({
                   {row.activity_description}
                 </p>
               </TableCell>
-              <TableCell className="text-xs text-ink">{row.instructor_name}</TableCell>
+              <TableCell className="text-xs text-ink">{row.instructor_name || '—'}</TableCell>
               <TableCell className="max-w-52 text-xs text-ink-subtle">
                 {row.pic_names.join(', ')}
               </TableCell>

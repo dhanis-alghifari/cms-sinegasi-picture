@@ -54,6 +54,31 @@ test('agenda service rejects future dates and invalid PIC lists', async () => {
   );
 });
 
+test('agenda instructor is optional and blank values normalize to null', async () => {
+  const service = new AgendaService(createAgendaRepository(null, { activities: [] }));
+  const created = await service.create({
+    activity_date: yesterday(), activity_name: 'Rapat tim humas', activity_description: 'Menyusun kalender publikasi',
+    pic_names: ['Humas'], idempotency_key: 'agenda-no-instructor',
+  }, 'humas-1', {});
+  assert.equal(created.data.instructor_name, null);
+  assert.equal((await service.list({ search: 'rapat' })).total, 1);
+
+  const updated = await service.update(created.data.id, {
+    activity_date: yesterday(), activity_name: 'Rapat tim humas', activity_description: 'Menyusun kalender konten',
+    instructor_name: '   ', pic_names: ['Humas'], expected_version: 1, change_reason: 'Penyesuaian uraian',
+    idempotency_key: 'agenda-no-instructor-update',
+  }, 'humas-1', {});
+  assert.equal(updated.data.instructor_name, null);
+});
+
+test('agenda instructor rejects a nonblank value shorter than two characters', async () => {
+  const service = new AgendaService(createAgendaRepository(null, { activities: [] }));
+  await assert.rejects(() => service.create({
+    activity_date: yesterday(), activity_name: 'Rapat', activity_description: 'Rapat agenda tim',
+    instructor_name: 'A', pic_names: ['Humas'], idempotency_key: 'agenda-short-inst',
+  }, 'humas-1', {}), (error: unknown) => error instanceof AgendaServiceError && error.errorCode === 'AGENDA_INSTRUCTOR_INVALID');
+});
+
 test('agenda report strips private object keys and exposes only signed photo fields', async () => {
   const state = { activities: [] };
   const service = new AgendaService(createAgendaRepository(null, state));

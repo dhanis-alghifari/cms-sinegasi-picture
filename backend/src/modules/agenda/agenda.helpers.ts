@@ -61,7 +61,7 @@ export function mapAgendaRow(row: DatabaseRow): AgendaActivity {
   const attached = photos.find((item) => String((item as DatabaseRow)?.upload_status) === 'attached');
   return {
     id: String(row.id), activity_date: String(row.activity_date), activity_name: String(row.activity_name),
-    activity_description: String(row.activity_description), instructor_name: String(row.instructor_name),
+    activity_description: String(row.activity_description), instructor_name: row.instructor_name == null ? null : String(row.instructor_name),
     pic_names: Array.isArray(row.pic_names) ? row.pic_names.map(String) : [], version: Number(row.version || 1),
     created_by: row.created_by == null ? null : String(row.created_by), updated_by: row.updated_by == null ? null : String(row.updated_by),
     created_at: String(row.created_at), updated_at: String(row.updated_at), archived_by: row.archived_by == null ? null : String(row.archived_by), archived_at: row.archived_at == null ? null : String(row.archived_at),

@@ -75,7 +75,7 @@ export function AgendaDetailDialog({ activity, open, onOpenChange }: AgendaDetai
             <dl className="grid gap-3 sm:grid-cols-2">
               <div>
                 <dt className="text-xs text-ink-tertiary">Pengajar</dt>
-                <dd className="font-medium">{activity.instructor_name}</dd>
+                <dd className="font-medium">{activity.instructor_name || '—'}</dd>
               </div>
               <div>
                 <dt className="text-xs text-ink-tertiary">PIC/BPH</dt>

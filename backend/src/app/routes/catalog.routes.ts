@@ -13,6 +13,7 @@ import type { AppDependencies } from '../app.dependencies.js';
 import contestEntriesRoutes from '../../modules/contest-entries/contest-entries.routes.js';
 import contestAchievementsRoutes from '../../modules/contest-achievements/contest-achievements.routes.js';
 import agendaRoutes from '../../modules/agenda/agenda.routes.js';
+import socialMediaRoutes from '../../modules/social-media/social-media.routes.js';
 
 export async function registerCatalogRoutes(
   fastify: FastifyInstance,
@@ -57,4 +58,5 @@ export async function registerCatalogRoutes(
   await fastify.register(filmWorksRoutes, { filmWorksService: dependencies.filmWorksService });
   await fastify.register(accessControlRoutes, { accessControlService: dependencies.accessControlService });
   await fastify.register(agendaRoutes, { agendaService: dependencies.agendaService });
+  await fastify.register(socialMediaRoutes, { socialMediaService: dependencies.socialMediaService, persistAuditLog: dependencies.persistAuditLog });
 }

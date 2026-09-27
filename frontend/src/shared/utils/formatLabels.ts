@@ -40,6 +40,7 @@ const ROLE_LABELS: Record<string, string> = {
   secretary: 'Sekretaris',
   equipment_team: 'Tim Alat',
   contest_team: 'Tim Lomba',
+  social_media_team: 'Tim Humas',
   member: 'Siswa / Anggota',
 };
 

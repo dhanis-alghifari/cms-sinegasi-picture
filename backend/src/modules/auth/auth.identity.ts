@@ -31,7 +31,7 @@ const authStateCache = new Map<string, { expiresAt: number; user: AuthoritativeU
 function isUserRole(value: unknown): value is UserRole {
   return typeof value === 'string' && [
     'teacher', 'leader', 'vice_leader', 'treasurer', 'secretary',
-    'equipment_team', 'contest_team', 'member',
+    'equipment_team', 'contest_team', 'social_media_team', 'member',
   ].includes(value);
 }
 
