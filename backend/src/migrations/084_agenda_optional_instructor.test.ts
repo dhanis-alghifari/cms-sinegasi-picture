@@ -10,6 +10,7 @@ test('optional agenda instructor migration updates existing atomic RPCs without 
   assert.match(sql, /update_agenda_activity_atomic\(uuid,date,text,text,text,text\[\],integer,text,uuid,text,uuid,uuid,text\)/);
   assert.equal((sql.match(/CREATE TABLE/gi) || []).length, 0);
   assert.ok(sql.includes("NULLIF(btrim(p_instructor_name), '''')"));
+  assert.match(sql, /ELSIF strpos\(v_rewritten, v_new\) = 0 THEN/);
   assert.match(sql, /AGENDA_CREATE_INSTRUCTOR_VALIDATION_NOT_FOUND/);
   assert.match(sql, /AGENDA_UPDATE_INSTRUCTOR_VALIDATION_NOT_FOUND/);
 });

@@ -33,12 +33,18 @@ BEGIN
 
   v_old := 'OR length(btrim(COALESCE(p_instructor_name, ''''))) NOT BETWEEN 2 AND 120';
   v_new := 'OR (NULLIF(btrim(COALESCE(p_instructor_name, '''')), '''') IS NOT NULL AND length(btrim(p_instructor_name)) NOT BETWEEN 2 AND 120)';
-  IF strpos(v_rewritten, v_old) = 0 THEN RAISE EXCEPTION 'AGENDA_CREATE_INSTRUCTOR_VALIDATION_NOT_FOUND'; END IF;
-  v_rewritten := replace(v_rewritten, v_old, v_new);
+  IF strpos(v_rewritten, v_old) > 0 THEN
+    v_rewritten := replace(v_rewritten, v_old, v_new);
+  ELSIF strpos(v_rewritten, v_new) = 0 THEN
+    RAISE EXCEPTION 'AGENDA_CREATE_INSTRUCTOR_VALIDATION_NOT_FOUND';
+  END IF;
   v_old := 'p_activity_date, btrim(p_activity_name), btrim(p_activity_description), btrim(p_instructor_name), p_pic_names';
   v_new := 'p_activity_date, btrim(p_activity_name), btrim(p_activity_description), NULLIF(btrim(p_instructor_name), ''''), p_pic_names';
-  IF strpos(v_rewritten, v_old) = 0 THEN RAISE EXCEPTION 'AGENDA_CREATE_INSTRUCTOR_VALUE_NOT_FOUND'; END IF;
-  v_rewritten := replace(v_rewritten, v_old, v_new);
+  IF strpos(v_rewritten, v_old) > 0 THEN
+    v_rewritten := replace(v_rewritten, v_old, v_new);
+  ELSIF strpos(v_rewritten, v_new) = 0 THEN
+    RAISE EXCEPTION 'AGENDA_CREATE_INSTRUCTOR_VALUE_NOT_FOUND';
+  END IF;
   EXECUTE v_rewritten;
 
   v_signature := to_regprocedure('public.update_agenda_activity_atomic(uuid,date,text,text,text,text[],integer,text,uuid,text,uuid,uuid,text)');
@@ -46,12 +52,18 @@ BEGIN
   v_rewritten := v_definition;
   v_old := 'OR length(btrim(COALESCE(p_instructor_name, ''''))) NOT BETWEEN 2 AND 120';
   v_new := 'OR (NULLIF(btrim(COALESCE(p_instructor_name, '''')), '''') IS NOT NULL AND length(btrim(p_instructor_name)) NOT BETWEEN 2 AND 120)';
-  IF strpos(v_rewritten, v_old) = 0 THEN RAISE EXCEPTION 'AGENDA_UPDATE_INSTRUCTOR_VALIDATION_NOT_FOUND'; END IF;
-  v_rewritten := replace(v_rewritten, v_old, v_new);
+  IF strpos(v_rewritten, v_old) > 0 THEN
+    v_rewritten := replace(v_rewritten, v_old, v_new);
+  ELSIF strpos(v_rewritten, v_new) = 0 THEN
+    RAISE EXCEPTION 'AGENDA_UPDATE_INSTRUCTOR_VALIDATION_NOT_FOUND';
+  END IF;
   v_old := 'instructor_name = btrim(p_instructor_name)';
   v_new := 'instructor_name = NULLIF(btrim(p_instructor_name), '''')';
-  IF strpos(v_rewritten, v_old) = 0 THEN RAISE EXCEPTION 'AGENDA_UPDATE_INSTRUCTOR_VALUE_NOT_FOUND'; END IF;
-  v_rewritten := replace(v_rewritten, v_old, v_new);
+  IF strpos(v_rewritten, v_old) > 0 THEN
+    v_rewritten := replace(v_rewritten, v_old, v_new);
+  ELSIF strpos(v_rewritten, v_new) = 0 THEN
+    RAISE EXCEPTION 'AGENDA_UPDATE_INSTRUCTOR_VALUE_NOT_FOUND';
+  END IF;
   EXECUTE v_rewritten;
 END;
 $$;
