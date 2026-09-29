@@ -275,6 +275,7 @@ DECLARE
   v_definition TEXT;
   v_rewritten TEXT;
   v_occurrences INTEGER;
+  v_new_occurrences INTEGER;
   v_is_definer BOOLEAN;
   v_service_execute BOOLEAN;
   v_anon_execute BOOLEAN;
@@ -316,10 +317,19 @@ BEGIN
     IF v_signature IS NULL THEN RAISE EXCEPTION 'SOCIAL_STUDENT_ROLE_FUNCTION_MISSING: %', v_target.signature; END IF;
     v_definition := pg_catalog.pg_get_functiondef(v_signature::OID);
     v_occurrences := (pg_catalog.length(v_definition) - pg_catalog.length(pg_catalog.replace(v_definition, v_target.old_clause, ''))) / pg_catalog.length(v_target.old_clause);
-    IF v_occurrences <> 1 THEN RAISE EXCEPTION 'SOCIAL_STUDENT_ROLE_EXPECTED_ONE_CHECK: %', v_target.signature; END IF;
-    EXECUTE pg_catalog.replace(v_definition, v_target.old_clause, v_target.new_clause);
+    v_new_occurrences := (pg_catalog.length(v_definition) - pg_catalog.length(pg_catalog.replace(v_definition, v_target.new_clause, ''))) / pg_catalog.length(v_target.new_clause);
+    IF v_occurrences = 1 AND v_new_occurrences = 0 THEN
+      EXECUTE pg_catalog.replace(v_definition, v_target.old_clause, v_target.new_clause);
+    ELSIF v_occurrences = 0 AND v_new_occurrences = 1 THEN
+      NULL;
+    ELSE
+      RAISE EXCEPTION 'SOCIAL_STUDENT_ROLE_EXPECTED_ONE_CHECK: %', v_target.signature;
+    END IF;
+
     v_definition := pg_catalog.pg_get_functiondef(v_signature::OID);
-    IF pg_catalog.strpos(v_definition, v_target.new_clause) = 0 OR pg_catalog.strpos(v_definition, v_target.old_clause) > 0 THEN
+    v_occurrences := (pg_catalog.length(v_definition) - pg_catalog.length(pg_catalog.replace(v_definition, v_target.old_clause, ''))) / pg_catalog.length(v_target.old_clause);
+    v_new_occurrences := (pg_catalog.length(v_definition) - pg_catalog.length(pg_catalog.replace(v_definition, v_target.new_clause, ''))) / pg_catalog.length(v_target.new_clause);
+    IF v_new_occurrences <> 1 OR v_occurrences <> 0 THEN
       RAISE EXCEPTION 'SOCIAL_STUDENT_ROLE_REWRITE_FAILED: %', v_target.signature;
     END IF;
     SELECT proc.prosecdef,
