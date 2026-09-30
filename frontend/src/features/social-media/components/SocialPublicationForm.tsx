@@ -6,7 +6,6 @@ import { Label } from '@/shared/ui/primitives/label';
 import { Textarea } from '@/shared/ui/primitives/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/primitives/select';
 import { EvidenceFileField } from './EvidenceFileField';
-import type { AgendaActivity } from '@/features/agenda/types/agenda.types';
 import type { CreatePublicationInput, PublicationType, SocialAccount, SocialPlatform } from '../types/socialMedia.types';
 import { CONTENT_TYPES_BY_PLATFORM, SOCIAL_CONTENT_LABELS, SOCIAL_PLATFORM_LABELS, getPublicationValidationError, isStoryPublication } from '../utils/publicationRules';
 
@@ -22,19 +21,17 @@ function getPlatformUrlLabel(requiresPhoto: boolean, platform: SocialPlatform): 
 
 interface SocialPublicationFormProps {
   accounts: SocialAccount[];
-  activities: AgendaActivity[];
   isSaving: boolean;
   onSubmit: (input: CreatePublicationInput, evidence: File | null) => Promise<void>;
 }
 
-export function SocialPublicationForm({ accounts, activities, isSaving, onSubmit }: SocialPublicationFormProps) {
+export function SocialPublicationForm({ accounts, isSaving, onSubmit }: SocialPublicationFormProps) {
   const activeAccounts = accounts.filter((account) => account.is_active);
   const [accountId, setAccountId] = useState(activeAccounts[0]?.id ?? '');
   const [contentType, setContentType] = useState<PublicationType>('feed');
   const [caption, setCaption] = useState('');
   const [publishedAt, setPublishedAt] = useState(jakartaToday());
   const [platformUrl, setPlatformUrl] = useState('');
-  const [agendaActivityId, setAgendaActivityId] = useState('');
   const [evidence, setEvidence] = useState<File | null>(null);
   const [error, setError] = useState('');
 
@@ -66,12 +63,10 @@ export function SocialPublicationForm({ accounts, activities, isSaving, onSubmit
         caption: caption.trim(),
         published_at: publishedAt,
         ...(platformUrl.trim() ? { platform_url: platformUrl.trim() } : {}),
-        ...(agendaActivityId ? { agenda_activity_id: agendaActivityId } : {}),
         status: requiresPhoto || evidence ? 'draft' : 'recorded',
       }, evidence);
       setCaption('');
       setPlatformUrl('');
-      setAgendaActivityId('');
       setEvidence(null);
       setPublishedAt(jakartaToday());
     } catch (submitError) {
@@ -83,7 +78,7 @@ export function SocialPublicationForm({ accounts, activities, isSaving, onSubmit
     <form onSubmit={submit} className="space-y-4 rounded-xl border border-hairline bg-surface-1 p-4" aria-label="Form catat publikasi media sosial">
       <div>
         <h3 className="text-base font-semibold text-ink">Catat konten yang sudah dipublikasikan</h3>
-        <p className="mt-1 text-xs text-ink-subtle">Pilih akun lalu lengkapi tautan atau bukti sesuai jenis konten. Kaitan kegiatan bersifat opsional.</p>
+        <p className="mt-1 text-xs text-ink-subtle">Pilih akun lalu lengkapi tautan atau bukti sesuai jenis konten.</p>
       </div>
       {activeAccounts.length === 0 ? (
         <p role="status" className="rounded-lg border border-semantic-warning/40 bg-semantic-warning/10 p-3 text-sm text-ink-subtle">Belum ada akun media sosial aktif. Hubungi Guru Pembina untuk mengatur akun resmi.</p>
@@ -95,7 +90,6 @@ export function SocialPublicationForm({ accounts, activities, isSaving, onSubmit
             <label className="space-y-1 text-xs text-ink-subtle"><span>Tanggal tayang *</span><Input type="date" max={jakartaToday()} value={publishedAt} onChange={(event) => setPublishedAt(event.target.value)} className="min-h-11" /></label>
             <div className="space-y-1"><Label htmlFor="social-publication-url">Tautan konten{getPlatformUrlLabel(requiresPhoto, platform)}</Label><Input id="social-publication-url" type="url" value={platformUrl} onChange={(event) => setPlatformUrl(event.target.value)} className="min-h-11" placeholder={requiresPhoto ? 'Story dibuktikan dengan foto' : 'https://'} disabled={requiresPhoto} />{!requiresPhoto && <p className="text-[11px] text-ink-tertiary">Tautan harus HTTPS dan berasal dari platform yang dipilih.</p>}</div>
             <div className="space-y-1 sm:col-span-2"><Label htmlFor="social-publication-caption">Uraian konten *</Label><Textarea id="social-publication-caption" rows={3} value={caption} onChange={(event) => setCaption(event.target.value)} className="min-h-24" placeholder="Ringkas isi konten yang sudah tayang" /></div>
-            <div className="space-y-1 sm:col-span-2"><Label htmlFor="social-publication-activity">Kaitan kegiatan SP (opsional)</Label><Select value={agendaActivityId || 'none'} onValueChange={(value) => setAgendaActivityId(value === 'none' ? '' : value ?? '')}><SelectTrigger id="social-publication-activity" className="min-h-11"><SelectValue placeholder="Tidak dikaitkan" /></SelectTrigger><SelectContent><SelectItem value="none">Tidak dikaitkan dengan agenda</SelectItem>{activities.map((activity) => <SelectItem key={activity.id} value={activity.id}>{activity.activity_date} · {activity.activity_name}</SelectItem>)}</SelectContent></Select><p className="text-[11px] text-ink-tertiary">Gunakan Agenda untuk kegiatan resmi; konten rutin tetap dapat dicatat tanpa kaitan.</p></div>
           </div>
           {(requiresPhoto || platform === 'whatsapp') && <EvidenceFileField id="social-publication-evidence" label={platform === 'whatsapp' ? 'Foto bukti Channel WhatsApp (wajib jika tautan tidak tersedia)' : 'Foto bukti Story'} value={evidence} onChange={setEvidence} required={requiresPhoto || (platform === 'whatsapp' && !platformUrl.trim())} disabled={isSaving} helperText="Foto atau tangkapan layar privat; JPEG, PNG, atau WebP maksimal 5 MB." />}
           {error && <p role="alert" className="rounded-lg border border-semantic-danger/30 bg-semantic-danger/10 p-3 text-sm text-semantic-danger">{error}</p>}

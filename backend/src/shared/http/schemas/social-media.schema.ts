@@ -39,7 +39,7 @@ export const socialPublicationCreateSchema = {
   body: { type: 'object', additionalProperties: false, required: ['social_account_id', 'content_type', 'caption', 'published_at'], properties: {
     social_account_id: { type: 'string', minLength: 1, maxLength: 64 }, content_type: { type: 'string', enum: ['feed', 'reel', 'story', 'video', 'short', 'community_post', 'channel_post'] },
     caption: { type: 'string', minLength: 3, maxLength: 5000 }, published_at: date, platform_url: { type: 'string', maxLength: 500 },
-    agenda_activity_id: { type: 'string', maxLength: 64 }, status: { type: 'string', enum: ['draft', 'recorded'] },
+    status: { type: 'string', enum: ['draft', 'recorded'] },
   } },
 } as const;
 export const socialPublicationFinalizeSchema = {

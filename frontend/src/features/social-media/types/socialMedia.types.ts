@@ -32,7 +32,6 @@ export interface SocialPublication {
   caption: string;
   published_at: string;
   platform_url: string | null;
-  agenda_activity_id: string | null;
   status: PublicationStatus;
   version: number;
   created_by: string | null;
@@ -130,7 +129,6 @@ export interface CreatePublicationInput {
   caption: string;
   published_at: string;
   platform_url?: string;
-  agenda_activity_id?: string;
   status?: 'draft' | 'recorded';
 }
 

@@ -35,7 +35,6 @@ export interface SocialPublication {
   caption: string;
   published_at: string;
   platform_url: string | null;
-  agenda_activity_id: string | null;
   status: SocialStatus;
   version: number;
   created_by: string | null;

@@ -79,7 +79,7 @@ const socialMediaRoutes: FastifyPluginAsync<SocialMediaRoutesOptions> = async (f
 
   fastify.post('/api/social-media/publications', { schema: socialPublicationCreateSchema, preHandler: publicationManage }, async (request, reply) => {
     try {
-      const body = request.body as { social_account_id: string; content_type: string; caption: string; published_at: string; platform_url?: string; agenda_activity_id?: string; status?: 'draft' | 'recorded' };
+      const body = request.body as { social_account_id: string; content_type: string; caption: string; published_at: string; platform_url?: string; status?: 'draft' | 'recorded' };
       const actorId = await actorIdFor(request, options.socialMediaService);
       const result = await options.socialMediaService.createPublication(body, actorId, idempotencyKey(request), changeReason(request));
       if (!result.idempotentReplay) await options.persistAuditLog(request, { action: 'INSERT', tableName: 'social_publications', recordId: result.data.id, newValues: result.data as unknown as Record<string, unknown>, changeReason: changeReason(request) });

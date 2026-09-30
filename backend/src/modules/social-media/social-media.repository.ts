@@ -7,6 +7,7 @@ import type {
 
 type SupabaseLike = SupabaseClient | null;
 const PAGE_SIZE = 1_000;
+const PUBLICATION_SELECT = 'id,social_account_id,platform,content_type,caption,published_at,platform_url,status,version,created_by,created_at,updated_at,social_accounts(platform)';
 
 function row(value: unknown): DatabaseRow {
   return value && typeof value === 'object' ? value as DatabaseRow : {};
@@ -44,7 +45,7 @@ function mapPublication(value: unknown): SocialPublication {
     platform: text(item.platform || account.platform) as SocialPlatform,
     content_type: text(item.content_type) as SocialPublication['content_type'],
     caption: text(item.caption), published_at: text(item.published_at),
-    platform_url: nullableText(item.platform_url), agenda_activity_id: nullableText(item.agenda_activity_id),
+    platform_url: nullableText(item.platform_url),
     status: text(item.status) as SocialPublication['status'], version: Number(item.version || 1),
     created_by: nullableText(item.created_by), created_at: text(item.created_at), updated_at: text(item.updated_at),
     evidence: [],
@@ -84,7 +85,6 @@ function samePublicationPayload(existing: DatabaseRow, input: Record<string, unk
     && existing.caption === input.caption
     && existing.published_at === input.published_at
     && (existing.platform_url ?? null) === (input.platform_url || null)
-    && (existing.agenda_activity_id ?? null) === (input.agenda_activity_id || null)
     && existing.status === (input.status || 'draft');
 }
 
@@ -182,7 +182,7 @@ export function createSocialMediaRepository(client: SupabaseLike, _state: Social
 
     async listPublications(input) {
       const db = requireClient(); if (!db) return { data: [], total: 0, page: input.page, pageSize: input.pageSize, totalPages: 1 };
-      let query = db.from('social_publications').select('*,social_accounts(platform)', { count: 'exact' })
+      let query = db.from('social_publications').select(PUBLICATION_SELECT, { count: 'exact' })
         .gte('published_at', input.from).lte('published_at', input.to).neq('status', 'archived');
       if (input.platform) query = query.eq('platform', input.platform);
       const from = (input.page - 1) * input.pageSize;
@@ -199,7 +199,7 @@ export function createSocialMediaRepository(client: SupabaseLike, _state: Social
 
     async createPublication(input) {
       const db = requireClient(); if (!db) return memoryNotConfigured();
-      const existing = await db.from('social_publications').select('*,social_accounts(platform)').eq('created_by', input.actorId).eq('idempotency_key', input.idempotencyKey).maybeSingle();
+      const existing = await db.from('social_publications').select(PUBLICATION_SELECT).eq('created_by', input.actorId).eq('idempotency_key', input.idempotencyKey).maybeSingle();
       if (existing.error) return mapMutationError(existing.error);
       if (existing.data) {
         if (!samePublicationPayload(existing.data, input)) return { error: new Error('SOCIAL_IDEMPOTENCY_REUSED') };
@@ -208,11 +208,11 @@ export function createSocialMediaRepository(client: SupabaseLike, _state: Social
       const result = await db.from('social_publications').insert({
         social_account_id: input.social_account_id, platform: input.platform, content_type: input.content_type,
         caption: input.caption, published_at: input.published_at, platform_url: input.platform_url || null,
-        agenda_activity_id: input.agenda_activity_id || null, status: input.status || 'draft',
+        status: input.status || 'draft',
         idempotency_key: input.idempotencyKey, created_by: input.actorId, updated_by: input.actorId,
-      }).select('*,social_accounts(platform)').single();
+      }).select(PUBLICATION_SELECT).single();
       if (result.error?.code === '23505') {
-        const retry = await db.from('social_publications').select('*,social_accounts(platform)').eq('created_by', input.actorId).eq('idempotency_key', input.idempotencyKey).maybeSingle();
+        const retry = await db.from('social_publications').select(PUBLICATION_SELECT).eq('created_by', input.actorId).eq('idempotency_key', input.idempotencyKey).maybeSingle();
         if (!retry.error && retry.data && samePublicationPayload(retry.data, input)) return { data: mapPublication(retry.data), idempotentReplay: true };
         if (!retry.error && retry.data) return { error: new Error('SOCIAL_IDEMPOTENCY_REUSED') };
       }
@@ -222,7 +222,7 @@ export function createSocialMediaRepository(client: SupabaseLike, _state: Social
 
     async getPublication(id) {
       const db = requireClient(); if (!db) return { data: null };
-      const result = await db.from('social_publications').select('*,social_accounts(platform)').eq('id', id).maybeSingle();
+      const result = await db.from('social_publications').select(PUBLICATION_SELECT).eq('id', id).maybeSingle();
       if (result.error) return mapMutationError(result.error);
       if (!result.data) return { data: null };
       const publication = mapPublication(result.data);
@@ -246,14 +246,14 @@ export function createSocialMediaRepository(client: SupabaseLike, _state: Social
 
     async finalizePublication(input) {
       const db = requireClient(); if (!db) return memoryNotConfigured();
-      const current = await db.from('social_publications').select('*,social_accounts(platform)').eq('id', input.id).maybeSingle();
+      const current = await db.from('social_publications').select(PUBLICATION_SELECT).eq('id', input.id).maybeSingle();
       if (current.error) return mapMutationError(current.error);
       if (!current.data) return { error: new Error('SOCIAL_PUBLICATION_NOT_FOUND') };
       if (Number(current.data.version) !== input.expectedVersion) return { error: new Error('SOCIAL_VERSION_CONFLICT') };
       if (current.data.status === 'recorded') return { data: mapPublication(current.data) };
       if (current.data.status !== 'draft') return { error: new Error('SOCIAL_PUBLICATION_NOT_DRAFT') };
       const result = await db.from('social_publications').update({ status: 'recorded', updated_by: input.actorId, updated_at: new Date().toISOString(), version: input.expectedVersion + 1 })
-        .eq('id', input.id).eq('version', input.expectedVersion).select('*,social_accounts(platform)').maybeSingle();
+        .eq('id', input.id).eq('version', input.expectedVersion).select(PUBLICATION_SELECT).maybeSingle();
       if (result.error) return mapMutationError(result.error);
       return result.data ? { data: mapPublication(result.data) } : { error: new Error('SOCIAL_VERSION_CONFLICT') };
     },
@@ -429,7 +429,7 @@ export function createSocialMediaRepository(client: SupabaseLike, _state: Social
       const [activitiesResult, publicationsResult, snapshotsResult, insightResult] = await Promise.all([
         collectAll((start, end) => db.from('agenda_activities').select('id,activity_date,activity_name,activity_description,instructor_name,pic_names,agenda_activity_photos(id,object_key,upload_status,mime_type,file_size_bytes,original_filename,created_at)')
           .is('archived_at', null).gte('activity_date', from).lte('activity_date', to).order('activity_date', { ascending: false }).order('id', { ascending: false }).range(start, end), maxRows),
-        collectAll((start, end) => db.from('social_publications').select('*,social_accounts(platform)')
+        collectAll((start, end) => db.from('social_publications').select(PUBLICATION_SELECT)
           .eq('status', 'recorded').gte('published_at', from).lte('published_at', to).order('published_at', { ascending: false }).order('id', { ascending: false }).range(start, end), maxRows),
         collectAll((start, end) => db.from('social_account_snapshots').select('*,social_accounts(platform)')
           .gte('as_of_date', from).lte('as_of_date', to).order('as_of_date', { ascending: false }).order('id', { ascending: false }).range(start, end), maxRows),

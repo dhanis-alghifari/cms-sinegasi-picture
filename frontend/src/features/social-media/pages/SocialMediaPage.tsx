@@ -1,6 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
 import { BarChart3, FileText, Image as ImageIcon, Link2, Megaphone, Plus, RefreshCw, Users } from 'lucide-react';
-import { useAgendaQuery } from '@/features/agenda/hooks/useAgendaQueries';
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import { Link } from 'react-router-dom';
 import { hasCapability } from '@/shared/auth/capabilities';
@@ -74,7 +73,6 @@ function PublicationCard({ publication, accountName, canResume, onResume }: { pu
     </div>
     <p className="text-xs text-ink-subtle">Tayang {formatDate(publication.published_at)}</p>
     {publication.platform_url && <a href={publication.platform_url} target="_blank" rel="noreferrer" className="inline-flex min-h-11 max-w-full items-center gap-2 break-all text-sm text-primary underline underline-offset-2"><Link2 size={15} aria-hidden="true" />Buka tautan konten</a>}
-    {publication.agenda_activity_id && <p className="text-xs text-ink-tertiary">Terkait agenda kegiatan</p>}
     {publication.evidence.length > 0 && <p className="inline-flex items-center gap-2 text-xs text-ink-subtle"><ImageIcon size={14} aria-hidden="true" />{publication.evidence.length} bukti foto privat terlampir</p>}
     {canResume && publication.status === 'draft' && <div><Button type="button" variant="outline" className="min-h-11" onClick={() => onResume(publication)}><FileText size={15} aria-hidden="true" /> Lanjutkan draft</Button></div>}
   </article>;
@@ -113,7 +111,6 @@ export function SocialMediaPage() {
   const canManagePublications = hasCapability(user, 'social_media.publications.manage');
   const canManageMetrics = hasCapability(user, 'social_media.metrics.manage');
   const canManageAccounts = hasCapability(user, 'social_media.accounts.manage');
-  const canLinkAgenda = hasCapability(user, 'agenda.read');
   const canWriteAgenda = hasCapability(user, 'agenda.write');
   const initialRange = useMemo(() => getDefaultSocialDateRange(), []);
   const [tab, setTab] = useState<SocialTab>('publications');
@@ -135,7 +132,6 @@ export function SocialMediaPage() {
   const publicationsQuery = useSocialPublicationsQuery(publicationFilters, canRead && tab === 'publications' && !dateRangeError);
   const metricsQuery = useSocialMetricsQuery(dateFilters, canRead && tab === 'growth' && !dateRangeError);
   const reportQuery = useSocialReportQuery(dateFilters, canRead && reportOpen && !dateRangeError);
-  const agendaQuery = useAgendaQuery({ date_from: from, date_to: to, page: 1, pageSize: 100 }, canLinkAgenda && canManagePublications && tab === 'publications' && !dateRangeError);
   const createPublication = useCreateSocialPublicationMutation();
   const uploadEvidence = useUploadPublicationEvidenceMutation();
   const finalizePublication = useFinalizeSocialPublicationMutation();
@@ -144,7 +140,6 @@ export function SocialMediaPage() {
   const accounts = accountsQuery.data ?? [];
   const publications = publicationsQuery.data?.data ?? [];
   const accountNames = new Map(accounts.map((account) => [account.id, account.account_name]));
-  const agendaActivities = agendaQuery.data?.data ?? [];
   const isBusy = isSubmittingPublication || createPublication.isPending || uploadEvidence.isPending || finalizePublication.isPending;
 
   const recordPublication = async (input: CreatePublicationInput, evidence: File | null) => {
@@ -287,7 +282,7 @@ export function SocialMediaPage() {
     {tab === 'publications' && !dateRangeError && <section className="space-y-4" aria-label="Publikasi media sosial">
       {canManagePublications && <>
         {canWriteAgenda && <Link to="/agenda" className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-hairline bg-surface-1 px-3 py-2 text-sm font-medium text-primary hover:bg-surface-2"><Plus size={15} aria-hidden="true" /> Catat kegiatan SP di Agenda</Link>}
-        <SocialPublicationForm accounts={accounts} activities={agendaActivities} isSaving={isBusy} onSubmit={recordPublication} />
+        <SocialPublicationForm accounts={accounts} isSaving={isBusy} onSubmit={recordPublication} />
       </>}
       {publicationsQuery.isPending && <DataTableSkeleton columns={4} rows={5} label="Memuat publikasi..." />}
       {publicationsQuery.isError && <QueryErrorState title="Publikasi belum dapat dimuat" error={publicationsQuery.error} onRetry={() => void publicationsQuery.refetch()} />}

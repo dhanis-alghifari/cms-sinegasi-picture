@@ -103,14 +103,13 @@ function A4Report({ report, onPreview, onImageResolved }: { report: SocialReport
       <section className="space-y-2">
         <h2 className="text-base font-semibold">Publikasi konten</h2>
         <div className="overflow-x-auto"><table className="w-full border-collapse text-left">
-          <thead><tr className="bg-surface-2"><th className="border-b border-hairline p-2">Tanggal</th><th className="border-b border-hairline p-2">Platform / jenis</th><th className="border-b border-hairline p-2">Uraian</th><th className="border-b border-hairline p-2">Tautan / bukti</th><th className="border-b border-hairline p-2">Agenda</th></tr></thead>
+          <thead><tr className="bg-surface-2"><th className="border-b border-hairline p-2">Tanggal</th><th className="border-b border-hairline p-2">Platform / jenis</th><th className="border-b border-hairline p-2">Uraian</th><th className="border-b border-hairline p-2">Tautan / bukti</th></tr></thead>
           <tbody>{report.publications.map((row) => <tr key={row.id} className="align-top">
             <td className="border-b border-hairline p-2">{formatDate(row.published_at)}</td>
             <td className="border-b border-hairline p-2">{row.platform}<br />{row.content_type}</td>
             <td className="border-b border-hairline p-2 whitespace-pre-wrap">{row.caption}</td>
             <td className="border-b border-hairline p-2">{row.platform_url ? <a className="break-all underline" href={row.platform_url}>{row.platform_url}</a> : '—'}<div className="mt-1">{evidenceFor(row.evidence, `publication:${row.id}`, onPreview, onImageResolved)}</div></td>
-            <td className="border-b border-hairline p-2">{row.agenda_activity_id ?? '—'}</td>
-          </tr>)}{report.publications.length === 0 && <tr><td colSpan={5} className="p-4 text-center text-ink-tertiary">Tidak ada publikasi pada rentang ini.</td></tr>}</tbody>
+          </tr>)}{report.publications.length === 0 && <tr><td colSpan={4} className="p-4 text-center text-ink-tertiary">Tidak ada publikasi pada rentang ini.</td></tr>}</tbody>
         </table></div>
       </section>
       <section className="space-y-2">

@@ -38,7 +38,7 @@ test('WhatsApp channel post without link needs attached evidence before finaliza
   const publication = {
     id: 'publication-1', social_account_id: whatsappAccount.id, platform: 'whatsapp' as const,
     content_type: 'channel_post' as const, caption: 'Informasi kegiatan', published_at: '2026-09-27',
-    platform_url: null, agenda_activity_id: null, status: 'draft' as const, version: 1,
+    platform_url: null, status: 'draft' as const, version: 1,
     created_by: 'actor-1', created_at: '2026-09-27T00:00:00.000Z', updated_at: '2026-09-27T00:00:00.000Z', evidence: [],
   };
   const service = serviceWith({

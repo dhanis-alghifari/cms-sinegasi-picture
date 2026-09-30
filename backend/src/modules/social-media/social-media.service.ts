@@ -167,7 +167,7 @@ export class SocialMediaService {
     return { ...result, data: result.data.map((publication) => this.publicationPublic(publication)) };
   }
 
-  async createPublication(input: { social_account_id: string; content_type: string; caption: string; published_at: string; platform_url?: string; agenda_activity_id?: string; status?: 'draft' | 'recorded' }, actorId: string, key: unknown, reason: unknown) {
+  async createPublication(input: { social_account_id: string; content_type: string; caption: string; published_at: string; platform_url?: string; status?: 'draft' | 'recorded' }, actorId: string, key: unknown, reason: unknown) {
     const context = mutationContext(actorId, key, reason);
     const accountId = requiredText(input.social_account_id, 'Akun resmi', 64);
     const account = (await this.accounts()).find((item) => item.id === accountId);
@@ -185,7 +185,7 @@ export class SocialMediaService {
     const result = await this.repository.createPublication({
       ...context, social_account_id: account.id, platform: account.platform, content_type: input.content_type,
       caption, published_at: input.published_at, platform_url: platformUrl || null,
-      agenda_activity_id: input.agenda_activity_id || null, status: input.status || 'draft',
+      status: input.status || 'draft',
     });
     if ('error' in result) failRepository(result.error);
     return { ...result, data: this.publicationPublic(result.data) };

@@ -45,7 +45,6 @@ export const socialPublicationSchema: z.ZodType<SocialPublication> = z.object({
   caption: z.string(),
   published_at: z.string().min(1),
   platform_url: z.string().url().nullable(),
-  agenda_activity_id: z.string().nullable(),
   status: z.enum(['draft', 'recorded', 'archived']),
   version: z.number().int().positive(),
   created_by: z.string().nullable(),
