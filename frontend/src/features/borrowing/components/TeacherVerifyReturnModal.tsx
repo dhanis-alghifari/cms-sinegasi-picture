@@ -3,6 +3,7 @@ import { CheckCircle2, ImageIcon, Loader2, ShieldCheck, XCircle } from 'lucide-r
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/shared/ui/primitives/dialog';
 import { Button } from '@/shared/ui/primitives/button';
 import { Input } from '@/shared/ui/primitives/input';
+import { FormattedNumberInput } from '@/shared/ui/FormattedNumberInput';
 import { Label } from '@/shared/ui/primitives/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/primitives/select';
 import { Textarea } from '@/shared/ui/primitives/textarea';
@@ -306,9 +307,9 @@ export function TeacherVerifyReturnModal({ open, onOpenChange, record, onSubmit,
                             </div>}
                             {defaultSettlement(state.condition) === 'repair' && <div className="space-y-1 sm:col-span-2">
                               <Label htmlFor={`return-repair-cost-${item.equipment_id}`} className="text-[10px] text-ink-muted">Biaya perbaikan <span className="text-semantic-danger">*</span></Label>
-                              <Input id={`return-repair-cost-${item.equipment_id}`} type="number" min="1" step="1" value={state.repair_cost ?? ''} onChange={(event) => {
+                              <FormattedNumberInput id={`return-repair-cost-${item.equipment_id}`} inputMode="numeric" min="1" step="1" value={state.repair_cost} onChange={(repairCost) => {
                                 setItemErrors((current) => ({ ...current, [item.equipment_id]: '' }));
-                                setItemStates((current) => ({ ...current, [item.equipment_id]: { ...current[item.equipment_id], repair_cost: event.target.value ? Number(event.target.value) : undefined } }));
+                                setItemStates((current) => ({ ...current, [item.equipment_id]: { ...current[item.equipment_id], repair_cost: repairCost } }));
                               }} className="h-11 bg-surface-2 text-xs" placeholder="Masukkan nominal biaya" />
                             </div>}
                             {defaultSettlement(state.condition) === 'replacement' && <p className="sm:col-span-2 rounded-md border border-dashed border-hairline bg-surface-2 px-2.5 py-2 text-[10px] leading-4 text-ink-subtle">

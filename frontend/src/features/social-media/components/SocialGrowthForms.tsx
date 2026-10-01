@@ -3,6 +3,7 @@ import { BarChart3, Loader2, Users } from 'lucide-react';
 import { getErrorMessage } from '@/shared/api/errors';
 import { Button } from '@/shared/ui/primitives/button';
 import { Input } from '@/shared/ui/primitives/input';
+import { FormattedNumberInput } from '@/shared/ui/FormattedNumberInput';
 import { Label } from '@/shared/ui/primitives/label';
 import { Textarea } from '@/shared/ui/primitives/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/primitives/select';
@@ -79,7 +80,7 @@ function AudienceSnapshotForm({ accounts }: { accounts: SocialAccount[] }) {
         <div className="grid gap-3 sm:grid-cols-2">
           <AccountSelector accounts={accounts} value={accountId} onChange={setAccountId} id="social-snapshot-account" />
           <label className="space-y-1 text-xs text-ink-subtle"><span>Tanggal data *</span><Input type="date" max={getJakartaToday()} value={date} onChange={(event) => setDate(event.target.value)} className="min-h-11" /></label>
-          <label className="space-y-1 text-xs text-ink-subtle sm:col-span-2"><span>Jumlah pengikut / subscribers *</span><Input type="number" min="0" step="1" inputMode="numeric" value={audience} onChange={(event) => setAudience(event.target.value)} className="min-h-11" placeholder="Contoh: 1250" /></label>
+          <label className="space-y-1 text-xs text-ink-subtle sm:col-span-2"><span>Jumlah pengikut / subscribers *</span><FormattedNumberInput inputMode="numeric" min="0" step="1" value={numberOrUndefined(audience)} onChange={(value) => setAudience(value === undefined ? '' : String(value))} className="min-h-11" placeholder="Contoh: 1250" /></label>
         </div>
         {error && <p role="alert" className="rounded-lg border border-semantic-danger/30 bg-semantic-danger/10 p-3 text-sm text-semantic-danger">{error}</p>}
         <div className="flex justify-end border-t border-hairline pt-3"><Button type="submit" className="min-h-11 w-full sm:w-auto" disabled={createSnapshot.isPending}><span className="inline-flex items-center gap-2">{createSnapshot.isPending ? <Loader2 className="animate-spin" size={16} aria-hidden="true" /> : <Users size={16} aria-hidden="true" />}{createSnapshot.isPending ? 'Menyimpan...' : 'Simpan jumlah pengikut'}</span></Button></div>
@@ -175,7 +176,7 @@ function InsightPeriodForm({ accounts }: { accounts: SocialAccount[] }) {
             ['interactions', 'Interaksi', interactions, setInteractions],
             ['profile-visits', 'Kunjungan profil', profileVisits, setProfileVisits],
             ['published-count', 'Konten dipublikasikan', publishedCount, setPublishedCount],
-          ] as const).map(([id, label, value, setter]) => <label key={id} className="space-y-1 text-xs text-ink-subtle"><span>{label}</span><Input id={`social-${id}`} type="number" min="0" step="1" inputMode="numeric" value={value} onChange={(event) => setter(event.target.value)} className="min-h-11" placeholder="Opsional" /></label>)}
+          ] as const).map(([id, label, value, setter]) => <label key={id} className="space-y-1 text-xs text-ink-subtle"><span>{label}</span><FormattedNumberInput id={`social-${id}`} inputMode="numeric" min="0" step="1" value={numberOrUndefined(value)} onChange={(nextValue) => setter(nextValue === undefined ? '' : String(nextValue))} className="min-h-11" placeholder="Opsional" /></label>)}
           <label className="space-y-1 text-xs text-ink-subtle sm:col-span-2"><span>Catatan (opsional)</span><Textarea rows={2} value={notes} onChange={(event) => setNotes(event.target.value)} className="min-h-20" placeholder="Contoh: data diambil dari Instagram Insights" /></label>
         </div>
         <EvidenceFileField id="social-insight-evidence" label="Screenshot grafik akun *" value={evidence} onChange={setEvidence} required disabled={isSubmitting} helperText="Ambil dari galeri atau kamera; JPEG, PNG, WebP maksimal 5 MB. Gambar tidak dikompres supaya angka grafik tetap terbaca." />

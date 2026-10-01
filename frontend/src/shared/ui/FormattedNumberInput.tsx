@@ -13,7 +13,7 @@ interface FormattedNumberInputProps extends InputProps {
 }
 
 /** Numeric input with readable grouping while preserving a numeric form value. */
-export function FormattedNumberInput({ value, onChange, onBlur, ref, ...props }: FormattedNumberInputProps) {
+export function FormattedNumberInput({ value, onChange, onBlur, ref, inputMode, ...props }: FormattedNumberInputProps) {
   const [draft, setDraft] = useState(() => formatNumberInput(value));
   const isFocused = useRef(false);
 
@@ -67,7 +67,7 @@ export function FormattedNumberInput({ value, onChange, onBlur, ref, ...props }:
       {...props}
       ref={ref}
       type="text"
-      inputMode="decimal"
+      inputMode={inputMode ?? 'decimal'}
       value={draft}
       onFocus={() => {
         isFocused.current = true;
