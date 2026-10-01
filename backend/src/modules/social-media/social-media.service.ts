@@ -1,7 +1,7 @@
 import { generateR2PrivateAccessUrl, generateR2PrivateUploadUrl, generateR2PrivateUploadUrlForKey, inspectCloudflareR2Object, verifyCloudflareR2ImageObject } from '../../services/cloudflareR2Service.js';
 import { databaseErrorCode, databaseErrorMessage } from '../../shared/database/database.types.js';
 import type {
-  SocialAccount, SocialEvidence, SocialInsightPeriod, SocialMediaRepository, SocialMutationContext,
+  CreateSocialInsightInput, SocialAccount, SocialEvidence, SocialInsightPeriod, SocialMediaRepository, SocialMutationContext,
   SocialPlatform, SocialPublication, SocialSnapshot,
 } from './social-media.types.js';
 
@@ -15,6 +15,14 @@ const CONTENT_TYPES: Readonly<Record<SocialPlatform, readonly string[]>> = {
   youtube: ['video', 'short', 'community_post'],
   whatsapp: ['channel_post'],
 };
+const INSIGHT_METRICS: Readonly<Record<SocialPlatform, readonly (keyof CreateSocialInsightInput)[]>> = {
+  instagram: ['views', 'reach', 'profile_visits', 'likes', 'comments', 'shares', 'saves'],
+  tiktok: ['views', 'profile_visits', 'likes', 'comments', 'shares', 'followers_gained'],
+  youtube: ['views', 'watch_time_minutes', 'subscribers_gained', 'subscribers_lost', 'impressions'],
+  whatsapp: ['reach', 'followers_gained', 'followers_lost', 'reactions', 'poll_votes'],
+};
+const ALL_INSIGHT_METRICS = [...new Set(Object.values(INSIGHT_METRICS).flat())]
+  .filter((key): key is Exclude<keyof CreateSocialInsightInput, 'social_account_id' | 'archive_month' | 'notes'> => key !== 'social_account_id' && key !== 'archive_month' && key !== 'notes');
 const ALLOWED_HOSTS: Readonly<Record<SocialPlatform, readonly string[]>> = {
   instagram: ['instagram.com'],
   tiktok: ['tiktok.com', 'vm.tiktok.com', 'vt.tiktok.com'],
@@ -86,6 +94,10 @@ function failRepository(error: unknown): never {
     SOCIAL_INSIGHT_PERIOD_NOT_DRAFT: [409, 'SOCIAL_INSIGHT_PERIOD_NOT_DRAFT', 'Hanya statistik draft yang dapat direkam.'],
     SOCIAL_STORY_EVIDENCE_REQUIRED: [422, 'SOCIAL_STORY_EVIDENCE_REQUIRED', 'Story Instagram/TikTok wajib memiliki minimal satu foto bukti yang sudah diverifikasi.'],
     SOCIAL_INSIGHT_EVIDENCE_REQUIRED: [422, 'SOCIAL_INSIGHT_EVIDENCE_REQUIRED', 'Statistik wajib memiliki minimal satu foto grafik yang sudah diverifikasi.'],
+    SOCIAL_ARCHIVE_PERIOD_INVALID: [422, 'SOCIAL_ARCHIVE_PERIOD_INVALID', 'Periode arsip bulanan tidak sesuai bulan yang dipilih.'],
+    SOCIAL_ARCHIVE_METRICS_INVALID: [422, 'SOCIAL_ARCHIVE_METRICS_INVALID', 'Isi setidaknya satu metrik yang tersedia untuk platform akun ini.'],
+    SOCIAL_ARCHIVE_LEGACY_METRIC_INVALID: [422, 'SOCIAL_ARCHIVE_METRICS_INVALID', 'Metrik arsip harus sesuai dengan platform akun.'],
+    SOCIAL_ARCHIVE_ALREADY_EXISTS: [409, 'SOCIAL_ARCHIVE_ALREADY_EXISTS', 'Arsip untuk akun dan bulan ini sudah ada. Lanjutkan draft yang tersedia atau pilih bulan lain.'],
     SOCIAL_PUBLICATION_LINK_REQUIRED: [422, 'SOCIAL_PUBLICATION_LINK_REQUIRED', 'Konten ini wajib memiliki tautan publikasi.'],
     SOCIAL_PUBLICATION_LINK_INVALID: [422, 'SOCIAL_PUBLICATION_LINK_INVALID', 'Tautan publikasi harus HTTPS dari platform akun tersebut.'],
     SOCIAL_PLATFORM_MISMATCH: [422, 'SOCIAL_PLATFORM_MISMATCH', 'Jenis konten dan platform akun tidak sesuai.'],
@@ -275,20 +287,37 @@ export class SocialMediaService {
     return { ...result, data: result.data };
   }
 
-  async createInsightPeriod(input: { social_account_id: string; period_start: string; period_end: string; views?: number; reach?: number; interactions?: number; profile_visits?: number; published_count?: number; notes?: string }, actorId: string, key: unknown, reason: unknown) {
+  async createInsightPeriod(input: CreateSocialInsightInput, actorId: string, key: unknown, reason: unknown) {
     const context = mutationContext(actorId, key, reason);
     const account = (await this.accounts()).find((item) => item.id === input.social_account_id);
     if (!account) throw new SocialMediaServiceError(422, 'SOCIAL_ACCOUNT_INACTIVE', 'Pilih akun media sosial resmi yang aktif.');
-    if (!validDate(input.period_start) || !validDate(input.period_end) || input.period_start > input.period_end || input.period_end > jakartaToday() || dateRangeDays(input.period_start, input.period_end) > MAX_REPORT_RANGE_DAYS) {
-      throw new SocialMediaServiceError(422, 'SOCIAL_DATE_RANGE_INVALID', 'Periode statistik harus valid, tidak lebih dari 366 hari, dan tidak boleh di masa depan.');
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(input.archive_month) || input.archive_month >= jakartaToday().slice(0, 7)) {
+      throw new SocialMediaServiceError(422, 'SOCIAL_ARCHIVE_PERIOD_INVALID', 'Pilih bulan arsip yang sudah selesai.');
     }
-    const metricKeys = ['views', 'reach', 'interactions', 'profile_visits', 'published_count'] as const;
+    const [year, month] = input.archive_month.split('-').map(Number);
+    const monthStart = `${input.archive_month}-01`;
+    const monthEnd = new Date(Date.UTC(year!, month!, 0)).toISOString().slice(0, 10);
+    const periodStart = account.platform === 'whatsapp'
+      ? new Date(Date.parse(`${monthEnd}T00:00:00.000Z`) - 29 * 86_400_000).toISOString().slice(0, 10)
+      : monthStart;
+    const metricKeys = ALL_INSIGHT_METRICS;
     for (const keyName of metricKeys) {
       const value = input[keyName];
       if (value !== undefined && (!Number.isSafeInteger(value) || value < 0)) throw new SocialMediaServiceError(422, 'SOCIAL_METRIC_INVALID', 'Metrik harus berupa bilangan bulat nol atau lebih.');
     }
+    const supportedMetrics = INSIGHT_METRICS[account.platform];
+    const supportedMetricSet = new Set<string>(supportedMetrics);
+    if (metricKeys.some((keyName) => input[keyName] !== undefined && !supportedMetricSet.has(keyName))) {
+      throw new SocialMediaServiceError(422, 'SOCIAL_ARCHIVE_METRICS_INVALID', 'Metrik yang dikirim tidak tersedia untuk platform akun ini.');
+    }
+    if (!supportedMetrics.some((keyName) => input[keyName] !== undefined)) {
+      throw new SocialMediaServiceError(422, 'SOCIAL_ARCHIVE_METRICS_INVALID', 'Isi setidaknya satu metrik yang tersedia untuk platform akun ini.');
+    }
     const notes = typeof input.notes === 'string' ? requiredText(input.notes, 'Catatan', 2_000, 0) : '';
-    const result = await this.repository.createInsightPeriod({ ...context, ...input, notes, social_account_id: account.id });
+    const result = await this.repository.createInsightPeriod({
+      ...context, social_account_id: account.id, archive_month: monthStart, period_start: periodStart, period_end: monthEnd,
+      ...Object.fromEntries(metricKeys.map((keyName) => [keyName, input[keyName] ?? null])), notes,
+    });
     if ('error' in result) failRepository(result.error);
     return { ...result, data: this.insightPublic(result.data) };
   }

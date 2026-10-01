@@ -15,6 +15,7 @@ import { formatNumber } from '@/shared/utils/formatNumber';
 import { useCreateSocialPublicationMutation, useFinalizeSocialInsightMutation, useFinalizeSocialPublicationMutation, useSocialAccountsQuery, useSocialMetricsQuery, useSocialPublicationsQuery, useSocialReportQuery, useUploadInsightEvidenceMutation, useUploadPublicationEvidenceMutation } from '../hooks/useSocialMediaQueries';
 import { SocialAccountManager } from '../components/SocialAccountManager';
 import { SocialGrowthForms } from '../components/SocialGrowthForms';
+import { SocialFollowerTrendChart } from '../components/SocialFollowerTrendChart';
 import { SocialPublicationForm } from '../components/SocialPublicationForm';
 import { SocialReportDialog } from '../components/SocialReportDialog';
 import { ResumePublicationDialog } from '../components/ResumePublicationDialog';
@@ -22,6 +23,7 @@ import { ResumeInsightDialog } from '../components/ResumeInsightDialog';
 import type { CreatePublicationInput, SocialInsightPeriod, SocialPublication, SocialPublicationFilters } from '../types/socialMedia.types';
 import { getDefaultSocialDateRange, getJakartaToday, getSocialDateRangeError, formatSocialDateRange } from '../utils/socialMediaDates';
 import { SOCIAL_CONTENT_LABELS, SOCIAL_PLATFORM_LABELS } from '../utils/publicationRules';
+import { formatSocialArchiveMonth, getSocialInsightMetricEntries, getSocialInsightSourceLabel } from '../utils/socialInsightMetrics';
 import { printReport } from '@/shared/utils/printReport';
 import type { ReportPrintFormat } from '@/shared/types/report';
 
@@ -87,18 +89,26 @@ function MetricSummary({ accounts, snapshots, insightPeriods, rangeLabel, canRes
       <div className="rounded-xl border border-hairline bg-surface-1 p-4"><p className="text-xs text-ink-subtle">Platform aktif</p><p className="mt-2 text-2xl font-semibold text-ink">{formatNumber(accounts.length)}</p></div>
       <div className="rounded-xl border border-hairline bg-surface-1 p-4"><p className="text-xs text-ink-subtle">Rentang yang dipilih</p><p className="mt-2 text-sm font-semibold text-ink">{rangeLabel}</p></div>
     </div>
+    <SocialFollowerTrendChart accounts={accounts} snapshots={snapshots} />
     <div className="space-y-2">
       <h3 className="text-sm font-semibold text-ink">Riwayat pengikut dan grafik</h3>
       {snapshots.length === 0 && insightPeriods.length === 0 ? <EmptyState icon={BarChart3} title="Belum ada data pertumbuhan" description="Catat jumlah pengikut atau unggah grafik insight untuk mulai melihat perkembangan akun." /> : <div className="space-y-2">
         {snapshots.map((snapshot) => {
           const account = byAccount.get(snapshot.social_account_id);
           const growthLabel = formatSnapshotGrowth(snapshot);
-          return <article key={snapshot.id} className="grid gap-2 rounded-lg border border-hairline bg-surface-1 p-3 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center"><div><p className="text-sm font-semibold">{account?.account_name ?? SOCIAL_PLATFORM_LABELS[snapshot.platform]}</p><p className="text-xs text-ink-subtle">{SOCIAL_PLATFORM_LABELS[snapshot.platform]} · {formatDate(snapshot.as_of_date)}</p></div><p className="text-sm"><span className="text-ink-subtle">Pengikut </span><strong>{formatNumber(snapshot.audience_count)}</strong></p><p className="text-sm"><span className="text-ink-subtle">Pertumbuhan </span><strong className={snapshot.growth_count !== null && snapshot.growth_count > 0 ? 'text-semantic-success' : ''}>{growthLabel}</strong></p></article>;
+          return <article key={snapshot.id} className="grid gap-2 rounded-lg border border-hairline bg-surface-1 p-3 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center"><div><p className="text-sm font-semibold">{account?.account_name ?? snapshot.account_name ?? SOCIAL_PLATFORM_LABELS[snapshot.platform]}</p><p className="text-xs text-ink-subtle">{SOCIAL_PLATFORM_LABELS[snapshot.platform]} · {formatDate(snapshot.as_of_date)}</p></div><p className="text-sm"><span className="text-ink-subtle">Pengikut </span><strong>{formatNumber(snapshot.audience_count)}</strong></p><p className="text-sm"><span className="text-ink-subtle">Pertumbuhan </span><strong className={snapshot.growth_count !== null && snapshot.growth_count > 0 ? 'text-semantic-success' : ''}>{growthLabel}</strong></p></article>;
         })}
         {insightPeriods.map((period) => {
           const account = byAccount.get(period.social_account_id);
-          const showMetric = (value: number | null) => value === null ? '—' : formatNumber(value);
-          return <article key={period.id} className="grid gap-3 rounded-lg border border-hairline bg-surface-1 p-3 sm:grid-cols-[minmax(0,1fr)_repeat(5,auto)] sm:items-center"><div><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-semibold">{account?.account_name ?? SOCIAL_PLATFORM_LABELS[period.platform]}</p>{period.status === 'draft' && <span className="rounded-full bg-semantic-warning/10 px-2 py-0.5 text-[10px] font-medium text-semantic-warning">Draft</span>}</div><p className="text-xs text-ink-subtle">{SOCIAL_PLATFORM_LABELS[period.platform]} · {formatDate(period.period_start)} – {formatDate(period.period_end)}</p></div><p className="text-xs"><span className="text-ink-subtle">Views </span><strong>{showMetric(period.views)}</strong></p><p className="text-xs"><span className="text-ink-subtle">Jangkauan </span><strong>{showMetric(period.reach)}</strong></p><p className="text-xs"><span className="text-ink-subtle">Interaksi </span><strong>{showMetric(period.interactions)}</strong></p><p className="text-xs"><span className="text-ink-subtle">Kunjungan profil </span><strong>{showMetric(period.profile_visits)}</strong></p><p className="text-xs"><span className="text-ink-subtle">Konten tayang </span><strong>{showMetric(period.published_count)}</strong></p><p className="inline-flex items-center gap-1 text-[11px] text-ink-tertiary sm:col-span-full"><ImageIcon size={13} aria-hidden="true" />{period.evidence.filter((item) => item.upload_status === 'attached').length} screenshot grafik privat</p>{canResume && period.status === 'draft' && <div className="sm:col-span-full"><Button type="button" variant="outline" className="min-h-11" onClick={() => onResume(period)}><FileText size={15} aria-hidden="true" /> Lanjutkan draft</Button></div>}</article>;
+          const metrics = getSocialInsightMetricEntries(period);
+          const archiveLabel = period.archive_month ? `Arsip ${formatSocialArchiveMonth(period.archive_month)}` : 'Arsip historis';
+          const sourceLabel = period.archive_month ? getSocialInsightSourceLabel(period.platform) : 'Data periode lama';
+          return <article key={period.id} className="space-y-3 rounded-lg border border-hairline bg-surface-1 p-3">
+            <div className="flex flex-wrap items-start justify-between gap-2"><div><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-semibold">{account?.account_name ?? period.account_name ?? SOCIAL_PLATFORM_LABELS[period.platform]}</p>{period.status === 'draft' && <span className="rounded-full bg-semantic-warning/10 px-2 py-0.5 text-[10px] font-medium text-semantic-warning">Draft</span>}</div><p className="mt-1 text-xs text-ink-subtle">{SOCIAL_PLATFORM_LABELS[period.platform]} · {archiveLabel} · {sourceLabel}</p><p className="text-xs text-ink-subtle">Jendela metrik: {formatDate(period.period_start)} – {formatDate(period.period_end)}</p></div><p className="inline-flex items-center gap-1 text-[11px] text-ink-tertiary"><ImageIcon size={13} aria-hidden="true" />{period.evidence.filter((item) => item.upload_status === 'attached').length} bukti privat</p></div>
+            {metrics.length > 0 ? <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">{metrics.map(({ key, label, value }) => <div key={key} className="rounded-md bg-surface-2/70 px-2.5 py-2"><dt className="text-[11px] text-ink-subtle">{label}</dt><dd className="mt-0.5 text-sm font-semibold text-ink">{formatNumber(value)}</dd></div>)}</dl> : <p className="text-xs text-ink-tertiary">Belum ada metrik yang tercatat.</p>}
+            {period.notes && <p className="whitespace-pre-wrap text-xs text-ink-subtle">{period.notes}</p>}
+            {canResume && period.status === 'draft' && <Button type="button" variant="outline" className="min-h-11" onClick={() => onResume(period)}><FileText size={15} aria-hidden="true" /> Lanjutkan draft</Button>}
+          </article>;
         })}
       </div>}
     </div>
@@ -113,9 +123,12 @@ export function SocialMediaPage() {
   const canManageAccounts = hasCapability(user, 'social_media.accounts.manage');
   const canWriteAgenda = hasCapability(user, 'agenda.write');
   const initialRange = useMemo(() => getDefaultSocialDateRange(), []);
+  const initialGrowthRange = useMemo(() => getDefaultSocialDateRange(366), []);
   const [tab, setTab] = useState<SocialTab>('publications');
   const [from, setFrom] = useState(initialRange.from);
   const [to, setTo] = useState(initialRange.to);
+  const [growthFrom, setGrowthFrom] = useState(initialGrowthRange.from);
+  const [growthTo, setGrowthTo] = useState(initialGrowthRange.to);
   const [page, setPage] = useState(1);
   const [reportOpen, setReportOpen] = useState(false);
   const [resumeTarget, setResumeTarget] = useState<SocialPublication | null>(null);
@@ -126,11 +139,13 @@ export function SocialMediaPage() {
   const resumeInsightUploadKeys = useRef(new Map<string, { fileIdentity: string; key: string }>());
   const dateFilters = { from, to };
   const dateRangeError = getSocialDateRangeError(dateFilters);
+  const growthDateFilters = { from: growthFrom, to: growthTo };
+  const growthDateRangeError = getSocialDateRangeError(growthDateFilters);
   const publicationFilters: SocialPublicationFilters = { from, to, page, pageSize: UI_CONSTANTS.DEFAULT_PAGE_SIZE };
 
   const accountsQuery = useSocialAccountsQuery(canRead, canManageAccounts);
   const publicationsQuery = useSocialPublicationsQuery(publicationFilters, canRead && tab === 'publications' && !dateRangeError);
-  const metricsQuery = useSocialMetricsQuery(dateFilters, canRead && tab === 'growth' && !dateRangeError);
+  const metricsQuery = useSocialMetricsQuery(growthDateFilters, canRead && tab === 'growth' && !growthDateRangeError);
   const reportQuery = useSocialReportQuery(dateFilters, canRead && reportOpen && !dateRangeError);
   const createPublication = useCreateSocialPublicationMutation();
   const uploadEvidence = useUploadPublicationEvidenceMutation();
@@ -269,11 +284,11 @@ export function SocialMediaPage() {
       {tabs.map(({ id, label, icon: Icon }) => <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)} className={`flex min-h-11 shrink-0 items-center gap-2 rounded-lg px-3 text-sm transition-colors ${tab === id ? 'bg-surface-1 font-semibold text-ink shadow-sm' : 'text-ink-subtle hover:text-ink'}`}><Icon size={16} aria-hidden="true" />{label}</button>)}
     </div>
 
-    <section className="rounded-xl border border-hairline bg-surface-1 p-3 sm:p-4" aria-label="Filter rentang tanggal">
+    {tab !== 'growth' && <section className="rounded-xl border border-hairline bg-surface-1 p-3 sm:p-4" aria-label="Filter rentang tanggal">
       <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end"><DateRangeControls from={from} to={to} onChange={(range) => { setFrom(range.from); setTo(range.to); setPage(1); }} /><Button type="button" variant="outline" className="min-h-11" onClick={() => { const range = getDefaultSocialDateRange(); setFrom(range.from); setTo(range.to); setPage(1); }}><RefreshCw size={14} aria-hidden="true" /> 30 hari terakhir</Button></div>
       <p className="mt-2 text-xs text-ink-tertiary">Rentang: {formatSocialDateRange(dateFilters)}. Laporan cetak dibatasi maksimal 366 hari.</p>
       {dateRangeError && <p role="alert" className="mt-2 text-xs text-semantic-danger">{dateRangeError}</p>}
-    </section>
+    </section>}
 
     {accountsQuery.isPending && <DataTableSkeleton columns={3} rows={3} label="Memuat akun media sosial..." />}
     {accountsQuery.isError && <QueryErrorState title="Daftar akun media sosial belum dapat dimuat" error={accountsQuery.error} onRetry={() => void accountsQuery.refetch()} />}
@@ -293,11 +308,17 @@ export function SocialMediaPage() {
       </>}
     </section>}
 
-    {tab === 'growth' && !dateRangeError && <section className="space-y-5" aria-label="Pertumbuhan akun media sosial">
+    {tab === 'growth' && <section className="space-y-5" aria-label="Pertumbuhan akun media sosial">
       {canManageMetrics && <SocialGrowthForms accounts={accounts} />}
-      {metricsQuery.isPending && <DataTableSkeleton columns={4} rows={4} label="Memuat metrik akun..." />}
-      {metricsQuery.isError && <QueryErrorState title="Metrik pertumbuhan belum dapat dimuat" error={metricsQuery.error} onRetry={() => void metricsQuery.refetch()} />}
-      {!metricsQuery.isPending && !metricsQuery.isError && <><RefreshingIndicator visible={metricsQuery.isFetching} /><MetricSummary accounts={accounts} snapshots={metricsQuery.data?.snapshots ?? []} insightPeriods={metricsQuery.data?.insight_periods ?? []} rangeLabel={formatSocialDateRange(dateFilters)} canResume={canManageMetrics} onResume={setResumeInsightTarget} /></>}
+      <div className="rounded-xl border border-hairline bg-surface-1 p-3 sm:p-4" aria-label="Filter rentang tren akun">
+        <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end"><DateRangeControls from={growthFrom} to={growthTo} onChange={(range) => { setGrowthFrom(range.from); setGrowthTo(range.to); }} /><Button type="button" variant="outline" className="min-h-11" onClick={() => { const range = getDefaultSocialDateRange(366); setGrowthFrom(range.from); setGrowthTo(range.to); }}><RefreshCw size={14} aria-hidden="true" /> 12 bulan terakhir</Button></div>
+        <p className="mt-2 text-xs text-ink-tertiary">Grafik menggunakan snapshot pengikut yang benar-benar tercatat dalam rentang ini.</p>
+        {growthDateRangeError && <p role="alert" className="mt-2 text-xs text-semantic-danger">{growthDateRangeError}</p>}
+      </div>
+      {growthDateRangeError && <EmptyState icon={BarChart3} title="Rentang tanggal perlu diperbaiki" description={growthDateRangeError} />}
+      {!growthDateRangeError && metricsQuery.isPending && <DataTableSkeleton columns={4} rows={4} label="Memuat metrik akun..." />}
+      {!growthDateRangeError && metricsQuery.isError && <QueryErrorState title="Metrik pertumbuhan belum dapat dimuat" error={metricsQuery.error} onRetry={() => void metricsQuery.refetch()} />}
+      {!growthDateRangeError && !metricsQuery.isPending && !metricsQuery.isError && <><RefreshingIndicator visible={metricsQuery.isFetching} /><MetricSummary accounts={accounts} snapshots={metricsQuery.data?.snapshots ?? []} insightPeriods={metricsQuery.data?.insight_periods ?? []} rangeLabel={formatSocialDateRange(growthDateFilters)} canResume={canManageMetrics} onResume={setResumeInsightTarget} /></>}
     </section>}
 
     {tab === 'reports' && <section className="space-y-3 rounded-xl border border-hairline bg-surface-1 p-4">

@@ -18,6 +18,7 @@ const changeHeaders = {
   },
 } as const;
 const date = { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' } as const;
+const month = { type: 'string', pattern: '^\\d{4}-(0[1-9]|1[0-2])$' } as const;
 const mutationOptions = { headers: changeHeaders } as const;
 
 export const socialAccountsListSchema = {
@@ -63,11 +64,18 @@ export const socialSnapshotCreateSchema = {
 } as const;
 export const socialInsightCreateSchema = {
   ...mutationOptions,
-  body: { type: 'object', additionalProperties: false, required: ['social_account_id', 'period_start', 'period_end'], properties: {
-    social_account_id: { type: 'string', minLength: 1, maxLength: 64 }, period_start: date, period_end: date,
+  body: { type: 'object', additionalProperties: false, required: ['social_account_id', 'archive_month'], properties: {
+    social_account_id: { type: 'string', minLength: 1, maxLength: 64 }, archive_month: month,
     views: { type: 'integer', minimum: 0, maximum: 9007199254740991 }, reach: { type: 'integer', minimum: 0, maximum: 9007199254740991 },
-    interactions: { type: 'integer', minimum: 0, maximum: 9007199254740991 }, profile_visits: { type: 'integer', minimum: 0, maximum: 9007199254740991 },
-    published_count: { type: 'integer', minimum: 0, maximum: 2147483647 }, notes: { type: 'string', maxLength: 2000 },
+    profile_visits: { type: 'integer', minimum: 0, maximum: 9007199254740991 },
+    likes: { type: 'integer', minimum: 0, maximum: 9007199254740991 }, comments: { type: 'integer', minimum: 0, maximum: 9007199254740991 },
+    shares: { type: 'integer', minimum: 0, maximum: 9007199254740991 }, saves: { type: 'integer', minimum: 0, maximum: 9007199254740991 },
+    watch_time_minutes: { type: 'integer', minimum: 0, maximum: 9007199254740991 },
+    subscribers_gained: { type: 'integer', minimum: 0, maximum: 9007199254740991 }, subscribers_lost: { type: 'integer', minimum: 0, maximum: 9007199254740991 },
+    impressions: { type: 'integer', minimum: 0, maximum: 9007199254740991 },
+    followers_gained: { type: 'integer', minimum: 0, maximum: 9007199254740991 }, followers_lost: { type: 'integer', minimum: 0, maximum: 9007199254740991 },
+    reactions: { type: 'integer', minimum: 0, maximum: 9007199254740991 }, poll_votes: { type: 'integer', minimum: 0, maximum: 9007199254740991 },
+    notes: { type: 'string', maxLength: 2000 },
   } },
 } as const;
 export const socialInsightFinalizeSchema = {

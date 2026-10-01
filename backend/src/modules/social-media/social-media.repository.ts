@@ -7,7 +7,7 @@ import type {
 
 type SupabaseLike = SupabaseClient | null;
 const PAGE_SIZE = 1_000;
-const PUBLICATION_SELECT = 'id,social_account_id,platform,content_type,caption,published_at,platform_url,status,version,created_by,created_at,updated_at,social_accounts(platform)';
+const PUBLICATION_SELECT = 'id,social_account_id,platform,content_type,caption,published_at,platform_url,status,version,created_by,created_at,updated_at,social_accounts(platform,account_name)';
 
 function row(value: unknown): DatabaseRow {
   return value && typeof value === 'object' ? value as DatabaseRow : {};
@@ -58,6 +58,7 @@ function mapSnapshot(value: unknown): SocialSnapshot {
   return {
     id: text(item.id), social_account_id: text(item.social_account_id),
     platform: text(item.platform || account.platform) as SocialPlatform,
+    ...(account.account_name == null ? {} : { account_name: String(account.account_name) }),
     as_of_date: text(item.as_of_date), audience_count: Number(item.audience_count || 0),
     growth_count: null, growth_percent: null, created_at: text(item.created_at),
   };
@@ -70,9 +71,16 @@ function mapInsight(value: unknown): SocialInsightPeriod {
   return {
     id: text(item.id), social_account_id: text(item.social_account_id),
     platform: text(item.platform || account.platform) as SocialPlatform,
+    ...(account.account_name == null ? {} : { account_name: String(account.account_name) }),
+    archive_month: nullableText(item.archive_month),
     period_start: text(item.period_start), period_end: text(item.period_end),
     views: metric('views'), reach: metric('reach'), interactions: metric('interactions'),
     profile_visits: metric('profile_visits'), published_count: metric('published_count'),
+    likes: metric('likes'), comments: metric('comments'), shares: metric('shares'), saves: metric('saves'),
+    watch_time_minutes: metric('watch_time_minutes'), subscribers_gained: metric('subscribers_gained'),
+    subscribers_lost: metric('subscribers_lost'), impressions: metric('impressions'),
+    followers_gained: metric('followers_gained'), followers_lost: metric('followers_lost'),
+    reactions: metric('reactions'), poll_votes: metric('poll_votes'),
     notes: text(item.notes), status: text(item.status) as SocialInsightPeriod['status'],
     version: Number(item.version || 1), created_at: text(item.created_at), evidence: [],
   };
@@ -96,9 +104,10 @@ function sameSnapshotPayload(existing: DatabaseRow, input: Record<string, unknow
 
 function sameInsightPayload(existing: DatabaseRow, input: Record<string, unknown>): boolean {
   return existing.social_account_id === input.social_account_id
+    && existing.archive_month === input.archive_month
     && existing.period_start === input.period_start
     && existing.period_end === input.period_end
-    && ['views', 'reach', 'interactions', 'profile_visits', 'published_count'].every((key) => (existing[key] ?? null) === (input[key] ?? null))
+    && ['views', 'reach', 'interactions', 'profile_visits', 'published_count', 'likes', 'comments', 'shares', 'saves', 'watch_time_minutes', 'subscribers_gained', 'subscribers_lost', 'impressions', 'followers_gained', 'followers_lost', 'reactions', 'poll_votes'].every((key) => (existing[key] ?? null) === (input[key] ?? null))
     && existing.notes === (input.notes || '');
 }
 
@@ -234,7 +243,7 @@ export function createSocialMediaRepository(client: SupabaseLike, _state: Social
 
     async getInsightPeriod(id) {
       const db = requireClient(); if (!db) return { data: null };
-      const result = await db.from('social_insight_periods').select('*,social_accounts(platform)').eq('id', id).maybeSingle();
+      const result = await db.from('social_insight_periods').select('*,social_accounts(platform,account_name)').eq('id', id).maybeSingle();
       if (result.error) return mapMutationError(result.error);
       if (!result.data) return { data: null };
       const insight = mapInsight(result.data);
@@ -336,7 +345,7 @@ export function createSocialMediaRepository(client: SupabaseLike, _state: Social
 
     async createSnapshot(input) {
       const db = requireClient(); if (!db) return memoryNotConfigured();
-      const existing = await db.from('social_account_snapshots').select('*,social_accounts(platform)').eq('created_by', input.actorId).eq('idempotency_key', input.idempotencyKey).maybeSingle();
+      const existing = await db.from('social_account_snapshots').select('*,social_accounts(platform,account_name)').eq('created_by', input.actorId).eq('idempotency_key', input.idempotencyKey).maybeSingle();
       if (existing.error) return mapMutationError(existing.error);
       if (existing.data) {
         if (!sameSnapshotPayload(existing.data, input)) return { error: new Error('SOCIAL_IDEMPOTENCY_REUSED') };
@@ -345,9 +354,9 @@ export function createSocialMediaRepository(client: SupabaseLike, _state: Social
       const result = await db.from('social_account_snapshots').insert({
         social_account_id: input.social_account_id, as_of_date: input.as_of_date,
         audience_count: input.audience_count, idempotency_key: input.idempotencyKey, created_by: input.actorId,
-      }).select('*,social_accounts(platform)').single();
+      }).select('*,social_accounts(platform,account_name)').single();
       if (result.error?.code === '23505') {
-        const retry = await db.from('social_account_snapshots').select('*,social_accounts(platform)').eq('created_by', input.actorId).eq('idempotency_key', input.idempotencyKey).maybeSingle();
+        const retry = await db.from('social_account_snapshots').select('*,social_accounts(platform,account_name)').eq('created_by', input.actorId).eq('idempotency_key', input.idempotencyKey).maybeSingle();
         if (!retry.error && retry.data && sameSnapshotPayload(retry.data, input)) return { data: mapSnapshot(retry.data), idempotentReplay: true };
         if (!retry.error && retry.data) return { error: new Error('SOCIAL_IDEMPOTENCY_REUSED') };
         return { error: new Error('SOCIAL_SNAPSHOT_DATE_EXISTS') };
@@ -357,31 +366,36 @@ export function createSocialMediaRepository(client: SupabaseLike, _state: Social
 
     async createInsightPeriod(input) {
       const db = requireClient(); if (!db) return memoryNotConfigured();
-      const existing = await db.from('social_insight_periods').select('*,social_accounts(platform)').eq('created_by', input.actorId).eq('idempotency_key', input.idempotencyKey).maybeSingle();
+      const existing = await db.from('social_insight_periods').select('*,social_accounts(platform,account_name)').eq('created_by', input.actorId).eq('idempotency_key', input.idempotencyKey).maybeSingle();
       if (existing.error) return mapMutationError(existing.error);
       if (existing.data) {
         if (!sameInsightPayload(existing.data, input)) return { error: new Error('SOCIAL_IDEMPOTENCY_REUSED') };
         return { data: mapInsight(existing.data), idempotentReplay: true };
       }
       const result = await db.from('social_insight_periods').insert({
-        social_account_id: input.social_account_id, period_start: input.period_start, period_end: input.period_end,
+        social_account_id: input.social_account_id, archive_month: input.archive_month, period_start: input.period_start, period_end: input.period_end,
         views: input.views ?? null, reach: input.reach ?? null, interactions: input.interactions ?? null,
         profile_visits: input.profile_visits ?? null, published_count: input.published_count ?? null,
+        likes: input.likes ?? null, comments: input.comments ?? null, shares: input.shares ?? null, saves: input.saves ?? null,
+        watch_time_minutes: input.watch_time_minutes ?? null, subscribers_gained: input.subscribers_gained ?? null,
+        subscribers_lost: input.subscribers_lost ?? null, impressions: input.impressions ?? null,
+        followers_gained: input.followers_gained ?? null, followers_lost: input.followers_lost ?? null,
+        reactions: input.reactions ?? null, poll_votes: input.poll_votes ?? null,
         notes: input.notes || '', status: 'draft', idempotency_key: input.idempotencyKey,
         created_by: input.actorId, updated_by: input.actorId,
-      }).select('*,social_accounts(platform)').single();
+      }).select('*,social_accounts(platform,account_name)').single();
       if (result.error?.code === '23505') {
-        const retry = await db.from('social_insight_periods').select('*,social_accounts(platform)').eq('created_by', input.actorId).eq('idempotency_key', input.idempotencyKey).maybeSingle();
+        const retry = await db.from('social_insight_periods').select('*,social_accounts(platform,account_name)').eq('created_by', input.actorId).eq('idempotency_key', input.idempotencyKey).maybeSingle();
         if (!retry.error && retry.data && sameInsightPayload(retry.data, input)) return { data: mapInsight(retry.data), idempotentReplay: true };
         if (!retry.error && retry.data) return { error: new Error('SOCIAL_IDEMPOTENCY_REUSED') };
-        return { error: new Error('SOCIAL_INSIGHT_PERIOD_EXISTS') };
+        return { error: new Error(input.archive_month ? 'SOCIAL_ARCHIVE_ALREADY_EXISTS' : 'SOCIAL_INSIGHT_PERIOD_EXISTS') };
       }
       return result.error ? mapMutationError(result.error) : { data: mapInsight(result.data), idempotentReplay: false };
     },
 
     async listSnapshots(from, to) {
       const db = requireClient(); if (!db) return { data: [] };
-      const result = await collectAll((start, end) => db.from('social_account_snapshots').select('*,social_accounts(platform)').gte('as_of_date', from).lte('as_of_date', to).order('as_of_date').order('id').range(start, end), 5_000);
+      const result = await collectAll((start, end) => db.from('social_account_snapshots').select('*,social_accounts(platform,account_name)').gte('as_of_date', from).lte('as_of_date', to).order('as_of_date').order('id').range(start, end), 5_000);
       return 'error' in result ? result : { data: result.data.map(mapSnapshot) };
     },
 
@@ -390,7 +404,7 @@ export function createSocialMediaRepository(client: SupabaseLike, _state: Social
       const baselines: SocialSnapshot[] = [];
       for (let offset = 0; offset < socialAccountIds.length; offset += 100) {
         const chunk = socialAccountIds.slice(offset, offset + 100);
-        const results = await Promise.all(chunk.map((accountId) => db.from('social_account_snapshots').select('*,social_accounts(platform)')
+        const results = await Promise.all(chunk.map((accountId) => db.from('social_account_snapshots').select('*,social_accounts(platform,account_name)')
           .eq('social_account_id', accountId).lt('as_of_date', before).order('as_of_date', { ascending: false }).order('id', { ascending: false }).limit(1).maybeSingle()));
         const error = results.find((result) => result.error)?.error;
         if (error) return mapMutationError(error);
@@ -401,7 +415,7 @@ export function createSocialMediaRepository(client: SupabaseLike, _state: Social
 
     async listInsightPeriods(from, to) {
       const db = requireClient(); if (!db) return { data: [] };
-      const result = await collectAll((start, end) => db.from('social_insight_periods').select('*,social_accounts(platform)').lte('period_start', to).gte('period_end', from).neq('status', 'archived').order('period_start', { ascending: false }).range(start, end), 5_000);
+      const result = await collectAll((start, end) => db.from('social_insight_periods').select('*,social_accounts(platform,account_name)').lte('period_start', to).gte('period_end', from).neq('status', 'archived').order('period_start', { ascending: false }).range(start, end), 5_000);
       if ('error' in result) return result;
       const periods = result.data.map(mapInsight);
       const evidence = await this.listEvidence('insight_period', periods.map((item) => item.id));
@@ -413,14 +427,14 @@ export function createSocialMediaRepository(client: SupabaseLike, _state: Social
 
     async finalizeInsightPeriod(input) {
       const db = requireClient(); if (!db) return memoryNotConfigured();
-      const current = await db.from('social_insight_periods').select('*,social_accounts(platform)').eq('id', input.id).maybeSingle();
+      const current = await db.from('social_insight_periods').select('*,social_accounts(platform,account_name)').eq('id', input.id).maybeSingle();
       if (current.error) return mapMutationError(current.error);
       if (!current.data) return { error: new Error('SOCIAL_INSIGHT_PERIOD_NOT_FOUND') };
       if (Number(current.data.version) !== input.expectedVersion) return { error: new Error('SOCIAL_VERSION_CONFLICT') };
       if (current.data.status === 'recorded') return { data: mapInsight(current.data) };
       if (current.data.status !== 'draft') return { error: new Error('SOCIAL_INSIGHT_PERIOD_NOT_DRAFT') };
       const result = await db.from('social_insight_periods').update({ status: 'recorded', updated_by: input.actorId, updated_at: new Date().toISOString(), version: input.expectedVersion + 1 })
-        .eq('id', input.id).eq('version', input.expectedVersion).select('*,social_accounts(platform)').maybeSingle();
+        .eq('id', input.id).eq('version', input.expectedVersion).select('*,social_accounts(platform,account_name)').maybeSingle();
       return result.error ? mapMutationError(result.error) : result.data ? { data: mapInsight(result.data) } : { error: new Error('SOCIAL_VERSION_CONFLICT') };
     },
 
@@ -431,9 +445,9 @@ export function createSocialMediaRepository(client: SupabaseLike, _state: Social
           .is('archived_at', null).gte('activity_date', from).lte('activity_date', to).order('activity_date', { ascending: false }).order('id', { ascending: false }).range(start, end), maxRows),
         collectAll((start, end) => db.from('social_publications').select(PUBLICATION_SELECT)
           .eq('status', 'recorded').gte('published_at', from).lte('published_at', to).order('published_at', { ascending: false }).order('id', { ascending: false }).range(start, end), maxRows),
-        collectAll((start, end) => db.from('social_account_snapshots').select('*,social_accounts(platform)')
+        collectAll((start, end) => db.from('social_account_snapshots').select('*,social_accounts(platform,account_name)')
           .gte('as_of_date', from).lte('as_of_date', to).order('as_of_date', { ascending: false }).order('id', { ascending: false }).range(start, end), maxRows),
-        collectAll((start, end) => db.from('social_insight_periods').select('*,social_accounts(platform)')
+        collectAll((start, end) => db.from('social_insight_periods').select('*,social_accounts(platform,account_name)')
           .eq('status', 'recorded').lte('period_start', to).gte('period_end', from).order('period_start', { ascending: false }).order('id', { ascending: false }).range(start, end), maxRows),
       ]);
       if ('error' in activitiesResult) return activitiesResult;

@@ -6,7 +6,10 @@ import { ReportFormatSelector } from '@/shared/ui/report/ReportFormatSelector';
 import { ReportPreviewDialog } from '@/shared/ui/report/ReportPreviewDialog';
 import type { ReportPrintFormat } from '@/shared/types/report';
 import type { SocialEvidence, SocialReportActivity, SocialReportData } from '../types/socialMedia.types';
+import { SocialFollowerTrendChart } from './SocialFollowerTrendChart';
 import { formatSocialDateRange } from '../utils/socialMediaDates';
+import { formatSocialArchiveMonth, getSocialInsightMetricEntries, getSocialInsightSourceLabel } from '../utils/socialInsightMetrics';
+import { SOCIAL_CONTENT_LABELS, SOCIAL_PLATFORM_LABELS } from '../utils/publicationRules';
 
 interface SocialReportDialogProps {
   open: boolean;
@@ -81,6 +84,15 @@ function activityEvidence(activity: SocialReportActivity, onPreview: (image: Pre
 }
 
 function A4Report({ report, onPreview, onImageResolved }: { report: SocialReportData; onPreview: (image: PreviewImage) => void; onImageResolved: (id: string, failed: boolean) => void }) {
+  const snapshotCounts = new Map<string, number>();
+  report.snapshots.forEach((snapshot) => snapshotCounts.set(snapshot.social_account_id, (snapshotCounts.get(snapshot.social_account_id) ?? 0) + 1));
+  const trendSnapshots = report.snapshots.filter((snapshot) => (snapshotCounts.get(snapshot.social_account_id) ?? 0) >= 2);
+  const trendAccounts = [...new Map(trendSnapshots.map((snapshot) => [snapshot.social_account_id, {
+    id: snapshot.social_account_id,
+    account_name: snapshot.account_name || SOCIAL_PLATFORM_LABELS[snapshot.platform],
+    platform: snapshot.platform,
+  }])).values()];
+
   return (
     <section className="social-report-page space-y-5 text-xs">
       <header className="text-center">
@@ -106,7 +118,7 @@ function A4Report({ report, onPreview, onImageResolved }: { report: SocialReport
           <thead><tr className="bg-surface-2"><th className="border-b border-hairline p-2">Tanggal</th><th className="border-b border-hairline p-2">Platform / jenis</th><th className="border-b border-hairline p-2">Uraian</th><th className="border-b border-hairline p-2">Tautan / bukti</th></tr></thead>
           <tbody>{report.publications.map((row) => <tr key={row.id} className="align-top">
             <td className="border-b border-hairline p-2">{formatDate(row.published_at)}</td>
-            <td className="border-b border-hairline p-2">{row.platform}<br />{row.content_type}</td>
+            <td className="border-b border-hairline p-2">{SOCIAL_PLATFORM_LABELS[row.platform]}<br />{SOCIAL_CONTENT_LABELS[row.content_type]}</td>
             <td className="border-b border-hairline p-2 whitespace-pre-wrap">{row.caption}</td>
             <td className="border-b border-hairline p-2">{row.platform_url ? <a className="break-all underline" href={row.platform_url}>{row.platform_url}</a> : '—'}<div className="mt-1">{evidenceFor(row.evidence, `publication:${row.id}`, onPreview, onImageResolved)}</div></td>
           </tr>)}{report.publications.length === 0 && <tr><td colSpan={4} className="p-4 text-center text-ink-tertiary">Tidak ada publikasi pada rentang ini.</td></tr>}</tbody>
@@ -114,16 +126,21 @@ function A4Report({ report, onPreview, onImageResolved }: { report: SocialReport
       </section>
       <section className="space-y-2">
         <h2 className="text-base font-semibold">Pertumbuhan akun</h2>
+        {trendSnapshots.length > 0 && <SocialFollowerTrendChart accounts={trendAccounts} snapshots={trendSnapshots} />}
         <div className="overflow-x-auto"><table className="w-full border-collapse text-left">
-          <thead><tr className="bg-surface-2"><th className="border-b border-hairline p-2">Akun / tanggal</th><th className="border-b border-hairline p-2">Jumlah pengikut</th><th className="border-b border-hairline p-2">Pertumbuhan</th></tr></thead>
+          <thead><tr className="bg-surface-2"><th className="border-b border-hairline p-2">Akun / tanggal data</th><th className="border-b border-hairline p-2">Jumlah pengikut</th><th className="border-b border-hairline p-2">Pertumbuhan</th></tr></thead>
           <tbody>{report.snapshots.map((row) => <tr key={row.id}>
-            <td className="border-b border-hairline p-2">{row.platform} · {formatDate(row.as_of_date)}</td><td className="border-b border-hairline p-2">{row.audience_count.toLocaleString('id-ID')}</td><td className="border-b border-hairline p-2">{formatSnapshotGrowth(row)}</td>
+            <td className="border-b border-hairline p-2">{row.account_name || SOCIAL_PLATFORM_LABELS[row.platform]}<br /><span className="text-ink-tertiary">{SOCIAL_PLATFORM_LABELS[row.platform]} · {formatDate(row.as_of_date)} · snapshot profil manual</span></td><td className="border-b border-hairline p-2">{row.audience_count.toLocaleString('id-ID')}</td><td className="border-b border-hairline p-2">{formatSnapshotGrowth(row)}</td>
           </tr>)}{report.snapshots.length === 0 && <tr><td colSpan={3} className="p-4 text-center text-ink-tertiary">Tidak ada catatan pengikut pada rentang ini.</td></tr>}</tbody>
         </table></div>
         <div className="overflow-x-auto"><table className="w-full border-collapse text-left">
-          <thead><tr className="bg-surface-2"><th className="border-b border-hairline p-2">Akun / periode</th><th className="border-b border-hairline p-2">Views</th><th className="border-b border-hairline p-2">Jangkauan</th><th className="border-b border-hairline p-2">Interaksi</th><th className="border-b border-hairline p-2">Unggahan grafik</th></tr></thead>
+          <thead><tr className="bg-surface-2"><th className="border-b border-hairline p-2">Akun / bulan arsip</th><th className="border-b border-hairline p-2">Platform / sumber</th><th className="border-b border-hairline p-2">Jendela data</th><th className="border-b border-hairline p-2">Metrik yang tercatat</th><th className="border-b border-hairline p-2">Bukti sumber</th></tr></thead>
           <tbody>{report.insight_periods.map((row) => <tr key={row.id} className="align-top">
-            <td className="border-b border-hairline p-2">{row.platform}<br />{formatDate(row.period_start)} – {formatDate(row.period_end)}</td><td className="border-b border-hairline p-2">{row.views?.toLocaleString('id-ID') ?? '—'}</td><td className="border-b border-hairline p-2">{row.reach?.toLocaleString('id-ID') ?? '—'}</td><td className="border-b border-hairline p-2">{row.interactions?.toLocaleString('id-ID') ?? '—'}</td><td className="border-b border-hairline p-2">{evidenceFor(row.evidence, `insight:${row.id}`, onPreview, onImageResolved)}</td>
+            <td className="border-b border-hairline p-2">{row.account_name || SOCIAL_PLATFORM_LABELS[row.platform]}<br /><span className="text-ink-tertiary">{row.archive_month ? formatSocialArchiveMonth(row.archive_month) : 'Arsip historis'}</span></td>
+            <td className="border-b border-hairline p-2">{SOCIAL_PLATFORM_LABELS[row.platform]}<br /><span className="text-ink-tertiary">{row.archive_month ? getSocialInsightSourceLabel(row.platform) : 'Sumber lama tidak dibedakan'}</span></td>
+            <td className="border-b border-hairline p-2">{formatDate(row.period_start)} – {formatDate(row.period_end)}</td>
+            <td className="border-b border-hairline p-2">{getSocialInsightMetricEntries(row).length > 0 ? <dl className="grid grid-cols-2 gap-x-3 gap-y-1">{getSocialInsightMetricEntries(row).map(({ key, label, value }) => <div key={key} className="contents"><dt className="text-ink-subtle">{label}</dt><dd className="text-right font-medium">{value.toLocaleString('id-ID')}</dd></div>)}</dl> : '—'}</td>
+            <td className="border-b border-hairline p-2">{evidenceFor(row.evidence, `insight:${row.id}`, onPreview, onImageResolved)}{row.notes && <p className="mt-2 whitespace-pre-wrap text-xs text-ink-subtle">{row.notes}</p>}</td>
           </tr>)}{report.insight_periods.length === 0 && <tr><td colSpan={5} className="p-4 text-center text-ink-tertiary">Tidak ada insight pada rentang ini.</td></tr>}</tbody>
         </table></div>
       </section>

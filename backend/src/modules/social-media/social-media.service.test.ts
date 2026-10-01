@@ -71,3 +71,61 @@ test('snapshot growth uses the nearest preceding snapshot as a comparison baseli
   assert.equal(result.snapshots[0]?.growth_count, 25);
   assert.equal(result.snapshots[0]?.growth_percent, 25);
 });
+
+test('monthly Instagram archive derives the full calendar-month window and accepts platform metrics', async () => {
+  let savedInput: Record<string, unknown> | undefined;
+  const service = serviceWith({
+    createInsightPeriod: async (input) => {
+      savedInput = input;
+      return { data: { id: 'insight-1', ...input, platform: 'instagram', status: 'draft', version: 1, created_at: '2020-03-01T00:00:00.000Z', evidence: [] } as never, idempotentReplay: false };
+    },
+  });
+
+  await service.createInsightPeriod({
+    social_account_id: account.id, archive_month: '2020-02', views: 1_200, saves: 40,
+  }, 'actor-1', 'insight-month-0001', 'mencatat arsip bulanan');
+
+  assert.equal(savedInput?.archive_month, '2020-02-01');
+  assert.equal(savedInput?.period_start, '2020-02-01');
+  assert.equal(savedInput?.period_end, '2020-02-29');
+  assert.equal(savedInput?.views, 1_200);
+  assert.equal(savedInput?.saves, 40);
+});
+
+test('monthly WhatsApp archive stores the platform 30-day window ending on the archive month end', async () => {
+  const whatsappAccount = { ...account, platform: 'whatsapp' as const, account_url: 'https://whatsapp.com/channel/x' };
+  let savedInput: Record<string, unknown> | undefined;
+  const service = serviceWith({
+    listAccounts: async () => ({ data: [whatsappAccount] }),
+    createInsightPeriod: async (input) => {
+      savedInput = input;
+      return { data: { id: 'insight-2', ...input, platform: 'whatsapp', status: 'draft', version: 1, created_at: '2020-03-01T00:00:00.000Z', evidence: [] } as never, idempotentReplay: false };
+    },
+  });
+
+  await service.createInsightPeriod({
+    social_account_id: whatsappAccount.id, archive_month: '2020-02', reach: 900, followers_gained: 25,
+  }, 'actor-1', 'insight-month-0002', 'mencatat arsip kanal');
+
+  assert.equal(savedInput?.period_start, '2020-01-31');
+  assert.equal(savedInput?.period_end, '2020-02-29');
+});
+
+test('monthly insight archives reject empty and cross-platform metric payloads before persistence', async () => {
+  let persisted = false;
+  const tiktokAccount = { ...account, platform: 'tiktok' as const, account_url: 'https://tiktok.com/@sinegasi' };
+  const service = serviceWith({
+    listAccounts: async () => ({ data: [tiktokAccount] }),
+    createInsightPeriod: async () => { persisted = true; return { error: null as never }; },
+  });
+
+  await assert.rejects(() => service.createInsightPeriod({
+    social_account_id: account.id, archive_month: '2020-02',
+  }, 'actor-1', 'insight-month-0003', 'mencatat arsip kosong'),
+  (error: unknown) => error instanceof SocialMediaServiceError && error.errorCode === 'SOCIAL_ARCHIVE_METRICS_INVALID');
+  await assert.rejects(() => service.createInsightPeriod({
+    social_account_id: tiktokAccount.id, archive_month: '2020-02', saves: 5,
+  }, 'actor-1', 'insight-month-0004', 'metrik beda platform'),
+  (error: unknown) => error instanceof SocialMediaServiceError && error.errorCode === 'SOCIAL_ARCHIVE_METRICS_INVALID');
+  assert.equal(persisted, false);
+});

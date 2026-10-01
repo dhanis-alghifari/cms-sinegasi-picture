@@ -44,6 +44,7 @@ export interface SocialSnapshot {
   id: string;
   social_account_id: string;
   platform: SocialPlatform;
+  account_name?: string;
   as_of_date: string;
   audience_count: number;
   growth_count: number | null;
@@ -55,6 +56,8 @@ export interface SocialInsightPeriod {
   id: string;
   social_account_id: string;
   platform: SocialPlatform;
+  account_name?: string;
+  archive_month: string | null;
   period_start: string;
   period_end: string;
   views: number | null;
@@ -62,6 +65,18 @@ export interface SocialInsightPeriod {
   interactions: number | null;
   profile_visits: number | null;
   published_count: number | null;
+  likes: number | null;
+  comments: number | null;
+  shares: number | null;
+  saves: number | null;
+  watch_time_minutes: number | null;
+  subscribers_gained: number | null;
+  subscribers_lost: number | null;
+  impressions: number | null;
+  followers_gained: number | null;
+  followers_lost: number | null;
+  reactions: number | null;
+  poll_votes: number | null;
   notes: string | null;
   status: 'draft' | 'recorded';
   version: number;
@@ -140,12 +155,21 @@ export interface CreateSnapshotInput {
 
 export interface CreateInsightPeriodInput {
   social_account_id: string;
-  period_start: string;
-  period_end: string;
+  archive_month: string;
   views?: number;
   reach?: number;
-  interactions?: number;
   profile_visits?: number;
-  published_count?: number;
+  likes?: number;
+  comments?: number;
+  shares?: number;
+  saves?: number;
+  watch_time_minutes?: number;
+  subscribers_gained?: number;
+  subscribers_lost?: number;
+  impressions?: number;
+  followers_gained?: number;
+  followers_lost?: number;
+  reactions?: number;
+  poll_votes?: number;
   notes?: string;
 }

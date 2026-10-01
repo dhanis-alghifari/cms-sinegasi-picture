@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { EvidenceFileField } from './EvidenceFileField';
 import type { SocialInsightPeriod } from '../types/socialMedia.types';
 import { SOCIAL_PLATFORM_LABELS } from '../utils/publicationRules';
+import { formatSocialArchiveMonth, getSocialInsightMetricEntries, getSocialInsightSourceLabel } from '../utils/socialInsightMetrics';
 
 interface ResumeInsightDialogProps {
   period: SocialInsightPeriod | null;
@@ -51,12 +52,10 @@ export function ResumeInsightDialog({ period, onOpenChange, onSubmit }: ResumeIn
       </DialogHeader>
       <div className="max-h-[65dvh] space-y-4 overflow-y-auto px-4 py-4 sm:px-5">
         {period && <div className="rounded-lg border border-hairline bg-surface-2 p-3">
-          <p className="text-xs text-ink-subtle">{SOCIAL_PLATFORM_LABELS[period.platform]} · {formatDate(period.period_start)} – {formatDate(period.period_end)}</p>
+          <p className="text-xs text-ink-subtle">{SOCIAL_PLATFORM_LABELS[period.platform]}{period.archive_month ? ` · Arsip ${formatSocialArchiveMonth(period.archive_month)} · ${getSocialInsightSourceLabel(period.platform)}` : ''}</p>
+          <p className="mt-1 text-xs text-ink-subtle">Jendela data: {formatDate(period.period_start)} – {formatDate(period.period_end)}</p>
           <dl className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
-            {([
-              ['Views', period.views], ['Jangkauan', period.reach], ['Interaksi', period.interactions],
-              ['Kunjungan profil', period.profile_visits], ['Konten tayang', period.published_count],
-            ] as const).map(([label, value]) => <div key={label}><dt className="text-ink-tertiary">{label}</dt><dd className="font-semibold text-ink">{value === null ? 'Belum dicatat' : value.toLocaleString('id-ID')}</dd></div>)}
+            {getSocialInsightMetricEntries(period).map(({ key, label, value }) => <div key={key}><dt className="text-ink-tertiary">{label}</dt><dd className="font-semibold text-ink">{value.toLocaleString('id-ID')}</dd></div>)}
           </dl>
           {period.notes && <p className="mt-3 whitespace-pre-wrap text-xs text-ink-subtle">{period.notes}</p>}
           <p className="mt-3 text-xs text-ink-tertiary">{attachedEvidenceCount} screenshot grafik sudah tersimpan</p>

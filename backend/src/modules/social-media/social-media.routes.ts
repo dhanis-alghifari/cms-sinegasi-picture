@@ -12,7 +12,7 @@ import {
   socialReportQuerySchema, socialSnapshotCreateSchema,
 } from '../../shared/http/schemas/social-media.schema.js';
 import { SocialMediaService } from './social-media.service.js';
-import type { SocialEvidence } from './social-media.types.js';
+import type { CreateSocialInsightInput, SocialEvidence } from './social-media.types.js';
 
 export interface SocialMediaRoutesOptions {
   socialMediaService: SocialMediaService;
@@ -151,7 +151,7 @@ const socialMediaRoutes: FastifyPluginAsync<SocialMediaRoutesOptions> = async (f
 
   fastify.post('/api/social-media/insight-periods', { schema: socialInsightCreateSchema, preHandler: metricsManage }, async (request, reply) => {
     try {
-      const body = request.body as { social_account_id: string; period_start: string; period_end: string; views?: number; reach?: number; interactions?: number; profile_visits?: number; published_count?: number; notes?: string };
+      const body = request.body as CreateSocialInsightInput;
       const actorId = await actorIdFor(request, options.socialMediaService);
       const result = await options.socialMediaService.createInsightPeriod(body, actorId, idempotencyKey(request), changeReason(request));
       if (!result.idempotentReplay) await options.persistAuditLog(request, { action: 'INSERT', tableName: 'social_insight_periods', recordId: result.data.id, newValues: result.data as unknown as Record<string, unknown>, changeReason: changeReason(request) });

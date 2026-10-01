@@ -1027,7 +1027,7 @@ paths:
         '422': { description: Invalid account, date, or audience count }
   /api/social-media/insight-periods:
     post:
-      summary: Create a draft account insight period with uploaded graph evidence
+      summary: Create one monthly platform-specific insight archive per account
       parameters:
         - $ref: '#/components/parameters/IdempotencyKeyRequired'
         - $ref: '#/components/parameters/ChangeReason'
@@ -1039,8 +1039,8 @@ paths:
       responses:
         '201': { description: Draft insight period created }
         '403': { description: Metrics management capability missing }
-        '409': { description: Duplicate account period or idempotency conflict }
-        '422': { description: Invalid period or metric values }
+        '409': { description: Monthly account archive already exists or idempotency conflict }
+        '422': { description: Incomplete month, unsupported platform metric, or invalid values }
   /api/social-media/insight-periods/{id}:
     patch:
       summary: Finalize an insight period after a graph screenshot is verified
@@ -2435,6 +2435,29 @@ components:
       required: false
       schema: { type: string, minLength: 5, maxLength: 500 }
   schemas:
+    SocialInsightRequest:
+      type: object
+      additionalProperties: false
+      required: [social_account_id, archive_month]
+      properties:
+        social_account_id: { type: string, minLength: 1, maxLength: 64 }
+        archive_month: { type: string, pattern: '^\d{4}-(0[1-9]|1[0-2])$' }
+        views: { type: integer, minimum: 0, maximum: 9007199254740991 }
+        reach: { type: integer, minimum: 0, maximum: 9007199254740991 }
+        profile_visits: { type: integer, minimum: 0, maximum: 9007199254740991 }
+        likes: { type: integer, minimum: 0, maximum: 9007199254740991 }
+        comments: { type: integer, minimum: 0, maximum: 9007199254740991 }
+        shares: { type: integer, minimum: 0, maximum: 9007199254740991 }
+        saves: { type: integer, minimum: 0, maximum: 9007199254740991 }
+        watch_time_minutes: { type: integer, minimum: 0, maximum: 9007199254740991 }
+        subscribers_gained: { type: integer, minimum: 0, maximum: 9007199254740991 }
+        subscribers_lost: { type: integer, minimum: 0, maximum: 9007199254740991 }
+        impressions: { type: integer, minimum: 0, maximum: 9007199254740991 }
+        followers_gained: { type: integer, minimum: 0, maximum: 9007199254740991 }
+        followers_lost: { type: integer, minimum: 0, maximum: 9007199254740991 }
+        reactions: { type: integer, minimum: 0, maximum: 9007199254740991 }
+        poll_votes: { type: integer, minimum: 0, maximum: 9007199254740991 }
+        notes: { type: string, maxLength: 2000 }
     SuccessEnvelope:
       type: object
       required: [success]
