@@ -62,6 +62,10 @@ export const socialSnapshotSchema: z.ZodType<SocialSnapshot> = z.object({
   audience_count: z.coerce.number().int().nonnegative(),
   growth_count: z.coerce.number().int().nullable(),
   growth_percent: z.coerce.number().nullable(),
+  comparison_snapshot: z.object({
+    as_of_date: z.string().min(1),
+    audience_count: z.coerce.number().int().nonnegative(),
+  }).nullable().optional().default(null),
   created_at: z.string().min(1),
 }).loose();
 

@@ -97,7 +97,7 @@ function AudienceSnapshotForm({ accounts }: { accounts: SocialAccount[] }) {
 
   return (
     <form onSubmit={submit} className="space-y-4 rounded-xl border border-hairline bg-surface-1 p-4" aria-label="Form catat jumlah pengikut">
-      <div><h3 className="font-semibold text-ink">Catat jumlah pengikut</h3><p className="mt-1 text-xs text-ink-subtle">Masukkan angka yang terlihat di profil akun. Sistem membandingkan dengan catatan sebelumnya bila tersedia.</p></div>
+      <div><h3 className="font-semibold text-ink">Catat jumlah pengikut</h3><p className="mt-1 text-xs text-ink-subtle">Masukkan jumlah total yang terlihat di profil akun. Catat secara rutin, idealnya pada akhir bulan, agar perubahan antar tanggal bisa dibandingkan.</p></div>
       {activeAccounts.length === 0 ? <p role="status" className="rounded-lg border border-dashed border-hairline p-3 text-sm text-ink-subtle">Tambahkan akun resmi terlebih dahulu.</p> : <>
         <div className="grid gap-3 sm:grid-cols-2">
           <AccountSelector accounts={accounts} value={accountId} onChange={setAccountId} id="social-snapshot-account" />

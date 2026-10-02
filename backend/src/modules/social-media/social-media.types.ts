@@ -52,6 +52,10 @@ export interface SocialSnapshot {
   audience_count: number;
   growth_count: number | null;
   growth_percent: number | null;
+  comparison_snapshot?: {
+    as_of_date: string;
+    audience_count: number;
+  } | null;
   created_at: string;
 }
 

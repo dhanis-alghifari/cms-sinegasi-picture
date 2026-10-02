@@ -13,6 +13,13 @@ export function getDefaultSocialDateRange(days = 30): SocialMediaDateFilters {
   return { from: date.toISOString().slice(0, 10), to };
 }
 
+export function getPreviousCompletedSocialMonthRange(): SocialMediaDateFilters {
+  const today = getJakartaToday();
+  const [year, month] = today.split('-').map(Number);
+  const lastDay = new Date(Date.UTC(year!, month! - 1, 0)).toISOString().slice(0, 10);
+  return { from: `${lastDay.slice(0, 7)}-01`, to: lastDay };
+}
+
 export function getSocialDateRangeError({ from, to }: SocialMediaDateFilters): string | null {
   if (!from || !to) return 'Tanggal awal dan akhir wajib diisi.';
   const start = new Date(`${from}T00:00:00Z`).getTime();

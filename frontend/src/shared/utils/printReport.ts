@@ -150,7 +150,8 @@ export function printReport({
         display: none !important;
       }
       ${rootSelector} .equipment-report-break-inside-avoid,
-      ${rootSelector} .cash-report-page-break-inside-avoid { break-inside: avoid; }
+      ${rootSelector} .cash-report-page-break-inside-avoid,
+      ${rootSelector} .social-follower-trend-figure { break-inside: avoid; page-break-inside: avoid; }
     }
   `;
   document.head.appendChild(style);

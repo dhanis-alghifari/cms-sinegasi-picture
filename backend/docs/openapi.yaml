@@ -1006,7 +1006,7 @@ paths:
         - { name: from, in: query, required: false, schema: { type: string, format: date } }
         - { name: to, in: query, required: false, schema: { type: string, format: date } }
       responses:
-        '200': { description: Snapshots with growth compared to the preceding account snapshot and recorded insight periods }
+        '200': { description: Snapshots include the preceding snapshot date and count used for growth; out-of-range comparison rows are not included as records. Also returns recorded insight periods. }
         '403': { description: Social media read capability missing }
         '422': { description: Invalid or oversized date range }
   /api/social-media/snapshots:
@@ -1103,7 +1103,7 @@ paths:
         - { name: from, in: query, required: true, schema: { type: string, format: date } }
         - { name: to, in: query, required: true, schema: { type: string, format: date } }
       responses:
-        '200': { description: Complete bounded report with signed private evidence URLs and explicit section totals }
+        '200': { description: Complete bounded report with snapshot comparison dates and counts, signed private evidence URLs, and explicit section totals }
         '403': { description: Social media read capability missing }
         '422': { description: Invalid range or any report section exceeds the safe row limit }
   /api/attendance/summary:

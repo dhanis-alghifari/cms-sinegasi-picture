@@ -126,12 +126,17 @@ function mapEvidencePublic(evidence: SocialEvidence, includeAccess = false): Omi
 }
 
 function addSnapshotGrowth(rows: SocialSnapshot[], baselines: SocialSnapshot[] = []): SocialSnapshot[] {
-  const previousByAccount = new Map<string, number>(baselines.map((item) => [item.social_account_id, item.audience_count]));
+  const previousByAccount = new Map<string, SocialSnapshot>(baselines.map((item) => [item.social_account_id, item]));
   return [...rows].sort((a, b) => a.as_of_date.localeCompare(b.as_of_date) || a.id.localeCompare(b.id)).map((item) => {
     const prior = previousByAccount.get(item.social_account_id);
-    const growth = prior === undefined ? null : item.audience_count - prior;
-    previousByAccount.set(item.social_account_id, item.audience_count);
-    return { ...item, growth_count: growth, growth_percent: prior === undefined || prior === 0 ? null : Math.round((growth! / prior) * 10_000) / 100 };
+    const growth = prior === undefined ? null : item.audience_count - prior.audience_count;
+    previousByAccount.set(item.social_account_id, item);
+    return {
+      ...item,
+      growth_count: growth,
+      growth_percent: prior === undefined || prior.audience_count === 0 ? null : Math.round((growth! / prior.audience_count) * 10_000) / 100,
+      comparison_snapshot: prior ? { as_of_date: prior.as_of_date, audience_count: prior.audience_count } : null,
+    };
   });
 }
 

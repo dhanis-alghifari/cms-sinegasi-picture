@@ -16,12 +16,13 @@ import { useCreateSocialPublicationMutation, useFinalizeSocialInsightMutation, u
 import { SocialAccountManager } from '../components/SocialAccountManager';
 import { SocialGrowthForms } from '../components/SocialGrowthForms';
 import { SocialFollowerTrendChart } from '../components/SocialFollowerTrendChart';
+import { formatSocialSnapshotChange, type SocialFollowerTrendAccount } from '../utils/socialFollowerTrend';
 import { SocialPublicationForm } from '../components/SocialPublicationForm';
 import { SocialReportDialog } from '../components/SocialReportDialog';
 import { ResumePublicationDialog } from '../components/ResumePublicationDialog';
 import { ResumeInsightDialog } from '../components/ResumeInsightDialog';
-import type { CreatePublicationInput, SocialInsightPeriod, SocialPublication, SocialPublicationFilters } from '../types/socialMedia.types';
-import { getDefaultSocialDateRange, getJakartaToday, getSocialDateRangeError, formatSocialDateRange } from '../utils/socialMediaDates';
+import type { CreatePublicationInput, SocialInsightPeriod, SocialPublication, SocialPublicationFilters, SocialSnapshot } from '../types/socialMedia.types';
+import { getDefaultSocialDateRange, getJakartaToday, getPreviousCompletedSocialMonthRange, getSocialDateRangeError, formatSocialDateRange } from '../utils/socialMediaDates';
 import { SOCIAL_CONTENT_LABELS, SOCIAL_PLATFORM_LABELS } from '../utils/publicationRules';
 import { formatSocialArchiveMonth, getSocialInsightMetricEntries, getSocialInsightSourceLabel } from '../utils/socialInsightMetrics';
 import { printReport } from '@/shared/utils/printReport';
@@ -54,10 +55,8 @@ function getPublicationStatusClass(status: SocialPublication['status']): string 
   return 'bg-semantic-warning/10 text-semantic-warning';
 }
 
-function formatSnapshotGrowth(snapshot: { growth_count: number | null; growth_percent: number | null }): string {
-  if (snapshot.growth_count === null) return 'Baseline';
-  const delta = `${snapshot.growth_count > 0 ? '+' : ''}${formatNumber(snapshot.growth_count)}`;
-  return snapshot.growth_percent === null ? delta : `${delta} (${snapshot.growth_percent}%)`;
+function formatSnapshotGrowth(snapshot: SocialSnapshot): string {
+  return formatSocialSnapshotChange(snapshot);
 }
 
 function DateRangeControls({ from, to, onChange }: { from: string; to: string; onChange: (range: { from: string; to: string }) => void }) {
@@ -80,7 +79,7 @@ function PublicationCard({ publication, accountName, canResume, onResume }: { pu
   </article>;
 }
 
-function MetricSummary({ accounts, snapshots, insightPeriods, rangeLabel, canResume, onResume }: { accounts: { id: string; platform: string; account_name: string }[]; snapshots: NonNullable<ReturnType<typeof useSocialMetricsQuery>['data']>['snapshots']; insightPeriods: NonNullable<ReturnType<typeof useSocialMetricsQuery>['data']>['insight_periods']; rangeLabel: string; canResume: boolean; onResume: (period: SocialInsightPeriod) => void }) {
+function MetricSummary({ accounts, snapshots, insightPeriods, rangeLabel, canResume, onResume }: { accounts: SocialFollowerTrendAccount[]; snapshots: NonNullable<ReturnType<typeof useSocialMetricsQuery>['data']>['snapshots']; insightPeriods: NonNullable<ReturnType<typeof useSocialMetricsQuery>['data']>['insight_periods']; rangeLabel: string; canResume: boolean; onResume: (period: SocialInsightPeriod) => void }) {
   const byAccount = new Map(accounts.map((account) => [account.id, account]));
   return <section className="space-y-4" aria-label="Ringkasan pertumbuhan akun">
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -89,14 +88,14 @@ function MetricSummary({ accounts, snapshots, insightPeriods, rangeLabel, canRes
       <div className="rounded-xl border border-hairline bg-surface-1 p-4"><p className="text-xs text-ink-subtle">Platform aktif</p><p className="mt-2 text-2xl font-semibold text-ink">{formatNumber(accounts.length)}</p></div>
       <div className="rounded-xl border border-hairline bg-surface-1 p-4"><p className="text-xs text-ink-subtle">Rentang yang dipilih</p><p className="mt-2 text-sm font-semibold text-ink">{rangeLabel}</p></div>
     </div>
-    <SocialFollowerTrendChart accounts={accounts} snapshots={snapshots} />
+    <SocialFollowerTrendChart accounts={accounts} snapshots={snapshots} periodLabel={rangeLabel} />
     <div className="space-y-2">
       <h3 className="text-sm font-semibold text-ink">Riwayat pengikut dan grafik</h3>
       {snapshots.length === 0 && insightPeriods.length === 0 ? <EmptyState icon={BarChart3} title="Belum ada data pertumbuhan" description="Catat jumlah pengikut atau unggah grafik insight untuk mulai melihat perkembangan akun." /> : <div className="space-y-2">
         {snapshots.map((snapshot) => {
           const account = byAccount.get(snapshot.social_account_id);
           const growthLabel = formatSnapshotGrowth(snapshot);
-          return <article key={snapshot.id} className="grid gap-2 rounded-lg border border-hairline bg-surface-1 p-3 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center"><div><p className="text-sm font-semibold">{account?.account_name ?? snapshot.account_name ?? SOCIAL_PLATFORM_LABELS[snapshot.platform]}</p><p className="text-xs text-ink-subtle">{SOCIAL_PLATFORM_LABELS[snapshot.platform]} · {formatDate(snapshot.as_of_date)}</p></div><p className="text-sm"><span className="text-ink-subtle">Pengikut </span><strong>{formatNumber(snapshot.audience_count)}</strong></p><p className="text-sm"><span className="text-ink-subtle">Pertumbuhan </span><strong className={snapshot.growth_count !== null && snapshot.growth_count > 0 ? 'text-semantic-success' : ''}>{growthLabel}</strong></p></article>;
+          return <article key={snapshot.id} className="grid gap-2 rounded-lg border border-hairline bg-surface-1 p-3 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center"><div><p className="text-sm font-semibold">{account?.account_name ?? snapshot.account_name ?? SOCIAL_PLATFORM_LABELS[snapshot.platform]}</p><p className="text-xs text-ink-subtle">{SOCIAL_PLATFORM_LABELS[snapshot.platform]} · {formatDate(snapshot.as_of_date)}</p></div><p className="text-sm"><span className="text-ink-subtle">Pengikut </span><strong>{formatNumber(snapshot.audience_count)}</strong></p><p className="text-sm"><span className="text-ink-subtle">Perubahan </span><strong className={snapshot.growth_count !== null && snapshot.growth_count > 0 ? 'text-semantic-success' : ''}>{growthLabel}</strong>{snapshot.comparison_snapshot && <span className="mt-0.5 block text-xs text-ink-tertiary">Dibanding {formatDate(snapshot.comparison_snapshot.as_of_date)}</span>}</p></article>;
         })}
         {insightPeriods.map((period) => {
           const account = byAccount.get(period.social_account_id);
@@ -122,7 +121,7 @@ export function SocialMediaPage() {
   const canManageMetrics = hasCapability(user, 'social_media.metrics.manage');
   const canManageAccounts = hasCapability(user, 'social_media.accounts.manage');
   const canWriteAgenda = hasCapability(user, 'agenda.write');
-  const initialRange = useMemo(() => getDefaultSocialDateRange(), []);
+  const initialRange = useMemo(() => getPreviousCompletedSocialMonthRange(), []);
   const initialGrowthRange = useMemo(() => getDefaultSocialDateRange(366), []);
   const [tab, setTab] = useState<SocialTab>('publications');
   const [from, setFrom] = useState(initialRange.from);
@@ -285,7 +284,7 @@ export function SocialMediaPage() {
     </div>
 
     {tab !== 'growth' && <section className="rounded-xl border border-hairline bg-surface-1 p-3 sm:p-4" aria-label="Filter rentang tanggal">
-      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end"><DateRangeControls from={from} to={to} onChange={(range) => { setFrom(range.from); setTo(range.to); setPage(1); }} /><Button type="button" variant="outline" className="min-h-11" onClick={() => { const range = getDefaultSocialDateRange(); setFrom(range.from); setTo(range.to); setPage(1); }}><RefreshCw size={14} aria-hidden="true" /> 30 hari terakhir</Button></div>
+       <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end"><DateRangeControls from={from} to={to} onChange={(range) => { setFrom(range.from); setTo(range.to); setPage(1); }} /><Button type="button" variant="outline" className="min-h-11" onClick={() => { const range = getPreviousCompletedSocialMonthRange(); setFrom(range.from); setTo(range.to); setPage(1); }}><RefreshCw size={14} aria-hidden="true" /> Bulan kalender sebelumnya</Button></div>
       <p className="mt-2 text-xs text-ink-tertiary">Rentang: {formatSocialDateRange(dateFilters)}. Laporan cetak dibatasi maksimal 366 hari.</p>
       {dateRangeError && <p role="alert" className="mt-2 text-xs text-semantic-danger">{dateRangeError}</p>}
     </section>}
