@@ -101,17 +101,6 @@ export const socialInsightPeriodSchema: z.ZodType<SocialInsightPeriod> = z.objec
   created_at: z.string().min(1),
 }).loose();
 
-const reportActivitySchema = z.object({
-  id: z.string().min(1),
-  activity_date: z.string().min(1),
-  activity_name: z.string().min(1),
-  activity_description: z.string(),
-  instructor_name: z.string().nullable().optional(),
-  pic_names: z.array(z.string()).optional(),
-  photo_access_url: z.string().url().nullable().optional(),
-  evidence: z.array(socialEvidenceSchema).optional(),
-}).loose();
-
 const metricsSchema: z.ZodType<SocialMetrics> = z.object({
   snapshots: z.array(socialSnapshotSchema),
   insight_periods: z.array(socialInsightPeriodSchema),
@@ -119,18 +108,33 @@ const metricsSchema: z.ZodType<SocialMetrics> = z.object({
 
 const reportSchema: z.ZodType<SocialReportData> = z.object({
   range: z.object({ from: z.string().min(1), to: z.string().min(1) }),
+  trend_range: z.object({ from: z.string().min(1), to: z.string().min(1) }),
   complete: z.boolean(),
   truncated: z.boolean(),
   totals: z.object({
-    activities: z.number().int().nonnegative(),
     publications: z.number().int().nonnegative(),
-    snapshots: z.number().int().nonnegative(),
+    accounts: z.number().int().nonnegative(),
     insight_periods: z.number().int().nonnegative(),
     evidence_images: z.number().int().nonnegative(),
   }),
-  activities: z.array(reportActivitySchema),
+  monthly_growth: z.array(z.object({
+    id: z.string().min(1),
+    platform: platformSchema,
+    account_name: z.string().min(1),
+    is_active: z.boolean(),
+    points: z.array(z.object({
+      month: z.string().min(1),
+      as_of_date: z.string().nullable(),
+      audience_count: z.coerce.number().int().nonnegative().nullable(),
+      growth_count: z.coerce.number().int().nullable(),
+      growth_percent: z.coerce.number().nullable(),
+      comparison_snapshot: z.object({
+        as_of_date: z.string().min(1),
+        audience_count: z.coerce.number().int().nonnegative(),
+      }).nullable(),
+    })),
+  })),
   publications: z.array(socialPublicationSchema),
-  snapshots: z.array(socialSnapshotSchema),
   insight_periods: z.array(socialInsightPeriodSchema),
 }).loose();
 

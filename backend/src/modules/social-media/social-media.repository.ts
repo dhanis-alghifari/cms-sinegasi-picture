@@ -1,13 +1,13 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { DatabaseRow } from '../../shared/database/database.types.js';
 import type {
-  SocialAccount, SocialEvidence, SocialInsightPeriod, SocialMediaMemoryState,
+  SocialAccount, SocialEvidence, SocialInsightPeriod, SocialMediaMemoryState, SocialReportAccount,
   SocialMediaRepository, SocialPlatform, SocialPublication, SocialSnapshot,
 } from './social-media.types.js';
 
 type SupabaseLike = SupabaseClient | null;
 const PAGE_SIZE = 1_000;
-const PUBLICATION_SELECT = 'id,social_account_id,platform,content_type,caption,published_at,platform_url,status,version,created_by,created_at,updated_at,social_accounts(platform,account_name)';
+const PUBLICATION_SELECT = 'id,social_account_id,platform,content_type,caption,published_at,platform_url,status,version,created_by,created_at,updated_at,social_accounts(platform,account_name,is_active)';
 
 function row(value: unknown): DatabaseRow {
   return value && typeof value === 'object' ? value as DatabaseRow : {};
@@ -438,42 +438,48 @@ export function createSocialMediaRepository(client: SupabaseLike, _state: Social
       return result.error ? mapMutationError(result.error) : result.data ? { data: mapInsight(result.data) } : { error: new Error('SOCIAL_VERSION_CONFLICT') };
     },
 
-    async reportData(from, to, maxRows) {
-      const db = requireClient(); if (!db) return { activities: [], publications: [], snapshots: [], insight_periods: [] };
-      const [activitiesResult, publicationsResult, snapshotsResult, insightResult] = await Promise.all([
-        collectAll((start, end) => db.from('agenda_activities').select('id,activity_date,activity_name,activity_description,instructor_name,pic_names,agenda_activity_photos(id,object_key,upload_status,mime_type,file_size_bytes,original_filename,created_at)')
-          .is('archived_at', null).gte('activity_date', from).lte('activity_date', to).order('activity_date', { ascending: false }).order('id', { ascending: false }).range(start, end), maxRows),
+    async reportData(from, to, trendFrom, maxRows) {
+      const db = requireClient(); if (!db) return { accounts: [], publications: [], snapshots: [], insight_periods: [] };
+      const [publicationsResult, snapshotsResult, archivedInsightResult, legacyInsightResult] = await Promise.all([
         collectAll((start, end) => db.from('social_publications').select(PUBLICATION_SELECT)
-          .eq('status', 'recorded').gte('published_at', from).lte('published_at', to).order('published_at', { ascending: false }).order('id', { ascending: false }).range(start, end), maxRows),
-        collectAll((start, end) => db.from('social_account_snapshots').select('*,social_accounts(platform,account_name)')
-          .gte('as_of_date', from).lte('as_of_date', to).order('as_of_date', { ascending: false }).order('id', { ascending: false }).range(start, end), maxRows),
-        collectAll((start, end) => db.from('social_insight_periods').select('*,social_accounts(platform,account_name)')
-          .eq('status', 'recorded').lte('period_start', to).gte('period_end', from).order('period_start', { ascending: false }).order('id', { ascending: false }).range(start, end), maxRows),
+          .eq('status', 'recorded').gte('published_at', from).lte('published_at', to)
+          .order('published_at', { ascending: false }).order('id', { ascending: false }).range(start, end), maxRows),
+        collectAll((start, end) => db.from('social_account_snapshots').select('*,social_accounts(platform,account_name,is_active)')
+          .gte('as_of_date', trendFrom).lte('as_of_date', to).order('as_of_date', { ascending: true }).order('created_at', { ascending: true }).order('id', { ascending: true }).range(start, end), maxRows),
+        collectAll((start, end) => db.from('social_insight_periods').select('*,social_accounts(platform,account_name,is_active)')
+          .eq('status', 'recorded').eq('archive_month', from).order('period_start', { ascending: false }).order('id', { ascending: false }).range(start, end), maxRows),
+        collectAll((start, end) => db.from('social_insight_periods').select('*,social_accounts(platform,account_name,is_active)')
+          .eq('status', 'recorded').is('archive_month', null).lte('period_start', to).gte('period_end', from)
+          .order('period_start', { ascending: false }).order('id', { ascending: false }).range(start, end), maxRows),
       ]);
-      if ('error' in activitiesResult) return activitiesResult;
       if ('error' in publicationsResult) return publicationsResult;
       if ('error' in snapshotsResult) return snapshotsResult;
-      if ('error' in insightResult) return insightResult;
-      const activityRows = activitiesResult.data.map((item) => {
-        const activity = row(item);
-        const photos = (Array.isArray(activity.agenda_activity_photos) ? activity.agenda_activity_photos : [])
-          .map(row).filter((photo) => photo.upload_status === 'attached');
-        return {
-          id: text(activity.id), activity_date: text(activity.activity_date), activity_name: text(activity.activity_name),
-          activity_description: text(activity.activity_description), instructor_name: nullableText(activity.instructor_name),
-          pic_names: Array.isArray(activity.pic_names) ? activity.pic_names.map(String) : [],
-          _photos: photos.map((photo) => ({
-            id: text(photo.id), upload_status: 'attached', mime_type: text(photo.mime_type),
-            file_size_bytes: Number(photo.file_size_bytes || 0), original_filename: text(photo.original_filename),
-            created_at: text(photo.created_at), object_key: nullableText(photo.object_key),
-          })),
-        };
-      });
+      if ('error' in archivedInsightResult) return archivedInsightResult;
+      if ('error' in legacyInsightResult) return legacyInsightResult;
+      const insightRows = new Map<string, DatabaseRow>();
+      for (const item of [...archivedInsightResult.data, ...legacyInsightResult.data]) {
+        const insight = row(item);
+        insightRows.set(text(insight.id), insight);
+      }
+      if (insightRows.size > maxRows) return { error: new Error('SOCIAL_REPORT_ROW_LIMIT'), overflow: true };
+      const publicationRows = publicationsResult.data.map(row);
+      const snapshotRows = snapshotsResult.data.map(row);
+      const insightData = [...insightRows.values()]
+        .sort((left, right) => text(right.period_start).localeCompare(text(left.period_start)) || text(right.id).localeCompare(text(left.id)));
+      const reportAccounts = new Map<string, SocialReportAccount>();
+      for (const item of [...publicationRows, ...snapshotRows, ...insightData]) {
+        const account = row(item.social_accounts);
+        const id = text(item.social_account_id);
+        const platform = text(item.platform || account.platform) as SocialReportAccount['platform'];
+        const accountName = text(account.account_name);
+        if (!id || !accountName) continue;
+        reportAccounts.set(id, { id, platform, account_name: accountName, is_active: account.is_active === true });
+      }
       return {
-        activities: activityRows,
-        publications: publicationsResult.data.map(mapPublication),
-        snapshots: snapshotsResult.data.map(mapSnapshot),
-        insight_periods: insightResult.data.map(mapInsight),
+        accounts: [...reportAccounts.values()],
+        publications: publicationRows.map(mapPublication),
+        snapshots: snapshotRows.map(mapSnapshot),
+        insight_periods: insightData.map(mapInsight),
       };
     },
   };

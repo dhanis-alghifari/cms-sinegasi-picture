@@ -59,6 +59,26 @@ export interface SocialSnapshot {
   created_at: string;
 }
 
+export interface SocialReportAccount {
+  id: string;
+  platform: SocialPlatform;
+  account_name: string;
+  is_active: boolean;
+}
+
+export interface SocialMonthlyAudiencePoint {
+  month: string;
+  as_of_date: string | null;
+  audience_count: number | null;
+  growth_count: number | null;
+  growth_percent: number | null;
+  comparison_snapshot: { as_of_date: string; audience_count: number } | null;
+}
+
+export interface SocialMonthlyAudienceSeries extends SocialReportAccount {
+  points: SocialMonthlyAudiencePoint[];
+}
+
 export interface SocialInsightPeriod {
   id: string;
   social_account_id: string;
@@ -139,7 +159,7 @@ export interface SocialMediaRepository {
   listSnapshotBaselines(before: string, socialAccountIds: string[]): Promise<{ data: SocialSnapshot[] } | { error: unknown }>;
   listInsightPeriods(from: string, to: string): Promise<{ data: SocialInsightPeriod[] } | { error: unknown }>;
   finalizeInsightPeriod(input: SocialMutationContext & { id: string; expectedVersion: number }): Promise<{ data: SocialInsightPeriod } | { error: unknown }>;
-  reportData(from: string, to: string, maxRows: number): Promise<{ activities: Record<string, unknown>[]; publications: SocialPublication[]; snapshots: SocialSnapshot[]; insight_periods: SocialInsightPeriod[] } | { error: unknown }>;
+  reportData(from: string, to: string, trendFrom: string, maxRows: number): Promise<{ accounts: SocialReportAccount[]; publications: SocialPublication[]; snapshots: SocialSnapshot[]; insight_periods: SocialInsightPeriod[] } | { error: unknown }>;
 }
 
 export interface SocialMediaMemoryState {

@@ -22,7 +22,7 @@ import { SocialReportDialog } from '../components/SocialReportDialog';
 import { ResumePublicationDialog } from '../components/ResumePublicationDialog';
 import { ResumeInsightDialog } from '../components/ResumeInsightDialog';
 import type { CreatePublicationInput, SocialInsightPeriod, SocialPublication, SocialPublicationFilters, SocialSnapshot } from '../types/socialMedia.types';
-import { getDefaultSocialDateRange, getJakartaToday, getPreviousCompletedSocialMonthRange, getSocialDateRangeError, formatSocialDateRange } from '../utils/socialMediaDates';
+import { getDefaultSocialDateRange, getJakartaToday, getPreviousCompletedSocialMonth, getPreviousCompletedSocialMonthRange, getSocialMonthRange, getSocialDateRangeError, isCompletedSocialMonth, formatSocialDateRange, formatSocialMonth } from '../utils/socialMediaDates';
 import { SOCIAL_CONTENT_LABELS, SOCIAL_PLATFORM_LABELS } from '../utils/publicationRules';
 import { formatSocialArchiveMonth, getSocialInsightMetricEntries, getSocialInsightSourceLabel } from '../utils/socialInsightMetrics';
 import { printReport } from '@/shared/utils/printReport';
@@ -122,10 +122,12 @@ export function SocialMediaPage() {
   const canManageAccounts = hasCapability(user, 'social_media.accounts.manage');
   const canWriteAgenda = hasCapability(user, 'agenda.write');
   const initialRange = useMemo(() => getPreviousCompletedSocialMonthRange(), []);
+  const initialReportMonth = useMemo(() => getPreviousCompletedSocialMonth(), []);
   const initialGrowthRange = useMemo(() => getDefaultSocialDateRange(366), []);
   const [tab, setTab] = useState<SocialTab>('publications');
   const [from, setFrom] = useState(initialRange.from);
   const [to, setTo] = useState(initialRange.to);
+  const [reportMonth, setReportMonth] = useState(initialReportMonth);
   const [growthFrom, setGrowthFrom] = useState(initialGrowthRange.from);
   const [growthTo, setGrowthTo] = useState(initialGrowthRange.to);
   const [page, setPage] = useState(1);
@@ -138,6 +140,8 @@ export function SocialMediaPage() {
   const resumeInsightUploadKeys = useRef(new Map<string, { fileIdentity: string; key: string }>());
   const dateFilters = { from, to };
   const dateRangeError = getSocialDateRangeError(dateFilters);
+  const reportFilters = getSocialMonthRange(reportMonth) ?? initialRange;
+  const reportMonthError = isCompletedSocialMonth(reportMonth) ? null : 'Pilih bulan kalender yang sudah selesai.';
   const growthDateFilters = { from: growthFrom, to: growthTo };
   const growthDateRangeError = getSocialDateRangeError(growthDateFilters);
   const publicationFilters: SocialPublicationFilters = { from, to, page, pageSize: UI_CONSTANTS.DEFAULT_PAGE_SIZE };
@@ -145,7 +149,7 @@ export function SocialMediaPage() {
   const accountsQuery = useSocialAccountsQuery(canRead, canManageAccounts);
   const publicationsQuery = useSocialPublicationsQuery(publicationFilters, canRead && tab === 'publications' && !dateRangeError);
   const metricsQuery = useSocialMetricsQuery(growthDateFilters, canRead && tab === 'growth' && !growthDateRangeError);
-  const reportQuery = useSocialReportQuery(dateFilters, canRead && reportOpen && !dateRangeError);
+  const reportQuery = useSocialReportQuery(reportFilters, canRead && reportOpen && !reportMonthError);
   const createPublication = useCreateSocialPublicationMutation();
   const uploadEvidence = useUploadPublicationEvidenceMutation();
   const finalizePublication = useFinalizeSocialPublicationMutation();
@@ -283,9 +287,9 @@ export function SocialMediaPage() {
       {tabs.map(({ id, label, icon: Icon }) => <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)} className={`flex min-h-11 shrink-0 items-center gap-2 rounded-lg px-3 text-sm transition-colors ${tab === id ? 'bg-surface-1 font-semibold text-ink shadow-sm' : 'text-ink-subtle hover:text-ink'}`}><Icon size={16} aria-hidden="true" />{label}</button>)}
     </div>
 
-    {tab !== 'growth' && <section className="rounded-xl border border-hairline bg-surface-1 p-3 sm:p-4" aria-label="Filter rentang tanggal">
+    {tab === 'publications' && <section className="rounded-xl border border-hairline bg-surface-1 p-3 sm:p-4" aria-label="Filter rentang tanggal publikasi">
        <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end"><DateRangeControls from={from} to={to} onChange={(range) => { setFrom(range.from); setTo(range.to); setPage(1); }} /><Button type="button" variant="outline" className="min-h-11" onClick={() => { const range = getPreviousCompletedSocialMonthRange(); setFrom(range.from); setTo(range.to); setPage(1); }}><RefreshCw size={14} aria-hidden="true" /> Bulan kalender sebelumnya</Button></div>
-      <p className="mt-2 text-xs text-ink-tertiary">Rentang: {formatSocialDateRange(dateFilters)}. Laporan cetak dibatasi maksimal 366 hari.</p>
+      <p className="mt-2 text-xs text-ink-tertiary">Rentang publikasi: {formatSocialDateRange(dateFilters)}. Pilih maksimal 366 hari.</p>
       {dateRangeError && <p role="alert" className="mt-2 text-xs text-semantic-danger">{dateRangeError}</p>}
     </section>}
 
@@ -320,13 +324,19 @@ export function SocialMediaPage() {
       {!growthDateRangeError && !metricsQuery.isPending && !metricsQuery.isError && <><RefreshingIndicator visible={metricsQuery.isFetching} /><MetricSummary accounts={accounts} snapshots={metricsQuery.data?.snapshots ?? []} insightPeriods={metricsQuery.data?.insight_periods ?? []} rangeLabel={formatSocialDateRange(growthDateFilters)} canResume={canManageMetrics} onResume={setResumeInsightTarget} /></>}
     </section>}
 
-    {tab === 'reports' && <section className="space-y-3 rounded-xl border border-hairline bg-surface-1 p-4">
-      <div className="flex items-start gap-3"><div className="rounded-lg bg-primary/10 p-2 text-primary"><FileText size={18} aria-hidden="true" /></div><div><h2 className="font-semibold text-ink">Laporan lengkap Humas</h2><p className="mt-1 text-sm text-ink-subtle">Menggabungkan kegiatan Agenda, publikasi, snapshot pengikut, dan grafik insight pada rentang tanggal terpilih. Cetak hanya aktif bila semua data dan gambar bukti sudah siap.</p></div></div>
-      <Button type="button" className="min-h-11 w-full sm:w-auto" disabled={Boolean(dateRangeError)} onClick={() => setReportOpen(true)}><FileText size={16} aria-hidden="true" /> Muat pratinjau laporan</Button>
+    {tab === 'reports' && <section className="space-y-4 rounded-xl border border-hairline bg-surface-1 p-4" aria-label="Laporan bulanan Humas dan media sosial">
+      <div className="flex items-start gap-3"><div className="rounded-lg bg-primary/10 p-2 text-primary"><FileText size={18} aria-hidden="true" /></div><div><h2 className="font-semibold text-ink">Laporan bulanan Humas</h2><p className="mt-1 text-sm text-ink-subtle">Ringkasan jumlah konten yang sudah tercatat, grafik tren pengikut bulanan per akun, dan metrik insight tersimpan. Agenda tidak termasuk dalam laporan ini.</p></div></div>
+      <div className="grid gap-3 sm:grid-cols-[minmax(12rem,20rem)_auto] sm:items-end">
+        <label className="space-y-1 text-xs text-ink-subtle"><span>Bulan laporan</span><Input type="month" max={getPreviousCompletedSocialMonth()} value={reportMonth} onChange={(event) => setReportMonth(event.target.value)} className="min-h-11" /></label>
+        <Button type="button" variant="outline" className="min-h-11" onClick={() => setReportMonth(getPreviousCompletedSocialMonth())}><RefreshCw size={14} aria-hidden="true" /> Bulan terakhir yang selesai</Button>
+      </div>
+      <p className="text-xs text-ink-tertiary">Periode: {formatSocialMonth(reportMonth)}. Grafik menampilkan 12 bulan per akun; nilai hanya muncul pada bulan yang memiliki snapshot tersimpan.</p>
+      {reportMonthError && <p role="alert" className="text-xs text-semantic-danger">{reportMonthError}</p>}
+      <Button type="button" className="min-h-11 w-full sm:w-auto" disabled={Boolean(reportMonthError)} onClick={() => setReportOpen(true)}><FileText size={16} aria-hidden="true" /> Pratinjau laporan {formatSocialMonth(reportMonth)}</Button>
     </section>}
 
     {!canManagePublications && !canManageMetrics && !canManageAccounts && <EmptyState icon={Users} title="Akses baca saja" description="Akun ini dapat melihat laporan Humas, tetapi tidak memiliki izin untuk mengubah data." />}
-    <SocialReportDialog open={reportOpen} onOpenChange={setReportOpen} report={reportQuery.data} isLoading={reportQuery.isPending} error={reportQuery.error} onRetry={() => void reportQuery.refetch()} onPrint={printSocialReport} />
+    <SocialReportDialog open={reportOpen} onOpenChange={setReportOpen} report={reportQuery.data} isLoading={reportQuery.isPending || reportQuery.isFetching} error={reportQuery.error} onRetry={() => void reportQuery.refetch()} onPrint={printSocialReport} />
     <ResumePublicationDialog publication={resumeTarget} onOpenChange={(open) => { if (!open) setResumeTarget(null); }} onSubmit={resumePublication} />
     <ResumeInsightDialog period={resumeInsightTarget} onOpenChange={(open) => { if (!open) setResumeInsightTarget(null); }} onSubmit={resumeInsight} />
   </div>;

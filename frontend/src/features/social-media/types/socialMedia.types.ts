@@ -93,25 +93,34 @@ export interface SocialMetrics {
   insight_periods: SocialInsightPeriod[];
 }
 
-export interface SocialReportActivity {
+export interface SocialReportAccount {
   id: string;
-  activity_date: string;
-  activity_name: string;
-  activity_description: string;
-  instructor_name?: string | null;
-  pic_names?: string[];
-  photo_access_url?: string | null;
-  evidence?: SocialEvidence[];
+  platform: SocialPlatform;
+  account_name: string;
+  is_active: boolean;
+}
+
+export interface SocialMonthlyAudiencePoint {
+  month: string;
+  as_of_date: string | null;
+  audience_count: number | null;
+  growth_count: number | null;
+  growth_percent: number | null;
+  comparison_snapshot: { as_of_date: string; audience_count: number } | null;
+}
+
+export interface SocialMonthlyAudienceSeries extends SocialReportAccount {
+  points: SocialMonthlyAudiencePoint[];
 }
 
 export interface SocialReportData {
   range: { from: string; to: string };
+  trend_range: { from: string; to: string };
   complete: boolean;
   truncated: boolean;
-  totals: { activities: number; publications: number; snapshots: number; insight_periods: number; evidence_images: number };
-  activities: SocialReportActivity[];
+  totals: { publications: number; accounts: number; insight_periods: number; evidence_images: number };
+  monthly_growth: SocialMonthlyAudienceSeries[];
   publications: SocialPublication[];
-  snapshots: SocialSnapshot[];
   insight_periods: SocialInsightPeriod[];
 }
 

@@ -14,10 +14,36 @@ export function getDefaultSocialDateRange(days = 30): SocialMediaDateFilters {
 }
 
 export function getPreviousCompletedSocialMonthRange(): SocialMediaDateFilters {
+  const range = getSocialMonthRange(getPreviousCompletedSocialMonth());
+  if (!range) throw new Error('Unable to resolve previous completed social month.');
+  return range;
+}
+
+export function getPreviousCompletedSocialMonth(): string {
   const today = getJakartaToday();
   const [year, month] = today.split('-').map(Number);
-  const lastDay = new Date(Date.UTC(year!, month! - 1, 0)).toISOString().slice(0, 10);
-  return { from: `${lastDay.slice(0, 7)}-01`, to: lastDay };
+  return new Date(Date.UTC(year!, month! - 2, 1)).toISOString().slice(0, 7);
+}
+
+export function getSocialMonthRange(month: string): SocialMediaDateFilters | null {
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) return null;
+  const [year, monthNumber] = month.split('-').map(Number);
+  return {
+    from: `${month}-01`,
+    to: new Date(Date.UTC(year!, monthNumber!, 0)).toISOString().slice(0, 10),
+  };
+}
+
+export function isCompletedSocialMonth(month: string): boolean {
+  const range = getSocialMonthRange(month);
+  if (!range) return false;
+  return range.to < `${getJakartaToday().slice(0, 7)}-01`;
+}
+
+export function formatSocialMonth(month: string): string {
+  const range = getSocialMonthRange(month);
+  if (!range) return 'Pilih bulan laporan';
+  return new Intl.DateTimeFormat('id-ID', { month: 'long', year: 'numeric' }).format(new Date(`${range.from}T00:00:00`));
 }
 
 export function getSocialDateRangeError({ from, to }: SocialMediaDateFilters): string | null {

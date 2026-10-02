@@ -1098,12 +1098,13 @@ paths:
         '403': { description: Social media read capability missing }
   /api/social-media/reports:
     get:
-      summary: Read a complete report for all matching activities and social media records
+      summary: Read a complete monthly social media report
+      description: The selected from and to dates must describe one completed calendar month. The response contains recorded publications and insight archives for that month plus 12 monthly audience snapshots per account, with missing snapshot months represented as null rather than zero. Agenda activities are not part of this report.
       parameters:
         - { name: from, in: query, required: true, schema: { type: string, format: date } }
         - { name: to, in: query, required: true, schema: { type: string, format: date } }
       responses:
-        '200': { description: Complete bounded report with snapshot comparison dates and counts, signed private evidence URLs, and explicit section totals }
+        '200': { description: Complete bounded monthly report with per-account monthly audience trend, publication counts, insight archives, signed private evidence URLs, and explicit totals }
         '403': { description: Social media read capability missing }
         '422': { description: Invalid range or any report section exceeds the safe row limit }
   /api/attendance/summary:

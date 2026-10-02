@@ -1,8 +1,8 @@
 import { generateR2PrivateAccessUrl, generateR2PrivateUploadUrl, generateR2PrivateUploadUrlForKey, inspectCloudflareR2Object, verifyCloudflareR2ImageObject } from '../../services/cloudflareR2Service.js';
 import { databaseErrorCode, databaseErrorMessage } from '../../shared/database/database.types.js';
 import type {
-  CreateSocialInsightInput, SocialAccount, SocialEvidence, SocialInsightPeriod, SocialMediaRepository, SocialMutationContext,
-  SocialPlatform, SocialPublication, SocialSnapshot,
+  CreateSocialInsightInput, SocialAccount, SocialEvidence, SocialInsightPeriod, SocialMediaRepository, SocialMonthlyAudiencePoint,
+  SocialMonthlyAudienceSeries, SocialMutationContext, SocialPlatform, SocialPublication, SocialSnapshot,
 } from './social-media.types.js';
 
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
@@ -62,6 +62,63 @@ function dateRangeDays(from: string, to: string): number {
   return Math.floor((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000) + 1;
 }
 
+function shiftMonth(month: string, offset: number): string {
+  const [year, monthNumber] = month.split('-').map(Number);
+  return new Date(Date.UTC(year!, monthNumber! - 1 + offset, 1)).toISOString().slice(0, 7);
+}
+
+function monthRange(month: string): { from: string; to: string } {
+  const [year, monthNumber] = month.split('-').map(Number);
+  const from = `${month}-01`;
+  const to = new Date(Date.UTC(year!, monthNumber!, 0)).toISOString().slice(0, 10);
+  return { from, to };
+}
+
+function monthlyAudienceSeries(
+  accounts: Array<Pick<SocialAccount, 'id' | 'platform' | 'account_name' | 'is_active'>>,
+  snapshots: SocialSnapshot[],
+  firstDisplayMonth: string,
+): SocialMonthlyAudienceSeries[] {
+  const snapshotsByAccount = new Map<string, Map<string, SocialSnapshot>>();
+  for (const snapshot of snapshots) {
+    const month = snapshot.as_of_date.slice(0, 7);
+    const accountMonths = snapshotsByAccount.get(snapshot.social_account_id) ?? new Map<string, SocialSnapshot>();
+    const current = accountMonths.get(month);
+    if (!current || snapshot.as_of_date > current.as_of_date
+      || (snapshot.as_of_date === current.as_of_date && snapshot.created_at > current.created_at)
+      || (snapshot.as_of_date === current.as_of_date && snapshot.created_at === current.created_at && snapshot.id > current.id)) {
+      accountMonths.set(month, snapshot);
+    }
+    snapshotsByAccount.set(snapshot.social_account_id, accountMonths);
+  }
+
+  return accounts.map((account) => {
+    const accountMonths = snapshotsByAccount.get(account.id) ?? new Map<string, SocialSnapshot>();
+    const points: SocialMonthlyAudiencePoint[] = Array.from({ length: 12 }, (_, index) => {
+      const month = shiftMonth(firstDisplayMonth, index);
+      const current = accountMonths.get(month);
+      const previous = accountMonths.get(shiftMonth(month, -1));
+      const growthCount = current && previous ? current.audience_count - previous.audience_count : null;
+      const growthPercent = growthCount === null || !previous || previous.audience_count === 0
+        ? null
+        : Math.round((growthCount / previous.audience_count) * 10_000) / 100;
+
+      return {
+        month: `${month}-01`,
+        as_of_date: current?.as_of_date ?? null,
+        audience_count: current?.audience_count ?? null,
+        growth_count: growthCount,
+        growth_percent: growthPercent,
+        comparison_snapshot: current && previous
+          ? { as_of_date: previous.as_of_date, audience_count: previous.audience_count }
+          : null,
+      };
+    });
+
+    return { ...account, points };
+  });
+}
+
 export function isAllowedSocialUrl(platform: SocialPlatform, value: string): boolean {
   try {
     const url = new URL(value);
@@ -104,7 +161,8 @@ function failRepository(error: unknown): never {
     SOCIAL_ACCOUNT_INACTIVE: [422, 'SOCIAL_ACCOUNT_INACTIVE', 'Akun ini sudah tidak aktif. Pilih akun resmi yang aktif.'],
     SOCIAL_ACCOUNT_DUPLICATE: [409, 'SOCIAL_ACCOUNT_DUPLICATE', 'Nama akun ini sudah tercatat untuk platform tersebut.'],
     SOCIAL_PUBLICATION_EVIDENCE_REQUIRED: [422, 'SOCIAL_PUBLICATION_EVIDENCE_REQUIRED', 'Publikasi Channel WhatsApp memerlukan tautan WhatsApp atau minimal satu foto bukti.'],
-    SOCIAL_REPORT_ROW_LIMIT: [422, 'SOCIAL_REPORT_ROW_LIMIT', 'Laporan terlalu besar untuk rentang ini. Perkecil rentang tanggal agar seluruh data dapat dimuat.'],
+    SOCIAL_REPORT_ROW_LIMIT: [422, 'SOCIAL_REPORT_ROW_LIMIT', 'Data laporan melewati batas aman 5.000 baris. Persempit filter akun atau hubungi admin.'],
+    SOCIAL_REPORT_MONTH_INVALID: [422, 'SOCIAL_REPORT_MONTH_INVALID', 'Pilih satu bulan kalender yang sudah selesai untuk laporan.'],
   };
   if (mapped[message]) {
     const [statusCode, errorCode, publicMessage] = mapped[message]!;
@@ -359,8 +417,21 @@ export class SocialMediaService {
 
   async reports(fromValue?: string, toValue?: string) {
     const { from, to } = this.dateRange(fromValue, toValue, MAX_REPORT_RANGE_DAYS);
-    const result = await this.repository.reportData(from, to, MAX_REPORT_ROWS_PER_SECTION);
+    const selectedMonth = from.slice(0, 7);
+    const expectedRange = monthRange(selectedMonth);
+    const currentMonthStart = `${jakartaToday().slice(0, 7)}-01`;
+    if (from !== expectedRange.from || to !== expectedRange.to || to >= currentMonthStart) {
+      throw new SocialMediaServiceError(422, 'SOCIAL_REPORT_MONTH_INVALID', 'Pilih satu bulan kalender yang sudah selesai untuk laporan.');
+    }
+
+    const firstDisplayMonth = shiftMonth(selectedMonth, -11);
+    const trendFrom = `${shiftMonth(firstDisplayMonth, -1)}-01`;
+    const [result, accountResult] = await Promise.all([
+      this.repository.reportData(from, to, trendFrom, MAX_REPORT_ROWS_PER_SECTION),
+      this.repository.listAccounts(false),
+    ]);
     if ('error' in result) failRepository(result.error);
+    if ('error' in accountResult) failRepository(accountResult.error);
     const pubEvidence = await this.repository.listEvidence('publication', result.publications.map((item) => item.id));
     const insightEvidence = await this.repository.listEvidence('insight_period', result.insight_periods.map((item) => item.id));
     if ('error' in pubEvidence) failRepository(pubEvidence.error);
@@ -369,33 +440,19 @@ export class SocialMediaService {
     const insightGrouped = this.groupEvidence(insightEvidence.data);
     const publications = result.publications.map((item) => this.publicationPublic({ ...item, evidence: this.evidenceWithAccess(pubGrouped.get(item.id) || []) }));
     const insightPeriods = result.insight_periods.map((item) => this.insightPublic({ ...item, evidence: this.evidenceWithAccess(insightGrouped.get(item.id) || []) }));
-    const activities = result.activities.map((activity) => {
-      const photos = Array.isArray(activity._photos) ? activity._photos as Array<Record<string, unknown>> : [];
-      const evidence = photos.map((photo) => {
-        const objectKey = typeof photo.object_key === 'string' ? photo.object_key : null;
-        const { object_key: _privateKey, ...safePhoto } = photo;
-        const access = objectKey ? generateR2PrivateAccessUrl(objectKey) : null;
-        return { ...safePhoto, ...(access ? { access_url: access.accessUrl, expires_in_seconds: access.expiresInSeconds } : {}) };
-      });
-      return {
-        ...activity,
-        _photos: undefined,
-        evidence,
-        photo_access_url: evidence.find((item) => typeof item.access_url === 'string')?.access_url ?? null,
-        photo_access_expires_in_seconds: evidence.find((item) => typeof item.access_url === 'string')?.expires_in_seconds ?? null,
-      };
-    });
-    const snapshotAccountIds = [...new Set(result.snapshots.map((item) => item.social_account_id))];
-    const baselinesResult = await this.repository.listSnapshotBaselines(from, snapshotAccountIds);
-    if ('error' in baselinesResult) failRepository(baselinesResult.error);
-    const snapshots = addSnapshotGrowth(result.snapshots, baselinesResult.data);
+    const accountMap = new Map(accountResult.data.map(({ id, platform, account_name, is_active }) => [id, { id, platform, account_name, is_active }]));
+    for (const account of result.accounts) {
+      if (!accountMap.has(account.id)) accountMap.set(account.id, account);
+    }
+    const accounts = [...accountMap.values()]
+      .sort((left, right) => left.platform.localeCompare(right.platform) || left.account_name.localeCompare(right.account_name));
+    const monthlyGrowth = monthlyAudienceSeries(accounts, result.snapshots, firstDisplayMonth);
     return {
-      range: { from, to }, complete: true, truncated: false,
-      totals: { activities: activities.length, publications: publications.length, snapshots: snapshots.length, insight_periods: insightPeriods.length,
-        evidence_images: activities.reduce((sum, activity) => sum + activity.evidence.length, 0)
-          + publications.reduce((sum, publication) => sum + publication.evidence.length, 0)
+      range: { from, to }, trend_range: { from: `${firstDisplayMonth}-01`, to }, complete: true, truncated: false,
+      totals: { publications: publications.length, accounts: monthlyGrowth.length, insight_periods: insightPeriods.length,
+        evidence_images: publications.reduce((sum, publication) => sum + publication.evidence.length, 0)
           + insightPeriods.reduce((sum, period) => sum + period.evidence.length, 0) },
-      activities, publications, snapshots, insight_periods: insightPeriods,
+      monthly_growth: monthlyGrowth, publications, insight_periods: insightPeriods,
     };
   }
 

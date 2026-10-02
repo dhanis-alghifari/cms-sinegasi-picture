@@ -23,7 +23,7 @@ export function useSocialMetricsQuery(filters: SocialMediaDateFilters, enabled =
 }
 
 export function useSocialReportQuery(filters: SocialMediaDateFilters, enabled = true) {
-  return useQuery({ queryKey: [...QUERY_KEYS.SOCIAL_MEDIA_REPORT, filters], queryFn: () => socialMediaService.reports(filters), enabled, placeholderData: keepPreviousData, staleTime: 30_000 });
+  return useQuery({ queryKey: [...QUERY_KEYS.SOCIAL_MEDIA_REPORT, filters], queryFn: () => socialMediaService.reports(filters), enabled, staleTime: 30_000 });
 }
 
 function invalidateSocialMedia(client: ReturnType<typeof useQueryClient>) {

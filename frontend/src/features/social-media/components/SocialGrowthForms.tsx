@@ -16,7 +16,7 @@ import {
   useUploadInsightEvidenceMutation,
 } from '../hooks/useSocialMediaQueries';
 import type { CreateInsightPeriodInput, SocialAccount } from '../types/socialMedia.types';
-import { getJakartaToday } from '../utils/socialMediaDates';
+import { getJakartaToday, getPreviousCompletedSocialMonth } from '../utils/socialMediaDates';
 import { getSocialInsightMetricDefinitions, getSocialInsightPeriodLabel, getSocialInsightSourceLabel, type SocialInsightMetricKey } from '../utils/socialInsightMetrics';
 
 type GrowthMode = 'audience' | 'insights';
@@ -34,13 +34,6 @@ function numberOrUndefined(value: string): number | undefined {
   if (!value.trim()) return undefined;
   const number = Number(value);
   return Number.isSafeInteger(number) && number >= 0 ? number : undefined;
-}
-
-function getPreviousCompletedMonth(): string {
-  const date = new Date(`${getJakartaToday()}T00:00:00.000Z`);
-  date.setUTCDate(1);
-  date.setUTCMonth(date.getUTCMonth() - 1);
-  return date.toISOString().slice(0, 7);
 }
 
 function getArchiveMetricRange(month: string, platform: SocialAccount['platform']): { from: string; to: string } | null {
@@ -117,7 +110,7 @@ function InsightPeriodForm({ accounts }: { accounts: SocialAccount[] }) {
   const finalizeInsight = useFinalizeSocialInsightMutation();
   const workflow = useRef<PendingInsightWorkflow | null>(null);
   const [accountId, setAccountId] = useState(accounts.find((account) => account.is_active)?.id ?? '');
-  const [archiveMonth, setArchiveMonth] = useState(getPreviousCompletedMonth());
+  const [archiveMonth, setArchiveMonth] = useState(getPreviousCompletedSocialMonth());
   const [metrics, setMetrics] = useState<Partial<Record<SocialInsightMetricKey, string>>>({});
   const [notes, setNotes] = useState('');
   const [evidence, setEvidence] = useState<File | null>(null);
@@ -173,7 +166,7 @@ function InsightPeriodForm({ accounts }: { accounts: SocialAccount[] }) {
       await uploadEvidence.mutateAsync({ id, file: evidence, idempotencyKey: pending.uploadKey });
       await finalizeInsight.mutateAsync({ id, version, idempotencyKey: pending.finalizeKey });
       workflow.current = null;
-      setArchiveMonth(getPreviousCompletedMonth());
+      setArchiveMonth(getPreviousCompletedSocialMonth());
       setMetrics({});
       setNotes(''); setEvidence(null);
     } catch (submitError) {
@@ -187,7 +180,7 @@ function InsightPeriodForm({ accounts }: { accounts: SocialAccount[] }) {
       {activeAccounts.length === 0 ? <p role="status" className="rounded-lg border border-dashed border-hairline p-3 text-sm text-ink-subtle">Tambahkan akun resmi terlebih dahulu.</p> : <>
         <div className="grid gap-3 sm:grid-cols-2">
           <AccountSelector accounts={accounts} value={accountId} onChange={(value) => { setAccountId(value); resetInsightEntry(); }} id="social-insight-account" />
-          <label className="space-y-1 text-xs text-ink-subtle"><span>Bulan arsip *</span><Input type="month" max={getPreviousCompletedMonth()} value={archiveMonth} onChange={(event) => { setArchiveMonth(event.target.value); resetInsightEntry(); }} className="min-h-11" /></label>
+          <label className="space-y-1 text-xs text-ink-subtle"><span>Bulan arsip *</span><Input type="month" max={getPreviousCompletedSocialMonth()} value={archiveMonth} onChange={(event) => { setArchiveMonth(event.target.value); resetInsightEntry(); }} className="min-h-11" /></label>
           {selectedAccount && metricRange && <div className="rounded-lg border border-hairline bg-surface-2/60 p-3 text-xs text-ink-subtle sm:col-span-2">
             <p><span className="font-medium text-ink">Sumber:</span> {getSocialInsightSourceLabel(selectedAccount.platform)}</p>
             <p className="mt-1"><span className="font-medium text-ink">Jendela data:</span> {formatDate(metricRange.from)} – {formatDate(metricRange.to)} ({getSocialInsightPeriodLabel(selectedAccount.platform)}).</p>
