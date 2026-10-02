@@ -226,15 +226,31 @@ export async function inspectCloudflareR2Object(
 
 /** Checks the first bytes of a private object against the declared image type. */
 export async function verifyCloudflareR2ImageObject(objectKey: string, contentType: string): Promise<boolean> {
+  const normalizedContentType = contentType.trim().toLowerCase();
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(normalizedContentType)) return false;
   const config = getR2Config();
   const response = await fetch(presignedUrl(config, normalizedObjectKey(objectKey), 'GET'), {
     method: 'GET', headers: { Range: 'bytes=0-15' },
   });
   if (!response.ok && response.status !== 206) return false;
   const bytes = Buffer.from(await response.arrayBuffer());
-  if (contentType === 'image/jpeg') return bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
-  if (contentType === 'image/png') return bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+  if (normalizedContentType === 'image/jpeg') return bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  if (normalizedContentType === 'image/png') return bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
   return bytes.length >= 12 && bytes.subarray(0, 4).toString('ascii') === 'RIFF' && bytes.subarray(8, 12).toString('ascii') === 'WEBP';
+}
+
+/** Verifies both the stored metadata and the file signature before evidence is attached. */
+export async function verifyCloudflareR2ImageUpload(
+  objectKey: string,
+  contentType: string,
+  expectedContentLength: number,
+): Promise<boolean> {
+  const normalizedContentType = contentType.trim().toLowerCase();
+  const object = await inspectCloudflareR2Object(objectKey);
+  if (!object.exists
+      || object.contentType?.toLowerCase() !== normalizedContentType
+      || object.contentLength !== expectedContentLength) return false;
+  return verifyCloudflareR2ImageObject(objectKey, normalizedContentType);
 }
 
 /** Issues a short-lived read URL for an attached private evidence object. */

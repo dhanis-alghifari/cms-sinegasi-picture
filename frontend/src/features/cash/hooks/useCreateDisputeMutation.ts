@@ -15,6 +15,7 @@ export function useCreateDisputeMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    meta: { suppressSuccessToast: true },
     mutationFn: ({
       payload,
       idempotencyKey,

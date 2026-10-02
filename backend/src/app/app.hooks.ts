@@ -1,7 +1,8 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { auditMiddleware } from '../middleware/auditMiddleware.js';
-import { idempotencyMiddleware, saveIdempotencyResponse } from '../middleware/idempotencyMiddleware.js';
+import { registerAuthorizedIdempotencyHook, saveIdempotencyResponse } from '../middleware/idempotencyMiddleware.js';
 import { runtimeConfig } from '../config/env.js';
+import { authenticate } from '../middleware/authMiddleware.js';
 import { supabase } from '../services/supabaseClient.js';
 import { ActorDirectory } from '../shared/actors/actors.repository.js';
 import { collectActorIds, enrichActorReferences } from '../shared/actors/actors.enrichment.js';
@@ -96,7 +97,7 @@ export function registerAppHooks(fastify: FastifyInstance): void {
       durationMs: durationMs === undefined ? undefined : Math.round(durationMs * 100) / 100,
     }, 'request completed');
   });
-  fastify.addHook('preHandler', idempotencyMiddleware);
+  registerAuthorizedIdempotencyHook(fastify, authenticate);
   fastify.addHook('preSerialization', async (request, _reply, payload) => {
     const config = request.routeOptions.config as RouteConfig | undefined;
     if (config?.enrichActors === false) return payload;

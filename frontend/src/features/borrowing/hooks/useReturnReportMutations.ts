@@ -20,6 +20,7 @@ export function useSubmitReturnReportMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    meta: { successMessage: 'Laporan kondisi pengembalian berhasil dikirim.' },
     mutationFn: ({ borrowingId, payload, changeReason, idempotencyKey }: {
       borrowingId: string;
       payload: ReturnReportPayload;
@@ -34,6 +35,7 @@ export function useVerifyReturnReportMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    meta: { successMessage: 'Laporan pengembalian berhasil diverifikasi.' },
     mutationFn: ({ borrowingId, payload, changeReason, idempotencyKey }: {
       borrowingId: string;
       payload: VerifyReturnPayload;

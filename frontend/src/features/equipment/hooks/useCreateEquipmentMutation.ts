@@ -8,6 +8,7 @@ export function useCreateEquipmentMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    meta: { successMessage: 'Alat berhasil ditambahkan.' },
     mutationFn: ({
       payload,
     }: {

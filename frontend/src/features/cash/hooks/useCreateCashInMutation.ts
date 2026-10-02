@@ -57,6 +57,7 @@ export function useCreateCashInMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    meta: { suppressSuccessToast: true },
     mutationFn: ({
       payload,
       idempotencyKey,

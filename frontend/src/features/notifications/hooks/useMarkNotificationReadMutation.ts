@@ -8,6 +8,7 @@ export function useMarkNotificationReadMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    meta: { suppressSuccessToast: true },
     mutationFn: (id: string) => notificationsService.markAsRead(id),
     onSuccess: async () => {
       await invalidateActiveQueries(queryClient, [

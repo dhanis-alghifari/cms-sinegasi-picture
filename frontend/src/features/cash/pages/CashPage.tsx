@@ -8,7 +8,6 @@ import { useAuthStore } from "@/features/auth/hooks/useAuthStore";
 import { useStudentOptionsQuery } from "@/features/students/hooks/useStudentOptionsQuery";
 import { useIsMobile } from "@/shared/hooks/use-mobile";
 import { UI_CONSTANTS } from "@/shared/constants/ui";
-import { formatCurrency } from "@/shared/utils/formatCurrency";
 import { formatNumber } from "@/shared/utils/formatNumber";
 import { toast } from "@/shared/ui/primitives/toast";
 import { hasCapability } from "@/shared/auth/capabilities";
@@ -42,6 +41,7 @@ import { CashPageTabs, type CashView } from "../components/CashPageTabs";
 import { CashPageActions } from "../components/CashPageActions";
 import { exportCashReportCsv } from "../utils/exportCashReportCsv";
 import { printCashReport } from "../utils/printCashReport";
+import { showCashInSuccessToast } from "../utils/cashSuccessFeedback";
 import { CashPageModals } from "../components/CashPageModals";
 import type {
   CashInFormValues,
@@ -209,19 +209,7 @@ export function CashPage() {
       idempotencyKey: crypto.randomUUID(),
       optimisticPaymentMethodLabel,
     });
-    if (response.result.payment_status === "unpaid") {
-      toast.add({
-        type: "success",
-        title: "Tunggakan tercatat",
-        description: `Tunggakan ${formatCurrency(response.result.amount_outstanding)} berhasil dicatat untuk siswa tersebut.`,
-      });
-    } else if (response.result.payment_status === "partial") {
-      toast.add({
-        type: "success",
-        title: "Pembayaran tercatat",
-        description: `Pembayaran masuk dan tunggakan tersisa ${formatCurrency(response.result.amount_outstanding)}.`,
-      });
-    }
+    showCashInSuccessToast(response.result);
   };
 
   const handleCashOutSubmit = async (values: CashOutFormValues) => {

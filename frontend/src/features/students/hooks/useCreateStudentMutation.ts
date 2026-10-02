@@ -8,6 +8,7 @@ export function useCreateStudentMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    meta: { successMessage: 'Data siswa berhasil ditambahkan.' },
     mutationFn: ({
       payload,
     }: {

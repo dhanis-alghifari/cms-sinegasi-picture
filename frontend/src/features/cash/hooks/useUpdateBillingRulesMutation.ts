@@ -9,6 +9,7 @@ export function useUpdateBillingRulesMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    meta: { successMessage: 'Pengaturan iuran berhasil diperbarui.' },
     mutationFn: ({
       payload,
       changeReason,

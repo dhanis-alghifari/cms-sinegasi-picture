@@ -29,7 +29,10 @@ function sendServiceError(error: unknown, reply: FastifyReply): unknown {
 const authRoutes: FastifyPluginAsync<AuthRoutesOptions> = async (fastify, options) => {
   const { authService, loginRateLimiter } = options;
 
-  fastify.post('/api/auth/login', { schema: loginRouteSchema }, async (request, reply) => {
+  fastify.post('/api/auth/login', {
+    schema: loginRouteSchema,
+    config: { disableIdempotencyCache: true },
+  }, async (request, reply) => {
     const body = (request.body || {}) as { username?: string; password?: string };
     const username = body.username?.trim();
     const password = body.password;

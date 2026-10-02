@@ -8,6 +8,7 @@ export function useUpdateEquipmentMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    meta: { successMessage: 'Perubahan data alat berhasil disimpan.' },
     mutationFn: ({
       id,
       payload,

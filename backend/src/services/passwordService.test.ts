@@ -23,6 +23,10 @@ test('legacy plaintext credentials are accepted only for one-time rehash', async
   assert.deepEqual(await verifyPassword('wrong123', 'legacy123'), { valid: false, needsRehash: true });
 });
 
+test('malformed password hashes fail closed', async () => {
+  assert.deepEqual(await verifyPassword('Password123', 'scrypt$broken'), { valid: false, needsRehash: false });
+});
+
 test('password policy rejects weak credentials', () => {
   assert.throws(() => assertPasswordPolicy('short'), /8-128/);
   assert.throws(() => assertPasswordPolicy('abcdefgh'), /huruf dan satu angka/);

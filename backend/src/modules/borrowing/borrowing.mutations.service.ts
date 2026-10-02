@@ -3,7 +3,7 @@ import type { JwtPayload } from '../../shared/auth/auth.types.js';
 import { asDatabaseError } from '../../shared/database/database.types.js';
 import { borrowingMutationStatus, getBorrowingErrorMessage, isIsoDate, isMissingBorrowingSchemaError } from './borrowing.helpers.js';
 import type { BorrowingMutationsRepository } from './borrowing.mutations.repository.js';
-import { generateR2PrivateAccessUrl, generateR2PrivateUploadUrl, inspectCloudflareR2Object } from '../../services/cloudflareR2Service.js';
+import { generateR2PrivateAccessUrl, generateR2PrivateUploadUrl, verifyCloudflareR2ImageUpload } from '../../services/cloudflareR2Service.js';
 import { notifyNewBorrowingSubmission, notifyReturnReportSubmitted } from '../../services/ntfyService.js';
 import type { BorrowingApprovalInput, BorrowingCreateInput, BorrowingReturnEvidenceAccessRecord, BorrowingReturnEvidenceStorage, BorrowingReturnEvidenceUploadInput, BorrowingReturnInput, BorrowingReturnReportEvidenceUploadInput, BorrowingReturnReportSubmitInput, BorrowingReturnReportVerifyInput } from './borrowing.mutations.types.js';
 
@@ -50,7 +50,7 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3
 
 const defaultReturnEvidenceStorage: BorrowingReturnEvidenceStorage = {
   createUpload: generateR2PrivateUploadUrl,
-  inspect: inspectCloudflareR2Object,
+  verifyUpload: verifyCloudflareR2ImageUpload,
   createAccess: generateR2PrivateAccessUrl,
 };
 
@@ -200,7 +200,7 @@ export class BorrowingMutationsService {
 
     let upload: ReturnType<BorrowingReturnEvidenceStorage['createUpload']>;
     try {
-      upload = this.evidenceStorage.createUpload(fileName, `borrowing-return-evidence/${id}/${equipmentId}`);
+      upload = this.evidenceStorage.createUpload(fileName, `borrowing-return-evidence/${id}/${equipmentId}`, contentType);
     } catch {
       throw new BorrowingMutationsServiceError(503, 'RETURN_EVIDENCE_STORAGE_UNAVAILABLE', 'Penyimpanan foto kondisi sedang tidak tersedia.');
     }
@@ -238,7 +238,7 @@ export class BorrowingMutationsService {
     }
     let upload: ReturnType<BorrowingReturnEvidenceStorage['createUpload']>;
     try {
-      upload = this.evidenceStorage.createUpload(fileName, `borrowing-self-return/${id}/${equipmentId}`);
+      upload = this.evidenceStorage.createUpload(fileName, `borrowing-self-return/${id}/${equipmentId}`, contentType);
     } catch {
       throw new BorrowingMutationsServiceError(503, 'RETURN_EVIDENCE_STORAGE_UNAVAILABLE', 'Penyimpanan foto kondisi sedang tidak tersedia.');
     }
@@ -277,12 +277,11 @@ export class BorrowingMutationsService {
           || evidence.source !== 'student_report' || evidence.created_by !== actorId || evidence.upload_status !== 'pending') {
           throw new BorrowingMutationsServiceError(422, 'RETURN_REPORT_EVIDENCE_INVALID', 'Foto pengembalian tidak sesuai dengan laporan ini.');
         }
-        let object: Awaited<ReturnType<BorrowingReturnEvidenceStorage['inspect']>>;
-        try { object = await this.evidenceStorage.inspect(evidence.object_key); } catch {
+        let isValidUpload: boolean;
+        try { isValidUpload = await this.evidenceStorage.verifyUpload(evidence.object_key, evidence.mime_type, evidence.file_size_bytes); } catch {
           throw new BorrowingMutationsServiceError(503, 'RETURN_EVIDENCE_STORAGE_UNAVAILABLE', 'Foto pengembalian belum dapat diverifikasi dari penyimpanan.');
         }
-        if (!object.exists || (object.contentType && object.contentType.toLowerCase() !== evidence.mime_type.toLowerCase())
-          || (object.contentLength != null && object.contentLength !== evidence.file_size_bytes)) {
+        if (!isValidUpload) {
           throw new BorrowingMutationsServiceError(422, 'RETURN_EVIDENCE_UPLOAD_INCOMPLETE', 'Unggahan foto pengembalian belum selesai atau metadata file tidak sesuai.');
         }
       }));
@@ -388,14 +387,13 @@ export class BorrowingMutationsService {
       || evidence.created_by !== actorId || evidence.storage_provider !== 'r2' || evidence.upload_status !== 'pending') {
       throw new BorrowingMutationsServiceError(422, 'RETURN_EVIDENCE_INVALID', 'Foto kondisi tidak sesuai dengan alat atau peminjaman ini.');
     }
-    let object: Awaited<ReturnType<BorrowingReturnEvidenceStorage['inspect']>>;
+    let isValidUpload: boolean;
     try {
-      object = await this.evidenceStorage.inspect(evidence.object_key);
+      isValidUpload = await this.evidenceStorage.verifyUpload(evidence.object_key, evidence.mime_type, evidence.file_size_bytes);
     } catch {
       throw new BorrowingMutationsServiceError(503, 'RETURN_EVIDENCE_STORAGE_UNAVAILABLE', 'Foto kondisi belum dapat diverifikasi dari penyimpanan.');
     }
-    if (!object.exists || (object.contentType && object.contentType.toLowerCase() !== evidence.mime_type.toLowerCase())
-      || (object.contentLength != null && object.contentLength !== evidence.file_size_bytes)) {
+    if (!isValidUpload) {
       throw new BorrowingMutationsServiceError(422, 'RETURN_EVIDENCE_UPLOAD_INCOMPLETE', 'Unggahan foto kondisi belum selesai atau ukurannya berubah.');
     }
     return evidence;

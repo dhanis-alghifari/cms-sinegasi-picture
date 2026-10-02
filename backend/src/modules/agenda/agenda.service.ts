@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { generateR2PrivateAccessUrl, generateR2PrivateUploadUrl, generateR2PrivateUploadUrlForKey, inspectCloudflareR2Object, verifyCloudflareR2ImageObject } from '../../services/cloudflareR2Service.js';
+import { generateR2PrivateAccessUrl, generateR2PrivateUploadUrl, generateR2PrivateUploadUrlForKey, verifyCloudflareR2ImageUpload } from '../../services/cloudflareR2Service.js';
 import { databaseErrorMessage } from '../../shared/database/database.types.js';
 import { cleanAgendaText, getJakartaDate, isAgendaDateRangeWithinLimit, mapAgendaRepositoryError, normalizePicNames, parseAgendaPagination, validAgendaDate } from './agenda.helpers.js';
 import type { AgendaActivity, AgendaCreateInput, AgendaListQuery, AgendaPhotoReserveInput, AgendaReportActivity, AgendaRepository, AgendaUpdateInput } from './agenda.types.js';
@@ -139,15 +139,13 @@ export class AgendaService {
     if ('error' in photoResult) mapAgendaRepositoryError(photoResult.error, 'Gagal memeriksa foto agenda.');
     if (!photoResult.photo?.object_key) throw new AgendaServiceError(404, 'AGENDA_PHOTO_NOT_FOUND', 'Unggahan foto tidak ditemukan atau sudah kedaluwarsa.');
     const photo = photoResult.photo;
-    let inspection: { exists: boolean; contentType?: string; contentLength?: number };
-    try { inspection = await inspectCloudflareR2Object(photo.object_key || ''); } catch { throw new AgendaServiceError(503, 'AGENDA_PHOTO_VERIFY_FAILED', 'Foto belum dapat diverifikasi. Coba lagi.'); }
     let validImage = false;
     try {
-      validImage = await verifyCloudflareR2ImageObject(photo.object_key || '', photo.mime_type);
+      validImage = await verifyCloudflareR2ImageUpload(photo.object_key || '', photo.mime_type, photo.file_size_bytes);
     } catch {
       throw new AgendaServiceError(503, 'AGENDA_PHOTO_VERIFY_FAILED', 'Foto belum dapat diverifikasi. Coba lagi.');
     }
-    if (!inspection.exists || inspection.contentLength !== photo.file_size_bytes || inspection.contentType !== photo.mime_type || !validImage) throw new AgendaServiceError(422, 'AGENDA_PHOTO_INVALID', 'Isi foto tidak sesuai metadata upload.');
+    if (!validImage) throw new AgendaServiceError(422, 'AGENDA_PHOTO_INVALID', 'Isi foto tidak sesuai metadata upload.');
     const result = await this.repository.attachPhoto({ activityId, photoId, actorId, idempotencyKey: normalizedIdempotency(idempotencyKey) });
     if ('error' in result) mapAgendaRepositoryError(result.error, 'Gagal menyelesaikan foto agenda.');
     return { photo: result.photo, access_url: generateR2PrivateAccessUrl(result.photo.object_key || '').accessUrl, expires_in_seconds: 900 };

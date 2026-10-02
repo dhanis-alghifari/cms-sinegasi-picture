@@ -9,6 +9,7 @@ export function useSubmitFilmEntryMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    meta: { successMessage: 'Karya berhasil didaftarkan ke festival.' },
     mutationFn: ({
       payload,
     }: {

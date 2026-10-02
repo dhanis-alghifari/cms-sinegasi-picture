@@ -9,6 +9,7 @@ export function useCreateAssignmentMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    meta: { successMessage: 'Tugas berhasil dibuat.' },
     mutationFn: ({
       payload,
     }: {

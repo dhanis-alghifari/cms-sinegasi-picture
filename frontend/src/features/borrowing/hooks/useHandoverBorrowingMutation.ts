@@ -8,6 +8,7 @@ export function useHandoverBorrowingMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    meta: { successMessage: 'Serah terima peminjaman berhasil dicatat.' },
     mutationFn: ({
       id,
       changeReason,

@@ -7,6 +7,7 @@ import type { DisputeStatus } from '../types/cash.types';
 export function useResolveDisputeMutation() {
   const queryClient = useQueryClient();
   return useMutation({
+    meta: { successMessage: 'Sanggahan kas berhasil diproses.' },
     mutationFn: ({ disputeId, status, review_note, resolution_date, payment_method_code }: { disputeId: string; status: DisputeStatus; review_note: string; resolution_date?: string; payment_method_code?: string }) =>
       cashService.resolveDispute(disputeId, { status, review_note, resolution_date, payment_method_code }, 'Verifikasi laporan sanggahan kas'),
     onSuccess: (_result, variables) => invalidateActiveQueries(queryClient, [

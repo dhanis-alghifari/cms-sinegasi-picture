@@ -6,6 +6,7 @@ export function useLinkAccountToExistingProfileMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    meta: { successMessage: 'Akun berhasil ditautkan ke profil siswa.' },
     mutationFn: ({ studentId, userId, changeReason }: { studentId: string; userId: string; changeReason: string }) =>
       studentsService.linkAccountToExistingProfile(studentId, userId, changeReason),
     onSuccess: async (_result, variables) => {

@@ -6,7 +6,7 @@ import type { ContestEvidenceStorage } from './contest-entries.types.js';
 
 const storage: ContestEvidenceStorage = {
   createUpload: (fileName, folder) => ({ uploadUrl: 'https://upload.example.test/signed', key: `${folder}/${fileName}`, expiresInSeconds: 900 }),
-  inspect: async () => ({ exists: true }),
+  verifyUpload: async () => true,
   createAccess: () => ({ accessUrl: 'https://download.example.test/signed', expiresInSeconds: 900 }),
 };
 
@@ -55,6 +55,18 @@ test('contest entries transition records pipeline status and history', async () 
   const updated = await service.transition(entry.id, { status: 'sudah_terkirim', evidence_id: reservation.evidence_id, change_reason: 'Bukti sudah dikirim' }, 'user-1', context);
   assert.equal(updated.pipeline_status, 'sudah_terkirim');
   assert.equal(state.statusHistory.length, 1);
+});
+
+test('contest evidence rejects an upload whose stored image signature is invalid', async () => {
+  const invalidStorage: ContestEvidenceStorage = { ...storage, verifyUpload: async () => false };
+  const service = new ContestEntriesService(createContestEntriesRepository(null, { works: [], entries: [], evidence: [], statusHistory: [] }), invalidStorage);
+  const entry = await service.create({ contest_id: 'cnt-001', work: { title: 'Karya Uji', work_type_code: 'photography' } }, 'user-1');
+  const evidence = await service.reserveEvidence(entry.id, { target_status: 'sudah_terkirim', file_name: 'bukti.png', content_type: 'image/png', file_size_bytes: 100 }, 'user-1');
+
+  await assert.rejects(
+    () => service.transition(entry.id, { status: 'sudah_terkirim', evidence_id: evidence.evidence_id, change_reason: 'Bukti sudah dikirim' }, 'user-1', context),
+    (error: unknown) => error instanceof ContestEntriesServiceError && error.errorCode === 'CONTEST_EVIDENCE_UPLOAD_INCOMPLETE',
+  );
 });
 
 test('contest entries finalize an awarded result atomically after the sequential pipeline', async () => {

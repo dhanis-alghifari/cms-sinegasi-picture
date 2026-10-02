@@ -8,6 +8,7 @@ export function useUpdateConditionMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    meta: { successMessage: 'Kondisi alat berhasil diperbarui.' },
     mutationFn: ({
       id,
       payload,

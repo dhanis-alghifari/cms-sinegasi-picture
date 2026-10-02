@@ -11,20 +11,10 @@ import { getErrorMessage } from '@/shared/api/errors';
 import { cn } from '@/shared/utils/cn';
 import { ImagePreviewDialog } from '@/shared/ui/ImagePreviewDialog';
 import { useBorrowingReturnReportEvidenceQuery, useBorrowingReturnReportQuery } from '../hooks/useBorrowingQuery';
-import type { BorrowingRecord, BorrowedItem, ReturnItemCondition, ReturnReportDecision, ReturnReportVerificationMethod } from '../types/borrowing.types';
+import type { BorrowingRecord, BorrowedItem, ReturnReportVerificationMethod } from '../types/borrowing.types';
+import type { ConditionState, ItemErrors, ItemOutcome, TeacherVerifyReturnModalProps } from './TeacherVerifyReturnModal.types';
 
-interface TeacherVerifyReturnModalProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  record?: BorrowingRecord | null;
-  onSubmit: (values: { borrowing_id: string; report_id: string; decision: ReturnReportDecision; verification_method: ReturnReportVerificationMethod; item_conditions: ReturnItemCondition[]; rejection_reason?: string; change_reason: string }) => Promise<void>;
-  isLoading?: boolean;
-  error?: unknown;
-}
-
-type ConditionState = Record<string, { condition: string; repair_cost?: number }>;
-type ItemOutcome = { status: 'returned' | 'pending_resolution'; condition: string };
-type ItemErrors = Record<string, string>;
+const EMPTY_BORROWED_ITEMS: BorrowedItem[] = [];
 
 const conditionLabels: Record<string, string> = {
   belum_diperiksa: 'Belum diperiksa',
@@ -43,6 +33,37 @@ function defaultSettlement(condition: string): 'none' | 'repair' | 'replacement'
 
 function defaultConditionState(record?: BorrowingRecord | null): ConditionState {
   return Object.fromEntries((record?.items ?? []).map((item) => [item.equipment_id, { condition: 'belum_diperiksa' }]));
+}
+
+function getActionLabel(condition: string): string {
+  if (condition === 'bagus') return 'Terima pengembalian';
+  if (condition === 'hilang') return 'Catat kehilangan';
+  if (condition === 'belum_diperiksa') return 'Pilih kondisi alat';
+  return 'Catat kerusakan & minta perbaikan';
+}
+
+function getConditionActionClass(condition: string): string {
+  if (condition === 'bagus') return 'bg-semantic-success hover:bg-semantic-success/90';
+  if (condition === 'hilang') return 'bg-semantic-danger hover:bg-semantic-danger/90';
+  return 'bg-semantic-warning hover:bg-semantic-warning/90';
+}
+
+function getItemSectionClass(alreadyHandled: boolean, waitingRecovery: boolean): string {
+  if (!alreadyHandled) return 'border-hairline bg-surface-2/35';
+  if (waitingRecovery) return 'border-semantic-warning/30 bg-semantic-warning/5';
+  return 'border-semantic-success/30 bg-semantic-success/5';
+}
+
+function getOutcomeLabel(waitingRecovery: boolean, condition?: string): string {
+  if (waitingRecovery) {
+    if (condition === 'hilang') return 'Kehilangan dicatat · menunggu unit pengganti';
+    return 'Kerusakan dicatat · menunggu perbaikan dan inspeksi';
+  }
+
+  const conditionSuffix = condition && condition !== 'belum_diperiksa'
+    ? ` · kondisi ${conditionLabels[condition] ?? condition}`
+    : '';
+  return `Pengembalian diterima${conditionSuffix}`;
 }
 
 export function TeacherVerifyReturnModal({ open, onOpenChange, record, onSubmit, isLoading, error }: TeacherVerifyReturnModalProps) {
@@ -67,7 +88,7 @@ export function TeacherVerifyReturnModal({ open, onOpenChange, record, onSubmit,
     }, {});
   }, [evidenceQuery.data]);
 
-  const items = record?.items ?? [];
+  const items = record?.items ?? EMPTY_BORROWED_ITEMS;
   const handledIds = useMemo(() => new Set(items
     .filter((item) => item.status === 'returned' || item.status === 'pending_resolution')
     .map((item) => item.equipment_id)
@@ -235,13 +256,7 @@ export function TeacherVerifyReturnModal({ open, onOpenChange, record, onSubmit,
                   const itemEvidence = evidenceByEquipment[item.equipment_id] ?? [];
                   const itemError = itemErrors[item.equipment_id];
                   const outcomeCondition = item.kondisi_kembali ?? itemOutcomes[item.equipment_id]?.condition;
-                  const actionLabel = state.condition === 'bagus'
-                    ? 'Terima pengembalian'
-                    : state.condition === 'hilang'
-                      ? 'Catat kehilangan'
-                      : state.condition === 'belum_diperiksa'
-                        ? 'Pilih kondisi alat'
-                        : 'Catat kerusakan & minta perbaikan';
+                  const actionLabel = getActionLabel(state.condition);
                   const canVerifyItem = canProcess
                     && state.condition !== 'belum_diperiksa'
                     && (state.condition === 'hilang' || itemEvidence.length >= 2)
@@ -249,7 +264,7 @@ export function TeacherVerifyReturnModal({ open, onOpenChange, record, onSubmit,
                       || (state.repair_cost !== undefined && Number.isFinite(state.repair_cost) && state.repair_cost > 0));
 
                   return (
-                    <section key={item.equipment_id} aria-label={`${item.kode_alat} ${item.nama_alat}`} className={cn('space-y-3 rounded-lg border p-3', alreadyHandled ? (waitingRecovery ? 'border-semantic-warning/30 bg-semantic-warning/5' : 'border-semantic-success/30 bg-semantic-success/5') : 'border-hairline bg-surface-2/35')}>
+                    <section key={item.equipment_id} aria-label={`${item.kode_alat} ${item.nama_alat}`} className={cn('space-y-3 rounded-lg border p-3', getItemSectionClass(alreadyHandled, waitingRecovery))}>
                       <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="font-mono text-[11px] font-bold text-primary">{item.kode_alat}</p><p className="truncate text-xs font-semibold text-ink">{item.nama_alat}</p></div><span className="shrink-0 text-[10px] text-ink-tertiary">{itemEvidence.length} foto</span></div>
                       {itemEvidence.length > 0 ? (
                         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -275,9 +290,7 @@ export function TeacherVerifyReturnModal({ open, onOpenChange, record, onSubmit,
                       {alreadyHandled ? (
                         <div className={cn('flex min-h-11 items-center gap-2 rounded-md px-3 py-2 text-xs', waitingRecovery ? 'bg-semantic-warning/10 text-semantic-warning' : 'bg-semantic-success/10 text-semantic-success')} role="status">
                           {waitingRecovery ? <ShieldCheck size={16} aria-hidden="true" /> : <CheckCircle2 size={16} aria-hidden="true" />}
-                          <span>{waitingRecovery
-                            ? outcomeCondition === 'hilang' ? 'Kehilangan dicatat · menunggu unit pengganti' : 'Kerusakan dicatat · menunggu perbaikan dan inspeksi'
-                            : `Pengembalian diterima${outcomeCondition && outcomeCondition !== 'belum_diperiksa' ? ` · kondisi ${conditionLabels[outcomeCondition] ?? outcomeCondition}` : ''}`}</span>
+                          <span>{getOutcomeLabel(waitingRecovery, outcomeCondition)}</span>
                         </div>
                       ) : (
                         <>
@@ -324,12 +337,12 @@ export function TeacherVerifyReturnModal({ open, onOpenChange, record, onSubmit,
                             disabled={!canVerifyItem}
                             className={cn(
                               'min-h-11 w-full text-white sm:w-auto',
-                              state.condition === 'bagus' ? 'bg-semantic-success hover:bg-semantic-success/90'
-                                : state.condition === 'hilang' ? 'bg-semantic-danger hover:bg-semantic-danger/90'
-                                  : 'bg-semantic-warning hover:bg-semantic-warning/90',
+                              getConditionActionClass(state.condition),
                             )}
                           >
-                            {isBusy ? <Loader2 size={15} className="motion-safe:animate-spin" aria-hidden="true" /> : state.condition === 'bagus' ? <CheckCircle2 size={15} aria-hidden="true" /> : <ShieldCheck size={15} aria-hidden="true" />}
+                            {isBusy && <Loader2 size={15} className="motion-safe:animate-spin" aria-hidden="true" />}
+                            {!isBusy && state.condition === 'bagus' && <CheckCircle2 size={15} aria-hidden="true" />}
+                            {!isBusy && state.condition !== 'bagus' && <ShieldCheck size={15} aria-hidden="true" />}
                             {actionLabel}
                           </Button>
                         </>

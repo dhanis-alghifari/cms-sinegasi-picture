@@ -184,11 +184,18 @@ export function createBorrowingReadRepository(
         return { data: { data: rows.slice(from, to + 1), total, page, pageSize, totalPages: Math.ceil(total / pageSize) || 1 }, error: null };
       }
       let dbQuery = client.from('borrowings').select(BORROWING_SELECT, { count: 'exact' });
-      const status = requestedStatus(query.status); if (status) dbQuery = dbQuery.eq('status', status);
+      const status = requestedStatus(query.status);
+      if (query.status === 'terlambat') {
+        const now = new Date();
+        const nowIso = now.toISOString();
+        const todayUtc = nowIso.slice(0, 10);
+        dbQuery = dbQuery.eq('status', 'borrowed')
+          .or(`due_at.lt.${nowIso},and(due_at.is.null,rencana_kembali.lte.${todayUtc})`);
+      } else if (status) dbQuery = dbQuery.eq('status', status);
       if (scope.studentId) dbQuery = dbQuery.eq('student_id', scope.studentId);
       if (query.borrower_id && !scope.studentId) dbQuery = dbQuery.eq('student_id', query.borrower_id);
       dbQuery = dbQuery.order('created_at', { ascending: false }).order('id', { ascending: false });
-      const canRangeInDatabase = !query.search && query.status !== 'terlambat';
+      const canRangeInDatabase = !query.search;
       if (canRangeInDatabase) dbQuery = dbQuery.range(from, to);
       const { data, count, error } = await dbQuery;
       if (error) return { data: null, error };

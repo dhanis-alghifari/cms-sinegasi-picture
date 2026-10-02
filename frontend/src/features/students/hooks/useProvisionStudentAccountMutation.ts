@@ -6,6 +6,7 @@ export function useProvisionStudentAccountMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    meta: { successMessage: 'Akun siswa berhasil dibuat.' },
     mutationFn: ({ id, changeReason }: { id: string; changeReason: string }) =>
       studentsService.provisionStudentAccount(id, changeReason),
     onSuccess: async () => {

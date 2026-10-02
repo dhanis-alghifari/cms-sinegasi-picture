@@ -8,6 +8,7 @@ export function useChangePasswordMutation() {
   const { setSession } = useAuthStore();
 
   return useMutation({
+    meta: { successMessage: 'Password berhasil diperbarui.' },
     mutationFn: (data: ChangePasswordRequest) => authService.changePassword(data),
     onSuccess: (response) => {
       // Replace the JWT as well; the old first-login claim must not survive.

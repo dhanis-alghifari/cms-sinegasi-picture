@@ -9,6 +9,7 @@ export function useApproveRejectBorrowingMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    meta: { successMessage: 'Keputusan peminjaman berhasil disimpan.' },
     mutationFn: ({
       payload,
       changeReason,

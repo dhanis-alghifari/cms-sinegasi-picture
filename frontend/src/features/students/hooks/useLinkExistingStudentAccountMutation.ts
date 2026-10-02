@@ -7,6 +7,7 @@ export function useLinkExistingStudentAccountMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    meta: { successMessage: 'Akun berhasil ditautkan ke data siswa.' },
     mutationFn: (payload: LinkExistingStudentAccountPayload) => studentsService.linkExistingAccount(payload),
     onSuccess: async () => {
       await Promise.all([

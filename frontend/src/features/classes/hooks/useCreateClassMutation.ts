@@ -8,6 +8,7 @@ export function useCreateClassMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    meta: { successMessage: 'Kelas berhasil ditambahkan.' },
     mutationFn: ({ payload }: { payload: CreateClassInput }) =>
       classesService.createClass(payload),
     onSuccess: async () => {

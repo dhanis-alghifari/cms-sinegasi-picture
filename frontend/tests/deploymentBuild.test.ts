@@ -42,7 +42,11 @@ test('two Pages builds keep old page, modal, and preload assets on their origina
     const newFiles = new Set(newDeployment.output.map((asset) => asset.fileName));
     const entry = oldDeployment.output.find((asset) => `${oldDeployment.url}/${asset.fileName}` === oldDeployment.entryUrl);
     assert.ok(entry?.type === 'chunk');
-    assert.ok(entry.code.includes(`${oldDeployment.url}/`), 'Vite preload helper must use the same deployment');
+    assert.match(
+      entry.code,
+      /["']assets\/LoginPage-[^"']+\.js["']/,
+      'Vite chunk map must reference a route asset that resolves relative to the immutable entry URL',
+    );
 
     for (const name of ['CashPage', 'StudentsPage', 'FastCashInModal', 'StudentDisputeModal']) {
       const chunk = oldDeployment.output.find((asset) => asset.type === 'chunk' && asset.name === name);

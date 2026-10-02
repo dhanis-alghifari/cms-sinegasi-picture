@@ -9,6 +9,7 @@ export function useCorrectAttendanceMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    meta: { successMessage: 'Koreksi absensi berhasil disimpan.' },
     mutationFn: ({
       payload,
       changeReason,

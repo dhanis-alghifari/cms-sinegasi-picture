@@ -11,7 +11,7 @@
     "api:check": "node scripts/validate-openapi.mjs",
     "quality:check": "npm run typecheck && npm test && npm run api:check && npm run build",
     "start": "node dist/server.js",
-    "test": "node --import tsx --test \"src/**/*.test.ts\"",
+    "test": "node --import tsx --test --test-concurrency=1 \"src/**/*.test.ts\"",
     "test:conn": "tsx src/testConnection.ts",
     "db:migrate:grades": "npm run build && node dist/scripts/applyGradesMigration.js",
     "db:migrate:cash": "npm run build && node dist/scripts/applyCashMigration.js",

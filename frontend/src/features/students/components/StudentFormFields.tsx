@@ -20,6 +20,12 @@ import { PEMINATAN_VALUES, type Peminatan } from '../types/students.types';
 import { isOneOf } from '@/shared/utils/isOneOf';
 import { PhotoSourcePicker } from '@/shared/ui/PhotoSourcePicker';
 
+function getGalleryLabel(isProcessingImage: boolean, hasPreview: boolean): string {
+  if (isProcessingImage) return 'Memproses foto...';
+  if (hasPreview) return 'Ganti dari Galeri';
+  return 'Pilih dari Galeri';
+}
+
 interface StudentFormFieldsProps {
   form: UseFormReturn<StudentFormValues>;
   showRoleSelection?: boolean;
@@ -234,7 +240,7 @@ export function StudentFormFields({
               accept="image/jpeg,image/png,image/webp"
               disabled={isProcessingImage}
               onFilesSelected={onFilesSelected}
-              galleryLabel={isProcessingImage ? 'Memproses foto...' : activePreview ? 'Ganti dari Galeri' : 'Pilih dari Galeri'}
+              galleryLabel={getGalleryLabel(isProcessingImage, Boolean(activePreview))}
               cameraLabel={activePreview ? 'Ambil Foto Baru' : 'Ambil Foto'}
               className="w-full"
               buttonClassName={cn('flex-1 bg-surface-1', imageError && 'border-semantic-danger')}

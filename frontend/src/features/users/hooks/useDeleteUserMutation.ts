@@ -7,6 +7,7 @@ export function useDeleteUserMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    meta: { successMessage: 'Akun pengguna berhasil dihapus.' },
     mutationFn: ({ id, changeReason }: { id: string; changeReason: string }) =>
       usersService.deleteUser(id, changeReason),
     onSuccess: async () => {

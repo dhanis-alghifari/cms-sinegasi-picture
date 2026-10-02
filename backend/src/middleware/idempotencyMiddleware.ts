@@ -9,7 +9,7 @@
 
 import crypto from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest, preHandlerHookHandler } from 'fastify';
 
 export interface CachedResponse {
   statusCode: number;
@@ -111,11 +111,49 @@ function getRawKey(request: FastifyRequest): string | undefined {
   return typeof key === 'string' ? key.trim() : undefined;
 }
 
-function getCacheKey(request: FastifyRequest, key: string): string {
-  const authorization = request.headers.authorization || 'anonymous';
-  const caller = crypto.createHash('sha256').update(authorization).digest('hex');
+function normalizeForFingerprint(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(normalizeForFingerprint);
+  if (value === null || typeof value !== 'object') return value;
+
+  return Object.fromEntries(
+    Object.entries(value)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([name, entry]) => [name, normalizeForFingerprint(entry)]),
+  );
+}
+
+function getCacheKey(request: FastifyRequest, key: string): string | null {
+  const user = request.user as { userId?: unknown; authVersion?: unknown } | undefined;
+  if (typeof user?.userId !== 'string' || user.userId.length === 0) return null;
+
+  const caller = crypto.createHash('sha256')
+    .update(`${user.userId}:${String(user.authVersion ?? '')}`)
+    .digest('hex');
   const keyDigest = crypto.createHash('sha256').update(key).digest('hex');
-  return `${caller}:${request.method}:${request.routeOptions.url}:${keyDigest}`;
+  const requestFingerprint = crypto.createHash('sha256')
+    .update(JSON.stringify(normalizeForFingerprint({
+      params: request.params,
+      query: request.query,
+      body: request.body,
+      changeReason: request.headers['x-change-reason'],
+    })) ?? '')
+    .digest('hex');
+  return `v2:${caller}:${request.method}:${request.routeOptions.url}:${requestFingerprint}:${keyDigest}`;
+}
+
+export function registerAuthorizedIdempotencyHook(
+  fastify: FastifyInstance,
+  authenticateHook: preHandlerHookHandler,
+): void {
+  fastify.addHook('onRoute', (routeOptions) => {
+    const configuredHooks = routeOptions.preHandler;
+    if (!configuredHooks) return;
+
+    const preHandlers = Array.isArray(configuredHooks) ? configuredHooks : [configuredHooks];
+    if (!preHandlers.includes(authenticateHook)) return;
+
+    routeOptions.preHandler = [...preHandlers, idempotencyMiddleware];
+  });
 }
 
 const defaultStore = createMemoryIdempotencyStore();
@@ -142,6 +180,7 @@ export async function idempotencyMiddleware(request: FastifyRequest, reply: Fast
   }
 
   const cacheKey = getCacheKey(request, key);
+  if (!cacheKey) return;
   const cached = await activeStore.get(cacheKey);
   (request as FastifyRequest & { idempotencyContext?: IdempotencyContext }).idempotencyContext = {
     key,
@@ -160,7 +199,7 @@ export function getIdempotencyContext(request: FastifyRequest): IdempotencyConte
 
 export async function saveIdempotencyResponse(request: FastifyRequest, statusCode: number, payload: unknown): Promise<void> {
   const context = getIdempotencyContext(request);
-  if (!context || context.replayed || statusCode >= 500) return;
+  if (!context || context.replayed || statusCode < 200 || statusCode >= 300) return;
   const serializedPayload = typeof payload === 'string' ? payload : String(payload);
   // Large exports/uploads should not be copied into a resilience cache. Their
   // domain idempotency keys still protect the mutation itself.

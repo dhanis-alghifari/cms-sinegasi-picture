@@ -7,6 +7,7 @@ import type { CreateContestEntryPayload } from '../types/contests.types';
 export function useCreateContestEntryMutation() {
   const queryClient = useQueryClient();
   return useMutation({
+    meta: { successMessage: 'Karya berhasil ditambahkan.' },
     mutationFn: ({ contestId, payload }: { contestId: string; payload: CreateContestEntryPayload }) =>
       contestsService.createContestEntry(contestId, payload),
     onSuccess: async (_, variables) => {

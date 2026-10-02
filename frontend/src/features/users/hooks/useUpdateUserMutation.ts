@@ -9,6 +9,7 @@ export function useUpdateUserMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    meta: { successMessage: 'Perubahan akun pengguna berhasil disimpan.' },
     mutationFn: ({
       id,
       payload,

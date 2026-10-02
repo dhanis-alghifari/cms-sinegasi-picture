@@ -2,7 +2,12 @@ import type { JwtPayload } from '../../shared/auth/auth.types.js';
 import { getCapabilities } from '../../middleware/capabilities.js';
 import { asDatabaseError } from '../../shared/database/database.types.js';
 import { clearAuthStateCache } from '../../middleware/authMiddleware.js';
-import { assertPasswordPolicy, hashPassword, verifyPassword } from '../../services/passwordService.js';
+import {
+  assertPasswordPolicy,
+  consumeUnknownAccountPasswordVerification,
+  hashPassword,
+  verifyPassword,
+} from '../../services/passwordService.js';
 import { resolveDatabaseStudentId, resolveDatabaseUserId } from './auth.identity.js';
 import type { AuthDatabaseUser, AuthRepository, LinkedStudent } from './auth.repository.js';
 
@@ -97,6 +102,7 @@ export class AuthService {
     if (this.repository.isConfigured()) {
       const { data: dbUser, error } = await this.repository.findUserForLogin(username);
       if (error || !dbUser || !dbUser.is_active) {
+        await consumeUnknownAccountPasswordVerification(password);
         throw new AuthServiceError(401, 'INVALID_CREDENTIALS', 'Username atau password salah.');
       }
 

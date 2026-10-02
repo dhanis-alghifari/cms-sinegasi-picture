@@ -1,4 +1,4 @@
-import { generateR2PrivateAccessUrl, generateR2PrivateUploadUrl, generateR2PrivateUploadUrlForKey, inspectCloudflareR2Object, verifyCloudflareR2ImageObject } from '../../services/cloudflareR2Service.js';
+import { generateR2PrivateAccessUrl, generateR2PrivateUploadUrl, generateR2PrivateUploadUrlForKey, verifyCloudflareR2ImageUpload } from '../../services/cloudflareR2Service.js';
 import { databaseErrorCode, databaseErrorMessage } from '../../shared/database/database.types.js';
 import type {
   CreateSocialInsightInput, SocialAccount, SocialEvidence, SocialInsightPeriod, SocialMediaRepository, SocialMonthlyAudiencePoint,
@@ -315,13 +315,11 @@ export class SocialMediaService {
       const access = generateR2PrivateAccessUrl(objectKey);
       return { evidence: mapEvidencePublic(evidence), access_url: access.accessUrl, expires_in_seconds: access.expiresInSeconds, idempotent_replay: true };
     }
-    let inspection: { exists: boolean; contentType?: string; contentLength?: number };
     let validImage = false;
     try {
-      inspection = await inspectCloudflareR2Object(objectKey);
-      validImage = await verifyCloudflareR2ImageObject(objectKey, evidence.mime_type);
+      validImage = await verifyCloudflareR2ImageUpload(objectKey, evidence.mime_type, evidence.file_size_bytes);
     } catch { throw new SocialMediaServiceError(503, 'SOCIAL_EVIDENCE_VERIFY_FAILED', 'Bukti belum dapat diverifikasi. Coba lagi.'); }
-    if (!inspection.exists || inspection.contentLength !== evidence.file_size_bytes || inspection.contentType !== evidence.mime_type || !validImage) {
+    if (!validImage) {
       throw new SocialMediaServiceError(422, 'SOCIAL_EVIDENCE_INVALID', 'Isi file bukti tidak sesuai dengan metadata yang dikirim.');
     }
     const result = await this.repository.completeEvidence({ ...context, parentKind: kind, parentId, evidenceId });

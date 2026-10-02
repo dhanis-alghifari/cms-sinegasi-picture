@@ -8,6 +8,7 @@ export function useUpdateStudentMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    meta: { successMessage: 'Perubahan data siswa berhasil disimpan.' },
     mutationFn: ({
       id,
       payload,

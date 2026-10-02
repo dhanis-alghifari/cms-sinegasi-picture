@@ -8,6 +8,7 @@ export function useResetPasswordMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    meta: { successMessage: 'Password sementara berhasil dibuat.' },
     mutationFn: ({
       id,
       changeReason,

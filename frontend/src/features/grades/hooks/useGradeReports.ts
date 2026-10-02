@@ -22,6 +22,7 @@ export function useReportsQuery(periodId: string | undefined, enabled = true) {
 export function useCreateReportPeriodMutation() {
   const queryClient = useQueryClient();
   return useMutation({
+    meta: { successMessage: 'Periode laporan nilai berhasil dibuat.' },
     mutationFn: (payload: CreateReportPeriodPayload) => gradesService.createReportPeriod(payload),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: [...QUERY_KEYS.GRADES, 'report-periods'] }),
   });
@@ -30,6 +31,7 @@ export function useCreateReportPeriodMutation() {
 export function useGenerateReportsMutation() {
   const queryClient = useQueryClient();
   return useMutation({
+    meta: { successMessage: 'Laporan nilai berhasil dibuat.' },
     mutationFn: (periodId: string) => gradesService.generateReports(periodId),
     onSuccess: (_data, periodId) => queryClient.invalidateQueries({ queryKey: [...QUERY_KEYS.GRADES, 'reports', periodId] }),
   });
@@ -38,6 +40,7 @@ export function useGenerateReportsMutation() {
 export function useApproveReportsMutation() {
   const queryClient = useQueryClient();
   return useMutation({
+    meta: { successMessage: 'Laporan nilai berhasil disetujui.' },
     mutationFn: (periodId: string) => gradesService.approveReports(periodId),
     onSuccess: (_data, periodId) => {
       queryClient.invalidateQueries({ queryKey: [...QUERY_KEYS.GRADES, 'reports', periodId] });
@@ -57,6 +60,7 @@ export function usePklPeriodsQuery(enabled = true) {
 export function useCreatePklPeriodMutation() {
   const queryClient = useQueryClient();
   return useMutation({
+    meta: { successMessage: 'Periode PKL berhasil dibuat.' },
     mutationFn: (payload: CreatePklPeriodPayload) => gradesService.createPklPeriod(payload),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: [...QUERY_KEYS.GRADES, 'pkl-periods'] }),
   });
@@ -65,6 +69,7 @@ export function useCreatePklPeriodMutation() {
 export function useReviewPklPeriodMutation() {
   const queryClient = useQueryClient();
   return useMutation({
+    meta: { successMessage: 'Status periode PKL berhasil diperbarui.' },
     mutationFn: ({ id, status }: { id: string; status: 'approved' | 'rejected' | 'completed' }) => gradesService.reviewPklPeriod(id, status),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: [...QUERY_KEYS.GRADES, 'pkl-periods'] }),
   });

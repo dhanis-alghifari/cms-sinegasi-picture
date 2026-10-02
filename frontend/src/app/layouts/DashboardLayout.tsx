@@ -8,7 +8,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/shared/utils/cn';
 import { Button } from '@/shared/ui/primitives/button';
 import { Separator } from '@/shared/ui/primitives/separator';
-import { Toaster } from '@/shared/ui/primitives/toast';
 import { useIsMobile } from '@/shared/hooks/use-mobile';
 import { usePullToRefresh } from '@/shared/hooks/usePullToRefresh';
 import { formatRoleLabel } from '@/shared/utils/formatLabels';
@@ -282,7 +281,6 @@ export function DashboardLayout() {
         onLogout={handleLogout}
       />
 
-      <Toaster />
     </div>
   );
 }

@@ -9,6 +9,7 @@ export function useCreateUserMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    meta: { successMessage: 'Akun pengguna berhasil dibuat.' },
     mutationFn: ({
       payload,
     }: {

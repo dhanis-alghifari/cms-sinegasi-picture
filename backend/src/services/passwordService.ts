@@ -20,6 +20,20 @@ const KEY_LENGTH = 64;
 const SCRYPT_N = 16_384;
 const SCRYPT_R = 8;
 const SCRYPT_P = 1;
+const DUMMY_SALT = crypto.randomBytes(16);
+
+async function consumePasswordVerification(password: string): Promise<void> {
+  try {
+    await scryptAsync(password, DUMMY_SALT, KEY_LENGTH, {
+      N: SCRYPT_N,
+      r: SCRYPT_R,
+      p: SCRYPT_P,
+      maxmem: 32 * 1024 * 1024,
+    });
+  } catch {
+    // Preserve generic authentication failures if the crypto worker is saturated.
+  }
+}
 
 export function assertPasswordPolicy(password: unknown): asserts password is string {
   if (typeof password !== 'string' || password.length < PASSWORD_MIN_LENGTH || password.length > PASSWORD_MAX_LENGTH) {
@@ -67,26 +81,37 @@ export async function verifyPassword(password: unknown, storedHash: unknown): Pr
   }
 
   if (!storedHash.startsWith('scrypt$')) {
+    const valid = safeEqual(Buffer.from(password), Buffer.from(storedHash));
+    // Legacy plaintext records must not make failed logins measurably cheaper
+    // than verification against a modern password hash.
+    await consumePasswordVerification(password);
     return {
-      valid: safeEqual(Buffer.from(password), Buffer.from(storedHash)),
+      valid,
       needsRehash: true,
     };
   }
 
   const parts = storedHash.split('$');
-  if (parts.length !== 6 || parts[0] !== 'scrypt') return { valid: false, needsRehash: false };
+  if (parts.length !== 6 || parts[0] !== 'scrypt') {
+    await consumePasswordVerification(password);
+    return { valid: false, needsRehash: false };
+  }
 
   const n = Number(parts[1]);
   const r = Number(parts[2]);
   const p = Number(parts[3]);
   if (!Number.isSafeInteger(n) || !Number.isSafeInteger(r) || !Number.isSafeInteger(p) || n <= 1 || r <= 0 || p <= 0 || n > 1_048_576) {
+    await consumePasswordVerification(password);
     return { valid: false, needsRehash: false };
   }
 
   try {
     const salt = Buffer.from(parts[4], 'base64url');
     const expected = Buffer.from(parts[5], 'base64url');
-    if (salt.length < 8 || expected.length !== KEY_LENGTH) return { valid: false, needsRehash: false };
+    if (salt.length < 8 || expected.length !== KEY_LENGTH) {
+      await consumePasswordVerification(password);
+      return { valid: false, needsRehash: false };
+    }
     const actual = await scryptAsync(password, salt, expected.length, {
       N: n,
       r,
@@ -95,8 +120,14 @@ export async function verifyPassword(password: unknown, storedHash: unknown): Pr
     });
     return { valid: safeEqual(actual, expected), needsRehash: false };
   } catch {
+    await consumePasswordVerification(password);
     return { valid: false, needsRehash: false };
   }
+}
+
+/** Performs password-hash work when an account lookup cannot provide a hash. */
+export async function consumeUnknownAccountPasswordVerification(password: string): Promise<void> {
+  if (password.length <= PASSWORD_MAX_LENGTH) await consumePasswordVerification(password);
 }
 
 export function createTemporaryPassword(prefix = 'Siswa'): string {

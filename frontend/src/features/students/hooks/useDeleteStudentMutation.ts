@@ -7,6 +7,7 @@ export function useDeleteStudentMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    meta: { successMessage: 'Penghapusan data siswa berhasil diproses.' },
     mutationFn: ({ id, changeReason }: { id: string; changeReason: string }) =>
       studentsService.deleteStudent(id, changeReason),
     onSuccess: async () => {

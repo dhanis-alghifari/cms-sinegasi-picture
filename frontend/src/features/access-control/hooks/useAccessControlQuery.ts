@@ -23,6 +23,7 @@ export function useAccessControlAuditLogsQuery(limit = 100) {
 export function useUpdateRoleCapabilitiesMutation() {
   const queryClient = useQueryClient();
   return useMutation({
+    meta: { successMessage: 'Perubahan hak akses berhasil disimpan.' },
     mutationFn: ({ role, input }: { role: UserRole; input: UpdateRoleCapabilitiesRequest }) =>
       accessControlService.updateRoleCapabilities(role, input),
     onSuccess: () => {
