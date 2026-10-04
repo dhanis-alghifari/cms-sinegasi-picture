@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { runtimeConfig } from '../../config/env.js';
 import { createAgendaRepository } from './agenda.repository.js';
 import { AgendaService, AgendaServiceError } from './agenda.service.js';
 import { getJakartaDate } from './agenda.helpers.js';
@@ -80,31 +81,51 @@ test('agenda instructor rejects a nonblank value shorter than two characters', a
 });
 
 test('agenda report strips private object keys and exposes only signed photo fields', async () => {
-  const state = { activities: [] };
-  const service = new AgendaService(createAgendaRepository(null, state));
-  const created = await service.create({
-    activity_date: yesterday(),
-    activity_name: 'Dokumentasi kelas',
-    activity_description: 'Kegiatan terdokumentasi',
-    instructor_name: 'Pengajar',
-    pic_names: 'Ketua',
-    idempotency_key: 'agenda-report-1',
-  }, 'leader-1', {});
-  created.data.photo = {
-    id: 'photo-1',
-    activity_id: created.data.id,
-    object_key: 'agenda/private/photo.jpg',
-    upload_status: 'attached',
-    mime_type: 'image/jpeg',
-    file_size_bytes: 1024,
-    original_filename: 'photo.jpg',
-    created_at: new Date().toISOString(),
+  const original = {
+    r2AccountId: runtimeConfig.r2AccountId,
+    r2BucketName: runtimeConfig.r2BucketName,
+    r2PublicDomain: runtimeConfig.r2PublicDomain,
+    r2AccessKeyId: runtimeConfig.r2AccessKeyId,
+    r2SecretAccessKey: runtimeConfig.r2SecretAccessKey,
   };
+  Object.assign(runtimeConfig, {
+    r2AccountId: 'test-account',
+    r2BucketName: 'test-bucket',
+    r2PublicDomain: '',
+    r2AccessKeyId: 'test-access-key',
+    r2SecretAccessKey: 'test-secret-key',
+  });
 
-  const report = await service.report({});
-  assert.equal(report.data.length, 1);
-  assert.match(report.data[0]?.photo_access_url ?? '', /^https:\/\//);
-  assert.equal(report.data[0]?.photo_access_expires_in_seconds, 900);
-  assert.ok(report.data[0]?.photo);
-  assert.equal('object_key' in (report.data[0]?.photo ?? {}), false);
+  try {
+    const state = { activities: [] };
+    const service = new AgendaService(createAgendaRepository(null, state));
+    const created = await service.create({
+      activity_date: yesterday(),
+      activity_name: 'Dokumentasi kelas',
+      activity_description: 'Kegiatan terdokumentasi',
+      instructor_name: 'Pengajar',
+      pic_names: 'Ketua',
+      idempotency_key: 'agenda-report-1',
+    }, 'leader-1', {});
+    created.data.photo = {
+      id: 'photo-1',
+      activity_id: created.data.id,
+      object_key: 'agenda/private/photo.jpg',
+      upload_status: 'attached',
+      mime_type: 'image/jpeg',
+      file_size_bytes: 1024,
+      original_filename: 'photo.jpg',
+      created_at: new Date().toISOString(),
+    };
+
+    const report = await service.report({});
+    assert.equal(report.data.length, 1);
+    assert.match(report.data[0]?.photo_access_url ?? '', /^https:\/\//);
+    assert.match(report.data[0]?.photo_access_url ?? '', /X-Amz-Signature=[a-f0-9]{64}/);
+    assert.equal(report.data[0]?.photo_access_expires_in_seconds, 900);
+    assert.ok(report.data[0]?.photo);
+    assert.equal('object_key' in (report.data[0]?.photo ?? {}), false);
+  } finally {
+    Object.assign(runtimeConfig, original);
+  }
 });
