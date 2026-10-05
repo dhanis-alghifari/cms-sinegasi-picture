@@ -34,7 +34,7 @@ async function withPrivateR2(run: () => void | Promise<void>): Promise<void> {
   }
 }
 
-function imageResponse(bytes = PNG_BYTES, contentType = 'image/png'): Response {
+function imageResponse(bytes: ArrayLike<number> = PNG_BYTES, contentType = 'image/png'): Response {
   return new Response(new Uint8Array(bytes), {
     headers: { 'content-type': contentType, 'content-length': String(bytes.length) },
   });

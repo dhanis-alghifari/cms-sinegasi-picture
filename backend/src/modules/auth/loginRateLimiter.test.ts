@@ -104,7 +104,7 @@ test('shared limiter accepts only boolean decisions, never truthiness or array c
   for (const data of [null, undefined, 0, 1, '', 'false', 'true', [], [false], { limited: false }]) {
     const { client } = createRpcFixture({ data, error: null });
     const limiter = createSupabaseLoginRateLimiter(client, undefined, 300, 10, { persistentRequired: true });
-    await assert.rejects(limiter.isLimited('fixture-key'), LoginRateLimitUnavailableError);
+    await assert.rejects(async () => limiter.isLimited('fixture-key'), LoginRateLimitUnavailableError);
   }
   const { client } = createRpcFixture({ data: true, error: null });
   assert.equal(await createSupabaseLoginRateLimiter(client).isLimited('fixture-key'), true);
@@ -139,9 +139,9 @@ test('public limiter fails closed on thrown transport errors', async () => {
     rpc() { throw new Error('private-fixture-transport-detail'); },
   } as unknown as SupabaseClient;
   const limiter = createSupabaseLoginRateLimiter(client, undefined, 300, 10, { persistentRequired: true });
-  await assert.rejects(limiter.isLimited('fixture'), LoginRateLimitUnavailableError);
-  await assert.rejects(limiter.recordFailure('fixture'), LoginRateLimitUnavailableError);
-  await assert.rejects(limiter.clear('fixture'), LoginRateLimitUnavailableError);
+  await assert.rejects(async () => limiter.isLimited('fixture'), LoginRateLimitUnavailableError);
+  await assert.rejects(async () => limiter.recordFailure('fixture'), LoginRateLimitUnavailableError);
+  await assert.rejects(async () => limiter.clear('fixture'), LoginRateLimitUnavailableError);
 });
 
 test('isolated development fallback still records, blocks, and clears on shared-store outage', async () => {

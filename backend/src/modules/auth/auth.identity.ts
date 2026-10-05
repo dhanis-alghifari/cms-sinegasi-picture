@@ -55,7 +55,8 @@ export async function getAuthoritativeUser(userId: string): Promise<Authoritativ
     .from('users')
     .select('id,username,nama,role,is_first_login,is_active,auth_version')
     .eq('id', userId)
-    .maybeSingle().abortSignal(AbortSignal.timeout(2_000));
+    .abortSignal(AbortSignal.timeout(2_000))
+    .maybeSingle();
 
   // Keep rollout safe when the additive migration has not been run yet.
   if (!runtimeConfig.publicDeployment && result.error?.code === '42703') {
@@ -63,6 +64,7 @@ export async function getAuthoritativeUser(userId: string): Promise<Authoritativ
       .from('users')
       .select('id,username,nama,role,is_first_login,is_active')
       .eq('id', userId)
+      .abortSignal(AbortSignal.timeout(2_000))
       .maybeSingle();
   }
 

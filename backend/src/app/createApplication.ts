@@ -18,6 +18,12 @@ export interface ApplicationRuntime {
  * lifecycle only; feature behavior remains inside its module seam.
  */
 export async function createApplication(): Promise<ApplicationRuntime> {
+  const configuredTrustProxy = runtimeConfig.trustProxy;
+  // Fastify's runtime supports hop counts, but its current TypeScript options
+  // accept a trust function instead. Preserve the exact hop-count policy.
+  const trustProxy = typeof configuredTrustProxy === 'number'
+    ? (_address: string, hop: number) => hop < configuredTrustProxy
+    : configuredTrustProxy;
   const app = Fastify({
     logger: {
       redact: {
@@ -28,7 +34,7 @@ export async function createApplication(): Promise<ApplicationRuntime> {
     bodyLimit: 2 * 1024 * 1024,
     requestTimeout: 30_000,
     connectionTimeout: 10_000,
-    trustProxy: runtimeConfig.trustProxy,
+    trustProxy,
   });
   const dependencies = createAppDependencies(app);
   let overdueWorkerTimer: NodeJS.Timeout | undefined;
