@@ -40,6 +40,7 @@ test('repair and replacement reject invalid photos before changing inventory', a
   const service = new EquipmentRecoveryService(createEquipmentRecoveryRepository(null, createEquipmentRecoveryMemoryState(), equipmentState));
   const repair = await service.createCase({ equipment_id: 'eq-invalid-repair', recovery_type: 'repair', reported_condition: 'damaged', change_reason: 'Membuka kasus servis' }, actorId);
   const replacement = await service.createCase({ equipment_id: 'eq-invalid-replacement', recovery_type: 'replacement', reported_condition: 'lost', change_reason: 'Membuka kasus penggantian' }, actorId);
+  const inventoryCountBeforeInvalidPhotos = equipmentState.equipment.length;
   const invalidPhoto = 'data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=';
   await assert.rejects(
     service.completeRepair({ case_id: repair.id, inspection_photos: [invalidPhoto, 'https://example.test/back.jpg'], inspection_passed: true, change_reason: 'Verifikasi hasil servis' }, actorId),
@@ -49,9 +50,9 @@ test('repair and replacement reject invalid photos before changing inventory', a
     service.registerReplacement({ case_id: replacement.id, equipment_code: 'CAM-INVALID', name: 'Camera Baru', category: 'camera', photo_urls: [invalidPhoto, 'https://example.test/back.jpg', 'https://example.test/side.jpg'], change_reason: 'Mendaftarkan unit pengganti' }, actorId),
     (error: unknown) => error instanceof EquipmentRecoveryServiceError && error.errorCode === 'RECOVERY_EVIDENCE_INVALID',
   );
-  assert.equal(equipmentState.equipment.length, 2);
-  assert.equal(equipmentState.equipment[0]?.status, 'maintenance');
-  assert.equal(equipmentState.equipment[1]?.asset_state, 'lost');
+  assert.equal(equipmentState.equipment.length, inventoryCountBeforeInvalidPhotos);
+  assert.equal(equipmentState.equipment.find((item) => item.id === 'eq-invalid-repair')?.status, 'maintenance');
+  assert.equal(equipmentState.equipment.find((item) => item.id === 'eq-invalid-replacement')?.asset_state, 'lost');
 });
 
 test('recovery service active filter includes every unfinished status', async () => {
