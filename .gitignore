@@ -54,6 +54,7 @@ orca.yaml
 *.md
 !README.md
 !**/README.md
+!/docs/security/*.md
 
 # Private UX/design planning docs
 /frontend/docs/

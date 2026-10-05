@@ -15,7 +15,7 @@ import { Button } from '@/shared/ui/primitives/button';
 import { CompactListSkeleton } from '@/shared/ui/LoadingSkeletons';
 import { Input } from '@/shared/ui/primitives/input';
 import { Label } from '@/shared/ui/primitives/label';
-import { SearchableCombobox } from '@/shared/ui/SearchableCombobox';
+import { SearchableCombobox, type SearchableComboboxOption } from '@/shared/ui/SearchableCombobox';
 import { cn } from '@/shared/utils/cn';
 import { getErrorMessage } from '@/shared/api/errors';
 import { formatNumber } from '@/shared/utils/formatNumber';
@@ -63,6 +63,7 @@ interface CreateBorrowingModalProps {
     error?: unknown;
   };
   actions: {
+    onSearchStudents?: (search: string) => void;
     onRetryStudents?: () => void;
     onRetryEquipment?: () => void;
   };
@@ -91,10 +92,11 @@ export function CreateBorrowingModal({
     equipmentError,
   } = options;
   const { onSubmit, isLoading, error } = submission;
-  const { onRetryStudents, onRetryEquipment } = actions;
+  const { onSearchStudents, onRetryStudents, onRetryEquipment } = actions;
   const defaultBorrowerId = borrower.mode === 'self' ? borrower.studentId ?? '' : '';
   const [selectedEquipmentIds, setSelectedEquipmentIds] = useState<string[]>([]);
   const [equipmentSearch, setEquipmentSearch] = useState('');
+  const [chosenStudentOption, setChosenStudentOption] = useState<SearchableComboboxOption | null>(null);
   const searchableStudentOptions = useMemo(
     () => students.map((student) => ({
       id: student.id,
@@ -135,15 +137,15 @@ export function CreateBorrowingModal({
 
   const selectedBorrowerId = useWatch({ control: form.control, name: 'borrower_id' });
   const selectedBorrowerOption = useMemo(
-    () => searchableStudentOptions.find((student) => student.id === selectedBorrowerId) ?? null,
-    [searchableStudentOptions, selectedBorrowerId],
+    () => searchableStudentOptions.find((student) => student.id === selectedBorrowerId)
+      ?? (chosenStudentOption?.id === selectedBorrowerId ? chosenStudentOption : null),
+    [chosenStudentOption, searchableStudentOptions, selectedBorrowerId],
   );
   const chargesQuery = useEquipmentChargesQuery(selectedBorrowerId, open);
   const outstandingCharge = (chargesQuery.data || []).reduce((total, charge) => total + Math.max(0, charge.amount - charge.paid_amount), 0);
 
   const handleBorrowerValueChange = (value: string | null) => {
-    if (!value) return;
-    form.setValue('borrower_id', value);
+    form.setValue('borrower_id', value ?? '', { shouldValidate: true });
   };
 
   const toggleEquipmentSelect = (id: string) => {
@@ -158,6 +160,7 @@ export function CreateBorrowingModal({
   };
 
   const handleClose = () => {
+    setChosenStudentOption(null);
     setSelectedEquipmentIds([]);
     setEquipmentSearch('');
     form.reset({
@@ -258,6 +261,8 @@ export function CreateBorrowingModal({
                   value={selectedBorrowerId}
                   selectedOption={selectedBorrowerOption}
                   onValueChange={handleBorrowerValueChange}
+                  onSelectedOptionChange={setChosenStudentOption}
+                  onSearchChange={onSearchStudents}
                   isLoading={Boolean(studentsLoading)}
                   disabled={Boolean(studentsLoading || studentsError)}
                   errorMessage={form.formState.errors.borrower_id?.message}

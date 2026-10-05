@@ -13,7 +13,7 @@ function service() {
   }));
 }
 
-const proofUrl = `data:image/jpeg;base64,${'A'.repeat(3_000)}`;
+const proofUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jD1sAAAAASUVORK5CYII=';
 
 test('cash dispute service enforces ownership and duplicate protection', async () => {
   const disputes = service();
@@ -21,6 +21,23 @@ test('cash dispute service enforces ownership and duplicate protection', async (
   assert.equal(created.dispute.status, 'pending');
   await assert.rejects(() => disputes.create({ transaction_id: 'tx-1', reason: 'Nominal belum sesuai catatan saya', bukti_sanggahan_url: proofUrl }, 'member-1', 'key-0002', 'student-1'), (error: unknown) => error instanceof CashDisputesServiceError && error.statusCode === 409);
   await assert.rejects(() => disputes.create({ transaction_id: 'tx-1', reason: 'Nominal belum sesuai catatan saya', bukti_sanggahan_url: proofUrl }, 'member-2', 'key-0003', 'student-2'), (error: unknown) => error instanceof CashDisputesServiceError && error.statusCode === 403);
+});
+
+test('cash dispute service rejects unsupported or forged evidence before creating a dispute', async () => {
+  const disputes = service();
+  for (const bukti_sanggahan_url of [
+    'data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=',
+    'data:image/png;base64,AAAA',
+    'https://user:password@example.test/proof.png',
+    'https://example.test/proof.png\n',
+  ]) {
+    await assert.rejects(
+      disputes.create({ transaction_id: 'tx-1', reason: 'Nominal belum sesuai catatan saya', bukti_sanggahan_url }, 'member-1', 'key-0001', 'student-1'),
+      (error: unknown) => error instanceof CashDisputesServiceError && error.errorCode === 'DISPUTE_EVIDENCE_INVALID',
+    );
+  }
+  const created = await disputes.create({ transaction_id: 'tx-1', reason: 'Nominal belum sesuai catatan saya', bukti_sanggahan_url: proofUrl }, 'member-1', 'key-0001', 'student-1');
+  assert.equal(created.dispute.attempt_number, 1);
 });
 
 test('cash dispute service permits a second target while another dispute is pending', async () => {

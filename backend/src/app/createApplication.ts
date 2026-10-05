@@ -19,8 +19,15 @@ export interface ApplicationRuntime {
  */
 export async function createApplication(): Promise<ApplicationRuntime> {
   const app = Fastify({
-    logger: true,
+    logger: {
+      redact: {
+        paths: ['req.headers.authorization', 'req.headers.cookie', 'res.headers["set-cookie"]', 'password', 'password_hash', 'temporary_password', 'token'],
+        censor: '[REDACTED]',
+      },
+    },
     bodyLimit: 2 * 1024 * 1024,
+    requestTimeout: 30_000,
+    connectionTimeout: 10_000,
     trustProxy: runtimeConfig.trustProxy,
   });
   const dependencies = createAppDependencies(app);

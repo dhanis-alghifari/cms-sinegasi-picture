@@ -5,13 +5,25 @@ services:
       dockerfile: Dockerfile
     container_name: sinegasi-api-prod
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,noexec,nosuid
+    mem_limit: 512m
+    cpus: 1.0
+    pids_limit: 100
     ports:
       - "127.0.0.1:3002:5001"
     env_file:
       - ./backend/.env.production
     environment:
       - NODE_ENV=production
-      - TRUST_PROXY=true
+      - PUBLIC_DEPLOYMENT=true
+      - TRUST_PROXY=1
+      - NTFY_ENABLED=false
     networks:
       - caddy_net
     labels:

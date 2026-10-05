@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { validateImageReference } from '../../shared/uploads/imageReference.js';
 import { mapAchievementRepositoryError, cleanAchievementText, isOutcomeStatus, isResultKind, parseAchievementPagination } from './contest-achievements.helpers.js';
 import type { ContestAchievementsRepository, ContestEntryResultInput, ContestAchievementListQuery, RecordContestResultInput, ContestResultKind, ContestOutcomeStatus } from './contest-achievements.types.js';
 
@@ -13,13 +14,10 @@ function required(value: unknown, field: string, maxLength: number): string {
 }
 
 function optionalUrl(value: unknown): string | undefined {
-  const text = cleanAchievementText(value, 900000);
+  if (typeof value !== 'string') return undefined;
+  const text = value.trim();
   if (!text) return undefined;
-  if (text.startsWith('data:image/')) return text;
-  try {
-    const parsed = new URL(text);
-    if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('protocol');
-  } catch {
+  if (!validateImageReference(value, { maxDecodedBytes: 675_000, maxLength: 900_000 }).valid) {
     throw new ContestAchievementsServiceError(422, 'CONTEST_RESULT_EVIDENCE_INVALID', 'Bukti hasil harus berupa URL http/https atau gambar.');
   }
   return text;

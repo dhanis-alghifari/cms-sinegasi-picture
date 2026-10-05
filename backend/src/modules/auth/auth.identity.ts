@@ -1,4 +1,5 @@
 import { supabase } from '../../services/supabaseClient.js';
+import { runtimeConfig } from '../../config/env.js';
 import type { JwtPayload, UserRole } from '../../shared/auth/auth.types.js';
 
 export const DATABASE_USERNAME_ALIASES: Readonly<Record<string, string>> = {
@@ -26,7 +27,15 @@ export type AuthoritativeUser = {
 };
 
 const AUTH_STATE_CACHE_TTL_MS = 5_000;
+const MAX_AUTH_STATE_CACHE_ENTRIES = 10_000;
 const authStateCache = new Map<string, { expiresAt: number; user: AuthoritativeUser }>();
+
+export class AuthStateUnavailableError extends Error {
+  constructor() {
+    super('Authoritative security state unavailable');
+    this.name = 'AuthStateUnavailableError';
+  }
+}
 
 function isUserRole(value: unknown): value is UserRole {
   return typeof value === 'string' && [
@@ -46,10 +55,10 @@ export async function getAuthoritativeUser(userId: string): Promise<Authoritativ
     .from('users')
     .select('id,username,nama,role,is_first_login,is_active,auth_version')
     .eq('id', userId)
-    .maybeSingle();
+    .maybeSingle().abortSignal(AbortSignal.timeout(2_000));
 
   // Keep rollout safe when the additive migration has not been run yet.
-  if (result.error?.code === '42703') {
+  if (!runtimeConfig.publicDeployment && result.error?.code === '42703') {
     result = await supabase
       .from('users')
       .select('id,username,nama,role,is_first_login,is_active')
@@ -57,16 +66,29 @@ export async function getAuthoritativeUser(userId: string): Promise<Authoritativ
       .maybeSingle();
   }
 
-  if (result.error || !result.data || !isUserRole(result.data.role)) return null;
+  if (result.error) throw new AuthStateUnavailableError();
+  if (!result.data || !isUserRole(result.data.role)) return null;
+  const authVersion = result.data.auth_version == null ? null : Number(result.data.auth_version);
+  if (runtimeConfig.publicDeployment && (authVersion === null || !Number.isSafeInteger(authVersion) || authVersion < 1)) {
+    throw new AuthStateUnavailableError();
+  }
   const authoritative: AuthoritativeUser = {
     id: result.data.id,
     username: result.data.username,
     nama: result.data.nama,
     role: result.data.role,
     isFirstLogin: result.data.is_first_login === true,
-    isActive: result.data.is_active !== false,
-    authVersion: result.data.auth_version == null ? null : Number(result.data.auth_version),
+    isActive: result.data.is_active === true,
+    authVersion,
   };
+  if (authStateCache.size >= MAX_AUTH_STATE_CACHE_ENTRIES) {
+    const now = Date.now();
+    for (const [key, value] of authStateCache) {
+      if (value.expiresAt <= now) authStateCache.delete(key);
+    }
+  }
+  // Eviction is not needed: an uncached account can still be verified in DB.
+  if (authStateCache.size >= MAX_AUTH_STATE_CACHE_ENTRIES && !authStateCache.has(userId)) return authoritative;
   authStateCache.set(userId, { expiresAt: Date.now() + AUTH_STATE_CACHE_TTL_MS, user: authoritative });
   return authoritative;
 }
@@ -113,7 +135,7 @@ export async function resolveDatabaseStudentId(
 ): Promise<string | null> {
   if (!supabase) return user.studentId || null;
   const resolvedUserId = databaseUserId ?? await resolveDatabaseUserId(user);
-  if (!resolvedUserId) return isUuid(user.studentId) ? user.studentId : null;
+  if (!resolvedUserId) return !runtimeConfig.publicDeployment && isUuid(user.studentId) ? user.studentId : null;
 
   const { data, error } = await supabase
     .from('students')
@@ -122,5 +144,5 @@ export async function resolveDatabaseStudentId(
     .eq('is_active', true)
     .maybeSingle();
   if (!error && data?.id && isUuid(data.id)) return data.id;
-  return isUuid(user.studentId) ? user.studentId : null;
+  return !runtimeConfig.publicDeployment && isUuid(user.studentId) ? user.studentId : null;
 }

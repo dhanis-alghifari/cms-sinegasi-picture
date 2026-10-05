@@ -34,6 +34,24 @@ test('contest achievements service requires an award row for awarded outcome', a
   );
 });
 
+test('contest result evidence rejects unsafe inline images and external URL credentials', async () => {
+  const state: ContestAchievementsMemoryState = { achievements: [] };
+  const service = new ContestAchievementsService(createContestAchievementsRepository(null, state));
+  for (const evidence_url of [
+    'data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=',
+    'data:image/png;base64,AAAA',
+    'https://user:password@example.test/result.png',
+    'https://example.test/result.png\n',
+    `https://example.test/${'x'.repeat(900_000)}`,
+  ]) {
+    await assert.rejects(
+      service.record('entry-1', { outcome_status: 'not_awarded', results: [], evidence_url, change_reason: 'Hasil juri sudah diterima' }, 'teacher-1'),
+      (error: unknown) => error instanceof ContestAchievementsServiceError && error.errorCode === 'CONTEST_RESULT_EVIDENCE_INVALID',
+    );
+  }
+  assert.equal(state.achievements.length, 0);
+});
+
 test('contest achievements service maps invalid filters before repository access', async () => {
   const service = new ContestAchievementsService(createContestAchievementsRepository(null, { achievements: [] }));
   await assert.rejects(

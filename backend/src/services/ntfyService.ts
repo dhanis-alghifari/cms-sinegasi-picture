@@ -109,6 +109,14 @@ export function setCustomHttpSenderForTest(sender: HttpSender | null): void {
 
 export async function sendNtfyMessage(options: NtfyMessageOptions): Promise<boolean> {
   if (!runtimeConfig.ntfyEnabled) return false;
+  // Public deployments must not publish anonymously or send credentials over
+  // HTTP. A token alone does not prove the topic's read ACL is private.
+  if (runtimeConfig.publicDeployment) {
+    try {
+      const destination = new URL(runtimeConfig.ntfyServerUrl);
+      if (!runtimeConfig.ntfyAccessToken || destination.protocol !== 'https:' || destination.username || destination.password) return false;
+    } catch { return false; }
+  }
 
   const topic = (options.topic || runtimeConfig.ntfyTopic || '').trim();
   if (!topic) return false;
@@ -152,25 +160,23 @@ export async function sendNtfyMessage(options: NtfyMessageOptions): Promise<bool
       : undefined;
     const res = await sender(url, payload, 7000, headers);
     if (!res.ok) {
-      console.warn(`[ntfyService] Response not OK (${res.status}): ${res.text}`);
+      console.warn(`[ntfyService] Response not OK (${res.status})`);
     } else {
-      console.log(`[ntfyService] Push notification sent successfully to topic: ${topic}`);
+      console.log('[ntfyService] Push notification sent successfully');
     }
     return res.ok;
-  } catch (error) {
+  } catch {
     // Non-blocking: fail-safe logging to avoid disrupting primary transactions
-    const err = error as Error & { cause?: Error };
-    const cause = err?.cause ? ` (Penyebab: ${err.cause.message || err.cause})` : '';
-    console.warn('[ntfyService] Gagal mengirim push notification:', err?.message || error, cause);
+    console.warn('[ntfyService] Gagal mengirim push notification');
     return false;
   }
 }
 
 export async function notifyNewBorrowingSubmission(
-  input: BorrowingSubmissionNotificationInput,
+  _input: BorrowingSubmissionNotificationInput,
 ): Promise<boolean> {
   const directLink = `${runtimeConfig.ntfyFrontendUrl.replace(/\/$/, '')}/notifications`;
-  const message = `${input.studentName} mengajukan peminjaman: ${input.equipmentSummary}. Segera cek untuk menyetujui atau menolak peminjaman.`;
+  const message = 'Ada pengajuan peminjaman alat baru. Login ke CMS untuk melihat detail dan memprosesnya.';
 
   return sendNtfyMessage({
     title: '📋 Pengajuan Peminjaman Alat Baru',
@@ -184,11 +190,10 @@ export async function notifyNewBorrowingSubmission(
 }
 
 export async function notifyReturnReportSubmitted(
-  input: BorrowingReturnReportNotificationInput,
+  _input: BorrowingReturnReportNotificationInput,
 ): Promise<boolean> {
   const directLink = `${runtimeConfig.ntfyFrontendUrl.replace(/\/$/, '')}/borrowing`;
-  const details = input.studentName ? `${input.studentName} melaporkan pengembalian alat` : 'Ada laporan pengembalian alat baru';
-  const message = input.equipmentSummary ? `${details}: ${input.equipmentSummary}. Periksa foto dan verifikasi laporan.` : `${details}. Periksa foto dan verifikasi laporan.`;
+  const message = 'Ada laporan pengembalian alat baru. Login ke CMS untuk melihat bukti dan memverifikasi laporan.';
   return sendNtfyMessage({
     title: '🔍 Laporan Pengembalian Alat',
     message,
@@ -201,15 +206,13 @@ export async function notifyReturnReportSubmitted(
 }
 
 export async function notifyCashDisputeSubmitted(
-  input: CashDisputeNotificationInput,
+  _input: CashDisputeNotificationInput,
 ): Promise<boolean> {
   const directLink = `${runtimeConfig.ntfyFrontendUrl.replace(/\/$/, '')}/cash?scope=manage`;
-  const who = input.studentName ? `${input.studentName} mengajukan` : 'Ada pengajuan';
-  const suffix = input.disputeId ? ` (ID ${input.disputeId.slice(0, 8)})` : '';
   return sendNtfyMessage({
     topic: runtimeConfig.ntfyCashReviewTopic || runtimeConfig.ntfyTopic,
     title: '⚖️ Sanggahan kas perlu ditinjau',
-    message: `${who} sanggahan kas baru${suffix}. Periksa dan beri keputusan sebagai guru.`,
+    message: 'Ada sanggahan kas baru. Login ke CMS untuk melihat bukti dan memberi keputusan sebagai guru.',
     priority: 'high',
     tags: ['warning', 'money_with_wings'],
     clickUrl: directLink,

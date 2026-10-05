@@ -12,9 +12,9 @@ export interface RuntimeConfig {
   supabaseUrl: string;
   supabaseServiceRoleKey: string;
   databaseUrl: string;
-  trustProxy: boolean;
+  trustProxy: boolean | number;
+  publicDeployment: boolean;
   allowDevelopmentAuth: boolean;
-  studentDefaultPassword: string;
   r2AccountId: string;
   r2BucketName: string;
   r2PublicDomain: string;
@@ -104,17 +104,42 @@ if (!["development", "test", "production"].includes(environment)) {
   throw new Error(`NODE_ENV tidak dikenal: ${environment}`);
 }
 
+const corsOrigins = parseOrigins(process.env.CORS_ORIGINS, environment);
+const loopbackOriginHosts = new Set(['localhost', '127.0.0.1', '[::1]']);
+// An internet-facing development instance needs the same secret requirements
+// as production. NODE_ENV alone is not a security boundary.
+const publicDeployment = environment === "production"
+  || parseBoolean(process.env.PUBLIC_DEPLOYMENT, false)
+  || corsOrigins.some((origin) => origin.startsWith("https://")
+    || !loopbackOriginHosts.has(new URL(origin).hostname));
+if (publicDeployment && corsOrigins.some((origin) => {
+  const parsed = new URL(origin);
+  return parsed.protocol !== 'https:' && !loopbackOriginHosts.has(parsed.hostname);
+})) {
+  throw new Error('Frontend deployment publik wajib menggunakan origin HTTPS.');
+}
+
+function parseTrustProxy(value: string | undefined): boolean | number {
+  if (!value || ["false", "0"].includes(value.trim().toLowerCase())) return false;
+  if (/^[1-9][0-9]*$/.test(value.trim())) {
+    const hops = Number(value);
+    if (hops <= 4) return hops;
+  }
+  if (!publicDeployment && parseBoolean(value, false)) return true;
+  throw new Error("TRUST_PROXY harus false atau jumlah hop proxy tepercaya (1–4), bukan true pada deployment publik. Pastikan API tidak dapat diakses melewati proxy tersebut.");
+}
+
 const defaultDevelopmentJwtSecret = "sinegasi-dev-secret-change-in-production";
 const configuredJwtSecret = process.env.JWT_SECRET?.trim();
 const jwtSecret = configuredJwtSecret || defaultDevelopmentJwtSecret;
 if (
-  environment === "production" &&
+  publicDeployment &&
   (!configuredJwtSecret ||
     configuredJwtSecret === defaultDevelopmentJwtSecret ||
     configuredJwtSecret.length < 32)
 ) {
   throw new Error(
-    "JWT_SECRET wajib diatur dengan nilai acak minimal 32 karakter pada production.",
+    "JWT_SECRET wajib diatur dengan nilai acak minimal 32 karakter pada deployment publik.",
   );
 }
 
@@ -122,20 +147,19 @@ const supabaseUrl = (process.env.SUPABASE_URL || "")
   .replace(/[\r\n\t "']/g, "")
   .replace(/\/$/, "");
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
-if (environment === "production" && (!supabaseUrl || !supabaseServiceRoleKey)) {
+if (publicDeployment && (!supabaseUrl || !supabaseServiceRoleKey)) {
   throw new Error(
-    "SUPABASE_URL dan SUPABASE_SERVICE_ROLE_KEY wajib diatur pada production.",
+    "SUPABASE_URL dan SUPABASE_SERVICE_ROLE_KEY wajib diatur pada deployment publik.",
   );
 }
 
-const defaultStudentPassword = "siswa123";
-const studentDefaultPassword =
-  process.env.STUDENT_DEFAULT_PASSWORD || defaultStudentPassword;
-if (
-  environment === "production" &&
-  studentDefaultPassword === defaultStudentPassword
-) {
-  throw new Error("STUDENT_DEFAULT_PASSWORD wajib diganti pada production.");
+if (publicDeployment) {
+  let parsedSupabaseUrl: URL;
+  try { parsedSupabaseUrl = new URL(supabaseUrl); }
+  catch { throw new Error('SUPABASE_URL tidak valid pada deployment publik.'); }
+  if (parsedSupabaseUrl.protocol !== "https:" || parsedSupabaseUrl.username || parsedSupabaseUrl.password) {
+    throw new Error("SUPABASE_URL wajib HTTPS tanpa kredensial URL pada deployment publik.");
+  }
 }
 
 export const runtimeConfig: RuntimeConfig = {
@@ -143,17 +167,17 @@ export const runtimeConfig: RuntimeConfig = {
   port: Number.parseInt(process.env.PORT || "5001", 10) || 5001,
   host: process.env.HOST || "0.0.0.0",
   jwtSecret,
-  corsOrigins: parseOrigins(process.env.CORS_ORIGINS, environment),
+  corsOrigins,
   supabaseUrl,
   supabaseServiceRoleKey,
   databaseUrl: process.env.DATABASE_URL || "",
-  trustProxy: parseBoolean(process.env.TRUST_PROXY, false),
+  trustProxy: parseTrustProxy(process.env.TRUST_PROXY),
+  publicDeployment,
   // Mock credentials are useful locally, but must never be enabled implicitly
   // in production or accidentally become an authentication bypass.
   allowDevelopmentAuth:
-    environment !== "production" &&
+    !publicDeployment &&
     parseBoolean(process.env.ALLOW_DEV_AUTH, false),
-  studentDefaultPassword,
   r2AccountId:
     process.env.CLOUDFLARE_R2_ACCOUNT_ID || process.env.R2_ACCOUNT_ID || "",
   r2BucketName:

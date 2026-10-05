@@ -53,3 +53,32 @@ test('login rejects invalid credentials without exposing database details', asyn
       && error.message === 'Username atau password salah.',
   );
 });
+
+test('public authentication does not issue unrevokable tokens for an incomplete security schema', async () => {
+  const passwordHash = await hashPassword('Password123');
+  for (const authVersion of [null, undefined, 0, NaN]) {
+    const service = new AuthService(createRepository({
+      findUserForLogin: async () => ({ data: {
+        id: '11111111-1111-4111-8111-111111111111', username: 'admin', nama: 'Admin',
+        password_hash: passwordHash, role: 'teacher', is_first_login: false, is_active: true,
+        auth_version: authVersion,
+      }, error: null }),
+    }), false, true);
+    await assert.rejects(service.login('admin', 'Password123'),
+      (error: unknown) => error instanceof AuthServiceError && error.errorCode === 'AUTHENTICATION_UNAVAILABLE');
+  }
+});
+
+test('a linked-student lookup error cannot silently issue a login token', async () => {
+  const passwordHash = await hashPassword('Password123');
+  const service = new AuthService(createRepository({
+    findUserForLogin: async () => ({ data: {
+      id: '11111111-1111-4111-8111-111111111111', username: 'member', nama: 'Siswa',
+      password_hash: passwordHash, role: 'member', is_first_login: false, is_active: true, auth_version: 1,
+    }, error: null }),
+    findLinkedStudent: async () => ({ data: null, error: { code: '57014', message: 'Internal provider detail' } }),
+  }), false, true);
+  await assert.rejects(service.login('member', 'Password123'),
+    (error: unknown) => error instanceof AuthServiceError && error.statusCode === 503
+      && !error.message.includes('Internal provider detail'));
+});

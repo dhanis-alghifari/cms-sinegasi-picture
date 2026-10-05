@@ -29,17 +29,21 @@ test('notifyNewBorrowingSubmission formats JSON payload with direct link and act
   });
 
   const originalConfig = {
+    publicDeployment: runtimeConfig.publicDeployment,
     ntfyEnabled: runtimeConfig.ntfyEnabled,
     ntfyTopic: runtimeConfig.ntfyTopic,
     ntfyServerUrl: runtimeConfig.ntfyServerUrl,
     ntfyFrontendUrl: runtimeConfig.ntfyFrontendUrl,
+    ntfyAccessToken: runtimeConfig.ntfyAccessToken,
   };
 
   Object.assign(runtimeConfig, {
+    publicDeployment: true,
     ntfyEnabled: true,
     ntfyTopic: 'test-topic',
     ntfyServerUrl: 'https://ntfy.sh',
     ntfyFrontendUrl: 'https://sinegasi-picture-develop-cms.pages.dev',
+    ntfyAccessToken: 'dummy-test-token',
   });
 
   try {
@@ -58,10 +62,24 @@ test('notifyNewBorrowingSubmission formats JSON payload with direct link and act
     const actions = capturedPayload.actions as Array<{ url: string; label: string }>;
     assert.equal(actions[0].url, 'https://sinegasi-picture-develop-cms.pages.dev/notifications');
     assert.equal(actions[0].label, 'Buka Notifikasi CMS');
-    assert.match(String(capturedPayload.message), /Ahmad Zaki/);
-    assert.match(String(capturedPayload.message), /Sony A7 IV/);
+    assert.match(String(capturedPayload.message), /Login ke CMS/);
+    assert.doesNotMatch(String(capturedPayload.message), /Ahmad Zaki|Sony A7 IV|Shooting Film Pendek/);
   } finally {
     setCustomHttpSenderForTest(null);
     Object.assign(runtimeConfig, originalConfig);
+  }
+});
+
+test('public deployments do not publish through anonymous push credentials', async () => {
+  const original = { publicDeployment: runtimeConfig.publicDeployment, ntfyEnabled: runtimeConfig.ntfyEnabled, ntfyAccessToken: runtimeConfig.ntfyAccessToken };
+  let sent = false;
+  setCustomHttpSenderForTest(async () => { sent = true; return { ok: true, status: 200, text: '' }; });
+  Object.assign(runtimeConfig, { publicDeployment: true, ntfyEnabled: true, ntfyAccessToken: '' });
+  try {
+    assert.equal(await sendNtfyMessage({ title: 'Test', message: 'Test' }), false);
+    assert.equal(sent, false);
+  } finally {
+    setCustomHttpSenderForTest(null);
+    Object.assign(runtimeConfig, original);
   }
 });

@@ -79,7 +79,11 @@ const usersRoutes: FastifyPluginAsync<UsersRoutesOptions> = async (fastify, opti
     }
   });
 
-  fastify.post('/api/users', { schema: userCreateRouteSchema, preHandler: [authenticate, requireCapability('users.manage')] }, async (request, reply) => {
+  fastify.post('/api/users', {
+    schema: userCreateRouteSchema,
+    config: { disableIdempotencyCache: true },
+    preHandler: [authenticate, requireCapability('users.manage')],
+  }, async (request, reply) => {
     try {
       const actorId = await actorIdFor(request);
       const body = mapRequestFields(requestBody(request), { name: 'nama' });

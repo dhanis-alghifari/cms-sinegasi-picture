@@ -94,8 +94,8 @@ function repositoryFailure(error: unknown, fallback: string): never {
 
 function photos(value: unknown, minimum: number): string[] {
   if (!Array.isArray(value) || value.length < minimum || value.length > 12) throw new EquipmentRecoveryServiceError(422, 'RECOVERY_EVIDENCE_REQUIRED', `Minimal ${minimum} foto wajib diunggah.`);
+  if (value.some((candidate) => typeof candidate !== 'string' || !validatePhotoUrl(candidate))) throw new EquipmentRecoveryServiceError(422, 'RECOVERY_EVIDENCE_INVALID', 'Foto yang dikirim tidak valid.');
   const values = value.map((candidate) => typeof candidate === 'string' ? candidate.trim() : '');
-  if (values.some((candidate) => !candidate || !validatePhotoUrl(candidate))) throw new EquipmentRecoveryServiceError(422, 'RECOVERY_EVIDENCE_INVALID', 'Foto yang dikirim tidak valid.');
   return values;
 }
 

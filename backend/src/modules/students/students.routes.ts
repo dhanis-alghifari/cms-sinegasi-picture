@@ -76,7 +76,7 @@ const studentRoutes: FastifyPluginAsync<StudentRoutesOptions> = async (fastify, 
 
   fastify.get('/api/students/options', {
     schema: studentsOptionsRouteSchema,
-    preHandler: [authenticate, requireAnyCapability('students.read', 'cash.manage')],
+    preHandler: [authenticate, requireAnyCapability('students.read', 'cash.manage', 'borrowing.manage')],
   }, async (request, reply) => {
     try {
       const query = request.query as { q?: string; limit?: string; active?: string };
@@ -110,7 +110,7 @@ const studentRoutes: FastifyPluginAsync<StudentRoutesOptions> = async (fastify, 
 
   fastify.get('/api/students', {
     schema: studentsListRouteSchema,
-    preHandler: [authenticate, requireAnyCapability('students.read', 'borrowing.manage')],
+    preHandler: [authenticate, requireCapability('students.read')],
   }, async (request, reply) => {
     try {
       const query = studentInput(request.query as Record<string, unknown>) as {
@@ -146,6 +146,7 @@ const studentRoutes: FastifyPluginAsync<StudentRoutesOptions> = async (fastify, 
 
   fastify.post('/api/students', {
     schema: studentCreateRouteSchema,
+    config: { disableIdempotencyCache: true },
     preHandler: [authenticate, requireCapability('students.manage')],
   }, async (request, reply) => {
     try {
@@ -270,6 +271,7 @@ const studentRoutes: FastifyPluginAsync<StudentRoutesOptions> = async (fastify, 
 
   fastify.post('/api/students/:id/provision-account', {
     schema: studentProvisionRouteSchema,
+    config: { disableIdempotencyCache: true },
     preHandler: [authenticate, requireCapability('students.manage')],
   }, async (request, reply) => {
     try {

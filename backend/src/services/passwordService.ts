@@ -1,5 +1,4 @@
 import crypto from 'node:crypto';
-import { runtimeConfig } from '../config/env.js';
 
 function scryptAsync(
   password: string,
@@ -131,28 +130,14 @@ export async function consumeUnknownAccountPasswordVerification(password: string
 }
 
 export function createTemporaryPassword(prefix = 'Siswa'): string {
-  if (runtimeConfig.environment !== 'production') {
-    let candidate = (runtimeConfig.studentDefaultPassword || 'siswa123').trim();
-    if (!/[A-Za-z]/.test(candidate)) {
-      candidate = `Siswa${candidate}`;
-    }
-    if (!/\d/.test(candidate)) {
-      candidate = `${candidate}123`;
-    }
-    if (candidate.length < PASSWORD_MIN_LENGTH) {
-      candidate = candidate.padEnd(PASSWORD_MIN_LENGTH, '0');
-    }
-    if (candidate.length > PASSWORD_MAX_LENGTH) {
-      candidate = candidate.slice(0, PASSWORD_MAX_LENGTH);
-    }
-    return candidate;
-  }
-  const digits = crypto.randomInt(100000, 1000000).toString();
-  return `${prefix}-${digits}-${crypto.randomBytes(8).toString('base64url')}`;
+  const candidate = createSecureTemporaryPassword(prefix);
+  assertPasswordPolicy(candidate);
+  return candidate;
 }
 
-/** Administrative resets must never use the shared development password. */
+/** All environments use per-account credentials, never a shared default. */
 export function createSecureTemporaryPassword(prefix = 'Reset'): string {
+  const safePrefix = prefix.replace(/[^A-Za-z]/g, '').slice(0, 24) || 'Akun';
   const guaranteedDigits = crypto.randomInt(100000, 1000000).toString();
-  return `${prefix}-${guaranteedDigits}-${crypto.randomBytes(12).toString('base64url')}`;
+  return `${safePrefix}-${guaranteedDigits}-${crypto.randomBytes(12).toString('base64url')}`;
 }

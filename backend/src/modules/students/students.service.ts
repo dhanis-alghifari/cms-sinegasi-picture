@@ -1,4 +1,5 @@
 import { createTemporaryPassword, hashPassword } from '../../services/passwordService.js';
+import { validateImageReference } from '../../shared/uploads/imageReference.js';
 import {
   isMissingStudentsSchemaError,
   isUuid,
@@ -61,7 +62,11 @@ function normalizePeminatan(value: unknown): string | undefined {
 
 function normalizePhotoUrl(value: unknown): string | undefined {
   const normalized = optionalText(value, 'Foto siswa', 2_000_000);
-  if (normalized && !/^(https?:\/\/|data:image\/)/i.test(normalized)) throw new StudentServiceError(422, 'INVALID_PHOTO_URL', 'URL foto harus berupa http(s) atau data:image.');
+  if (normalized && !validateImageReference(typeof value === 'string' ? value : normalized, {
+    maxDecodedBytes: 1_500_000, maxLength: 2_000_000,
+  }).valid) {
+    throw new StudentServiceError(422, 'INVALID_PHOTO_URL', 'Foto harus berupa JPG, PNG, atau WebP base64 yang valid, atau URL http(s) tanpa kredensial.');
+  }
   return normalized;
 }
 

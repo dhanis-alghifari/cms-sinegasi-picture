@@ -1,3 +1,4 @@
+import { validateImageReference } from '../../../shared/uploads/imageReference.js';
 import type { CashTransactionRecord } from './cash.types.js';
 
 export const CASH_SCHEMA_MIGRATION_MESSAGE = 'Skema kas belum terpasang. Jalankan "npm run db:migrate" di folder backend, lalu restart backend.';
@@ -7,6 +8,14 @@ export const CASH_SCHEMA_COMPATIBILITY_MESSAGE = 'Skema kas belum selaras dengan
 // them to a data URL. Base64 adds roughly 33% overhead, so 900k leaves a
 // bounded margin while keeping the request below the application body limit.
 export const MAX_CASH_PROOF_URL_LENGTH = 900_000;
+
+export function validateCashProofUrl(value: string): boolean {
+  return validateImageReference(value, {
+    // Preserve the existing 900k character budget, including its base64 overhead.
+    maxDecodedBytes: Math.floor(MAX_CASH_PROOF_URL_LENGTH * 3 / 4),
+    maxLength: MAX_CASH_PROOF_URL_LENGTH,
+  }).valid;
+}
 
 export function isMissingCashSchemaError(error: { code?: string; message?: string } | null | undefined): boolean {
   return Boolean(error && (

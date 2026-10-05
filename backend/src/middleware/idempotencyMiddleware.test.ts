@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import Fastify from 'fastify';
+import type { FastifyRequest } from 'fastify';
 import jwt from '@fastify/jwt';
 import test from 'node:test';
 import authRoutes from '../modules/auth/auth.routes.js';
@@ -10,9 +11,113 @@ import {
   configureIdempotencyStore,
   createMemoryIdempotencyStore,
   createSupabaseIdempotencyStore,
+  type IdempotencyStore,
   registerAuthorizedIdempotencyHook,
   saveIdempotencyResponse,
 } from './idempotencyMiddleware.js';
+
+function cacheableRequest(disableIdempotencyCache = false): FastifyRequest {
+  return {
+    routeOptions: { config: { disableIdempotencyCache } },
+    idempotencyContext: { key: 'request-key-001', cacheKey: 'cache-key-001', replayed: false },
+  } as unknown as FastifyRequest;
+}
+
+test('credential response fields are never persisted, including nested arrays and alternate casing', async (t) => {
+  let cachedResponses = 0;
+  const store: IdempotencyStore = {
+    get: () => null,
+    set: () => { cachedResponses += 1; },
+  };
+  configureIdempotencyStore(store);
+  t.after(() => configureIdempotencyStore(createMemoryIdempotencyStore()));
+
+  for (const key of [
+    'temporary_password', 'password', 'passwordHash', 'access_token', 'refreshToken',
+    'id-token', 'Token', 'authorization', 'client_secret', 'session_secret',
+    'sessionToken', 'csrf_token', 'api_key', 'privateKey', 'set-cookie',
+    'upload_url', 'accessUrl', 'signed-url',
+  ]) {
+    const payload = { success: true, data: [{ account: { [key]: 'dummy-secret' } }] };
+    await saveIdempotencyResponse(cacheableRequest(), 201, JSON.stringify(payload));
+    await saveIdempotencyResponse(cacheableRequest(), 201, payload);
+    await saveIdempotencyResponse(cacheableRequest(), 201, Buffer.from(JSON.stringify(payload)));
+  }
+  assert.equal(cachedResponses, 0);
+});
+
+test('deeply nested credential JSON cannot bypass the cache guard through recursion limits', async (t) => {
+  let cachedResponses = 0;
+  configureIdempotencyStore({ get: () => null, set: () => { cachedResponses += 1; } });
+  t.after(() => configureIdempotencyStore(createMemoryIdempotencyStore()));
+  const payload = `${'['.repeat(10_000)}{"temporary_password":"dummy-secret"}${']'.repeat(10_000)}`;
+  await saveIdempotencyResponse(cacheableRequest(), 200, payload);
+  assert.equal(cachedResponses, 0);
+});
+
+test('non-secret response prose remains cacheable and objects preserve their JSON representation', async (t) => {
+  const store = createMemoryIdempotencyStore();
+  configureIdempotencyStore(store);
+  t.after(() => configureIdempotencyStore(createMemoryIdempotencyStore()));
+  const payload = {
+    message: 'A password reset guide mentions tokens, but contains no credentials.',
+    token_count: 4,
+    password_required: true,
+    data: [{ id: 'record-1', status: 'completed' }],
+  };
+  await saveIdempotencyResponse(cacheableRequest(), 201, payload);
+  assert.deepEqual(JSON.parse((await store.get('cache-key-001'))!.payload), payload);
+});
+
+test('response save respects explicit opt-outs and skips circular or missing values', async (t) => {
+  let cachedResponses = 0;
+  configureIdempotencyStore({ get: () => null, set: () => { cachedResponses += 1; } });
+  t.after(() => configureIdempotencyStore(createMemoryIdempotencyStore()));
+  await saveIdempotencyResponse(cacheableRequest(true), 201, '{"ok":true}');
+  const circular: { self?: unknown } = {};
+  circular.self = circular;
+  await saveIdempotencyResponse(cacheableRequest(), 201, circular);
+  await saveIdempotencyResponse(cacheableRequest(), 201, undefined);
+  assert.equal(cachedResponses, 0);
+});
+
+test('legacy cached credential responses are refused without replay or re-executing the mutation', async (t) => {
+  const app = Fastify();
+  let writes = 0;
+  let cacheWrites = 0;
+  let cachedPayload = '';
+  configureIdempotencyStore({
+    get: () => ({
+      statusCode: 201,
+      payload: cachedPayload,
+      expiresAt: Date.now() + 1_000,
+    }),
+    set: () => { cacheWrites += 1; },
+  });
+  t.after(async () => {
+    configureIdempotencyStore(createMemoryIdempotencyStore());
+    await app.close();
+  });
+  const authenticate = async (request: FastifyRequest): Promise<void> => {
+    request.user = { userId: 'actor-1', username: 'actor', role: 'teacher', isFirstLogin: false };
+  };
+  registerAuthorizedIdempotencyHook(app, authenticate);
+  app.addHook('onSend', async (request, reply, payload) => {
+    await saveIdempotencyResponse(request, reply.statusCode, payload);
+    return payload;
+  });
+  app.post('/records', { preHandler: [authenticate] }, async () => ({ write: ++writes }));
+
+  for (const key of ['temporary_password', 'upload_url', 'accessUrl', 'signed-url']) {
+    cachedPayload = JSON.stringify({ account: { [key]: 'dummy-legacy-secret' } });
+    const response = await app.inject({ method: 'POST', url: '/records', headers: { 'x-idempotency-key': 'legacy-key-001' }, payload: {} });
+    assert.equal(response.statusCode, 409);
+    assert.equal(response.json().error_code, 'IDEMPOTENCY_RESPONSE_NOT_REPLAYABLE');
+    assert.equal(response.body.includes('dummy-legacy-secret'), false);
+  }
+  assert.equal(writes, 0);
+  assert.equal(cacheWrites, 0);
+});
 
 test('memory idempotency store expires and replaces responses by cache key', async () => {
   const store = createMemoryIdempotencyStore();

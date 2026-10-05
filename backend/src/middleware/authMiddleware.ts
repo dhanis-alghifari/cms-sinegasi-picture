@@ -1,12 +1,14 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { CAPABILITY_VALUES, getCapabilities, hasCapability, setRoleCapabilities, type Capability } from './capabilities.js';
 import { supabase } from '../services/supabaseClient.js';
+import { runtimeConfig } from '../config/env.js';
 import type { JwtPayload, UserRole } from '../shared/auth/auth.types.js';
 import {
   clearAuthStateCache,
   getAuthoritativeUser,
   resolveCanonicalStudentId,
   shouldCheckAuthoritativeUser,
+  AuthStateUnavailableError,
 } from '../modules/auth/auth.identity.js';
 
 // Compatibility export: existing services invalidate the same identity cache.
@@ -26,29 +28,40 @@ function isFirstLoginAllowedPath(requestUrl: string): boolean {
 // Avoid an extra policy-table round trip on every authenticated request while
 // still picking up teacher changes quickly across long-lived Fastify workers.
 const capabilityCacheExpiry = new Map<UserRole, number>();
+const failedCapabilityRefreshes = new Set<UserRole>();
 const CAPABILITY_CACHE_TTL_MS = 5_000;
 
 async function refreshPersistedCapabilities(role: UserRole): Promise<void> {
   if (!supabase) return;
   const now = Date.now();
-  if ((capabilityCacheExpiry.get(role) ?? 0) > now) return;
+  if ((capabilityCacheExpiry.get(role) ?? 0) > now) {
+    if (runtimeConfig.publicDeployment && failedCapabilityRefreshes.has(role)) throw new AuthStateUnavailableError();
+    return;
+  }
   const result = await supabase
     .from('access_role_permissions')
     .select('permission_key')
-    .eq('role_key', role);
+    .eq('role_key', role).abortSignal(AbortSignal.timeout(2_000));
   if (result.error || !result.data) {
     // A short negative cache prevents a database outage from becoming a
-    // database-amplification loop. The in-process baseline remains active.
+    // database-amplification loop. Only local-only mode may keep its baseline.
     capabilityCacheExpiry.set(role, now + 1_000);
+    failedCapabilityRefreshes.add(role);
+    if (runtimeConfig.publicDeployment) throw new AuthStateUnavailableError();
     return;
   }
+  failedCapabilityRefreshes.delete(role);
   const capabilities = (result.data as Array<{ permission_key: string }>)
     .map((row) => row.permission_key)
     .filter((value): value is Capability => CAPABILITY_VALUES.includes(value as Capability));
-  // Keep the final teacher guard available even if a partial rollout has an
-  // incomplete seed; other roles may intentionally have an empty policy.
+  // Local-only compatibility retains the final teacher guard. Public mode
+  // rejects incomplete seeds; other roles may intentionally have no grants.
   if (role === 'teacher' && !capabilities.includes('access_control.manage')) {
     capabilityCacheExpiry.set(role, now + CAPABILITY_CACHE_TTL_MS);
+    if (runtimeConfig.publicDeployment) {
+      failedCapabilityRefreshes.add(role);
+      throw new AuthStateUnavailableError();
+    }
     return;
   }
   setRoleCapabilities(role, capabilities);
@@ -89,6 +102,9 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
     await request.jwtVerify();
 
     const tokenUser = request.user as JwtPayload;
+    if (runtimeConfig.publicDeployment && !shouldCheckAuthoritativeUser(tokenUser.userId)) {
+      return reply.status(401).send({ success: false, error_code: 'INVALID_SESSION', message: 'Sesi akun tidak valid. Silakan login kembali.' });
+    }
     if (shouldCheckAuthoritativeUser(tokenUser.userId)) {
       const authoritative = await getAuthoritativeUser(tokenUser.userId);
       if (!authoritative || !authoritative.isActive) {
@@ -133,7 +149,15 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
       });
     }
   } catch (err) {
-    request.log.error({ err }, 'Authentication middleware failed');
+    if (err instanceof AuthStateUnavailableError) {
+      reply.header('Retry-After', 5);
+      return reply.status(503).send({
+        success: false, error: 'AUTHENTICATION_UNAVAILABLE', error_code: 'AUTHENTICATION_UNAVAILABLE',
+        message: 'Sesi belum dapat diverifikasi. Coba lagi sebentar.', request_id: request.id,
+      });
+    }
+    // JWT/provider error objects can contain credential details; omit them.
+    request.log.warn({ requestId: request.id }, 'Authentication middleware failed');
     return reply.status(401).send({
       success: false,
       error: 'Unauthorized',

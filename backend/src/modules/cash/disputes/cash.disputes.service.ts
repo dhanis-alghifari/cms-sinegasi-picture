@@ -4,8 +4,8 @@ import {
   getBusinessTodayDate,
   isIsoDate,
   isMissingCashSchemaError,
-  MAX_CASH_PROOF_URL_LENGTH,
   normalizePaymentMethodCode,
+  validateCashProofUrl,
 } from '../shared/cash.helpers.js';
 import type { CashDisputesRepository } from './cash.disputes.repository.js';
 import type { CashDisputeListQuery, CreateCashDisputeInput, ResolveCashDisputeInput } from './cash.disputes.types.js';
@@ -140,7 +140,7 @@ export class CashDisputesService {
       throw new CashDisputesServiceError(422, 'REQUIRED_FIELDS', 'Pilih satu catatan kas, isi alasan, dan lampirkan foto bukti sanggahan.');
     }
     if (reason.length < 10 || reason.length > 2000) throw new CashDisputesServiceError(422, 'DISPUTE_REASON_INVALID', ERROR_MESSAGES.DISPUTE_REASON_INVALID);
-    if (proofUrl.length > MAX_CASH_PROOF_URL_LENGTH) throw new CashDisputesServiceError(422, 'DISPUTE_EVIDENCE_INVALID', ERROR_MESSAGES.DISPUTE_EVIDENCE_INVALID);
+    if (!validateCashProofUrl(typeof input.bukti_sanggahan_url === 'string' ? input.bukti_sanggahan_url : proofUrl)) throw new CashDisputesServiceError(422, 'DISPUTE_EVIDENCE_INVALID', ERROR_MESSAGES.DISPUTE_EVIDENCE_INVALID);
     if (normalizedIdempotencyKey.length < 8 || normalizedIdempotencyKey.length > 128) throw new CashDisputesServiceError(422, 'IDEMPOTENCY_KEY_INVALID', ERROR_MESSAGES.IDEMPOTENCY_KEY_INVALID);
     if (!actorStudentId) throw new CashDisputesServiceError(403, 'STUDENT_SCOPE_UNAVAILABLE', 'Akun belum terhubung ke data siswa aktif.');
 

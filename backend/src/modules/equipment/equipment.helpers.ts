@@ -1,3 +1,4 @@
+import { validateImageReference } from '../../shared/uploads/imageReference.js';
 import {
   EQUIPMENT_CATEGORIES,
   EQUIPMENT_CONDITIONS,
@@ -111,16 +112,7 @@ export function isEquipmentStatus(value: unknown): value is EquipmentStatus {
 }
 
 export function validatePhotoUrl(value: string): boolean {
-  if (value.startsWith('data:')) {
-    return /^data:image\/(?:png|jpe?g|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(value);
-  }
-
-  try {
-    const url = new URL(value);
-    return (url.protocol === 'http:' || url.protocol === 'https:') && Boolean(url.hostname);
-  } catch {
-    return false;
-  }
+  return validateImageReference(value, { maxDecodedBytes: MAX_EQUIPMENT_PHOTO_BYTES }).valid;
 }
 
 export function validateEquipmentPhotos(value: unknown): { photos?: string[]; message?: string } {
@@ -128,10 +120,8 @@ export function validateEquipmentPhotos(value: unknown): { photos?: string[]; me
     return { message: 'Minimal 3 foto kondisi alat dari sudut berbeda wajib diunggah.' };
   }
 
-  const photos = value
-    .filter((photo): photo is string => typeof photo === 'string')
-    .map((photo) => photo.trim())
-    .filter(Boolean);
+  const candidates = value.filter((photo): photo is string => typeof photo === 'string' && photo.trim().length > 0);
+  const photos = candidates.map((photo) => photo.trim());
 
   if (photos.length < 3) {
     return { message: 'Minimal 3 foto kondisi alat dari sudut berbeda wajib diunggah.' };
@@ -140,16 +130,13 @@ export function validateEquipmentPhotos(value: unknown): { photos?: string[]; me
     return { message: `Jumlah foto maksimal ${MAX_EQUIPMENT_PHOTOS}.` };
   }
 
-  for (const photo of photos) {
-    if (!validatePhotoUrl(photo)) {
-      return { message: 'Setiap foto harus berupa URL http(s) atau data:image base64 yang valid.' };
+  for (const photo of candidates) {
+    const validation = validateImageReference(photo, { maxDecodedBytes: MAX_EQUIPMENT_PHOTO_BYTES });
+    if (!validation.valid && validation.reason === 'too_large') {
+      return { message: 'Ukuran setiap foto maksimal 600 KB.' };
     }
-    if (photo.startsWith('data:')) {
-      const encodedImage = photo.slice(photo.indexOf(',') + 1);
-      const decodedBytes = Buffer.from(encodedImage, 'base64').byteLength;
-      if (decodedBytes === 0 || decodedBytes > MAX_EQUIPMENT_PHOTO_BYTES) {
-        return { message: 'Ukuran setiap foto maksimal 600 KB.' };
-      }
+    if (!validation.valid) {
+      return { message: 'Setiap foto harus berupa URL http(s) atau data:image base64 yang valid.' };
     }
   }
 

@@ -3,7 +3,7 @@ import test from 'node:test';
 import { createEquipmentMemoryState } from './equipment.helpers.js';
 import { createEquipmentRecoveryMemoryState } from './equipment.recovery.helpers.js';
 import { createEquipmentRecoveryRepository } from './equipment.recovery.repository.js';
-import { EquipmentRecoveryService } from './equipment.recovery.service.js';
+import { EquipmentRecoveryService, EquipmentRecoveryServiceError } from './equipment.recovery.service.js';
 
 const actorId = 'actor-1';
 const evidenceStorage = {
@@ -32,6 +32,26 @@ test('recovery service requires the final inspection checklist', async () => {
     service.completeRepair({ case_id: item.id, inspection_photos: ['https://example.com/a.jpg', 'https://example.com/b.jpg'], inspection_passed: false, change_reason: 'Verifikasi hasil servis' }, actorId),
     (error: unknown) => error instanceof Error && error.message.includes('Checklist pemeriksaan akhir'),
   );
+});
+
+test('repair and replacement reject invalid photos before changing inventory', async () => {
+  const equipmentState = createEquipmentMemoryState();
+  equipmentState.equipment.push(baseEquipment('eq-invalid-repair', 'rusak'), baseEquipment('eq-invalid-replacement', 'hilang'));
+  const service = new EquipmentRecoveryService(createEquipmentRecoveryRepository(null, createEquipmentRecoveryMemoryState(), equipmentState));
+  const repair = await service.createCase({ equipment_id: 'eq-invalid-repair', recovery_type: 'repair', reported_condition: 'damaged', change_reason: 'Membuka kasus servis' }, actorId);
+  const replacement = await service.createCase({ equipment_id: 'eq-invalid-replacement', recovery_type: 'replacement', reported_condition: 'lost', change_reason: 'Membuka kasus penggantian' }, actorId);
+  const invalidPhoto = 'data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=';
+  await assert.rejects(
+    service.completeRepair({ case_id: repair.id, inspection_photos: [invalidPhoto, 'https://example.test/back.jpg'], inspection_passed: true, change_reason: 'Verifikasi hasil servis' }, actorId),
+    (error: unknown) => error instanceof EquipmentRecoveryServiceError && error.errorCode === 'RECOVERY_EVIDENCE_INVALID',
+  );
+  await assert.rejects(
+    service.registerReplacement({ case_id: replacement.id, equipment_code: 'CAM-INVALID', name: 'Camera Baru', category: 'camera', photo_urls: [invalidPhoto, 'https://example.test/back.jpg', 'https://example.test/side.jpg'], change_reason: 'Mendaftarkan unit pengganti' }, actorId),
+    (error: unknown) => error instanceof EquipmentRecoveryServiceError && error.errorCode === 'RECOVERY_EVIDENCE_INVALID',
+  );
+  assert.equal(equipmentState.equipment.length, 2);
+  assert.equal(equipmentState.equipment[0]?.status, 'maintenance');
+  assert.equal(equipmentState.equipment[1]?.asset_state, 'lost');
 });
 
 test('recovery service active filter includes every unfinished status', async () => {

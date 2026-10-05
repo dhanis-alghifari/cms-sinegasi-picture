@@ -40,3 +40,19 @@ test('createTemporaryPassword and createSecureTemporaryPassword always satisfy p
   const secureTemp = createSecureTemporaryPassword();
   assert.doesNotThrow(() => assertPasswordPolicy(secureTemp));
 });
+
+test('new-account temporary passwords are unique and random in every environment', () => {
+  const passwords = Array.from({ length: 100 }, () => createTemporaryPassword());
+  assert.equal(new Set(passwords).size, passwords.length);
+  for (const password of passwords) {
+    assert.match(password, /^Siswa-\d{6}-[A-Za-z0-9_-]{16}$/);
+    assert.doesNotThrow(() => assertPasswordPolicy(password));
+  }
+});
+
+test('temporary password prefixes cannot violate password length or character policy', () => {
+  for (const prefix of ['', '123', ' X\nY!* ', 'A'.repeat(300)]) {
+    assert.doesNotThrow(() => assertPasswordPolicy(createTemporaryPassword(prefix)));
+    assert.doesNotThrow(() => assertPasswordPolicy(createSecureTemporaryPassword(prefix)));
+  }
+});

@@ -6,9 +6,16 @@ import { createStudentsMemoryState } from './students.helpers.js';
 import { createStudentRepository } from './students.repository.js';
 import { StudentService } from './students.service.js';
 import studentRoutes from './students.routes.js';
+import { getCapabilities, setRoleCapabilities } from '../../middleware/capabilities.js';
 
-async function createApp(state = createStudentsMemoryState()) {
+async function createApp(state = createStudentsMemoryState(), routeCacheConfig?: Map<string, boolean>) {
   const app = Fastify();
+  if (routeCacheConfig) {
+    app.addHook('onRoute', (route) => {
+      const config = route.config as { disableIdempotencyCache?: boolean } | undefined;
+      if (route.method === 'POST') routeCacheConfig.set(route.url, config?.disableIdempotencyCache === true);
+    });
+  }
   await app.register(jwt, { secret: 'test-secret-that-is-long-enough' });
   await app.register(studentRoutes, {
     studentsService: new StudentService(createStudentRepository(null, state), () => state.students),
@@ -16,6 +23,17 @@ async function createApp(state = createStudentsMemoryState()) {
   });
   return app;
 }
+
+test('student credential issuance explicitly disables response caching without disabling safe account linking', async (t) => {
+  const routeCacheConfig = new Map<string, boolean>();
+  const app = await createApp(createStudentsMemoryState(), routeCacheConfig);
+  t.after(() => app.close());
+  await app.ready();
+  assert.equal(routeCacheConfig.get('/api/students'), true);
+  assert.equal(routeCacheConfig.get('/api/students/:id/provision-account'), true);
+  assert.equal(routeCacheConfig.get('/api/students/account-links'), false);
+  assert.equal(routeCacheConfig.get('/api/students/:id/account-links'), false);
+});
 
 test('student management keeps secretary guard and account response contract', async (t) => {
   const app = await createApp();
@@ -127,6 +145,19 @@ test('cash managers can use the minimal student selector without student adminis
 
   const fullStudentList = await app.inject({ method: 'GET', url: '/api/students', headers: treasurerHeaders });
   assert.equal(fullStudentList.statusCode, 403);
+});
+
+test('a borrowing-only manager cannot retrieve full student records', async (t) => {
+  const previous = getCapabilities('equipment_team');
+  setRoleCapabilities('equipment_team', ['borrowing.manage']);
+  const app = await createApp();
+  t.after(async () => { setRoleCapabilities('equipment_team', previous); await app.close(); });
+  const token = app.jwt.sign({ userId: 'tools-1', username: 'alat', role: 'equipment_team', isFirstLogin: false });
+  const headers = { authorization: `Bearer ${token}` };
+  const full = await app.inject({ method: 'GET', url: '/api/students', headers });
+  assert.equal(full.statusCode, 403);
+  const options = await app.inject({ method: 'GET', url: '/api/students/options', headers });
+  assert.equal(options.statusCode, 200);
 });
 
 test('teacher can explicitly link an eligible legacy account without changing its credentials', async (t) => {

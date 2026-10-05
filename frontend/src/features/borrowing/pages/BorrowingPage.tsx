@@ -9,7 +9,7 @@ import { QueryErrorState } from '@/shared/ui/QueryErrorState';
 import { Pagination } from '@/shared/ui/Pagination';
 
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
-import { useStudentsQuery } from '@/features/students/hooks/useStudentsQuery';
+import { useStudentOptionsQuery } from '@/features/students/hooks/useStudentOptionsQuery';
 import { useEquipmentQuery } from '@/features/equipment/hooks/useEquipmentQuery';
 import { useDebouncedValue } from '@/shared/hooks/useDebouncedValue';
 import { UI_CONSTANTS } from '@/shared/constants/ui';
@@ -89,6 +89,7 @@ export function BorrowingPage() {
   };
 
   const [createOpen, setCreateOpen] = useState(false);
+  const [studentSearch, setStudentSearch] = useState('');
   const shouldLoadCreateFormOptions = canOpenCreate && createOpen;
 
   const [approveRejectOpen, setApproveRejectOpen] = useState(false);
@@ -130,8 +131,8 @@ export function BorrowingPage() {
     isError: isStudentsError,
     error: studentsError,
     refetch: refetchStudents,
-  } = useStudentsQuery(
-    { is_active: true, page: 1, pageSize: UI_CONSTANTS.ATTENDANCE_ROSTER_PAGE_SIZE },
+  } = useStudentOptionsQuery(
+    studentSearch,
     shouldLoadCreateFormOptions && isTeacher,
   );
   const {
@@ -299,7 +300,7 @@ export function BorrowingPage() {
               id: 'create-borrowing',
               label: 'Ajukan Peminjaman Alat',
               icon: PackagePlus,
-              onSelect: () => setCreateOpen(true),
+              onSelect: () => { setStudentSearch(''); setCreateOpen(true); },
             }] : []}
           />
         }
@@ -334,7 +335,7 @@ export function BorrowingPage() {
               ? { mode: 'select' }
               : { mode: 'self', studentId: user?.studentId ?? '', displayName: user?.nama ?? 'Akun Anda' }}
             submission={{ onSubmit: handleCreateSubmit, isLoading: createMutation.isPending, error: createMutation.error }}
-            actions={{ onRetryStudents: refetchStudents, onRetryEquipment: refetchEquipmentOptions }}
+            actions={{ onSearchStudents: setStudentSearch, onRetryStudents: refetchStudents, onRetryEquipment: refetchEquipmentOptions }}
           />
         </Suspense>
       )}

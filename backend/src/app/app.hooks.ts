@@ -1,6 +1,9 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { auditMiddleware } from '../middleware/auditMiddleware.js';
 import { registerAuthorizedIdempotencyHook, saveIdempotencyResponse } from '../middleware/idempotencyMiddleware.js';
+import { createApiRateLimitStore } from '../middleware/apiRateLimit.js';
+import { registerApiRateLimitHooks } from '../middleware/apiRateLimit.hooks.js';
+import { createSupabaseApiRateLimitStore } from '../middleware/apiRateLimit.supabase.js';
 import { runtimeConfig } from '../config/env.js';
 import { authenticate } from '../middleware/authMiddleware.js';
 import { supabase } from '../services/supabaseClient.js';
@@ -69,7 +72,9 @@ const actorDirectory = new ActorDirectory(supabase);
 export function registerAppHooks(fastify: FastifyInstance): void {
   fastify.setErrorHandler((error: unknown, request, reply) => {
     const statusCode = Number((error as ErrorWithStatus | null)?.statusCode) || 500;
-    request.log.error({ err: error, requestId: request.id, statusCode }, 'Unhandled request error');
+    // Provider error messages can contain SQL values or signed URLs. Keep the
+    // request identifier/status for correlation, not raw error payloads.
+    request.log.error({ requestId: request.id, statusCode }, 'Unhandled request error');
     reply.header('X-Request-Id', request.id);
     reply.status(statusCode).send({
       success: false,
@@ -80,6 +85,13 @@ export function registerAppHooks(fastify: FastifyInstance): void {
     });
   });
 
+  registerApiRateLimitHooks(fastify, {
+    store: createApiRateLimitStore({
+      shared: supabase ? createSupabaseApiRateLimitStore(supabase) : null,
+      persistentRequired: runtimeConfig.publicDeployment,
+    }),
+    authenticate,
+  });
   fastify.addHook('onRequest', auditMiddleware);
   fastify.addHook('onRequest', async (request) => {
     (request as FastifyRequest & { startedAtNs?: bigint }).startedAtNs = process.hrtime.bigint();
@@ -119,7 +131,7 @@ export function registerAppHooks(fastify: FastifyInstance): void {
     reply.header('Content-Security-Policy', "frame-ancestors 'none'");
     reply.header('Permissions-Policy', 'camera=(), geolocation=(), microphone=(), payment=()');
     reply.header('Cross-Origin-Resource-Policy', 'cross-origin');
-    if (runtimeConfig.environment === 'production') {
+    if (runtimeConfig.publicDeployment) {
       reply.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
     }
     applyCachePolicy(path, reply);

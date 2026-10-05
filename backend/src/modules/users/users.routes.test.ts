@@ -7,8 +7,14 @@ import { createUsersRepository } from './users.repository.js';
 import { UsersService } from './users.service.js';
 import usersRoutes from './users.routes.js';
 
-async function createApp() {
+async function createApp(routeCacheConfig?: Map<string, boolean>) {
   const app = Fastify();
+  if (routeCacheConfig) {
+    app.addHook('onRoute', (route) => {
+      const config = route.config as { disableIdempotencyCache?: boolean } | undefined;
+      if (route.method === 'POST') routeCacheConfig.set(route.url, config?.disableIdempotencyCache === true);
+    });
+  }
   await app.register(jwt, { secret: 'test-secret-that-is-long-enough' });
   await app.register(usersRoutes, {
     usersService: new UsersService(createUsersRepository(null, createUsersMemoryState())),
@@ -16,6 +22,15 @@ async function createApp() {
   });
   return app;
 }
+
+test('user creation and password reset explicitly disable credential response caching', async (t) => {
+  const routeCacheConfig = new Map<string, boolean>();
+  const app = await createApp(routeCacheConfig);
+  t.after(() => app.close());
+  await app.ready();
+  assert.equal(routeCacheConfig.get('/api/users'), true);
+  assert.equal(routeCacheConfig.get('/api/users/:id/reset-password'), true);
+});
 
 test('users routes require teacher role and preserve list/create envelopes', async (t) => {
   const app = await createApp();

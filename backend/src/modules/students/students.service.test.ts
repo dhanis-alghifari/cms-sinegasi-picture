@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { StudentNotFoundError, StudentService } from './students.service.js';
+import { StudentNotFoundError, StudentService, StudentServiceError } from './students.service.js';
 import { createStudentsMemoryState } from './students.helpers.js';
 import { createStudentRepository, type StudentRepository } from './students.repository.js';
 
@@ -53,6 +53,34 @@ test('student service validates account creation, search pagination, and lifecyc
     service.update(created.data.student.id, { is_active: false }, 'secretary-1', 'Alumni', false),
     (error: unknown) => (error as { statusCode?: number }).statusCode === 403,
   );
+});
+
+test('student photos reject unsupported data MIME, forged bytes and credential-bearing URLs', async () => {
+  const state = createStudentsMemoryState();
+  const service = new StudentService(createStudentRepository(null, state));
+  for (const foto_url of [
+    'data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=',
+    'data:image/png;base64,AAAA',
+    'https://user:password@example.test/student.png',
+    'https://example.test/student.png\n',
+  ]) {
+    await assert.rejects(
+      service.create({ nis: '20260030', nama: 'Foto Siswa', kelas: 'X TB 1', foto_url }, 'secretary-1'),
+      (error: unknown) => error instanceof StudentServiceError && error.errorCode === 'INVALID_PHOTO_URL',
+    );
+  }
+  assert.equal(state.students.length, 0);
+  assert.equal(state.accounts.length, 0);
+});
+
+test('student photos preserve optional empty values and canonical PNG support', async () => {
+  const state = createStudentsMemoryState();
+  const service = new StudentService(createStudentRepository(null, state));
+  const withoutPhoto = await service.create({ nis: '20260031', nama: 'Tanpa Foto', kelas: 'X TB 1', foto_url: '' }, 'secretary-1');
+  assert.equal(withoutPhoto.data.student.foto_url, undefined);
+  const foto_url = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jD1sAAAAASUVORK5CYII=';
+  const withPhoto = await service.create({ nis: '20260032', nama: 'Dengan Foto', kelas: 'X TB 1', foto_url }, 'secretary-1');
+  assert.equal(withPhoto.data.student.foto_url, foto_url);
 });
 
 test('student service links an explicitly selected legacy account without provisioning credentials', async () => {
