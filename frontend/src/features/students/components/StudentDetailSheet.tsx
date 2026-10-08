@@ -3,6 +3,8 @@ import { Button } from '@/shared/ui/primitives/button';
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/shared/ui/primitives/sheet';
 import { StatusBadge } from '@/shared/ui/StatusBadge';
 import { AuditHistoryButton } from '@/features/audit/components/AuditHistoryButton';
+import { AuthenticatedImage } from '@/shared/ui/AuthenticatedImage';
+import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import type { Student } from '../types/students.types';
 
 interface StudentDetailSheetProps {
@@ -34,6 +36,7 @@ export function StudentDetailSheet({
   permissions,
   actions,
 }: StudentDetailSheetProps) {
+  const cacheScope = useAuthStore((state) => state.user?.id) ?? '';
   const { open, onOpenChange } = dialog;
   const { isMobile } = viewport;
   const { canManage = true, canManageStatus = false } = permissions ?? {};
@@ -78,7 +81,13 @@ export function StudentDetailSheet({
 
         <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-5">
           <div className="flex items-center gap-3">
-            {student.foto_url ? <img src={student.foto_url} alt="" className="h-16 w-16 rounded-2xl border border-hairline object-cover" /> : <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-hairline bg-surface-3 text-2xl font-semibold uppercase text-ink-subtle">{student.nama.charAt(0)}</div>}
+            <AuthenticatedImage
+              endpoint={`/api/students/${encodeURIComponent(student.id)}/photo`}
+              cacheScope={cacheScope}
+              alt=""
+              className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-hairline bg-surface-2"
+              fallback={<span aria-hidden="true" className="flex h-full w-full items-center justify-center rounded-2xl bg-surface-3 text-2xl font-semibold uppercase text-ink-subtle">{student.nama.charAt(0)}</span>}
+            />
             <div className="min-w-0">
               <h3 className="truncate text-base font-semibold text-ink">{student.nama}</h3>
               <p className="font-mono text-sm text-ink-subtle">{student.nis}</p>

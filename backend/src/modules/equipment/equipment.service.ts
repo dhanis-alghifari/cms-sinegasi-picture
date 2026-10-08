@@ -223,6 +223,14 @@ export class EquipmentService {
     return result.data;
   }
 
+  async getPrimaryPhoto(id: string): Promise<string | null> {
+    const normalizedId = id.trim();
+    if (normalizedId.length === 0 || normalizedId.length > 64) throw new EquipmentServiceError(422, 'INVALID_ID', 'ID alat tidak valid.');
+    const result = await this.repository.primaryPhoto(normalizedId);
+    if (result.error) throw mapRepositoryError(result.error, 500, 'Gagal memuat foto peralatan.');
+    return result.data;
+  }
+
   async create(body: EquipmentBody, actorId: string) {
     const photos = validateEquipmentPhotos(body.foto_urls);
     if (!photos.photos) throw new EquipmentServiceError(422, 'INVALID_PHOTOS', photos.message || 'Foto alat tidak valid.');

@@ -1,5 +1,4 @@
 
-import { useState } from "react";
 import { MoreVertical, Edit2, KeyRound, Link2, Trash2, UserCheck, UserX } from "lucide-react";
 import {
   Table,
@@ -20,29 +19,25 @@ import { StatusBadge } from "@/shared/ui/StatusBadge";
 import { EmptyState } from "@/shared/ui/EmptyState";
 import { AuditHistoryButton } from "@/features/audit/components/AuditHistoryButton";
 import { useCanViewAuditHistory } from "@/features/audit/hooks/useCanViewAuditHistory";
+import { AuthenticatedImage } from "@/shared/ui/AuthenticatedImage";
+import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import type { Student } from "../types/students.types";
 
 interface StudentAvatarProps {
-  fotoUrl?: string;
+  studentId: string;
   nama: string;
+  cacheScope: string;
 }
 
-function StudentAvatar({ fotoUrl, nama }: StudentAvatarProps) {
-  const [isError, setIsError] = useState(false);
-
-  // If fotoUrl changes, allow retry
-  return fotoUrl && !isError ? (
-    <img
-      key={fotoUrl}
-      src={fotoUrl}
+function StudentAvatar({ studentId, nama, cacheScope }: StudentAvatarProps) {
+  return (
+    <AuthenticatedImage
+      endpoint={`/api/students/${encodeURIComponent(studentId)}/photo`}
+      cacheScope={cacheScope}
       alt={nama}
-      onError={() => setIsError(true)}
-      className="w-7 h-7 rounded-full object-cover shrink-0 border border-hairline bg-surface-2"
+      className="h-7 w-7 shrink-0 overflow-hidden rounded-full border border-hairline bg-surface-2"
+      fallback={<span aria-hidden="true" className="flex h-full w-full items-center justify-center bg-surface-3 text-[11px] font-bold uppercase text-ink-subtle">{nama.charAt(0)}</span>}
     />
-  ) : (
-    <div className="w-7 h-7 rounded-full bg-surface-3 border border-hairline flex items-center justify-center shrink-0 text-ink-subtle text-[11px] uppercase font-bold">
-      {nama.charAt(0)}
-    </div>
   );
 }
 
@@ -68,6 +63,7 @@ export function StudentTable({
   canManageStatus = false,
 }: StudentTableProps) {
   const canViewAuditHistory = useCanViewAuditHistory();
+  const cacheScope = useAuthStore((state) => state.user?.id) ?? '';
 
   if (students.length === 0) {
     return (
@@ -129,8 +125,9 @@ export function StudentTable({
               <TableCell className="text-ink text-xs font-medium">
                 <div className="flex items-center gap-2.5">
                   <StudentAvatar
-                    fotoUrl={student.foto_url}
+                    studentId={student.id}
                     nama={student.nama}
+                    cacheScope={cacheScope}
                   />
                   {student.nama}
                 </div>

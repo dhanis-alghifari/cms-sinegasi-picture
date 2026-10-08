@@ -7,6 +7,7 @@ import {
   parseStudentOptionsLimit,
   parseStudentPagination,
   sanitizeStudentSearch,
+  STUDENT_LIST_SELECT,
   STUDENT_SELECT,
 } from './students.helpers.js';
 import type {
@@ -39,7 +40,7 @@ function isUuid(value: string): boolean {
   return /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(value);
 }
 
-function accountResult(value: unknown, fallbackUsername: string): { userId: string; username: string; role: string; isFirstLogin: boolean } | null {
+function accountResult(value: unknown, fallbackUsername: string): { userId: string; username: string; role: string; isFirstLogin: boolean; operationReplayed: boolean } | null {
   const result = (Array.isArray(value) ? value[0] : value) as Record<string, unknown> | null;
   if (!result?.user_id) return null;
   return {
@@ -47,10 +48,11 @@ function accountResult(value: unknown, fallbackUsername: string): { userId: stri
     username: String(result.username || fallbackUsername),
     role: String(result.role || 'member'),
     isFirstLogin: result.is_first_login !== false,
+    operationReplayed: result.operation_replayed === true,
   };
 }
 
-function mapAccountOperation(student: StudentRecord, rawAccount: { userId: string; username: string; role: string; isFirstLogin: boolean }): StudentAccountOperationResult {
+function mapAccountOperation(student: StudentRecord, rawAccount: { userId: string; username: string; role: string; isFirstLogin: boolean; operationReplayed?: boolean }): StudentAccountOperationResult {
   return {
     student,
     account: {
@@ -58,11 +60,13 @@ function mapAccountOperation(student: StudentRecord, rawAccount: { userId: strin
       username: rawAccount.username,
       role: rawAccount.role,
       is_first_login: rawAccount.isFirstLogin,
+      ...(rawAccount.operationReplayed === undefined ? {} : { operation_replayed: rawAccount.operationReplayed }),
     },
   };
 }
 
 export function createStudentRepository(client: SupabaseLike, state: StudentsMemoryState = { students: [], accounts: [] }): StudentRepository {
+  const accountOperations = new Map<string, { fingerprint: string; result: StudentAccountOperationResult }>();
   return {
     isConfigured: () => client !== null,
 
@@ -73,6 +77,18 @@ export function createStudentRepository(client: SupabaseLike, state: StudentsMem
         ? await query.eq('id', identifier).maybeSingle()
         : await query.eq('nis', identifier).maybeSingle();
       return { data: result.data ? mapStudentRow(result.data as Record<string, unknown>) : null, error: result.error || null };
+    },
+
+    async findPhoto(id): Promise<{ data: { foto_url: string | null } | null; error: DatabaseError | null }> {
+      if (!client) {
+        const student = state.students.find((item) => item.id === id);
+        return { data: student ? { foto_url: student.foto_url ?? null } : null, error: null };
+      }
+      const result = await client.from('students').select('foto_url').eq('id', id).maybeSingle();
+      return {
+        data: result.data ? { foto_url: typeof result.data.foto_url === 'string' ? result.data.foto_url : null } : null,
+        error: result.error || null,
+      };
     },
 
     async list(query: StudentListQuery): Promise<RepositoryResult<StudentListResult>> {
@@ -90,17 +106,20 @@ export function createStudentRepository(client: SupabaseLike, state: StudentsMem
         });
         rows = rows.sort((left, right) => right.created_at.localeCompare(left.created_at) || right.id.localeCompare(left.id));
         const total = rows.length;
-        return { data: { data: rows.slice(from, to + 1).map((row) => ({ ...row })), total, page, pageSize, totalPages: Math.ceil(total / pageSize) || 1 } };
+        return { data: { data: rows.slice(from, to + 1).map(({ foto_url: _fotoUrl, ...row }) => ({ ...row })), total, page, pageSize, totalPages: Math.ceil(total / pageSize) || 1 } };
       }
 
-      let queryBuilder = client.from('students').select(STUDENT_SELECT, { count: 'exact' });
+      let queryBuilder = client.from('students').select(STUDENT_LIST_SELECT, { count: 'exact' });
       if (search) queryBuilder = queryBuilder.or(`nama.ilike.%${search}%,nis.ilike.%${search}%,kelas.ilike.%${search}%`);
       if (query.kelas && query.kelas !== 'all') queryBuilder = queryBuilder.or(`kelas.eq.${query.kelas},kelas.ilike.${query.kelas} %`);
       if (query.peminatan && query.peminatan !== 'all') queryBuilder = queryBuilder.eq('peminatan', query.peminatan);
       if (query.isActive !== undefined) queryBuilder = queryBuilder.eq('is_active', query.isActive);
       const result = await queryBuilder.order('created_at', { ascending: false }).order('id', { ascending: false }).range(from, to);
       if (result.error) return { error: result.error };
-      const data = (result.data || []).map((row: Record<string, unknown>) => mapStudentRow(row));
+      const data = (result.data || []).map((row: Record<string, unknown>) => {
+        const { foto_url: _fotoUrl, ...student } = mapStudentRow(row);
+        return student;
+      });
       const total = result.count ?? data.length;
       return { data: { data, total, page, pageSize, totalPages: Math.ceil(total / pageSize) || 1 } };
     },
@@ -156,7 +175,18 @@ export function createStudentRepository(client: SupabaseLike, state: StudentsMem
 
     async createWithAccount(input): Promise<RepositoryResult<StudentAccountOperationResult>> {
       if (!client) {
+        const operationMapKey = `${input.actorId ?? 'anonymous'}:${input.operationKey}`;
+        const previousOperation = accountOperations.get(operationMapKey);
+        if (previousOperation) {
+          if (previousOperation.fingerprint !== input.requestFingerprint) {
+            return { error: { code: 'STUDENT_OPERATION_KEY_REUSED', message: 'STUDENT_OPERATION_KEY_REUSED' } };
+          }
+          return { data: { ...previousOperation.result, account: { ...previousOperation.result.account, operation_replayed: true } } };
+        }
         if (state.students.some((student) => student.nis.toLowerCase() === input.nis.toLowerCase())) return { error: { code: '23505' } };
+        if (state.accounts.some((account) => account.username.trim().toLowerCase() === input.username)) {
+          return { error: { code: '23505', message: 'duplicate key value violates unique constraint "uq_users_username_normalized"' } };
+        }
         const now = new Date().toISOString();
         const userId = crypto.randomUUID();
         const student: StudentRecord = {
@@ -176,12 +206,17 @@ export function createStudentRepository(client: SupabaseLike, state: StudentsMem
           is_active: true,
           is_first_login: true,
         });
-        return { data: mapAccountOperation(student, { userId, username: input.username, role: input.role || 'member', isFirstLogin: true }) };
+        const operationResult = mapAccountOperation(student, { userId, username: input.username, role: input.role || 'member', isFirstLogin: true, operationReplayed: false });
+        accountOperations.set(operationMapKey, { fingerprint: input.requestFingerprint, result: operationResult });
+        return { data: operationResult };
       }
-      const { data: accountData, error } = await client.rpc('create_student_with_account_atomic', {
+      const { data: accountData, error } = await client.rpc('create_student_with_account_v2', {
         p_nis: input.nis, p_nama: input.nama, p_kelas: input.kelas, p_peminatan: input.peminatan || null,
         p_no_telepon: input.no_telepon || null, p_foto_url: input.foto_url || null, p_username: input.username,
         p_password_hash: input.passwordHash, p_created_by: input.actorId, p_role: input.role || 'member',
+        p_operation_key: input.operationKey, p_request_fingerprint: input.requestFingerprint,
+        p_change_reason: input.changeReason, p_request_id: input.requestId || null,
+        p_operation_id: input.operationId || null, p_user_agent: input.userAgent || null,
       });
       if (error) return { error };
       const account = accountResult(accountData, input.username);
@@ -311,13 +346,12 @@ export function createStudentRepository(client: SupabaseLike, state: StudentsMem
 
     async provisionAccount(input): Promise<RepositoryResult<StudentAccountOperationResult>> {
       if (!client) return { error: { code: 'DATABASE_REQUIRED' } };
-      const current = await client.from('students').select(STUDENT_SELECT).eq('id', input.id).maybeSingle();
-      if (current.error) return { error: current.error };
-      if (!current.data) return { error: { code: 'P0002', message: 'Siswa tidak ditemukan.' } };
-      const currentStudent = mapStudentRow(current.data as Record<string, unknown>);
-      if (currentStudent.user_id) return { error: { code: '23505', message: 'Siswa ini sudah memiliki akun.' } };
-      const { data: accountData, error } = await client.rpc('provision_student_account_atomic', {
-        p_student_id: input.id, p_username: input.username, p_password_hash: input.passwordHash, p_created_by: input.actorId,
+      const { data: accountData, error } = await client.rpc('provision_student_account_v2', {
+        p_student_id: input.id, p_username: input.username, p_password_hash: input.passwordHash,
+        p_no_telepon: input.phoneNumber, p_created_by: input.actorId,
+        p_operation_key: input.operationKey, p_request_fingerprint: input.requestFingerprint,
+        p_change_reason: input.changeReason, p_request_id: input.requestId || null,
+        p_operation_id: input.operationId || null, p_user_agent: input.userAgent || null,
       });
       if (error) return { error };
       const account = accountResult(accountData, input.username);

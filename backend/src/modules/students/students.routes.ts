@@ -20,6 +20,8 @@ import {
 } from '../../shared/http/schemas/students.schema.js';
 import { sendServiceError } from '../../shared/http/sendServiceError.js';
 import { mapRequestFields } from '../../shared/http/request-field-mapping.js';
+import { getAuditRequestContext } from '../../middleware/auditMiddleware.js';
+import { sendPrivateImageReference } from '../../shared/http/sendPrivateImageReference.js';
 import { StudentNotFoundError, StudentService } from './students.service.js';
 import type { StudentCreateInput, StudentUpdateInput } from './students.types.js';
 
@@ -51,6 +53,18 @@ function reasonFrom(request: FastifyRequest, body: Record<string, unknown>, fall
 
 function studentStatusMetadata(isActive: boolean): { operation: string } {
   return { operation: isActive ? 'student_reactivate' : 'student_alumni' };
+}
+
+function accountOperationContext(request: FastifyRequest, body: Record<string, unknown>, fallbackReason: string) {
+  const key = request.headers['x-idempotency-key'];
+  const audit = getAuditRequestContext(request);
+  return {
+    operationKey: typeof key === 'string' ? key : '',
+    changeReason: reasonFrom(request, body, fallbackReason),
+    ...(audit?.requestId ? { requestId: audit.requestId } : {}),
+    ...(audit?.operationId ? { operationId: audit.operationId } : {}),
+    ...(audit?.userAgent ? { userAgent: audit.userAgent } : {}),
+  };
 }
 
 const specializations: Readonly<Record<string, string>> = {
@@ -132,6 +146,19 @@ const studentRoutes: FastifyPluginAsync<StudentRoutesOptions> = async (fastify, 
     }
   });
 
+  fastify.get('/api/students/:id/photo', {
+    schema: studentIdRouteSchema,
+    preHandler: [authenticate, requireCapability('students.read')],
+  }, async (request, reply) => {
+    try {
+      const photo = await options.studentsService.getPhoto((request.params as { id: string }).id);
+      return sendPrivateImageReference(reply, photo, 1_500_000);
+    } catch (error) {
+      if (error instanceof StudentNotFoundError) return reply.status(204).send();
+      return sendServiceError(error, reply);
+    }
+  });
+
   fastify.get('/api/students/:id', {
     schema: studentIdRouteSchema,
     preHandler: [authenticate, requireCapability('students.read')],
@@ -151,22 +178,19 @@ const studentRoutes: FastifyPluginAsync<StudentRoutesOptions> = async (fastify, 
   }, async (request, reply) => {
     try {
       const body = studentInput(bodyOf(request));
-      const result = await options.studentsService.create(body as unknown as StudentCreateInput, await actorIdFor(request));
-      const reason = reasonFrom(request, body, 'Menambahkan siswa dan membuat akun sesuai peran');
-      await options.persistAuditLog(request, {
-        action: 'INSERT', tableName: 'students', recordId: result.data.student.id,
-        newValues: result.data.student as unknown as Record<string, unknown>, changeReason: reason,
-      });
-      await options.persistAuditLog(request, {
-        action: 'INSERT', tableName: 'users', recordId: result.data.account.user_id,
-        newValues: { id: result.data.account.user_id, username: result.data.account.username, nama: result.data.student.nama, role: result.data.account.role, is_active: true, is_first_login: result.data.account.is_first_login },
-        changeReason: reason,
-        metadata: { operation: 'student_account_provisioning', student_id: result.data.student.id },
-      });
+      const result = await options.studentsService.create(
+        body as unknown as StudentCreateInput,
+        await actorIdFor(request),
+        accountOperationContext(request, body, 'Menambahkan siswa dan membuat akun sesuai peran'),
+      );
       return reply.status(201).send({
         success: true,
         data: result.data.student,
-        account: { ...result.data.account, temporary_password: result.temporaryPassword },
+        account: {
+          ...result.data.account,
+          ...(result.temporaryPassword ? { temporary_password: result.temporaryPassword } : {}),
+          operation_replayed: result.data.account.operation_replayed === true,
+        },
       });
     } catch (error) {
       return sendServiceError(error, reply);
@@ -276,19 +300,24 @@ const studentRoutes: FastifyPluginAsync<StudentRoutesOptions> = async (fastify, 
   }, async (request, reply) => {
     try {
       const body = studentInput(bodyOf(request));
-      const reason = reasonFrom(request, body, 'Membuat akun anggota untuk siswa');
-      const result = await options.studentsService.provisionAccount((request.params as { id: string }).id, await actorIdFor(request), reason);
-      await options.persistAuditLog(request, {
-        action: 'UPDATE', tableName: 'students', recordId: result.data.student.id,
-        oldValues: { user_id: null }, newValues: { user_id: result.data.account.user_id, is_active: result.data.student.is_active },
-        changeReason: reason, metadata: { operation: 'student_account_provisioning' },
+      const result = await options.studentsService.provisionAccount(
+        (request.params as { id: string }).id,
+        await actorIdFor(request),
+        {
+          username: typeof body.username === 'string' ? body.username : '',
+          phoneNumber: typeof body.no_telepon === 'string' ? body.no_telepon : '',
+          ...accountOperationContext(request, body, 'Membuat akun login untuk siswa'),
+        },
+      );
+      return reply.status(201).send({
+        success: true,
+        data: result.data.student,
+        account: {
+          ...result.data.account,
+          ...(result.temporaryPassword ? { temporary_password: result.temporaryPassword } : {}),
+          operation_replayed: result.data.account.operation_replayed === true,
+        },
       });
-      await options.persistAuditLog(request, {
-        action: 'INSERT', tableName: 'users', recordId: result.data.account.user_id,
-        newValues: { id: result.data.account.user_id, username: result.data.account.username, nama: result.data.student.nama, role: result.data.account.role, is_active: result.data.student.is_active, is_first_login: result.data.account.is_first_login },
-        changeReason: reason, metadata: { operation: 'student_account_provisioning', student_id: result.data.student.id },
-      });
-      return reply.status(201).send({ success: true, data: result.data.student, account: { ...result.data.account, temporary_password: result.temporaryPassword } });
     } catch (error) {
       return sendServiceError(error, reply);
     }

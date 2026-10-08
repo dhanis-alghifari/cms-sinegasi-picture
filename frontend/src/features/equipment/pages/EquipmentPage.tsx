@@ -1,5 +1,5 @@
 
-import { lazy, Suspense, useState } from 'react';
+import { lazy, Suspense, useRef, useState } from 'react';
 import { FileDown, Plus, Tags } from 'lucide-react';
 
 import { PageHeader } from '@/shared/ui/PageHeader';
@@ -14,7 +14,10 @@ import { UI_CONSTANTS } from '@/shared/constants/ui';
 import { useIsMobile } from '@/shared/hooks/use-mobile';
 import { hasCapability } from '@/shared/auth/capabilities';
 import { isOneOf } from '@/shared/utils/isOneOf';
+import { getErrorMessage } from '@/shared/api/errors';
+import { toast } from '@/shared/ui/primitives/toast';
 
+import { equipmentService } from '../api/equipment.service';
 import { useEquipmentQuery, useEquipmentSummaryQuery } from '../hooks/useEquipmentQuery';
 import { useCreateEquipmentMutation } from '../hooks/useCreateEquipmentMutation';
 import { useUpdateEquipmentMutation } from '../hooks/useUpdateEquipmentMutation';
@@ -90,6 +93,7 @@ export function EquipmentPage() {
 
   const [formOpen, setFormOpen] = useState(false);
   const [selectedEquipment, setSelectedEquipment] = useState<Equipment | null>(null);
+  const editLoadSequence = useRef(0);
 
   const [conditionOpen, setConditionOpen] = useState(false);
   const [conditionTarget, setConditionTarget] = useState<Equipment | null>(null);
@@ -134,17 +138,27 @@ export function EquipmentPage() {
   const registerReplacementMutation = useRegisterEquipmentReplacementMutation();
 
   const handleOpenAdd = () => {
+    editLoadSequence.current += 1;
     createMutation.reset();
     updateMutation.reset();
     setSelectedEquipment(null);
     setFormOpen(true);
   };
 
-  const handleOpenEdit = (eq: Equipment) => {
+  const handleOpenEdit = async (eq: Equipment) => {
+    const sequence = ++editLoadSequence.current;
     createMutation.reset();
     updateMutation.reset();
-    setSelectedEquipment(eq);
-    setFormOpen(true);
+    try {
+      const completeEquipment = await equipmentService.getEquipmentById(eq.id);
+      if (sequence !== editLoadSequence.current) return;
+      setSelectedEquipment(completeEquipment);
+      setFormOpen(true);
+    } catch (error) {
+      if (sequence === editLoadSequence.current) {
+        toast.add({ type: 'error', title: 'Data alat gagal dimuat', description: getErrorMessage(error) });
+      }
+    }
   };
 
   const handleOpenCondition = (eq: Equipment) => {

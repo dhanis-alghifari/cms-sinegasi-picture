@@ -22,6 +22,7 @@ import { getErrorMessage } from '@/shared/api/errors';
 import { compressImageFile, MAX_SOURCE_IMAGE_BYTES } from '@/shared/utils/compressImage';
 import { UI_CONSTANTS } from '@/shared/constants/ui';
 import { StudentFormFields } from './StudentFormFields';
+import { createOperationKey, normalizeWhatsAppNumber } from '../utils/accountOnboarding';
 
 import { studentSchema, type StudentFormValues } from '../schemas/studentSchema';
 import type { Student } from '../types/students.types';
@@ -31,7 +32,7 @@ import type { ClassSelectorOption } from '@/features/classes/types/classes.types
 import { LegacyStudentAccountPicker } from './LegacyStudentAccountPicker';
 
 export type StudentAccountSubmission =
-  | { mode: 'new' }
+  | { mode: 'new'; operationKey: string }
   | { mode: 'existing'; userId: string };
 
 interface StudentFormDialogProps {
@@ -64,6 +65,7 @@ export function StudentFormDialog({
   const [accountMode, setAccountMode] = useState<'new' | 'existing'>('new');
   const [selectedLegacyAccount, setSelectedLegacyAccount] = useState<UnlinkedStudentAccount | null>(null);
   const [accountSelectionError, setAccountSelectionError] = useState<string | null>(null);
+  const [accountOperation, setAccountOperation] = useState<{ fingerprint: string; key: string } | null>(null);
 
   const loadClassOptions = useCallback(async () => {
     setClassOptionsLoading(true);
@@ -97,6 +99,8 @@ export function StudentFormDialog({
       kelas: '',
       peminatan: undefined,
       no_telepon: '',
+      username: '',
+      whatsapp_confirmed: false,
       foto_url: '',
       role: 'member',
       change_reason: '',
@@ -117,6 +121,8 @@ export function StudentFormDialog({
         kelas: student.kelas,
         peminatan: student.peminatan,
         no_telepon: student.no_telepon ?? '',
+        username: '',
+        whatsapp_confirmed: false,
         foto_url: student.foto_url ?? '',
         role: 'member',
         change_reason: 'Penyesuaian data siswa',
@@ -128,6 +134,8 @@ export function StudentFormDialog({
         kelas: '',
         peminatan: undefined,
         no_telepon: '',
+        username: '',
+        whatsapp_confirmed: false,
         foto_url: '',
         role: 'member',
         change_reason: '',
@@ -186,6 +194,7 @@ export function StudentFormDialog({
   };
 
   const handleDialogOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen && isLoading) return;
     if (!nextOpen) {
       setFormError(null);
       setImageError(null);
@@ -226,10 +235,41 @@ export function StudentFormDialog({
         form.setError('change_reason', { type: 'manual', message: 'Alasan penautan wajib diisi minimal 5 karakter.' });
         return;
       }
-      const submission: StudentAccountSubmission = accountMode === 'existing' && selectedLegacyAccount
-        ? { mode: 'existing', userId: selectedLegacyAccount.id }
-        : { mode: 'new' };
-      await onSubmit(data, submission);
+      let submission: StudentAccountSubmission;
+      let values = data;
+      if (accountMode === 'existing' && selectedLegacyAccount) {
+        submission = { mode: 'existing', userId: selectedLegacyAccount.id };
+      } else if (!isEditing) {
+        const username = (data.username ?? '').trim().toLowerCase();
+        if (!/^[a-z0-9._-]{3,30}$/.test(username)) {
+          form.setError('username', { type: 'manual', message: 'Username 3–30 karakter; gunakan huruf, angka, titik, _ atau -.' });
+          return;
+        }
+        const phone = normalizeWhatsAppNumber(data.no_telepon ?? '');
+        if (!phone) {
+          form.setError('no_telepon', { type: 'manual', message: 'Masukkan nomor WhatsApp Indonesia yang valid.' });
+          return;
+        }
+        if (data.whatsapp_confirmed !== true) {
+          form.setError('whatsapp_confirmed', { type: 'manual', message: 'Pastikan dan konfirmasi nomor WhatsApp siswa terlebih dahulu.' });
+          return;
+        }
+        values = { ...data, username, no_telepon: phone };
+        const fingerprint = JSON.stringify({
+          nis: values.nis, nama: values.nama, kelas: values.kelas, peminatan: values.peminatan ?? null,
+          username, phone, foto_url: values.foto_url ?? null, role: values.role ?? 'member',
+        });
+        let operation = accountOperation;
+        if (operation?.fingerprint !== fingerprint) {
+          operation = { fingerprint, key: createOperationKey() };
+          setAccountOperation(operation);
+        }
+        submission = { mode: 'new', operationKey: operation.key };
+      } else {
+        submission = { mode: 'new', operationKey: '' };
+      }
+      await onSubmit(values, submission);
+      setAccountOperation(null);
       handleDialogOpenChange(false);
     } catch (error) {
       setFormError(getErrorMessage(error));
@@ -303,13 +343,14 @@ export function StudentFormDialog({
                   </div>
                 </div>
               ) : (
-                <p className="text-xs text-ink-subtle">Sistem membuat username dari NIS dan password sementara untuk akun baru.</p>
+                <p className="text-xs text-ink-subtle">Isi username yang mudah diingat dan nomor WhatsApp aktif siswa. Password sementara dibuat acak oleh server.</p>
               )}
             </section>
           )}
 
           <StudentFormFields
             form={form}
+            accountMode={accountMode}
             showRoleSelection={accountMode === 'new'}
             state={{ isEditing, selectedKelas, selectedPeminatan, selectedRole, activePreview, isProcessingImage }}
             classes={{

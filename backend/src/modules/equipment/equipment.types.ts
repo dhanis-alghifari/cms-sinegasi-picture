@@ -224,6 +224,7 @@ export type EquipmentMemoryState = {
 export interface EquipmentRepository {
   isConfigured(): boolean;
   list(query: EquipmentListQuery): Promise<{ data: EquipmentEntry[]; count: number; error: EquipmentDatabaseError | null }>;
+  primaryPhoto(id: string): Promise<{ data: string | null; error: EquipmentDatabaseError | null }>;
   report(query: EquipmentReportQuery): Promise<{ data: EquipmentEntry[]; count: number; error: EquipmentDatabaseError | null }>;
   summary(): Promise<{ data: EquipmentSummary | null; error: EquipmentDatabaseError | null }>;
   findById(id: string): Promise<{ data: EquipmentEntry | null; error: EquipmentDatabaseError | null }>;

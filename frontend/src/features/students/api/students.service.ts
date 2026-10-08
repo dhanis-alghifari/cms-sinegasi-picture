@@ -24,7 +24,7 @@ const specializationValues: Readonly<Record<string, string>> = {
   kamera: 'camera', editing: 'editing', naskah: 'screenwriting',
 };
 
-function toStudentRequest(payload: CreateStudentPayload | UpdateStudentPayload) {
+function toStudentRequest(payload: CreateStudentPayload | UpdateStudentPayload | LinkExistingStudentAccountPayload) {
   const {
     nis: student_number,
     nama: name,
@@ -87,9 +87,10 @@ export const studentsService = {
     return apiClient.getParsed(endpoint, decodeUnlinkedStudentAccounts, options);
   },
 
-  createStudent(payload: CreateStudentPayload): Promise<StudentAccountResponse> {
+  createStudent(payload: CreateStudentPayload, idempotencyKey: string): Promise<StudentAccountResponse> {
     return apiClient.postParsed('/api/students', toStudentRequest(payload), decodeStudentAccountResponse, {
       changeReason: payload.change_reason || 'Menambahkan siswa dan membuat akun sesuai peran',
+      idempotencyKey,
     });
   },
 
@@ -105,9 +106,14 @@ export const studentsService = {
     });
   },
 
-  provisionStudentAccount(id: string, changeReason: string): Promise<StudentAccountResponse> {
-    return apiClient.postParsed(`/api/students/${id}/provision-account`, {}, decodeStudentAccountResponse, {
-      changeReason,
+  provisionStudentAccount(
+    id: string,
+    payload: { username: string; phone_number: string; change_reason: string },
+    idempotencyKey: string,
+  ): Promise<StudentAccountResponse> {
+    return apiClient.postParsed(`/api/students/${id}/provision-account`, payload, decodeStudentAccountResponse, {
+      idempotencyKey,
+      changeReason: payload.change_reason,
     });
   },
 

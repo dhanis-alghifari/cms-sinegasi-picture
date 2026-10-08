@@ -36,6 +36,8 @@ export interface StudentAccountCredentials {
   username: string;
   role: string;
   is_first_login: boolean;
+  operation_replayed?: boolean;
+  whatsapp_number?: string;
   temporary_password?: string;
 }
 
@@ -58,6 +60,7 @@ export interface CreateStudentPayload {
   nis: string;
   nama: string;
   kelas: string;
+  username: string;
   peminatan?: Peminatan;
   no_telepon?: string;
   foto_url?: string;
@@ -65,7 +68,7 @@ export interface CreateStudentPayload {
   change_reason?: string;
 }
 
-export interface LinkExistingStudentAccountPayload extends Omit<CreateStudentPayload, 'role'> {
+export interface LinkExistingStudentAccountPayload extends Omit<CreateStudentPayload, 'role' | 'username'> {
   user_id: string;
 }
 

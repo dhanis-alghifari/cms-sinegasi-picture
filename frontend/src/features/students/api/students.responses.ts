@@ -38,6 +38,8 @@ const studentAccountSchema: z.ZodType<StudentAccountResponse> = z.object({
     username: z.string().min(1),
     role: z.string().min(1),
     is_first_login: z.boolean(),
+    operation_replayed: z.boolean().optional(),
+    whatsapp_number: optionalTextSchema,
     temporary_password: z.string().min(1).optional(),
   }).loose(),
 }).loose();

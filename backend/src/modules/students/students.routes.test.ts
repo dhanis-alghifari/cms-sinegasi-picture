@@ -8,6 +8,25 @@ import { StudentService } from './students.service.js';
 import studentRoutes from './students.routes.js';
 import { getCapabilities, setRoleCapabilities } from '../../middleware/capabilities.js';
 
+let accountOperationSequence = 0;
+
+function accountRequestHeaders(headers: Record<string, string>) {
+  accountOperationSequence += 1;
+  return {
+    ...headers,
+    'x-idempotency-key': `00000000-0000-4000-8000-${String(accountOperationSequence).padStart(12, '0')}`,
+  };
+}
+
+function accountPayload(payload: Record<string, unknown>) {
+  accountOperationSequence += 1;
+  return {
+    username: `siswa${accountOperationSequence}`,
+    phone_number: '081234567890',
+    ...payload,
+  };
+}
+
 async function createApp(state = createStudentsMemoryState(), routeCacheConfig?: Map<string, boolean>) {
   const app = Fastify();
   if (routeCacheConfig) {
@@ -44,17 +63,34 @@ test('student management keeps secretary guard and account response contract', a
 
   const secretaryToken = app.jwt.sign({ userId: 'secretary-1', username: 'secretary', role: 'secretary', isFirstLogin: false });
   const headers = { authorization: `Bearer ${secretaryToken}` };
-  const created = await app.inject({ method: 'POST', url: '/api/students', headers, payload: { student_number: '20260001', name: 'Budi Santoso', class_name: 'X TKJ 1', specialization: 'kamera' } });
+  const budiRequestHeaders = accountRequestHeaders(headers);
+  const budiPayload = accountPayload({ student_number: '20260001', name: 'Budi Santoso', class_name: 'X TKJ 1', specialization: 'kamera', username: 'budi.santoso' });
+  const created = await app.inject({ method: 'POST', url: '/api/students', headers: budiRequestHeaders, payload: budiPayload });
   assert.equal(created.statusCode, 201);
   assert.equal(created.json().success, true);
   assert.equal(created.json().account.role, 'member');
   assert.equal(typeof created.json().account.temporary_password, 'string');
+  assert.equal(created.json().account.username, 'budi.santoso');
+  assert.equal(created.json().data.no_telepon, '+6281234567890');
 
-  const leaderCreated = await app.inject({ method: 'POST', url: '/api/students', headers, payload: { student_number: '20260004', name: 'Ketua Baru', class_name: 'X TKJ 1', role: 'leader' } });
+  const replay = await app.inject({ method: 'POST', url: '/api/students', headers: budiRequestHeaders, payload: budiPayload });
+  assert.equal(replay.statusCode, 201);
+  assert.equal(replay.json().account.operation_replayed, true);
+  assert.equal('temporary_password' in replay.json().account, false);
+  assert.equal(replay.json().account.user_id, created.json().account.user_id);
+
+  const reusedKey = await app.inject({
+    method: 'POST', url: '/api/students', headers: budiRequestHeaders,
+    payload: { ...budiPayload, name: 'Payload berubah' },
+  });
+  assert.equal(reusedKey.statusCode, 409);
+  assert.equal(reusedKey.json().error_code, 'IDEMPOTENCY_KEY_REUSED');
+
+  const leaderCreated = await app.inject({ method: 'POST', url: '/api/students', headers: accountRequestHeaders(headers), payload: accountPayload({ student_number: '20260004', name: 'Ketua Baru', class_name: 'X TKJ 1', role: 'leader', username: 'ketua.baru' }) });
   assert.equal(leaderCreated.statusCode, 201);
   assert.equal(leaderCreated.json().account.role, 'leader');
 
-  const treasurerCreated = await app.inject({ method: 'POST', url: '/api/students', headers, payload: { student_number: '20260006', name: 'Bendahara Baru', class_name: 'XII AK 4', specialization: 'screenwriting', role: 'treasurer' } });
+  const treasurerCreated = await app.inject({ method: 'POST', url: '/api/students', headers: accountRequestHeaders(headers), payload: accountPayload({ student_number: '20260006', name: 'Bendahara Baru', class_name: 'XII AK 4', specialization: 'screenwriting', role: 'treasurer', username: 'bendahara.baru' }) });
   assert.equal(treasurerCreated.statusCode, 201);
   assert.equal(treasurerCreated.json().account.role, 'treasurer');
   assert.equal(treasurerCreated.json().data.peminatan, 'naskah');
@@ -62,6 +98,7 @@ test('student management keeps secretary guard and account response contract', a
   const listed = await app.inject({ method: 'GET', url: '/api/students?search=Budi&pageSize=10', headers });
   assert.equal(listed.statusCode, 200);
   assert.equal(listed.json().total, 1);
+  assert.equal('foto_url' in listed.json().data[0], false);
 
   const id = created.json().data.id;
   const updated = await app.inject({
@@ -72,6 +109,78 @@ test('student management keeps secretary guard and account response contract', a
   assert.equal(updated.json().nama, 'Budi Utama');
 });
 
+test('student photo is served only through an authenticated capability-checked no-store endpoint', async (t) => {
+  const state = createStudentsMemoryState();
+  const studentId = '55555555-5555-4555-a555-555555555556';
+  const photo = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jD1sAAAAASUVORK5CYII=';
+  state.students.push({ id: studentId, nis: '20260099', nama: 'Foto Uji', kelas: 'X TKJ 1', foto_url: photo, is_active: true, created_at: new Date().toISOString() });
+  const app = await createApp(state);
+  t.after(() => app.close());
+  const secretary = app.jwt.sign({ userId: 'secretary-1', username: 'secretary', role: 'secretary', isFirstLogin: false });
+  const member = app.jwt.sign({ userId: 'member-1', username: 'member', role: 'member', isFirstLogin: false });
+
+  const allowed = await app.inject({ method: 'GET', url: `/api/students/${studentId}/photo`, headers: { authorization: `Bearer ${secretary}` } });
+  assert.equal(allowed.statusCode, 200);
+  assert.equal(allowed.headers['content-type'], 'image/png');
+  assert.equal(allowed.headers['cache-control'], 'private, no-store');
+  assert.equal(allowed.headers['x-content-type-options'], 'nosniff');
+  assert.ok(allowed.rawPayload.length > 0);
+
+  const denied = await app.inject({ method: 'GET', url: `/api/students/${studentId}/photo`, headers: { authorization: `Bearer ${member}` } });
+  assert.equal(denied.statusCode, 403);
+});
+
+test('configured student list selects and returns profile metadata without photo data', async () => {
+  let selectedColumns = '';
+  const row = { id: 'student-1', nis: '20260001', nama: 'Rani', kelas: 'XI TKJ 1', foto_url: 'data:image/png;base64,large-image', is_active: true, created_at: '2026-01-01T00:00:00.000Z' };
+  const queryBuilder = {
+    select(columns: string) { selectedColumns = columns; return this; },
+    or() { return this; },
+    eq() { return this; },
+    order() { return this; },
+    range() { return this; },
+    then(resolve: (value: { data: typeof row[]; count: number; error: null }) => unknown, reject?: (reason: unknown) => unknown) {
+      return Promise.resolve({ data: [row], count: 1, error: null }).then(resolve, reject);
+    },
+  };
+  const repository = createStudentRepository({ from: () => queryBuilder } as never);
+
+  const result = await repository.list?.({ page: 1, pageSize: 20 });
+
+  if (!result || !('data' in result) || !result.data) throw new Error('Expected configured student list data');
+  assert.equal(selectedColumns.includes('foto_url'), false);
+  assert.equal('foto_url' in result.data.data[0], false);
+});
+
+test('new student account requires a manual username, WhatsApp number, and idempotency key', async (t) => {
+  const state = createStudentsMemoryState();
+  const app = await createApp(state);
+  t.after(() => app.close());
+  const token = app.jwt.sign({ userId: 'secretary-1', username: 'secretary', role: 'secretary', isFirstLogin: false });
+  const headers = { authorization: `Bearer ${token}` };
+  const basePayload = { student_number: '20260190', name: 'Rani Putri', class_name: 'X TKJ 1', username: 'rani', phone_number: '081234567890' };
+
+  const missingKey = await app.inject({ method: 'POST', url: '/api/students', headers, payload: basePayload });
+  assert.equal(missingKey.statusCode, 400);
+  const missingPhone = await app.inject({
+    method: 'POST', url: '/api/students', headers: accountRequestHeaders(headers),
+    payload: { ...basePayload, student_number: '20260191', phone_number: undefined },
+  });
+  assert.equal(missingPhone.statusCode, 400);
+
+  const created = await app.inject({
+    method: 'POST', url: '/api/students', headers: accountRequestHeaders(headers), payload: basePayload,
+  });
+  assert.equal(created.statusCode, 201);
+  const duplicateUsername = await app.inject({
+    method: 'POST', url: '/api/students', headers: accountRequestHeaders(headers),
+    payload: { ...basePayload, student_number: '20260192', username: 'RANI' },
+  });
+  assert.equal(duplicateUsername.statusCode, 409);
+  assert.equal(duplicateUsername.json().error_code, 'USERNAME_TAKEN');
+  assert.equal(state.students.length, 1);
+});
+
 test('student status changes require teacher capability and options stay bounded', async (t) => {
   const app = await createApp();
   t.after(() => app.close());
@@ -79,7 +188,7 @@ test('student status changes require teacher capability and options stay bounded
   const teacherToken = app.jwt.sign({ userId: 'teacher-1', username: 'teacher', role: 'teacher', isFirstLogin: false });
   const secretaryHeaders = { authorization: `Bearer ${secretaryToken}` };
   const teacherHeaders = { authorization: `Bearer ${teacherToken}` };
-  const created = await app.inject({ method: 'POST', url: '/api/students', headers: secretaryHeaders, payload: { student_number: '20260002', name: 'Sari', class_name: 'XI AK 1' } });
+  const created = await app.inject({ method: 'POST', url: '/api/students', headers: accountRequestHeaders(secretaryHeaders), payload: accountPayload({ student_number: '20260002', name: 'Sari', class_name: 'XI AK 1' }) });
   const id = created.json().data.id;
   const denied = await app.inject({ method: 'PUT', url: `/api/students/${id}`, headers: { ...secretaryHeaders, 'x-change-reason': 'Jadikan alumni' }, payload: { is_active: false } });
   assert.equal(denied.statusCode, 403);
@@ -130,8 +239,8 @@ test('cash managers can use the minimal student selector without student adminis
   await app.inject({
     method: 'POST',
     url: '/api/students',
-    headers: secretaryHeaders,
-    payload: { student_number: '20260003', name: 'Maya', class_name: 'XI AK 1' },
+    headers: accountRequestHeaders(secretaryHeaders),
+    payload: accountPayload({ student_number: '20260003', name: 'Maya', class_name: 'XI AK 1' }),
   });
 
   const options = await app.inject({

@@ -48,16 +48,22 @@ export const studentsUnlinkedAccountsRouteSchema = {
 } as const;
 
 export const studentCreateRouteSchema = {
+  headers: {
+    type: 'object',
+    required: ['x-idempotency-key'],
+    properties: { 'x-idempotency-key': { type: 'string', pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' } },
+  },
   body: {
     type: 'object',
     additionalProperties: false,
-    required: ['student_number', 'name', 'class_name'],
+    required: ['student_number', 'name', 'class_name', 'username', 'phone_number'],
     properties: {
       student_number: { type: 'string', minLength: 1, maxLength: 40 },
       name: { type: 'string', minLength: 2, maxLength: 120 },
       class_name: { type: 'string', minLength: 1, maxLength: 80 },
+      username: { type: 'string', minLength: 3, maxLength: 30, pattern: '^[a-zA-Z0-9._-]+$' },
       specialization: { type: 'string', enum: specializations },
-      phone_number: { type: 'string', maxLength: 40 },
+      phone_number: { type: 'string', minLength: 1, maxLength: 40 },
       photo_url: { type: 'string', maxLength: 2_000_000 },
       role: { type: 'string', enum: STUDENT_ACCOUNT_ROLE_VALUES },
       change_reason: { type: 'string', maxLength: 500 },
@@ -98,10 +104,20 @@ export const studentLinkExistingProfileRouteSchema = {
 
 export const studentProvisionRouteSchema = {
   params: studentIdParams,
+  headers: {
+    type: 'object',
+    required: ['x-idempotency-key'],
+    properties: { 'x-idempotency-key': { type: 'string', pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' } },
+  },
   body: {
     type: 'object',
     additionalProperties: false,
-    properties: { change_reason: { type: 'string', minLength: 5, maxLength: 500 } },
+    required: ['username', 'phone_number', 'change_reason'],
+    properties: {
+      username: { type: 'string', minLength: 3, maxLength: 30, pattern: '^[a-zA-Z0-9._-]+$' },
+      phone_number: { type: 'string', minLength: 1, maxLength: 40 },
+      change_reason: { type: 'string', minLength: 5, maxLength: 500 },
+    },
   },
 } as const;
 

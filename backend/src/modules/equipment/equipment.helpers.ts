@@ -41,6 +41,11 @@ export const EQUIPMENT_SELECT = [
   'updated_by',
 ].join(',');
 
+export const EQUIPMENT_LIST_SELECT = EQUIPMENT_SELECT
+  .split(',')
+  .filter((field) => field !== 'fotos' && field !== 'foto_url')
+  .join(',');
+
 export function textValue(value: unknown, fallback = ''): string {
   if (typeof value === 'string') return value;
   if (value === null || value === undefined) return fallback;

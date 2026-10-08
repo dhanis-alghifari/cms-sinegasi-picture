@@ -60,6 +60,7 @@ export type StudentCreateInput = {
   nis: string;
   nama: string;
   kelas: string;
+  username: string;
   peminatan?: string;
   no_telepon?: string;
   foto_url?: string;
@@ -80,6 +81,15 @@ export type StudentAccount = {
   username: string;
   role: string;
   is_first_login: boolean;
+  operation_replayed?: boolean;
+};
+
+export type StudentAccountOperationContext = {
+  operationKey: string;
+  changeReason: string;
+  requestId?: string;
+  operationId?: string;
+  userAgent?: string;
 };
 
 export type StudentAccountOperationResult = {
@@ -129,13 +139,14 @@ export type StudentsMemoryState = {
 export interface StudentRepository {
   isConfigured(): boolean;
   findByIdentifier(identifier: string): Promise<{ data: StudentLookupRecord | null; error: DatabaseError | null }>;
+  findPhoto?(id: string): Promise<{ data: { foto_url: string | null } | null; error: DatabaseError | null }>;
   list?(query: StudentListQuery): Promise<{ data: StudentListResult; error?: never } | { data?: never; error: DatabaseError }>;
   listOptions?(query: StudentOptionsQuery): Promise<{ data: { data: StudentOption[]; total: number }; error?: never } | { data?: never; error: DatabaseError }>;
   listUnlinkedAccounts?(query: { search?: string; limit?: number; actorId: string }): Promise<{ data: UnlinkedStudentAccount[]; error?: never } | { data?: never; error: DatabaseError }>;
-  createWithAccount?(input: StudentCreateInput & { username: string; passwordHash: string; actorId: string | null }): Promise<{ data: StudentAccountOperationResult; error?: never } | { data?: never; error: DatabaseError }>;
+  createWithAccount?(input: StudentCreateInput & { passwordHash: string; actorId: string | null; requestFingerprint: string } & StudentAccountOperationContext): Promise<{ data: StudentAccountOperationResult; error?: never } | { data?: never; error: DatabaseError }>;
   linkExistingAccount?(input: StudentAccountLinkInput): Promise<{ data: StudentAccountLinkResult; error?: never } | { data?: never; error: DatabaseError }>;
   linkAccountToExistingProfile?(input: StudentExistingProfileLinkInput): Promise<{ data: StudentAccountLinkResult; error?: never } | { data?: never; error: DatabaseError }>;
-  provisionAccount?(input: { id: string; username: string; passwordHash: string; actorId: string }): Promise<{ data: StudentAccountOperationResult; error?: never } | { data?: never; error: DatabaseError }>;
+  provisionAccount?(input: { id: string; username: string; phoneNumber: string; passwordHash: string; actorId: string; requestFingerprint: string } & StudentAccountOperationContext): Promise<{ data: StudentAccountOperationResult; error?: never } | { data?: never; error: DatabaseError }>;
   updateStatus?(input: { id: string; isActive: boolean; actorId: string | null }): Promise<{ data: StudentRecord | null; error?: never } | { data?: never; error: DatabaseError }>;
   updateProfile?(input: { id: string; changes: StudentUpdateInput; actorId: string | null }): Promise<{ data: StudentRecord | null; error?: never } | { data?: never; error: DatabaseError }>;
   purge?(input: { id: string; actorId: string; changeReason: string }): Promise<{ data: StudentPurgeResult; error?: never } | { data?: never; error: DatabaseError }>;

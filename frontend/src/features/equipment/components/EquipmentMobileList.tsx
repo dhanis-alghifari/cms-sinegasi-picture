@@ -6,6 +6,8 @@ import { StatusBadge } from '@/shared/ui/StatusBadge';
 import { Button } from '@/shared/ui/primitives/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/shared/ui/primitives/dropdown-menu';
 import { formatStatusLabel } from '@/shared/utils/formatLabels';
+import { AuthenticatedImage } from '@/shared/ui/AuthenticatedImage';
+import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 
 import type { Equipment, EquipmentAvailability, EquipmentCondition } from '../types/equipment.types';
 
@@ -32,13 +34,17 @@ const availabilityBadgeMap: Record<EquipmentAvailability, { label: string; varia
   maintenance: { label: 'Maintenance', variant: 'neutral' },
 };
 
-function EquipmentImage({ src, alt }: { src?: string; alt: string }) {
-  return src ? (
-    <img src={src} alt={alt} className="h-14 w-14 shrink-0 rounded-xl border border-hairline bg-surface-2 object-cover" />
-  ) : (
-    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-hairline bg-surface-2 text-ink-tertiary">
+function EquipmentImage({ equipmentId, alt, cacheScope }: { equipmentId: string; alt: string; cacheScope: string }) {
+  return (
+    <AuthenticatedImage
+      endpoint={`/api/equipment/${encodeURIComponent(equipmentId)}/photo`}
+      cacheScope={cacheScope}
+      alt={alt}
+      className="h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-hairline bg-surface-2"
+      fallback={<span className="flex h-full w-full items-center justify-center text-ink-tertiary">
       <QrCode size={22} aria-hidden="true" />
-    </div>
+      </span>}
+    />
   );
 }
 
@@ -49,6 +55,7 @@ export function EquipmentMobileList({
   onOpenRecovery,
   canManage = true,
 }: EquipmentMobileListProps) {
+  const cacheScope = useAuthStore((state) => state.user?.id) ?? '';
   if (equipment.length === 0) {
     return (
       <EmptyState
@@ -67,7 +74,7 @@ export function EquipmentMobileList({
         return (
           <article key={item.id} className="rounded-xl border border-hairline bg-surface-1 p-3 shadow-sm">
             <div className="flex items-start gap-3">
-              <EquipmentImage src={item.foto_urls?.[0] ?? item.foto_url} alt={item.nama_alat} />
+              <EquipmentImage equipmentId={item.id} alt={item.nama_alat} cacheScope={cacheScope} />
               <div className="min-w-0 flex-1">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">

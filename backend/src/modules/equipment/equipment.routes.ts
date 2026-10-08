@@ -23,6 +23,7 @@ import {
 } from '../../shared/http/schemas/equipment.schema.js';
 import { authenticatedRouteSchema } from '../../shared/http/schemas/core.schema.js';
 import { sendServiceError } from '../../shared/http/sendServiceError.js';
+import { sendPrivateImageReference } from '../../shared/http/sendPrivateImageReference.js';
 import { mapRequestFields } from '../../shared/http/request-field-mapping.js';
 import { EquipmentService } from './equipment.service.js';
 import { EquipmentRecoveryService, EquipmentRecoveryServiceError } from './equipment.recovery.service.js';
@@ -137,6 +138,19 @@ const equipmentRoutes: FastifyPluginAsync<EquipmentRoutesOptions> = async (fasti
   }, async (_request, reply) => {
     try {
       return reply.send(await options.equipmentService.summary());
+    } catch (error) {
+      return sendServiceError(error, reply);
+    }
+  });
+
+  fastify.get('/api/equipment/:id/photo', {
+    schema: equipmentIdRouteSchema,
+    preHandler: [authenticate, requireCapability('equipment.read')],
+  }, async (request, reply) => {
+    try {
+      const { id } = request.params as { id: string };
+      const photo = await options.equipmentService.getPrimaryPhoto(id);
+      return sendPrivateImageReference(reply, photo, 600 * 1024);
     } catch (error) {
       return sendServiceError(error, reply);
     }

@@ -28,6 +28,7 @@ function getGalleryLabel(isProcessingImage: boolean, hasPreview: boolean): strin
 
 interface StudentFormFieldsProps {
   form: UseFormReturn<StudentFormValues>;
+  accountMode?: 'new' | 'existing';
   showRoleSelection?: boolean;
   state: {
     isEditing: boolean;
@@ -52,6 +53,7 @@ interface StudentFormFieldsProps {
 
 export function StudentFormFields({
   form,
+  accountMode = 'new',
   showRoleSelection = true,
   state,
   classes,
@@ -65,6 +67,7 @@ export function StudentFormFields({
     onRetry: onRetryLoadClasses,
   } = classes;
   const { onFilesSelected, onRemove: onRemoveImage, error: imageError } = image;
+  const requiresAccountCredentials = !isEditing && accountMode === 'new';
   const searchableClassOptions = useMemo(
     () => classOptions.map((option) => ({
       id: option.id,
@@ -120,7 +123,7 @@ export function StudentFormFields({
             </div>
           </div>
 
-          {/* Kelas, Peminatan, No HP */}
+          {/* Kelas, Peminatan, Username dan WhatsApp */}
           <div className="grid grid-cols-1 gap-3">
             <div className="space-y-1">
               <Label className="text-ink-muted text-xs">Kelas *</Label>
@@ -195,13 +198,49 @@ export function StudentFormFields({
             )}
 
             <div className="space-y-1">
-              <Label htmlFor="no_telepon" className="text-ink-muted text-xs">No. Telepon / WA</Label>
+              <Label htmlFor="username" className="text-ink-muted text-xs">
+                Username login {requiresAccountCredentials && <span className="text-semantic-danger" aria-hidden="true">*</span>}
+              </Label>
+              <Input
+                id="username"
+                autoCapitalize="none"
+                autoCorrect="off"
+                autoComplete="username"
+                placeholder="contoh: rara"
+                disabled={!requiresAccountCredentials}
+                aria-invalid={Boolean(form.formState.errors.username)}
+                className={cn('bg-surface-2 border-hairline text-ink text-xs', form.formState.errors.username && 'border-semantic-danger')}
+                {...form.register('username', { setValueAs: (value) => typeof value === 'string' ? value.trim().toLowerCase() : value })}
+              />
+              {requiresAccountCredentials && <p className="text-[10px] text-ink-tertiary">Isi manual; gunakan nama panggilan yang mudah diingat (contoh: rara), bukan NIS. Huruf kecil, angka, titik, _ atau -.</p>}
+              {form.formState.errors.username && <p className="text-[10px] text-semantic-danger">{form.formState.errors.username.message}</p>}
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="no_telepon" className="text-ink-muted text-xs">
+                Nomor WhatsApp {requiresAccountCredentials && <span className="text-semantic-danger" aria-hidden="true">*</span>}
+              </Label>
               <Input
                 id="no_telepon"
-                placeholder="0812xxxxxxxx"
-                className="bg-surface-2 border-hairline text-ink text-xs"
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel"
+                placeholder="081234567890"
+                aria-invalid={Boolean(form.formState.errors.no_telepon)}
+                className={cn('bg-surface-2 border-hairline text-ink text-xs', form.formState.errors.no_telepon && 'border-semantic-danger')}
                 {...form.register('no_telepon')}
               />
+              {form.formState.errors.no_telepon && <p className="text-[10px] text-semantic-danger">{form.formState.errors.no_telepon.message}</p>}
+              {requiresAccountCredentials && (
+                <>
+                  <p className="text-[10px] text-ink-tertiary">Masukkan nomor WhatsApp Indonesia yang benar-benar aktif. Sistem tidak mengirim OTP untuk memeriksa nomor.</p>
+                  <label className="flex items-start gap-2 rounded-md border border-hairline bg-surface-1 p-2 text-[11px] text-ink-subtle">
+                    <input type="checkbox" className="mt-0.5 accent-primary" {...form.register('whatsapp_confirmed')} />
+                    <span>Saya sudah memastikan nomor ini aktif di WhatsApp dan milik siswa.</span>
+                  </label>
+                  {form.formState.errors.whatsapp_confirmed && <p className="text-[10px] text-semantic-danger">{form.formState.errors.whatsapp_confirmed.message}</p>}
+                </>
+              )}
             </div>
           </div>
 
