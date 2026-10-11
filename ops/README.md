@@ -355,10 +355,20 @@ inventory hash** for `baselineCatalogSha256`.
    A DEV run, PR run, old SHA or checkbox alone does not pass this gate.
    The GitHub lookup uses `/opt/homebrew/bin/gh` with only fixed `github.com`
    **GET** endpoints for the numeric run ID and its jobs in this repository.
-   Only this helper receives the trusted Mac home/config/state paths to find
+   The remote `main` check first requires the exact credential-free HTTPS
+   `origin` for this repository, then uses a separate `readGithubMainSha()`
+   helper. It runs `/usr/bin/git ls-remote` against only that fixed URL/ref,
+   outside the checkout, with system/global Git config disabled, TLS verification
+   enabled, redirects/interactive prompts disabled and an invocation-only
+   `/opt/homebrew/bin/gh auth git-credential` helper. No user Git config is changed;
+   no push, fetch, token output or database command is performed. The result must
+   be exactly one 40-hex SHA for `refs/heads/main`, equal to local clean `main`.
+   Its 30-second/1-KiB bound and sanitized `GITHUB_MAIN_METADATA_UNAVAILABLE`
+   failure are enforced before approval or database access.
+   Only these two helpers receive the trusted Mac home/config/state paths to find
    the operator's existing GitHub login; backup/Keychain subprocesses retain
    their original `PATH`/`LANG` environment. Parent tokens, debug flags, proxy
-   settings and config overrides are not inherited. Each lookup is capped at
+   settings and config overrides are not inherited. Each CI lookup is capped at
    30 seconds/1 MiB; failures or malformed JSON stop before database access,
    with no raw CLI diagnostics. Do not add tokens to `.env` or Git as a fix.
 3. Create a **new** encrypted production backup, rehearse public restore, and

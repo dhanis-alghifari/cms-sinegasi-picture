@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import childProcess, { type SpawnOptions } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { loadSnapshot, compileReconciliation, sha256 } from './productionReconciliation.js';
@@ -8,8 +9,47 @@ import { runReconciliationWriter } from './reconciliationWriterCore.js';
 import { writerFixtureAuthorization, writerMacOnlyFixture } from './reconciliationWriterFixtures.js';
 import type { WriterSession } from './reconciliationWriterCatalog.js';
 import type { DatabaseInventory } from './productionBackupCore.js';
+import { requireWriterReleaseSha } from './reconciliationWriter.js';
 
 const repository = resolve(__dirname, '../../..'), now = Date.parse('2026-10-11T09:00:00Z');
+test('release gate keeps clean main, exact origin and current remote SHA checks before approval/database access', async (t) => {
+  const sha = 'a'.repeat(40), spawn = childProcess.spawn;
+  let remoteCalls = 0;
+  let scenario: { dirty?: boolean; branch?: string; origin?: string; head?: string; remote?: string; remoteFailed?: boolean } = {};
+  t.mock.method(childProcess, 'spawn', (_command: string, args: string[], options: SpawnOptions) => {
+    const command = args.slice(2).join(' ');
+    let output: string;
+    if (command === 'rev-parse HEAD') output = scenario.head ?? sha;
+    else if (command === 'status --porcelain') output = scenario.dirty ? ' M unsafe.ts' : '';
+    else if (command === 'symbolic-ref --short HEAD') output = scenario.branch ?? 'main';
+    else if (command === 'remote get-url origin') output = scenario.origin ?? 'https://github.com/dhanis-alghifari/cms-sinegasi-picture.git';
+    else if (args.includes('ls-remote')) {
+      remoteCalls++;
+      if (scenario.remoteFailed) return spawn(process.execPath, ['-e', 'process.exit(128)'], options);
+      output = (scenario.remote ?? sha) + '\trefs/heads/main';
+    } else throw new Error('unexpected command');
+    return spawn(process.execPath, ['-e', `process.stdout.write(${JSON.stringify(output + (output ? '\n' : ''))})`], options);
+  });
+  assert.equal(await requireWriterReleaseSha(repository, true), sha);
+  assert.equal(remoteCalls, 1);
+  for (const invalid of [{ dirty: true }, { branch: 'develop' }, { origin: 'https://evil.invalid/repo.git' },
+    { origin: 'https://synthetic-token@github.com/dhanis-alghifari/cms-sinegasi-picture.git' }]) {
+    scenario = invalid;
+    await assert.rejects(requireWriterReleaseSha(repository, true), /CLEAN_REVIEWED_CURRENT_MAIN_RELEASE_REQUIRED/);
+    assert.equal(remoteCalls, 1);
+  }
+  scenario = { remote: 'b'.repeat(40) };
+  await assert.rejects(requireWriterReleaseSha(repository, true), /CLEAN_REVIEWED_CURRENT_MAIN_RELEASE_REQUIRED/);
+  scenario = { remoteFailed: true };
+  await assert.rejects(requireWriterReleaseSha(repository, true), /GITHUB_MAIN_METADATA_UNAVAILABLE/);
+  scenario = { head: 'synthetic-secret' };
+  await assert.rejects(requireWriterReleaseSha(repository, true), /INVALID_RELEASE_SHA/);
+  scenario = { dirty: true, branch: 'develop' };
+  const before = remoteCalls;
+  assert.equal(await requireWriterReleaseSha(repository, false), sha);
+  assert.equal(remoteCalls, before);
+});
+
 async function fixture() {
   const bundle = createWriterPackage(await loadSnapshot(repository));
   const inventory: DatabaseInventory = { tables: bundle.snapshot.legacyTables.map(t => ({ schema: 'public', name: t.relname, rows: '0', rls: t.relrowsecurity, forceRls: false })),
