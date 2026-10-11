@@ -4,41 +4,51 @@ export const CAPABILITY_VALUES = [
   'dashboard.read.operational', 'dashboard.read.own',
   'students.read', 'students.read.own', 'students.manage',
   'classes.read', 'classes.manage', 'attendance.read', 'attendance.read.own', 'attendance.record', 'attendance.correct',
-  'cash.read', 'cash.read.own', 'cash.dispute.create', 'cash.dispute.read.own', 'cash.dispute.review', 'cash.manage', 'grades.read', 'grades.read.own', 'grades.manage',
-  'equipment.read', 'equipment.manage', 'borrowing.read', 'borrowing.manage',
+  'cash.read', 'cash.read.own', 'cash.dispute.create', 'cash.dispute.read.own', 'cash.dispute.read.all', 'cash.dispute.review', 'cash.manage', 'grades.read', 'grades.read.own', 'grades.manage',
+  'equipment.read', 'equipment.manage', 'borrowing.read', 'borrowing.request', 'borrowing.manage', 'borrowing.return.report', 'borrowing.return.verify',
   'contests.read', 'contests.submit', 'contests.manage', 'overdue.manage', 'notifications.read',
   'audit.read', 'users.manage', 'access_control.read', 'access_control.manage',
+  'agenda.read', 'agenda.write', 'agenda.archive',
+  'social_media.read', 'social_media.publications.manage', 'social_media.metrics.manage', 'social_media.accounts.manage',
 ] as const;
 
 export type Capability = typeof CAPABILITY_VALUES[number];
 
 export const ROLE_CAPABILITIES: Readonly<Record<UserRole, readonly Capability[]>> = {
-  teacher: [...CAPABILITY_VALUES],
+  teacher: CAPABILITY_VALUES.filter((capability) => !['cash.read.own', 'cash.dispute.create', 'cash.dispute.read.own'].includes(capability)),
   leader: [
     'dashboard.read.own', 'students.read', 'students.manage', 'classes.read', 'classes.manage',
     'attendance.read', 'attendance.record', 'attendance.correct', 'equipment.read', 'equipment.manage',
-    'borrowing.read', 'borrowing.manage', 'contests.read', 'contests.submit', 'contests.manage',
+    'borrowing.read', 'borrowing.request', 'borrowing.return.report', 'contests.read', 'contests.submit', 'contests.manage',
     'grades.read.own', 'notifications.read',
+    'agenda.read', 'agenda.write', 'cash.read.own', 'cash.dispute.create', 'cash.dispute.read.own',
   ],
   vice_leader: [
     'dashboard.read.own', 'attendance.read', 'attendance.record', 'attendance.correct',
-    'borrowing.read', 'borrowing.manage', 'contests.read', 'contests.submit', 'contests.manage',
-    'grades.read.own', 'notifications.read',
+    'borrowing.read', 'borrowing.request', 'borrowing.return.report', 'contests.read', 'contests.submit', 'contests.manage',
+    'grades.read.own', 'notifications.read', 'cash.read.own', 'cash.dispute.create', 'cash.dispute.read.own',
+    'agenda.read', 'agenda.write',
   ],
-  treasurer: ['dashboard.read.own', 'cash.read', 'cash.read.own', 'cash.manage', 'cash.dispute.create', 'cash.dispute.review', 'grades.read.own', 'notifications.read'],
+  treasurer: ['dashboard.read.own', 'cash.read', 'cash.read.own', 'cash.manage', 'cash.dispute.create', 'cash.dispute.read.own', 'cash.dispute.read.all', 'borrowing.read', 'borrowing.request', 'borrowing.return.report', 'grades.read.own', 'notifications.read'],
   secretary: [
     'dashboard.read.own', 'students.read', 'students.manage', 'classes.read', 'classes.manage',
-    'attendance.read', 'attendance.record', 'attendance.correct', 'grades.read.own', 'notifications.read',
+    'attendance.read', 'attendance.record', 'attendance.correct', 'borrowing.read', 'borrowing.request', 'borrowing.return.report', 'grades.read.own', 'notifications.read',
+    'agenda.read', 'agenda.write', 'cash.read.own', 'cash.dispute.create', 'cash.dispute.read.own',
   ],
   equipment_team: [
-    'dashboard.read.own', 'equipment.read', 'equipment.manage', 'borrowing.read', 'borrowing.manage',
-    'grades.read.own', 'notifications.read',
+    'dashboard.read.own', 'equipment.read', 'equipment.manage', 'borrowing.read', 'borrowing.request', 'borrowing.return.report',
+    'grades.read.own', 'notifications.read', 'cash.read.own', 'cash.dispute.create', 'cash.dispute.read.own',
   ],
   contest_team: [
-    'dashboard.read.own', 'contests.read', 'contests.submit', 'contests.manage',
-    'grades.read.own', 'notifications.read',
+    'dashboard.read.own', 'borrowing.read', 'borrowing.return.report', 'contests.read', 'contests.submit', 'contests.manage',
+    'grades.read.own', 'notifications.read', 'cash.read.own', 'cash.dispute.create', 'cash.dispute.read.own',
   ],
-  member: ['dashboard.read.own', 'attendance.read.own', 'cash.read.own', 'cash.dispute.create', 'cash.dispute.read.own', 'grades.read.own', 'notifications.read'],
+  social_media_team: [
+    'dashboard.read.own', 'grades.read.own', 'notifications.read',
+    'social_media.read', 'social_media.publications.manage', 'social_media.metrics.manage',
+    'agenda.read', 'agenda.write',
+  ],
+  member: ['dashboard.read.own', 'attendance.read.own', 'cash.read.own', 'cash.dispute.create', 'cash.dispute.read.own', 'borrowing.read', 'borrowing.return.report', 'grades.read.own', 'notifications.read'],
 };
 
 export type CapabilitySubject = {

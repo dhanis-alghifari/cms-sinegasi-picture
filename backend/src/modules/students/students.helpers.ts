@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import type { StudentOption, StudentRecord, StudentsMemoryState } from './students.types.js';
 
 export const STUDENT_SELECT = 'id,user_id,nis,nama,kelas,peminatan,no_telepon,foto_url,is_active,created_at,updated_at,created_by,updated_by';
+export const STUDENT_LIST_SELECT = 'id,user_id,nis,nama,kelas,peminatan,no_telepon,is_active,created_at,updated_at,created_by,updated_by';
 export const STUDENT_PAGE_SIZE_MAX = 100;
 export const STUDENT_PAGE_MAX = 10_000;
 export const STUDENT_OPTIONS_LIMIT_MAX = 20;
@@ -9,18 +10,25 @@ export const STUDENT_CLASS_LEVELS = new Set(['X', 'XI', 'XII']);
 export const STUDENT_PEMINATAN = new Set(['kamera', 'editing', 'naskah']);
 
 export function createStudentsMemoryState(): StudentsMemoryState {
-  return { students: [] };
+  return { students: [], accounts: [] };
 }
 
 export function isUuid(value: string | undefined): value is string {
   return Boolean(value && /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(value));
 }
 
-export function normalizeStudentUsername(nis: string): string {
-  const normalizedNis = nis.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
-  if (normalizedNis.length <= 24) return `siswa_${normalizedNis}`;
-  const suffix = crypto.createHash('sha256').update(normalizedNis).digest('hex').slice(0, 8);
-  return `siswa_${normalizedNis.slice(0, 15)}_${suffix}`;
+export function normalizeStudentUsername(username: string): string {
+  return username.trim().toLowerCase();
+}
+
+export function normalizeWhatsAppPhone(value: string): string | null {
+  const compact = value.trim().replace(/[\s()-]/g, '');
+  if (!/^\+?\d+$/.test(compact)) return null;
+
+  const digits = compact.startsWith('+') ? compact.slice(1) : compact;
+  const international = digits.startsWith('0') ? `62${digits.slice(1)}` : digits;
+  if (!/^628[1-9]\d{7,10}$/.test(international)) return null;
+  return `+${international}`;
 }
 
 export function sanitizeStudentSearch(value: string | undefined): string {
@@ -83,9 +91,15 @@ export function isMissingStudentsSchemaError(error: unknown): boolean {
     ['PGRST202', 'PGRST205', '42P01', '42703', '42883'].includes(candidate.code || '')
     || candidate.message?.toLowerCase().includes('student')
     || candidate.message?.toLowerCase().includes('create_student_with_account_atomic')
+    || candidate.message?.toLowerCase().includes('create_student_with_account_v2')
+    || candidate.message?.toLowerCase().includes('list_unlinked_student_accounts')
+    || candidate.message?.toLowerCase().includes('link_existing_student_account_atomic')
+    || candidate.message?.toLowerCase().includes('link_account_to_existing_student_atomic')
     || candidate.message?.toLowerCase().includes('provision_student_account_atomic')
+    || candidate.message?.toLowerCase().includes('provision_student_account_v2')
     || candidate.message?.toLowerCase().includes('set_student_account_status_atomic')
     || candidate.message?.toLowerCase().includes('update_student_profile_atomic')
+    || candidate.message?.toLowerCase().includes('purge_student_history_atomic')
   ));
 }
 

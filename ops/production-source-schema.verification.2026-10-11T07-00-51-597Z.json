@@ -1,0 +1,96 @@
+{
+  "status": "DEV_PUBLIC_SCHEMA_MATCHED_REVIEWED_SNAPSHOT",
+  "sourceProject": "cdvcwwcpjgmjvpdnytmz",
+  "targetProject": "pvbdiftvzoeelibxlxzb",
+  "verifiedAt": "2026-10-11T07:00:51.597Z",
+  "snapshotSha256": "3a5cab9d94af6ad8e7c66971327f65b27f0f98217405b055ced456b394ad9fba",
+  "schemaPackageSha256": "69d75b389107afa6281a5187e70d2f8299c6c5fa22e38a23a939693bb5925e75",
+  "method": "Supabase connector REPEATABLE READ READ ONLY pg_catalog inventory; exact table/column/enum/policy metadata, function body MD5+definer/config, DDL definition MD5; canonical section SHA256 recorded. Routine drift check, not authorization or signed release proof.",
+  "sections": [
+    {
+      "section": "enums",
+      "count": 8,
+      "matches": true,
+      "catalogSectionSha256": "c9a5ee37d4937238e555fcc48bcc5a39b250cc704f4f70a95dac57e41b653796",
+      "unexpectedNames": [],
+      "missingNames": []
+    },
+    {
+      "section": "views",
+      "count": 2,
+      "matches": true,
+      "catalogSectionSha256": "4bdd820f9b6f66086c757190e48cccef3db40dab624742b40eb62736c3441e08",
+      "unexpectedNames": [],
+      "missingNames": []
+    },
+    {
+      "section": "tables",
+      "count": 73,
+      "matches": true,
+      "catalogSectionSha256": "18a4fac1cc56b1472f8e22b6253fd0f91a3c65425f3aa1cbae28a5e8633dfd6d",
+      "unexpectedNames": [],
+      "missingNames": []
+    },
+    {
+      "section": "columns",
+      "count": 751,
+      "matches": true,
+      "catalogSectionSha256": "cf85905b2b05b41a1e37a55622d7337121aa42d6af87d811e551d4b415e8c2a7",
+      "unexpectedNames": [],
+      "missingNames": []
+    },
+    {
+      "section": "indexes",
+      "count": 172,
+      "matches": true,
+      "catalogSectionSha256": "97df1bcc5ef7d97b8059c459b7bdca46ba883717853134368170e48506f66015",
+      "unexpectedNames": [],
+      "missingNames": []
+    },
+    {
+      "section": "policies",
+      "count": 6,
+      "matches": true,
+      "catalogSectionSha256": "085dd72775f0472e4988ed7c22bf149c11f466bb8b7c75da0c75298f92c68c4d",
+      "unexpectedNames": [],
+      "missingNames": []
+    },
+    {
+      "section": "triggers",
+      "count": 37,
+      "matches": true,
+      "catalogSectionSha256": "de646c1070002e99064beb613207bac811c347a542efe1cebc9762908c2b0ec2",
+      "unexpectedNames": [],
+      "missingNames": []
+    },
+    {
+      "section": "functions",
+      "count": 111,
+      "matches": true,
+      "catalogSectionSha256": "5fb75259d89582f355c1fc2153fdb355ec9276b453b2c7efa63e5bf157e762d4",
+      "unexpectedNames": [],
+      "missingNames": []
+    },
+    {
+      "section": "sequences",
+      "count": 0,
+      "matches": true,
+      "catalogSectionSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "unexpectedNames": [],
+      "missingNames": []
+    },
+    {
+      "section": "constraints",
+      "count": 479,
+      "matches": true,
+      "catalogSectionSha256": "c86b65180065c92359709596476ea43ab2863256d03cacbfa2c9c5c9d590476a",
+      "unexpectedNames": [],
+      "missingNames": []
+    }
+  ],
+  "copiedDevRows": 0,
+  "productionChanged": false,
+  "devDatabaseChanged": false,
+  "productionApproved": false,
+  "managedSupabaseIntegrationTested": false
+}

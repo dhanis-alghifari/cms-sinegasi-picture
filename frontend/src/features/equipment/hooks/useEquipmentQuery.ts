@@ -1,5 +1,5 @@
 
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { QUERY_KEYS } from '@/shared/constants/queryKeys';
 import { equipmentService } from '../api/equipment.service';
 import type { EquipmentFilterParams, EquipmentReportParams } from '../types/equipment.types';
@@ -9,6 +9,7 @@ export function useEquipmentQuery(params?: EquipmentFilterParams, enabled = true
     queryKey: [...QUERY_KEYS.EQUIPMENT, params],
     queryFn: () => equipmentService.getEquipment(params),
     enabled,
+    placeholderData: keepPreviousData,
   });
 }
 

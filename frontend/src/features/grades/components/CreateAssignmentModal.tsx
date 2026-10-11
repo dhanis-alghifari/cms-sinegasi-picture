@@ -121,7 +121,7 @@ export function CreateAssignmentModal({
                 <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs">
                   <SelectValue placeholder="Pilih Kategori" />
                 </SelectTrigger>
-                <SelectContent className="bg-surface-3 border-hairline text-ink">
+                <SelectContent>
                   <SelectItem value="class_task">{ASSIGNMENT_CATEGORY_LABELS.class_task}</SelectItem>
                   <SelectItem value="crew_film">{ASSIGNMENT_CATEGORY_LABELS.crew_film}</SelectItem>
                   <SelectItem value="event_participation">{ASSIGNMENT_CATEGORY_LABELS.event_participation}</SelectItem>
@@ -140,7 +140,7 @@ export function CreateAssignmentModal({
                 <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs">
                   <SelectValue placeholder="Pilih Kelas" />
                 </SelectTrigger>
-                <SelectContent className="bg-surface-3 border-hairline text-ink">
+                <SelectContent>
                   <SelectItem value="X">Kelas X</SelectItem>
                   <SelectItem value="XI">Kelas XI</SelectItem>
                   <SelectItem value="XII">Kelas XII</SelectItem>
@@ -178,7 +178,7 @@ export function CreateAssignmentModal({
           </div>
 
           <DialogFooter className="pt-2">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="bg-surface-2 border-hairline text-ink text-xs h-9">
+            <Button type="button" variant="secondary" onClick={() => onOpenChange(false)} className="text-xs h-9">
               Batal
             </Button>
             <Button type="submit" disabled={isLoading} className="bg-primary hover:bg-primary-hover text-primary-foreground text-xs h-9 font-medium">

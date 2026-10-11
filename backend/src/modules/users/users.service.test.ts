@@ -22,17 +22,38 @@ test('users service creates operational accounts with hashed-password adapter st
     usersService.create({ username: 'student', nama: 'Siswa', role: 'member', password: 'Strong123' }, 'teacher-1'),
     (error: unknown) => error instanceof UsersServiceError && error.statusCode === 422,
   );
+  await assert.rejects(
+    usersService.create({ username: 'leader_user', nama: 'Ketua Siswa', role: 'leader', password: 'Strong123' }, 'teacher-1'),
+    (error: unknown) => error instanceof UsersServiceError && error.errorCode === 'INVALID_ROLE',
+  );
 });
 
-test('users service enforces linked-student invariants before update/delete', async () => {
+test('users service enforces account role boundaries for linked and standalone users', async () => {
   const { service: usersService, state } = service();
   const created = await usersService.create({ username: 'linked_user', nama: 'Siswa Tertaut', role: 'teacher', password: 'Strong123' }, 'teacher-1');
   state.linkedStudents.push({ id: created.data.id, nama: created.data.nama, is_active: false });
 
+  const promoted = await usersService.update(created.data.id, { role: 'leader' }, 'teacher-1', 'Tetapkan Ketua');
+  assert.equal(promoted.data.role, 'leader');
+  assert.equal(promoted.data.is_linked_student, true);
+
   await assert.rejects(
-    usersService.update(created.data.id, { role: 'leader' }, 'teacher-1', 'Perubahan role'),
+    usersService.update(created.data.id, { role: 'teacher' }, 'teacher-1', 'Ubah role akun'),
     (error: unknown) => error instanceof UsersServiceError && error.errorCode === 'LINKED_STUDENT_ROLE',
   );
+  const linkedTreasurerRole = await usersService.update(created.data.id, { role: 'treasurer' }, 'teacher-1', 'Tetapkan bendahara siswa');
+  assert.equal(linkedTreasurerRole.data.role, 'treasurer');
+
+  const standalone = await usersService.create({ username: 'standalone_user', nama: 'Akun Operasional', role: 'teacher', password: 'Strong123' }, 'teacher-1');
+  await assert.rejects(
+    usersService.update(standalone.data.id, { role: 'leader' }, 'teacher-1', 'Ubah role akun'),
+    (error: unknown) => error instanceof UsersServiceError && error.errorCode === 'UNLINKED_STUDENT_ROLE',
+  );
+  const operationalRole = await usersService.update(standalone.data.id, { role: 'treasurer' }, 'teacher-1', 'Tetapkan bendahara');
+  assert.equal(operationalRole.data.role, 'treasurer');
+  const restoredOperationalRole = await usersService.update(standalone.data.id, { role: 'teacher' }, 'teacher-1', 'Kembalikan role guru');
+  assert.equal(restoredOperationalRole.data.role, 'teacher');
+
   await assert.rejects(
     usersService.update(created.data.id, { is_active: true }, 'teacher-1', 'Aktifkan akun'),
     (error: unknown) => error instanceof UsersServiceError && error.errorCode === 'INACTIVE_STUDENT',
@@ -43,13 +64,37 @@ test('users service enforces linked-student invariants before update/delete', as
   );
 });
 
+test('users service does not promote legacy unlinked student accounts through user management', async () => {
+  const { service: usersService, state } = service();
+  const legacy = await usersService.create({ username: 'legacy_leader', nama: 'Ketua Lama', role: 'teacher', password: 'Strong123' }, 'teacher-1');
+  state.users.find(({ id }) => id === legacy.data.id)!.role = 'leader';
+
+  await assert.rejects(
+    usersService.update(legacy.data.id, { role: 'teacher' }, 'teacher-1', 'Menaikkan role akun lama'),
+    (error: unknown) => error instanceof UsersServiceError
+      && error.errorCode === 'UNLINKED_STUDENT_ROLE'
+      && error.statusCode === 422,
+  );
+
+  const updated = await usersService.update(
+    legacy.data.id,
+    { username: 'ketua_lama' },
+    'teacher-1',
+    'Memperbaiki username akun lama',
+  );
+  assert.equal(updated.data.role, 'leader');
+
+  await usersService.remove(legacy.data.id, 'teacher-1', 'Menghapus akun duplikat lama');
+  assert.equal(state.users.some(({ id }) => id === legacy.data.id), false);
+});
+
 test('users service updates login username without changing the stable user id', async () => {
   const { service: usersService, state } = service();
   const first = await usersService.create({
     username: 'generated_member', nama: 'Member Generated', role: 'teacher', password: 'Strong123',
   }, 'teacher-1');
   const second = await usersService.create({
-    username: 'existing_user', nama: 'Existing User', role: 'leader', password: 'Strong123',
+    username: 'existing_user', nama: 'Existing User', role: 'teacher', password: 'Strong123',
   }, 'teacher-1');
 
   state.linkedStudents.push({ id: first.data.id, nama: first.data.nama, is_active: true });
@@ -74,7 +119,7 @@ test('users service updates login username without changing the stable user id',
 
 test('users service resets password state and prevents self-delete', async () => {
   const { service: usersService } = service();
-  const created = await usersService.create({ username: 'reset_user', nama: 'Reset User', role: 'leader', password: 'Strong123' }, 'teacher-1');
+  const created = await usersService.create({ username: 'reset_user', nama: 'Reset User', role: 'treasurer', password: 'Strong123' }, 'teacher-1');
   const reset = await usersService.resetPassword(created.data.id, 'teacher-1', 'Reset karena lupa', 'reset-service-key-001');
   assert.equal(reset.userId, created.data.id);
   assert.equal(reset.data.is_first_login, true);

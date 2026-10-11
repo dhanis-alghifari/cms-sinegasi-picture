@@ -8,6 +8,7 @@ export function useUpdateClassMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    meta: { successMessage: 'Perubahan kelas berhasil disimpan.' },
     mutationFn: ({ id, payload }: { id: string; payload: UpdateClassInput }) =>
       classesService.updateClass(id, payload),
     onSuccess: async () => {

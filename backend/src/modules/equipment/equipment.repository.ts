@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import {
   EQUIPMENT_SELECT,
+  EQUIPMENT_LIST_SELECT,
   EQUIPMENT_REPORT_MAX_ITEMS,
   equipmentDbPayload,
   mapEquipmentRow,
@@ -28,10 +29,7 @@ import type {
 const ACTIVE_BORROWING_STATUSES = ['pending', 'approved', 'borrowed'];
 const ACTIVE_RESERVATION_LOOKUP_LIMIT = 5_000;
 
-const EQUIPMENT_REPORT_SELECT = EQUIPMENT_SELECT
-  .split(',')
-  .filter((field) => field !== 'fotos' && field !== 'foto_url')
-  .join(',');
+const EQUIPMENT_REPORT_SELECT = EQUIPMENT_LIST_SELECT;
 const EQUIPMENT_VALUATION_HISTORY_LIMIT = 100;
 const EQUIPMENT_VALUATION_LOOKUP_LIMIT = 10_000;
 
@@ -75,6 +73,12 @@ function findMemoryEquipment(state: EquipmentMemoryState, id: string): Equipment
   return state.equipment.find((item) => item.id === id);
 }
 
+function mapEquipmentListRow(row: Record<string, unknown>, isReserved: boolean): EquipmentEntry {
+  const equipment = mapEquipmentRow(row, isReserved);
+  const { foto_urls: _photoUrls, foto_url: _photoUrl, ...listItem } = equipment;
+  return listItem;
+}
+
 function mapValuationRow(row: Record<string, unknown>): EquipmentValuation {
   return {
     id: textValue(row.id),
@@ -110,13 +114,13 @@ export function createEquipmentRepository(client: EquipmentSupabaseClient, state
           })
           .sort((left, right) => right.created_at.localeCompare(left.created_at) || right.id.localeCompare(left.id));
         return {
-          data: rows.slice(from, to + 1),
+          data: rows.slice(from, to + 1).map(({ foto_urls: _fotoUrls, foto_url: _fotoUrl, ...item }) => item),
           count: rows.length,
           error: null,
         };
       }
 
-      let dbQuery = client.from('equipment').select(EQUIPMENT_SELECT, { count: 'exact' });
+      let dbQuery = client.from('equipment').select(EQUIPMENT_LIST_SELECT, { count: 'exact' });
       if (search) dbQuery = dbQuery.or(`nama_alat.ilike.%${search}%,kode_alat.ilike.%${search}%`);
       if (query.kategori && query.kategori !== 'all') dbQuery = dbQuery.eq('kategori', query.kategori);
       if (query.kondisi && query.kondisi !== 'all') dbQuery = dbQuery.eq('kondisi', query.kondisi);
@@ -160,7 +164,7 @@ export function createEquipmentRepository(client: EquipmentSupabaseClient, state
         if (equipmentId && !latestValuation.has(equipmentId)) latestValuation.set(equipmentId, valuation);
       }
       return {
-        data: rows.map((row) => mapEquipmentRow({ ...row, ...(latestValuation.get(textValue(row.id)) ? {
+        data: rows.map((row) => mapEquipmentListRow({ ...row, ...(latestValuation.get(textValue(row.id)) ? {
           replacement_value: latestValuation.get(textValue(row.id))?.replacement_value,
           replacement_value_currency: latestValuation.get(textValue(row.id))?.currency,
           replacement_value_effective_at: latestValuation.get(textValue(row.id))?.effective_at,
@@ -301,6 +305,18 @@ export function createEquipmentRepository(client: EquipmentSupabaseClient, state
       const reservationError = databaseError(reservation.error);
       if (reservationError && !isMissingSchemaError(reservationError)) return { data: null, error: reservationError };
       return { data: mapEquipmentRow(result.data as unknown as Record<string, unknown>, Boolean(reservation.data)), error: null };
+    },
+
+    async primaryPhoto(id: string) {
+      if (!client) {
+        const equipment = findMemoryEquipment(state, id);
+        return { data: equipment?.foto_url || equipment?.foto_urls?.[0] || null, error: null };
+      }
+      const result = await client.rpc('get_equipment_primary_photo', { p_equipment_id: id });
+      const resultError = databaseError(result.error);
+      if (resultError) return { data: null, error: resultError };
+      const raw = Array.isArray(result.data) ? result.data[0] : result.data;
+      return { data: typeof raw === 'string' && raw.trim() ? raw : null, error: null };
     },
 
     async create(input: EquipmentCreateInput) {

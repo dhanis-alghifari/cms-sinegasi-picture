@@ -3,12 +3,12 @@ import { useQuery } from '@tanstack/react-query';
 import { QUERY_KEYS } from '@/shared/constants/queryKeys';
 import { UI_CONSTANTS } from '@/shared/constants/ui';
 import { cashService } from '../api/cash.service';
-import type { CashDebtFilters, CashReportFilters, CashTransactionFilters, DisputeStatus } from '../types/cash.types';
+import type { CashDebtFilters, CashReportFilters, CashTransactionFilters, CashScope, DisputeStatus } from '../types/cash.types';
 
-export function useCashSummaryQuery() {
+export function useCashSummaryQuery(scope: CashScope = 'manage') {
   return useQuery({
-    queryKey: QUERY_KEYS.CASH_BALANCE,
-    queryFn: () => cashService.getSummary(),
+    queryKey: [...QUERY_KEYS.CASH_BALANCE, scope],
+    queryFn: () => cashService.getSummary(scope),
   });
 }
 
@@ -56,7 +56,17 @@ export function useBillingRulesQuery(enabled = true) {
   });
 }
 
-export function useCashDisputesQuery(params?: { page?: number; pageSize?: number; status?: DisputeStatus }, enabled = true) {
+export function useCashDisputesQuery(
+  params?: {
+    scope?: CashScope;
+    page?: number;
+    pageSize?: number;
+    status?: DisputeStatus;
+    cursor?: string;
+    limit?: number;
+  },
+  enabled = true,
+) {
   return useQuery({
     queryKey: [...QUERY_KEYS.CASH_DISPUTES, params],
     queryFn: () => cashService.getDisputes(params),

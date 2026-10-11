@@ -1,5 +1,4 @@
 
-import { useState } from 'react';
 import { MoreVertical, Edit2, Wrench, QrCode, RefreshCw } from 'lucide-react';
 import {
   Table,
@@ -20,7 +19,10 @@ import { StatusBadge } from '@/shared/ui/StatusBadge';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import type { Equipment, EquipmentCondition, EquipmentAvailability } from '../types/equipment.types';
 import { AuditHistoryButton } from '@/features/audit/components/AuditHistoryButton';
+import { useCanViewAuditHistory } from '@/features/audit/hooks/useCanViewAuditHistory';
 import { formatStatusLabel } from '@/shared/utils/formatLabels';
+import { AuthenticatedImage } from '@/shared/ui/AuthenticatedImage';
+import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 
 const conditionBadgeMap: Record<EquipmentCondition, { label: string; variant: 'success' | 'warning' | 'danger' }> = {
   bagus: { label: 'Bagus', variant: 'success' },
@@ -37,21 +39,16 @@ const availabilityBadgeMap: Record<EquipmentAvailability, { label: string; varia
   maintenance: { label: 'Maintenance', variant: 'neutral' },
 };
 
-function EquipmentImage({ src, alt }: { src?: string; alt: string }) {
-  const [isError, setIsError] = useState(false);
-
-  if (src && !isError) {
-    return (
-      <img
-        src={src}
-        alt={alt}
-        onError={() => setIsError(true)}
-        className="w-7 h-7 rounded object-cover border border-hairline bg-surface-2"
-      />
-    );
-  }
-
-  return <span className="text-ink-tertiary text-xs italic">Tanpa Foto</span>;
+function EquipmentImage({ equipmentId, alt, cacheScope }: { equipmentId: string; alt: string; cacheScope: string }) {
+  return (
+    <AuthenticatedImage
+      endpoint={`/api/equipment/${encodeURIComponent(equipmentId)}/photo`}
+      cacheScope={cacheScope}
+      alt={alt}
+      className="h-7 w-7 shrink-0 overflow-hidden rounded border border-hairline bg-surface-2"
+      fallback={<span className="text-ink-tertiary text-xs italic">Tanpa Foto</span>}
+    />
+  );
 }
 
 interface EquipmentTableProps {
@@ -69,6 +66,9 @@ export function EquipmentTable({
   onOpenRecovery,
   canManage = true,
 }: EquipmentTableProps) {
+  const canViewAuditHistory = useCanViewAuditHistory();
+  const cacheScope = useAuthStore((state) => state.user?.id) ?? '';
+
   if (equipment.length === 0) {
     return (
       <EmptyState
@@ -88,7 +88,7 @@ export function EquipmentTable({
             <TableHead className="text-ink-subtle text-xs font-semibold">Foto Barang</TableHead>
             <TableHead className="text-ink-subtle text-xs font-semibold">Kondisi Fisik</TableHead>
             <TableHead className="text-ink-subtle text-xs font-semibold">Status Ketersediaan</TableHead>
-            <TableHead className="text-right text-ink-subtle text-xs font-semibold">Riwayat</TableHead>
+            {canViewAuditHistory && <TableHead className="text-right text-ink-subtle text-xs font-semibold">Riwayat</TableHead>}
             {canManage && <TableHead className="text-right text-ink-subtle text-xs font-semibold">Aksi</TableHead>}
           </TableRow>
         </TableHeader>
@@ -115,7 +115,7 @@ export function EquipmentTable({
                 </TableCell>
 
                 <TableCell>
-                  <EquipmentImage src={eq.foto_urls?.[0] ?? eq.foto_url} alt={eq.nama_alat} />
+                  <EquipmentImage equipmentId={eq.id} alt={eq.nama_alat} cacheScope={cacheScope} />
                 </TableCell>
 
                 <TableCell>
@@ -126,7 +126,7 @@ export function EquipmentTable({
                   <StatusBadge label={avail.label} variant={avail.variant} />
                 </TableCell>
 
-                <TableCell className="text-right"><AuditHistoryButton tableName="equipment" recordId={eq.id} /></TableCell>
+                {canViewAuditHistory && <TableCell className="text-right"><AuditHistoryButton tableName="equipment" recordId={eq.id} /></TableCell>}
 
                 {canManage && (
                   <TableCell className="text-right">

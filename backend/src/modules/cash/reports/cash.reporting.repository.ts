@@ -32,6 +32,7 @@ type SupabaseLike = SupabaseClient | null;
 // `debt_records` stores the record timestamp as `created_at`; unlike
 // `cash_transactions`, it has no business-date `tanggal` column.
 const DEBT_SELECT = 'id,student_id,amount,status,keterangan,periode,idempotency_key,settled_transaction_id,created_by,created_at,updated_by,updated_at,students(id,nis,nama,kelas),cash_disputes(id,status,reason,alasan_sanggahan,attempt_number,review_note,created_at)';
+const LEGACY_TRANSACTION_DISPUTE_SELECT = 'id,transaction_id,student_id,status,reason,alasan_sanggahan,attempt_number,review_note,created_at,cash_transactions!cash_disputes_transaction_id_fkey(student_id,type,nominal,tanggal)';
 const BILLING_RULES_SELECT = 'nominal_iuran_wajib,holiday_start_date,holiday_end_date,skip_week,updated_by,updated_at';
 
 type CashStudentJoinRow = {
@@ -57,6 +58,26 @@ type CashDebtRow = {
   cash_disputes?: Array<{ id?: unknown; status?: unknown; reason?: unknown; alasan_sanggahan?: unknown; attempt_number?: unknown; review_note?: unknown; created_at?: unknown }> | null;
 };
 
+type LegacyTransactionDisputeRow = {
+  id?: unknown;
+  transaction_id?: unknown;
+  student_id?: unknown;
+  status?: unknown;
+  reason?: unknown;
+  alasan_sanggahan?: unknown;
+  attempt_number?: unknown;
+  review_note?: unknown;
+  created_at?: unknown;
+  cash_transactions?: LegacyTransactionRow | LegacyTransactionRow[] | null;
+};
+
+type LegacyTransactionRow = {
+  student_id?: unknown;
+  type?: unknown;
+  nominal?: unknown;
+  tanggal?: unknown;
+};
+
 function sanitizeSearch(value: string): string {
   return value.trim().replace(/[%,_()]/g, ' ').replace(/\s+/g, ' ').slice(0, 100);
 }
@@ -77,6 +98,102 @@ function formatIncomeLabel(key: string): string {
   if (key === 'iuran_wajib') return 'Iuran wajib';
   if (key === 'pemasukan') return 'Pemasukan lain-lain';
   return key;
+}
+
+function mapDisputeSummary(dispute: {
+  id?: unknown;
+  status?: unknown;
+  reason?: unknown;
+  alasan_sanggahan?: unknown;
+  attempt_number?: unknown;
+  review_note?: unknown;
+}): NonNullable<CashDebtRecord['dispute']> {
+  return {
+    id: String(dispute.id),
+    status: String(dispute.status || 'pending'),
+    reason: optionalString(dispute.reason ?? dispute.alasan_sanggahan),
+    has_evidence: true,
+    attempt_number: Number(dispute.attempt_number || 1),
+    review_note: optionalString(dispute.review_note),
+  };
+}
+
+function businessDateKey(value: unknown): string {
+  const raw = String(value || '');
+  if (!raw) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return raw.slice(0, 10);
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jakarta',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const values: Record<string, string> = {};
+  for (const part of parts) values[part.type] = part.value;
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+function latestLegacyDisputes(rows: readonly LegacyTransactionDisputeRow[]): LegacyTransactionDisputeRow[] {
+  const latest = new Map<string, LegacyTransactionDisputeRow>();
+  for (const row of rows) {
+    const transactionId = optionalString(row.transaction_id);
+    if (!transactionId) continue;
+    const current = latest.get(transactionId);
+    if (!current || String(row.created_at || '').localeCompare(String(current.created_at || '')) > 0 || (
+      row.created_at === current.created_at && String(row.id || '').localeCompare(String(current.id || '')) > 0
+    )) {
+      latest.set(transactionId, row);
+    }
+  }
+  return Array.from(latest.values());
+}
+
+function transactionOf(row: LegacyTransactionDisputeRow): LegacyTransactionRow | undefined {
+  const transaction = row.cash_transactions;
+  return Array.isArray(transaction) ? transaction[0] : transaction || undefined;
+}
+
+/**
+ * Projects legacy transaction-target disputes onto an exact debt row only
+ * when student, business date, and amount identify one unambiguous candidate.
+ * Direct debt-target disputes always win and ambiguous rows remain actionable.
+ */
+export function projectLegacyDisputesOntoDebts(
+  debts: readonly CashDebtRecord[],
+  legacyRows: readonly LegacyTransactionDisputeRow[],
+): CashDebtRecord[] {
+  const latestRows = latestLegacyDisputes(legacyRows);
+  const assignments = new Map<string, LegacyTransactionDisputeRow>();
+
+  for (const row of latestRows) {
+    const transaction = transactionOf(row);
+    const candidates = debts.filter((debt) => !debt.dispute
+      && String(row.student_id || transaction?.student_id || '') === debt.student_id
+      && String(transaction?.type || '') === 'iuran_wajib'
+      && businessDateKey(transaction?.tanggal) === businessDateKey(debt.created_at)
+      && Number(transaction?.nominal || 0) === debt.amount);
+    if (candidates.length !== 1) continue;
+
+    const debtId = candidates[0]!.id;
+    const current = assignments.get(debtId);
+    if (!current || String(row.created_at || '').localeCompare(String(current.created_at || '')) > 0 || (
+      row.created_at === current.created_at && String(row.id || '').localeCompare(String(current.id || '')) > 0
+    )) {
+      assignments.set(debtId, row);
+    }
+  }
+
+  return debts.map((debt) => {
+    if (debt.dispute) return debt;
+    const dispute = assignments.get(debt.id);
+    if (!dispute) return debt;
+    return {
+      ...debt,
+      dispute: mapDisputeSummary(dispute),
+    };
+  });
 }
 
 function mapDebt(row: CashDebtRow): CashDebtRecord {
@@ -101,14 +218,7 @@ function mapDebt(row: CashDebtRow): CashDebtRecord {
     student_nama: optionalString(student?.nama),
     nis: optionalString(student?.nis),
     kelas: optionalString(student?.kelas),
-    dispute: dispute ? {
-      id: String(dispute.id),
-      status: String(dispute.status || 'pending'),
-      reason: optionalString(dispute.reason ?? dispute.alasan_sanggahan),
-      has_evidence: true,
-      attempt_number: Number(dispute.attempt_number || 1),
-      review_note: optionalString(dispute.review_note),
-    } : undefined,
+    dispute: dispute ? mapDisputeSummary(dispute) : undefined,
   };
 }
 
@@ -295,7 +405,29 @@ export function createCashReportingRepository(client: SupabaseLike, memory: Cash
         if (search) debts = debts.filter((debt) => debt.keterangan.toLowerCase().includes(search));
         debts.sort((a, b) => b.created_at.localeCompare(a.created_at));
         const total = debts.length;
-        const data = debts.slice(from, to + 1).map((debt) => ({ ...debt, student_nama: debt.student_nama || memory.students.find((student) => student.id === debt.student_id)?.nama }));
+        const pageDebts = debts.slice(from, to + 1).map((debt) => ({ ...debt, student_nama: debt.student_nama || memory.students.find((student) => student.id === debt.student_id)?.nama }));
+        const legacyRows = memory.transactions.flatMap((transaction) => {
+          const dispute = transaction.dispute;
+          if (!dispute || !transaction.student_id) return [];
+          return [{
+            id: dispute.id,
+            transaction_id: transaction.id,
+            student_id: transaction.student_id,
+            status: dispute.status,
+            reason: dispute.reason,
+            alasan_sanggahan: dispute.alasan_sanggahan,
+            attempt_number: dispute.attempt_number,
+            review_note: dispute.review_note,
+            created_at: dispute.created_at || transaction.created_at,
+            cash_transactions: {
+              student_id: transaction.student_id,
+              type: transaction.type,
+              nominal: transaction.nominal,
+              tanggal: transaction.tanggal,
+            },
+          } satisfies LegacyTransactionDisputeRow];
+        });
+        const data = projectLegacyDisputesOntoDebts(pageDebts, legacyRows);
         return { data: { data, total, page, pageSize, totalPages: Math.ceil(total / pageSize) || 1 }, error: null };
       }
       let dbQuery = client.from('debt_records').select(DEBT_SELECT, { count: 'exact' }).eq('status', 'unpaid');
@@ -307,7 +439,20 @@ export function createCashReportingRepository(client: SupabaseLike, memory: Cash
       if (error) return { data: null, error };
       const total = count || 0;
       const mapped = (data || []).map((row: CashDebtRow) => mapDebt(row));
-      return { data: { data: mapped, total, page, pageSize, totalPages: Math.ceil(total / pageSize) || 1 }, error: null };
+      const needsLegacyProjection = mapped.some((debt) => !debt.dispute);
+      if (!needsLegacyProjection || mapped.length === 0) {
+        return { data: { data: mapped, total, page, pageSize, totalPages: Math.ceil(total / pageSize) || 1 }, error: null };
+      }
+
+      const studentIds = Array.from(new Set(mapped.map((debt) => debt.student_id)));
+      let legacyQuery = client.from('cash_disputes').select(LEGACY_TRANSACTION_DISPUTE_SELECT);
+      legacyQuery = scope.studentId
+        ? legacyQuery.eq('student_id', scope.studentId)
+        : legacyQuery.in('student_id', studentIds);
+      const { data: legacyRows, error: legacyError } = await legacyQuery;
+      if (legacyError) return { data: null, error: legacyError };
+      const projected = projectLegacyDisputesOntoDebts(mapped, (legacyRows || []) as LegacyTransactionDisputeRow[]);
+      return { data: { data: projected, total, page, pageSize, totalPages: Math.ceil(total / pageSize) || 1 }, error: null };
     },
 
     async getBillingRules() {

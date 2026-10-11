@@ -1,27 +1,42 @@
 
-import type { ChangeEvent, RefObject } from 'react';
-import { Image as ImageIcon, Upload, X } from 'lucide-react';
+import { useMemo } from 'react';
+import { X } from 'lucide-react';
 import type { UseFormReturn } from 'react-hook-form';
 
 import { Button } from '@/shared/ui/primitives/button';
+import { FieldError } from '@/shared/ui/FieldError';
 import { Input } from '@/shared/ui/primitives/input';
 import { Label } from '@/shared/ui/primitives/label';
 import { RadioGroup } from '@/shared/ui/primitives/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/primitives/select';
+import { SearchableCombobox } from '@/shared/ui/SearchableCombobox';
 import { cn } from '@/shared/utils/cn';
 
 import type { ClassSelectorOption } from '@/features/classes/types/classes.types';
+import { formatRoleLabel } from '@/shared/utils/formatLabels';
+import { STUDENT_ROLE_VALUES, type StudentRole } from '@/shared/types/common';
 import type { StudentFormValues } from '../schemas/studentSchema';
 import { PEMINATAN_VALUES, type Peminatan } from '../types/students.types';
 import { isOneOf } from '@/shared/utils/isOneOf';
+import { PhotoSourcePicker } from '@/shared/ui/PhotoSourcePicker';
+
+function getGalleryLabel(isProcessingImage: boolean, hasPreview: boolean): string {
+  if (isProcessingImage) return 'Memproses foto...';
+  if (hasPreview) return 'Ganti dari Galeri';
+  return 'Pilih dari Galeri';
+}
 
 interface StudentFormFieldsProps {
   form: UseFormReturn<StudentFormValues>;
+  accountMode?: 'new' | 'existing';
+  showRoleSelection?: boolean;
   state: {
     isEditing: boolean;
     selectedKelas?: string;
     selectedPeminatan?: Peminatan;
+    selectedRole?: StudentRole;
     activePreview: string | null;
+    isProcessingImage: boolean;
   };
   classes: {
     options: ClassSelectorOption[];
@@ -30,44 +45,63 @@ interface StudentFormFieldsProps {
     onRetry: () => void | Promise<void>;
   };
   image: {
-    fileInputRef: RefObject<HTMLInputElement | null>;
-    onFileChange: (event: ChangeEvent<HTMLInputElement>) => void;
+    onFilesSelected: (files: File[]) => void;
     onRemove: () => void;
+    error?: string | null;
   };
 }
 
 export function StudentFormFields({
   form,
+  accountMode = 'new',
+  showRoleSelection = true,
   state,
   classes,
   image,
 }: StudentFormFieldsProps) {
-  const { isEditing, selectedKelas, selectedPeminatan, activePreview } = state;
+  const { isEditing, selectedKelas, selectedPeminatan, selectedRole, activePreview, isProcessingImage } = state;
   const {
     options: classOptions,
     isLoading: classOptionsLoading,
     error: classOptionsError,
     onRetry: onRetryLoadClasses,
   } = classes;
-  const { fileInputRef, onFileChange, onRemove: onRemoveImage } = image;
-  const handleClassValueChange = (value: string | null) => {
-    if (!value) return;
-    form.setValue('kelas', value, { shouldValidate: true });
+  const { onFilesSelected, onRemove: onRemoveImage, error: imageError } = image;
+  const requiresAccountCredentials = !isEditing && accountMode === 'new';
+  const searchableClassOptions = useMemo(
+    () => classOptions.map((option) => ({
+      id: option.id,
+      label: option.nama_kelas,
+      secondaryLabel: `Tingkat ${option.tingkat}`,
+    })),
+    [classOptions],
+  );
+  const selectedClassOption = useMemo(
+    () => searchableClassOptions.find((option) => option.label === selectedKelas) ?? null,
+    [searchableClassOptions, selectedKelas],
+  );
+  const handleClassValueChange = (value: string) => {
+    const selectedClass = classOptions.find((option) => option.id === value);
+    if (!selectedClass) return;
+    form.setValue('kelas', selectedClass.nama_kelas, { shouldValidate: true });
   };
   const handleSpecializationChange = (value: string) => {
     form.setValue('peminatan', isOneOf(value, PEMINATAN_VALUES) ? value : undefined);
+  };
+  const handleRoleChange = (value: string | null) => {
+    if (value && isOneOf(value, STUDENT_ROLE_VALUES)) form.setValue('role', value, { shouldValidate: true });
   };
   return (
     <>
           {/* NIS & Nama */}
           <div className="grid grid-cols-1 gap-3">
-            <div className="space-y-1 col-span-1">
+            <div className="min-w-0 space-y-1">
               <Label htmlFor="nis" className="text-ink-muted text-xs">NIS *</Label>
               <Input
                 id="nis"
                 placeholder="2026xxxx"
                 disabled={isEditing}
-                className={cn('bg-surface-2 border-hairline text-ink text-xs font-mono', form.formState.errors.nis && 'border-semantic-danger')}
+                className={cn('w-full min-w-0 bg-surface-2 border-hairline text-ink text-xs font-mono', form.formState.errors.nis && 'border-semantic-danger')}
                 {...form.register('nis')}
               />
               {form.formState.errors.nis && (
@@ -75,12 +109,12 @@ export function StudentFormFields({
               )}
             </div>
 
-            <div className="space-y-1 col-span-2">
+            <div className="min-w-0 space-y-1">
               <Label htmlFor="nama" className="text-ink-muted text-xs">Nama Lengkap *</Label>
               <Input
                 id="nama"
                 placeholder="Nama lengkap siswa"
-                className={cn('bg-surface-2 border-hairline text-ink text-xs', form.formState.errors.nama && 'border-semantic-danger')}
+                className={cn('w-full min-w-0 bg-surface-2 border-hairline text-ink text-xs', form.formState.errors.nama && 'border-semantic-danger')}
                 {...form.register('nama')}
               />
               {form.formState.errors.nama && (
@@ -89,31 +123,24 @@ export function StudentFormFields({
             </div>
           </div>
 
-          {/* Kelas, Peminatan, No HP */}
+          {/* Kelas, Peminatan, Username dan WhatsApp */}
           <div className="grid grid-cols-1 gap-3">
             <div className="space-y-1">
               <Label className="text-ink-muted text-xs">Kelas *</Label>
-              <Select
-                value={selectedKelas || ''}
-                disabled={classOptionsLoading || Boolean(classOptionsError)}
+              <SearchableCombobox
+                options={searchableClassOptions}
+                value={selectedClassOption?.id}
+                selectedOption={selectedClassOption}
                 onValueChange={handleClassValueChange}
-              >
-                <SelectTrigger
-                  className={cn(
-                    'w-full bg-surface-2 border-hairline text-ink text-xs',
-                    form.formState.errors.kelas && 'border-semantic-danger'
-                  )}
-                >
-                  <SelectValue placeholder="Pilih Kelas Siswa" />
-                </SelectTrigger>
-                <SelectContent className="bg-surface-3 border-hairline text-ink max-h-56 overflow-y-auto">
-                  {classOptions.map((item) => (
-                    <SelectItem key={item.id} value={item.nama_kelas}>
-                      {item.nama_kelas}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                isLoading={classOptionsLoading}
+                disabled={classOptionsLoading || Boolean(classOptionsError)}
+                errorMessage={form.formState.errors.kelas?.message}
+                ariaLabel="Cari dan pilih kelas siswa"
+                triggerLabel="Buka daftar kelas"
+                placeholder="Cari atau pilih kelas..."
+                emptyMessage="Kelas tidak ditemukan."
+                loadingMessage="Memuat pilihan kelas..."
+              />
               {form.formState.errors.kelas && (
                 <p className="text-semantic-danger text-[10px]">{form.formState.errors.kelas.message}</p>
               )}
@@ -150,29 +177,76 @@ export function StudentFormFields({
               />
             </div>
 
+            {!isEditing && showRoleSelection && (
+              <div className="space-y-1">
+                <Label className="text-ink-muted text-xs">Peran Akun Siswa *</Label>
+                <Select value={selectedRole ?? 'member'} onValueChange={handleRoleChange}>
+                  <SelectTrigger className="w-full bg-surface-2 border-hairline text-ink text-xs">
+                    <SelectValue placeholder="Pilih peran akun siswa" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STUDENT_ROLE_VALUES.map((role) => (
+                      <SelectItem key={role} value={role}>{formatRoleLabel(role)}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-ink-tertiary text-[10px]">Role Bendahara memberi akses kelola kas; pilih hanya untuk siswa yang ditugaskan. Teacher khusus akun operasional.</p>
+                {form.formState.errors.role && (
+                  <p className="text-semantic-danger text-[10px]">{form.formState.errors.role.message}</p>
+                )}
+              </div>
+            )}
+
             <div className="space-y-1">
-              <Label htmlFor="no_telepon" className="text-ink-muted text-xs">No. Telepon / WA</Label>
+              <Label htmlFor="username" className="text-ink-muted text-xs">
+                Username login {requiresAccountCredentials && <span className="text-semantic-danger" aria-hidden="true">*</span>}
+              </Label>
+              <Input
+                id="username"
+                autoCapitalize="none"
+                autoCorrect="off"
+                autoComplete="username"
+                placeholder="contoh: rara"
+                disabled={!requiresAccountCredentials}
+                aria-invalid={Boolean(form.formState.errors.username)}
+                className={cn('bg-surface-2 border-hairline text-ink text-xs', form.formState.errors.username && 'border-semantic-danger')}
+                {...form.register('username', { setValueAs: (value) => typeof value === 'string' ? value.trim().toLowerCase() : value })}
+              />
+              {requiresAccountCredentials && <p className="text-[10px] text-ink-tertiary">Isi manual; gunakan nama panggilan yang mudah diingat (contoh: rara), bukan NIS. Huruf kecil, angka, titik, _ atau -.</p>}
+              {form.formState.errors.username && <p className="text-[10px] text-semantic-danger">{form.formState.errors.username.message}</p>}
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="no_telepon" className="text-ink-muted text-xs">
+                Nomor WhatsApp {requiresAccountCredentials && <span className="text-semantic-danger" aria-hidden="true">*</span>}
+              </Label>
               <Input
                 id="no_telepon"
-                placeholder="0812xxxxxxxx"
-                className="bg-surface-2 border-hairline text-ink text-xs"
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel"
+                placeholder="081234567890"
+                aria-invalid={Boolean(form.formState.errors.no_telepon)}
+                className={cn('bg-surface-2 border-hairline text-ink text-xs', form.formState.errors.no_telepon && 'border-semantic-danger')}
                 {...form.register('no_telepon')}
               />
+              {form.formState.errors.no_telepon && <p className="text-[10px] text-semantic-danger">{form.formState.errors.no_telepon.message}</p>}
+              {requiresAccountCredentials && (
+                <>
+                  <p className="text-[10px] text-ink-tertiary">Masukkan nomor WhatsApp Indonesia yang benar-benar aktif. Sistem tidak mengirim OTP untuk memeriksa nomor.</p>
+                  <label className="flex items-start gap-2 rounded-md border border-hairline bg-surface-1 p-2 text-[11px] text-ink-subtle">
+                    <input type="checkbox" className="mt-0.5 accent-primary" {...form.register('whatsapp_confirmed')} />
+                    <span>Saya sudah memastikan nomor ini aktif di WhatsApp dan milik siswa.</span>
+                  </label>
+                  {form.formState.errors.whatsapp_confirmed && <p className="text-[10px] text-semantic-danger">{form.formState.errors.whatsapp_confirmed.message}</p>}
+                </>
+              )}
             </div>
           </div>
 
           {/* Image File Upload & Compression */}
           <div className="space-y-1">
             <Label className="text-ink-muted text-xs font-medium">Foto Profil Siswa (Upload File Gambar)</Label>
-
-            <input
-              type="file"
-              ref={fileInputRef}
-              accept="image/jpeg,image/png,image/webp"
-              capture="user"
-              onChange={onFileChange}
-              className="hidden"
-            />
 
             {activePreview ? (
               <div className="flex items-center gap-3 p-2 rounded-lg border border-hairline bg-surface-2">
@@ -192,29 +266,28 @@ export function StudentFormFields({
                   variant="ghost"
                   size="icon"
                   onClick={onRemoveImage}
-                  className="h-8 w-8 text-ink-subtle hover:text-semantic-danger"
+                  disabled={isProcessingImage}
+                  aria-label="Hapus foto profil"
+                  className="min-h-11 min-w-11 text-ink-subtle hover:text-semantic-danger"
                 >
                   <X size={16} />
                 </Button>
               </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="w-full border-2 border-dashed border-hairline hover:border-primary/50 bg-surface-2/50 hover:bg-surface-2 p-3 rounded-lg flex items-center justify-center gap-2.5 transition-colors cursor-pointer group"
-              >
-                <div className="w-8 h-8 rounded-full bg-primary/10 group-hover:bg-primary/20 flex items-center justify-center shrink-0">
-                  <Upload size={16} className="text-primary" />
-                </div>
-                <div className="text-left">
-                  <p className="text-xs font-medium text-ink flex items-center gap-1">
-                    <span>Pilih Foto Profil dari Komputer</span>
-                    <ImageIcon size={12} className="text-ink-tertiary" />
-                  </p>
-                  <p className="text-[10px] text-ink-tertiary">PNG, JPG, atau WebP (Sumber maksimal 5 MB)</p>
-                </div>
-              </button>
-            )}
+            ) : null}
+            <PhotoSourcePicker
+              id="student-photo"
+              accept="image/jpeg,image/png,image/webp"
+              disabled={isProcessingImage}
+              onFilesSelected={onFilesSelected}
+              galleryLabel={getGalleryLabel(isProcessingImage, Boolean(activePreview))}
+              cameraLabel={activePreview ? 'Ambil Foto Baru' : 'Ambil Foto'}
+              className="w-full"
+              buttonClassName={cn('flex-1 bg-surface-1', imageError && 'border-semantic-danger')}
+              aria-invalid={Boolean(imageError)}
+              aria-describedby={imageError ? 'student-photo-error' : undefined}
+            />
+            <p className="text-[10px] text-ink-tertiary">JPG, PNG, atau WebP · ukuran sumber maksimal 5 MB.</p>
+            <FieldError id="student-photo-error" message={imageError} />
           </div>
 
           {/* Change Reason (Zero Silent Edits Requirement — Wajib hanya saat Edit/Ubah Data) */}

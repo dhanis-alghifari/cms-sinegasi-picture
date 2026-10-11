@@ -16,6 +16,10 @@ export class CashReadServiceError extends Error {
 export class CashReadService {
   constructor(private readonly repository: CashReadRepository) {}
 
+  repositoryIsConfigured(): boolean {
+    return this.repository.isConfigured();
+  }
+
   async getSummary(scope: CashReadScope): Promise<Record<string, unknown>> {
     const result = await this.repository.getSummary(scope);
     if (result.error || !result.data) {

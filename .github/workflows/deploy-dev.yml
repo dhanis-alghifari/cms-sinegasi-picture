@@ -1,0 +1,81 @@
+name: Deploy Development Backend
+
+permissions: {}
+
+concurrency:
+  group: sinegasi-vps-deployment
+  cancel-in-progress: false
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - 'backend/**'
+      - 'docker-compose.dev.yml'
+      - 'ops/**'
+      - '.github/workflows/deploy-dev.yml'
+      - 'scripts/verify-guardrails.mjs'
+  workflow_dispatch:
+
+jobs:
+  quality-check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - name: Install backend dependencies
+        run: npm ci
+        working-directory: backend
+      - name: Verify Guardrails
+        run: node scripts/verify-guardrails.mjs
+      - name: Run backend quality checks
+        run: npm run quality:check
+        working-directory: backend
+
+  deploy-backend-dev:
+    needs: quality-check
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Deploy to VPS (Development)
+        run: |
+          set -Eeuo pipefail
+          test "$VPS_USER" = "ubuntu"
+          mkdir -p ~/.ssh
+          if echo "$VPS_SSH_KEY" | grep -q "BEGIN"; then
+            printf "%s\n" "$VPS_SSH_KEY" | tr -d '\r' > ~/.ssh/id_deploy
+          else
+            echo "$VPS_SSH_KEY" | tr -d ' \r\n' | base64 -d > ~/.ssh/id_deploy
+          fi
+          # Ensure trailing newline required by OpenSSH libcrypto
+          echo "" >> ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          test -n "$VPS_HOST_PUBLIC_KEY"
+          printf '%s %s\n' "$VPS_HOST" "$VPS_HOST_PUBLIC_KEY" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -i ~/.ssh/id_deploy -p 22 "$VPS_USER@$VPS_HOST" << 'EOF'
+            set -Eeuo pipefail
+            test "$(id -un)" = "ubuntu"
+            test "$(stat -c '%U' /opt/sinegasi)" = "ubuntu"
+            cd /opt/sinegasi
+            test -z "$(git status --porcelain)"
+            git fetch origin develop
+            git checkout develop
+            test "$(git branch --show-current)" = "develop"
+            git pull --ff-only origin develop
+            ./ops/deploy-dev.sh
+            echo "✅ Development backend deployed successfully"
+          EOF
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_HOST_PUBLIC_KEY: ${{ secrets.VPS_HOST_PUBLIC_KEY }}

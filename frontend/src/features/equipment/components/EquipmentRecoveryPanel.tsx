@@ -11,7 +11,7 @@ import {
 } from '@/shared/ui/primitives/table';
 import { StatusBadge } from '@/shared/ui/StatusBadge';
 import { QueryErrorState } from '@/shared/ui/QueryErrorState';
-import { LoadingSpinner, PageLoader } from '@/shared/ui/LoadingSpinner';
+import { DataTableSkeleton } from '@/shared/ui/LoadingSkeletons';
 import { formatCurrency } from '@/shared/utils/formatCurrency';
 import { formatDateShort } from '@/shared/utils/formatDate';
 import type { Equipment, EquipmentRecoveryCase } from '../types/equipment.types';
@@ -74,7 +74,7 @@ function RecoveryAction({
 }) {
   if (recoveryCase.recovery_type === 'repair') {
     return (
-      <Button type="button" size="sm" onClick={() => onOpenRepair(recoveryCase, equipment)} className="min-h-10 text-xs">
+      <Button type="button" size="sm" onClick={() => onOpenRepair(recoveryCase, equipment)} className="min-h-10 w-full text-xs sm:w-auto">
         <CheckCircle2 size={14} aria-hidden="true" />
         Selesaikan
       </Button>
@@ -82,7 +82,7 @@ function RecoveryAction({
   }
 
   return (
-    <Button type="button" size="sm" onClick={() => onOpenReplacement(recoveryCase, equipment)} className="min-h-10 text-xs">
+    <Button type="button" size="sm" onClick={() => onOpenReplacement(recoveryCase, equipment)} className="min-h-10 w-full text-xs sm:w-auto">
       <RefreshCw size={14} aria-hidden="true" />
       Daftarkan pengganti
     </Button>
@@ -112,7 +112,7 @@ export function EquipmentRecoveryPanel({
   const showActions = canManage && !isHistory;
 
   const loadingLabel = isHistory ? 'Memuat riwayat tindak lanjut alat...' : 'Memuat tindak lanjut alat...';
-  if (isLoading) return embedded ? <div className="flex items-center justify-center py-10"><LoadingSpinner size="sm" label={loadingLabel} /></div> : <PageLoader label={loadingLabel} />;
+  if (isLoading) return <DataTableSkeleton columns={5} rows={4} label={loadingLabel} className={embedded ? 'pt-4' : undefined} />;
   if (error) return <QueryErrorState title={isHistory ? 'Riwayat tindak lanjut alat belum dapat dimuat' : 'Tindak lanjut alat belum dapat dimuat'} error={error} onRetry={onRetry} />;
 
   return (
@@ -222,7 +222,7 @@ export function EquipmentRecoveryPanel({
                 <p className="font-mono text-xs font-semibold text-primary">{item.kode_alat}</p>
                 <p className="mt-0.5 text-xs text-ink">{item.nama_alat}</p>
                 <p className="mt-2 text-xs text-ink-subtle">Kondisi: {conditionLabel(item.kondisi)}. Tindak lanjut belum dibuat.</p>
-                {showActions && <Button type="button" variant="outline" size="sm" onClick={() => onOpenCreate(item)} className="mt-3 min-h-10 text-xs">
+                {showActions && <Button type="button" variant="outline" size="sm" onClick={() => onOpenCreate(item)} className="mt-3 min-h-10 w-full text-xs sm:w-auto">
                   <Wrench size={14} aria-hidden="true" />
                   Buka tindak lanjut
                 </Button>}

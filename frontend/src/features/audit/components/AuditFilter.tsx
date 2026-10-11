@@ -38,26 +38,27 @@ export function AuditFilter({ value, onChange, onReset }: AuditFilterProps) {
   };
 
   return (
-    <div className="rounded-lg border border-hairline bg-surface-1 p-4 space-y-3">
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
-        <div className="space-y-1 xl:col-span-2">
+    <div className="space-y-3 rounded-lg border border-hairline bg-surface-1 p-4">
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
+        <div className="min-w-0 space-y-1">
           <Label htmlFor="audit-search" className="text-ink-muted text-xs">Cari audit</Label>
           <div className="relative">
-            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-tertiary" />
+            <Search size={14} aria-hidden="true" className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-tertiary" />
             <Input
               id="audit-search"
+              aria-label="Cari audit"
               value={value.search ?? ''}
               onChange={(event) => setValue('search', event.target.value)}
               placeholder="Nama aktor, modul, atau alasan perubahan..."
-              className="pl-8 bg-surface-2 border-hairline text-ink text-xs"
+              className="h-9 w-full min-w-0 bg-surface-2 pl-8 text-xs text-ink"
             />
           </div>
         </div>
 
-        <div className="space-y-1">
+        <div className="min-w-0 space-y-1">
           <Label className="text-ink-muted text-xs">Modul</Label>
           <Select value={value.table_name ?? UI_CONSTANTS.ALL_FILTER_VALUE} onValueChange={handleTableNameValueChange}>
-            <SelectTrigger className="w-full bg-surface-2 border-hairline text-ink text-xs">
+            <SelectTrigger aria-label="Filter modul audit" className="h-9 w-full bg-surface-2 text-xs text-ink">
               <SelectValue placeholder="Semua modul" />
             </SelectTrigger>
             <SelectContent>
@@ -79,10 +80,10 @@ export function AuditFilter({ value, onChange, onReset }: AuditFilterProps) {
           </Select>
         </div>
 
-        <div className="space-y-1">
+        <div className="min-w-0 space-y-1">
           <Label className="text-ink-muted text-xs">Jenis perubahan</Label>
           <Select value={value.action ?? UI_CONSTANTS.ALL_FILTER_VALUE} onValueChange={handleActionValueChange}>
-            <SelectTrigger className="w-full bg-surface-2 border-hairline text-ink text-xs">
+            <SelectTrigger aria-label="Filter jenis perubahan audit" className="h-9 w-full bg-surface-2 text-xs text-ink">
               <SelectValue placeholder="Semua perubahan" />
             </SelectTrigger>
             <SelectContent>
@@ -95,21 +96,21 @@ export function AuditFilter({ value, onChange, onReset }: AuditFilterProps) {
         </div>
 
         <div className="flex items-end">
-          <Button type="button" variant="outline" onClick={onReset} className="w-full bg-surface-2 border-hairline text-ink-subtle text-xs">
-            <RotateCcw size={14} className="mr-1.5" />
+          <Button type="button" variant="outline" onClick={onReset} className="h-9 w-full whitespace-nowrap bg-surface-2 text-xs text-ink-subtle lg:w-auto">
+            <RotateCcw size={14} aria-hidden="true" className="mr-1.5" />
             Reset filter
           </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:max-w-md">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:max-w-lg">
         <div className="space-y-1">
           <Label htmlFor="audit-date-from" className="text-ink-muted text-xs">Dari tanggal</Label>
-          <Input id="audit-date-from" type="date" value={value.date_from ?? ''} onChange={(event) => setValue('date_from', event.target.value)} className="bg-surface-2 border-hairline text-ink text-xs" />
+          <Input id="audit-date-from" type="date" aria-label="Tanggal mulai audit" value={value.date_from ?? ''} onChange={(event) => setValue('date_from', event.target.value)} className="h-9 w-full bg-surface-2 text-xs text-ink" />
         </div>
         <div className="space-y-1">
           <Label htmlFor="audit-date-to" className="text-ink-muted text-xs">Sampai tanggal</Label>
-          <Input id="audit-date-to" type="date" value={value.date_to ?? ''} onChange={(event) => setValue('date_to', event.target.value)} className="bg-surface-2 border-hairline text-ink text-xs" />
+          <Input id="audit-date-to" type="date" aria-label="Tanggal selesai audit" value={value.date_to ?? ''} onChange={(event) => setValue('date_to', event.target.value)} className="h-9 w-full bg-surface-2 text-xs text-ink" />
         </div>
       </div>
     </div>

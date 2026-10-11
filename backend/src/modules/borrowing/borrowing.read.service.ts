@@ -24,7 +24,7 @@ export class BorrowingReadService {
   constructor(private readonly repository: BorrowingReadRepository) {}
   repositoryIsConfigured() { return this.repository.isConfigured(); }
   async list(query: BorrowingReadQuery, scope: BorrowingReadScope) {
-    const allowed = [undefined, 'menunggu_persetujuan', 'disetujui', 'ditolak', 'dipinjam', 'dikembalikan', 'terlambat'];
+    const allowed = [undefined, 'menunggu_persetujuan', 'disetujui', 'ditolak', 'dipinjam', 'menunggu_verifikasi', 'dikembalikan', 'terlambat'];
     if (!allowed.includes(query.status)) throw new BorrowingReadServiceError(422, 'Status peminjaman tidak valid.');
     const result = await this.repository.list(sanitize(query), scope);
     if (result.error || !result.data) throw new BorrowingReadServiceError(isMissingBorrowingSchemaError(result.error) ? 503 : 500, isMissingBorrowingSchemaError(result.error) ? 'Skema detail peminjaman belum tersedia. Jalankan migration borrowing lalu restart backend.' : 'Gagal memuat daftar peminjaman.');

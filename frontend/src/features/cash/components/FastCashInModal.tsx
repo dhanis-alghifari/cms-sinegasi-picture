@@ -222,9 +222,9 @@ export function FastCashInModal({
           <DialogFooter className="pt-3">
             <Button
               type="button"
-              variant="outline"
+              variant="secondary"
               onClick={() => handleDialogOpenChange(false)}
-              className="bg-surface-2 border-hairline text-ink text-xs"
+              className="text-xs"
             >
               Batal
             </Button>

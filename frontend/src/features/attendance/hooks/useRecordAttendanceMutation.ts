@@ -9,6 +9,7 @@ export function useRecordAttendanceMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    meta: { successMessage: 'Absensi berhasil disimpan.' },
     mutationFn: ({
       payload,
     }: {

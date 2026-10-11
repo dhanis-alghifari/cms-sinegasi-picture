@@ -4,6 +4,7 @@ import jwt from '@fastify/jwt';
 import { runtimeConfig } from '../config/env.js';
 import { startOverdueWorker } from '../workers/overdueWorker.js';
 import { startWeeklyBillingWorker } from '../workers/weeklyBillingWorker.js';
+import { createBackgroundJobs } from '../workers/backgroundJobs.js';
 import { createAppDependencies } from './app.dependencies.js';
 import { registerAppHooks } from './app.hooks.js';
 import { registerAppRoutes } from './app.routes.js';
@@ -18,14 +19,35 @@ export interface ApplicationRuntime {
  * lifecycle only; feature behavior remains inside its module seam.
  */
 export async function createApplication(): Promise<ApplicationRuntime> {
+  const configuredTrustProxy = runtimeConfig.trustProxy;
+  // Fastify's runtime supports hop counts, but its current TypeScript options
+  // accept a trust function instead. Preserve the exact hop-count policy.
+  const trustProxy = typeof configuredTrustProxy === 'number'
+    ? (_address: string, hop: number) => hop < configuredTrustProxy
+    : configuredTrustProxy;
   const app = Fastify({
-    logger: true,
+    logger: {
+      redact: {
+        paths: ['req.headers.authorization', 'req.headers.cookie', 'res.headers["set-cookie"]', 'password', 'password_hash', 'temporary_password', 'token'],
+        censor: '[REDACTED]',
+      },
+    },
     bodyLimit: 2 * 1024 * 1024,
-    trustProxy: runtimeConfig.trustProxy,
+    requestTimeout: 30_000,
+    connectionTimeout: 10_000,
+    trustProxy,
   });
   const dependencies = createAppDependencies(app);
-  let overdueWorkerTimer: NodeJS.Timeout | undefined;
-  let weeklyBillingWorkerStop: (() => void) | undefined;
+  const workers = createBackgroundJobs(runtimeConfig.backgroundJobsEnabled, () => {
+    const overdueWorkerTimer = startOverdueWorker(app, dependencies.overdueService);
+    try {
+      const billingWorker = startWeeklyBillingWorker(app, dependencies.billingService);
+      return () => { clearInterval(overdueWorkerTimer); billingWorker.stop(); };
+    } catch (error) {
+      clearInterval(overdueWorkerTimer);
+      throw error;
+    }
+  });
 
   await app.register(cors, {
     origin: runtimeConfig.corsOrigins,
@@ -41,15 +63,11 @@ export async function createApplication(): Promise<ApplicationRuntime> {
   await registerAppRoutes(app, dependencies);
 
   app.addHook('onClose', async () => {
-    if (overdueWorkerTimer) clearInterval(overdueWorkerTimer);
-    weeklyBillingWorkerStop?.();
+    workers.stop();
   });
 
   return {
     app,
-    startWorkers: () => {
-      overdueWorkerTimer = startOverdueWorker(app, dependencies.overdueService);
-      weeklyBillingWorkerStop = startWeeklyBillingWorker(app, dependencies.billingService).stop;
-    },
+    startWorkers: workers.start,
   };
 }

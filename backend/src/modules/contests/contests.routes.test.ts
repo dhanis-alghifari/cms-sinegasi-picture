@@ -43,6 +43,15 @@ test('contest routes keep role and capability guards', async (t) => {
   assert.equal(acceptedPublicCreate.statusCode, 201);
   assert.equal(acceptedPublicCreate.json().data.status_public, 'buka');
 
+  const summary = await app.inject({
+    method: 'GET',
+    url: '/api/contests/summary',
+    headers: { authorization: `Bearer ${leader}` },
+  });
+  assert.equal(summary.statusCode, 200);
+  assert.equal(summary.json().success, true);
+  assert.equal(typeof summary.json().data.totalLomba, 'number');
+
   const contestId = acceptedPublicCreate.json().data.id as string;
   const missingReasonUpdate = await app.inject({
     method: 'PUT',

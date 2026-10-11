@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { validateImageReference } from '../../shared/uploads/imageReference.js';
 import { mapAchievementRepositoryError, cleanAchievementText, isOutcomeStatus, isResultKind, parseAchievementPagination } from './contest-achievements.helpers.js';
 import type { ContestAchievementsRepository, ContestEntryResultInput, ContestAchievementListQuery, RecordContestResultInput, ContestResultKind, ContestOutcomeStatus } from './contest-achievements.types.js';
 
@@ -13,13 +14,10 @@ function required(value: unknown, field: string, maxLength: number): string {
 }
 
 function optionalUrl(value: unknown): string | undefined {
-  const text = cleanAchievementText(value, 900000);
+  if (typeof value !== 'string') return undefined;
+  const text = value.trim();
   if (!text) return undefined;
-  if (text.startsWith('data:image/')) return text;
-  try {
-    const parsed = new URL(text);
-    if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('protocol');
-  } catch {
+  if (!validateImageReference(value, { maxDecodedBytes: 675_000, maxLength: 900_000 }).valid) {
     throw new ContestAchievementsServiceError(422, 'CONTEST_RESULT_EVIDENCE_INVALID', 'Bukti hasil harus berupa URL http/https atau gambar.');
   }
   return text;
@@ -33,7 +31,7 @@ export class ContestAchievementsService {
     const { page, pageSize } = parseAchievementPagination(query);
     const search = cleanAchievementText(query.search, 100);
     const resultKind = cleanAchievementText(query.result_kind, 32);
-    if (resultKind && !isResultKind(resultKind)) throw new ContestAchievementsServiceError(422, 'CONTEST_RESULT_KIND_INVALID', 'Filter jenis hasil tidak valid.');
+    if (resultKind && !isResultKind(resultKind)) throw new ContestAchievementsServiceError(422, 'CONTEST_RESULT_KIND_INVALID', 'Filter jenis pencapaian tidak valid.');
     const position = query.position == null || query.position === '' ? undefined : Number.parseInt(query.position, 10);
     if (position !== undefined && (!Number.isInteger(position) || position < 1)) throw new ContestAchievementsServiceError(422, 'CONTEST_RESULT_POSITION_INVALID', 'Posisi hasil harus bilangan positif.');
     const outcomeStatus = cleanAchievementText(query.outcome_status, 32);
@@ -43,6 +41,14 @@ export class ContestAchievementsService {
     const result = await this.repository.list({ search, resultKind: resultKind as ContestResultKind | undefined, position, outcomeStatus: outcomeStatus as ContestOutcomeStatus | undefined, tahunEvent, page, pageSize });
     if ('error' in result) mapAchievementRepositoryError(result.error, 'Gagal memuat rekap prestasi lomba.');
     return result;
+  }
+
+  async getDetail(entryId: string) {
+    const normalizedEntryId = required(entryId, 'entry_id', 64);
+    const result = await this.repository.getDetail(normalizedEntryId);
+    if ('error' in result) mapAchievementRepositoryError(result.error, 'Gagal memuat detail prestasi karya.');
+    if (!result.data) throw new ContestAchievementsServiceError(404, 'CONTEST_RESULT_NOT_FOUND', 'Rekap prestasi karya tidak ditemukan.');
+    return result.data;
   }
 
   async record(entryId: string, input: RecordContestResultInput, actorId: string | null) {

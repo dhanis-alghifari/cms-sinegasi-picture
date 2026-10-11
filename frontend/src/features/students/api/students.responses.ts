@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { decodePaginatedResponse, decodeWithSchema } from '@/shared/api/responseValidation';
 import { actorSummarySchema, optionalTextSchema } from '@/shared/api/responseSchemas';
-import { PEMINATAN_VALUES, type Student, type StudentAccountResponse, type StudentOption } from '../types/students.types';
+import { PEMINATAN_VALUES, type Student, type StudentAccountResponse, type StudentOption, type UnlinkedStudentAccount } from '../types/students.types';
 
 const studentSchema: z.ZodType<Student> = z.object({
   id: z.string().min(1),
@@ -38,7 +38,9 @@ const studentAccountSchema: z.ZodType<StudentAccountResponse> = z.object({
     username: z.string().min(1),
     role: z.string().min(1),
     is_first_login: z.boolean(),
-    temporary_password: z.string().min(1),
+    operation_replayed: z.boolean().optional(),
+    whatsapp_number: optionalTextSchema,
+    temporary_password: z.string().min(1).optional(),
   }).loose(),
 }).loose();
 
@@ -48,7 +50,20 @@ const studentOptionsResponseSchema = z.object({
   total: z.number().int().nonnegative(),
 }).loose().transform(({ data, total }) => ({ data, total }));
 
+const unlinkedStudentAccountSchema: z.ZodType<UnlinkedStudentAccount> = z.object({
+  id: z.string().min(1),
+  username: z.string().min(1),
+  nama: z.string().min(1),
+  role: z.string().min(1),
+}).loose();
+
+const unlinkedStudentAccountsResponseSchema = z.object({
+  success: z.literal(true),
+  data: z.array(unlinkedStudentAccountSchema),
+}).loose().transform(({ data }) => data);
+
 export const decodeStudentList = decodePaginatedResponse(studentSchema);
 export const decodeStudent = decodeWithSchema(studentSchema);
 export const decodeStudentOptions = decodeWithSchema(studentOptionsResponseSchema);
 export const decodeStudentAccountResponse = decodeWithSchema(studentAccountSchema);
+export const decodeUnlinkedStudentAccounts = decodeWithSchema(unlinkedStudentAccountsResponseSchema);

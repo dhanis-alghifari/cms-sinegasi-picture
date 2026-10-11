@@ -3,7 +3,7 @@ export const borrowingListRouteSchema = {
     type: 'object',
     additionalProperties: false,
     properties: {
-      status: { type: 'string', enum: ['pending_approval', 'approved', 'rejected', 'borrowed', 'returned', 'overdue'] },
+      status: { type: 'string', enum: ['pending_approval', 'approved', 'rejected', 'borrowed', 'pending_verification', 'returned', 'overdue'] },
       borrower_id: { type: 'string', maxLength: 64 },
       search: { type: 'string', maxLength: 100 },
       page: { type: 'string', pattern: '^[0-9]+$' },
@@ -168,3 +168,48 @@ export const borrowingReturnEvidenceAccessRouteSchema = {
     properties: { evidence_id: { type: 'string', minLength: 36, maxLength: 36 } },
   },
 } as const;
+
+export const borrowingReturnReportEvidenceUploadRouteSchema = borrowingReturnEvidenceUploadRouteSchema;
+
+export const borrowingReturnReportSchema = {
+  params: borrowingIdParam,
+  body: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['report_id', 'evidence_ids'],
+    properties: {
+      report_id: { type: 'string', minLength: 36, maxLength: 36 },
+      evidence_ids: { type: 'array', minItems: 2, maxItems: 50, uniqueItems: true, items: { type: 'string', minLength: 36, maxLength: 36 } },
+      notes: { type: 'string', maxLength: 1000 },
+      return_notes: { type: 'string', maxLength: 1000 },
+      idempotency_key: { type: 'string', minLength: 8, maxLength: 128 },
+      change_reason: { type: 'string', minLength: 5, maxLength: 500 },
+    },
+  },
+} as const;
+
+export const borrowingReturnVerificationSchema = {
+  params: borrowingIdParam,
+  body: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['report_id', 'decision'],
+    properties: {
+      report_id: { type: 'string', minLength: 36, maxLength: 36 },
+      decision: { type: 'string', enum: ['approve', 'reject'] },
+      verification_method: { type: 'string', enum: ['photo', 'physical_check', 'photo_and_physical'] },
+      rejection_reason: { type: 'string', maxLength: 500 },
+      idempotency_key: { type: 'string', minLength: 8, maxLength: 128 },
+      change_reason: { type: 'string', minLength: 5, maxLength: 500 },
+      item_conditions: {
+        type: 'array', maxItems: 50,
+        items: {
+          ...returnItemSchema,
+          required: ['equipment_id', 'condition'],
+        },
+      },
+    },
+  },
+} as const;
+
+export const borrowingReturnReportListRouteSchema = { params: borrowingIdParam } as const;

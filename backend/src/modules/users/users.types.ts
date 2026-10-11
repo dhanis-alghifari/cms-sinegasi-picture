@@ -15,12 +15,16 @@ export type UserAccount = {
   updated_at?: string;
   created_by?: string;
   updated_by?: string;
+  /** True when the account is linked to a row in students through students.user_id. */
+  is_linked_student: boolean;
+  student_id?: string | null;
   created_actor?: ActorSummary;
   updated_actor?: ActorSummary;
 };
 
 export type LinkedStudent = {
   id: string;
+  student_id?: string;
   nama?: string;
   is_active: boolean;
 };

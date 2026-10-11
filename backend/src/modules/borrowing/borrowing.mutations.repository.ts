@@ -11,6 +11,9 @@ import type {
   BorrowingReturnAssessmentPreview,
   BorrowingMemoryEquipment,
   BorrowingReturnEvidenceRecord,
+  BorrowingReturnEvidenceAccessRecord,
+  BorrowingReturnReportEvidenceUploadInput,
+  BorrowingReturnReportRecord,
 } from './borrowing.mutations.types.js';
 
 type SupabaseLike = SupabaseClient | null;
@@ -29,6 +32,10 @@ type CreateInput = {
 type ApproveInput = { borrowingId: string; action: 'approve' | 'reject'; catatan: string | null; actorId: string; changeReason: string };
 type HandoverInput = { borrowingId: string; actorId: string; changeReason: string };
 type ReturnInput = { borrowingId: string; returnedAt: string; itemConditions: BorrowingReturnItemCondition[]; catatan: string | null; actorId: string; changeReason: string };
+type ReturnReportEvidenceInput = {
+  borrowingId: string; equipmentId: string; objectKey: string; mimeType: string;
+  fileSizeBytes: number; originalFilename: string; actorId: string;
+};
 
 export interface BorrowingMutationsRepository {
   isConfigured(): boolean;
@@ -36,6 +43,7 @@ export interface BorrowingMutationsRepository {
   approveReject(input: ApproveInput): Promise<{ data: BorrowingMutationRecord | null; error: BorrowingDatabaseError | null }>;
   handover(input: HandoverInput): Promise<{ data: BorrowingMutationRecord | null; error: BorrowingDatabaseError | null }>;
   returnBorrowing(input: ReturnInput): Promise<{ data: BorrowingMutationRecord | null; error: BorrowingDatabaseError | null }>;
+  getActiveBorrowingEquipmentIds(borrowingId: string): Promise<{ data: string[] | null; error: BorrowingDatabaseError | null }>;
   previewReturn(input: { borrowingId: string; returnedAt: string; itemConditions: BorrowingReturnItemCondition[] }): Promise<{ data: BorrowingReturnAssessmentPreview | null; error: BorrowingDatabaseError | null }>;
   reserveReturnEvidence(input: {
     borrowingId: string;
@@ -48,6 +56,12 @@ export interface BorrowingMutationsRepository {
   }): Promise<{ data: BorrowingReturnEvidenceRecord | null; error: BorrowingDatabaseError | null }>;
   getReturnEvidence(evidenceId: string): Promise<{ data: BorrowingReturnEvidenceRecord | null; error: BorrowingDatabaseError | null }>;
   listReturnEvidence(borrowingId: string): Promise<{ data: BorrowingReturnEvidenceRecord[]; error: BorrowingDatabaseError | null }>;
+  reserveReturnReportEvidence(input: ReturnReportEvidenceInput): Promise<{ data: (BorrowingReturnEvidenceRecord & { report_id?: string | null }) | null; error: BorrowingDatabaseError | null }>;
+  submitReturnReport(input: { borrowingId: string; reportId: string; evidenceIds: string[]; notes: string | null; actorId: string; idempotencyKey: string; changeReason: string }): Promise<{ data: BorrowingMutationRecord | null; error: BorrowingDatabaseError | null }>;
+  verifyReturnReport(input: { borrowingId: string; reportId: string; decision: string; verificationMethod: string | null; itemConditions: BorrowingReturnItemCondition[]; rejectionReason: string | null; actorId: string; idempotencyKey: string; changeReason: string }): Promise<{ data: BorrowingMutationRecord | null; error: BorrowingDatabaseError | null }>;
+  hasReturnVerificationOperation(idempotencyKey: string): Promise<{ data: boolean | null; error: BorrowingDatabaseError | null }>;
+  getReturnReportStatus(reportId: string): Promise<{ data: { id: string; borrowing_id: string; reporter_id: string; status: BorrowingReturnReportRecord['status'] } | null; error: BorrowingDatabaseError | null }>;
+  getReturnReport(borrowingId: string): Promise<{ data: BorrowingReturnReportRecord | null; error: BorrowingDatabaseError | null }>;
 }
 
 function mapReturnEvidence(row: Record<string, unknown>): BorrowingReturnEvidenceRecord {
@@ -66,6 +80,22 @@ function mapReturnEvidence(row: Record<string, unknown>): BorrowingReturnEvidenc
     created_by: row.created_by === null || row.created_by === undefined ? null : String(row.created_by),
     created_at: row.created_at === null || row.created_at === undefined ? undefined : String(row.created_at),
     updated_at: row.updated_at === null || row.updated_at === undefined ? undefined : String(row.updated_at),
+    return_report_id: row.return_report_id === null || row.return_report_id === undefined ? null : String(row.return_report_id),
+    source: row.source === 'student_report' ? 'student_report' : 'teacher_return',
+  };
+}
+
+function mapReturnReport(row: Record<string, unknown>, evidence: BorrowingReturnEvidenceAccessRecord[]): BorrowingReturnReportRecord {
+  return {
+    id: String(row.id), borrowing_id: String(row.borrowing_id), reporter_id: String(row.reporter_id),
+    status: String(row.status) as BorrowingReturnReportRecord['status'],
+    notes: row.notes === null || row.notes === undefined ? null : String(row.notes),
+    rejection_reason: row.rejection_reason === null || row.rejection_reason === undefined ? null : String(row.rejection_reason),
+    verification_method: row.verification_method === null || row.verification_method === undefined ? null : String(row.verification_method),
+    verified_by: row.verified_by === null || row.verified_by === undefined ? null : String(row.verified_by),
+    reported_at: row.reported_at === null || row.reported_at === undefined ? null : String(row.reported_at),
+    verified_at: row.verified_at === null || row.verified_at === undefined ? null : String(row.verified_at),
+    evidence,
   };
 }
 
@@ -175,18 +205,22 @@ function memoryHandover(state: BorrowingMutationMemoryState, input: HandoverInpu
 function memoryReturn(state: BorrowingMutationMemoryState, input: ReturnInput): { data: BorrowingMutationRecord | null; error: BorrowingDatabaseError | null } {
   const record = state.borrowings.find((item) => item.id === input.borrowingId);
   if (!record) return { data: null, error: error('NOT_FOUND', 'Peminjaman tidak ditemukan.') };
-  if (record.raw_status !== 'borrowed') return { data: null, error: error('CONFLICT', 'Peminjaman belum berada pada status dapat dikembalikan.') };
+  if (record.raw_status !== 'borrowed' && record.raw_status !== 'partial') return { data: null, error: error('CONFLICT', 'Peminjaman belum berada pada status dapat dikembalikan.') };
   const activeIds = record.items.filter((item) => item.status === 'borrowed').map((item) => item.equipment_id).sort();
   const returnedIds = input.itemConditions.map((item) => item.equipment_id).sort();
-  if (activeIds.length !== returnedIds.length || activeIds.some((id, index) => id !== returnedIds[index])) {
-    return { data: null, error: error('INVALID_INPUT', 'Kondisi pengembalian harus diisi untuk setiap alat yang masih dipinjam.') };
+  if (returnedIds.length === 0 || new Set(returnedIds).size !== returnedIds.length || returnedIds.some((id) => !activeIds.includes(id))) {
+    return { data: null, error: error('INVALID_INPUT', 'Kondisi pengembalian hanya dapat diisi untuk alat aktif yang belum dikembalikan.') };
   }
-  let totalFine = 0;
-  for (const condition of input.itemConditions) {
+  const assessedItems = input.itemConditions.map((condition) => {
     const equipment = state.equipment.find((entry) => entry.id === condition.equipment_id);
     const fine = memoryCharge(condition, equipment);
-    if (condition.kondisi_kembali !== 'bagus' && fine <= 0) return { data: null, error: error('INVALID_INPUT', 'Nilai penggantian atau biaya perbaikan wajib tersedia.') };
-    totalFine += fine;
+    return { condition, equipment, fine };
+  });
+  if (assessedItems.some(({ condition, fine }) => condition.kondisi_kembali !== 'bagus' && fine <= 0)) {
+    return { data: null, error: error('INVALID_INPUT', 'Nilai penggantian atau biaya perbaikan wajib tersedia.') };
+  }
+  const totalFine = assessedItems.reduce((total, item) => total + item.fine, 0);
+  for (const { condition, equipment } of assessedItems) {
     for (const evidenceId of condition.evidence_ids ?? []) {
       const evidence = state.returnEvidence?.find((candidate) => candidate.id === evidenceId);
       if (evidence) {
@@ -199,11 +233,16 @@ function memoryReturn(state: BorrowingMutationMemoryState, input: ReturnInput): 
   const conditionMap = new Map(input.itemConditions.map((item) => [item.equipment_id, item]));
   record.items = record.items.map((item) => {
     const condition = conditionMap.get(item.equipment_id);
-    const fine = condition ? memoryCharge(condition, state.equipment.find((entry) => entry.id === condition.equipment_id)) : 0;
-    return { ...item, status: 'returned', kondisi_kembali: condition?.kondisi_kembali, denda_kerusakan: fine };
+    if (!condition) return item;
+    const fine = memoryCharge(condition, state.equipment.find((entry) => entry.id === condition.equipment_id));
+    return { ...item, status: 'returned', kondisi_kembali: condition.kondisi_kembali, denda_kerusakan: fine };
   });
-  record.raw_status = 'returned'; record.status = 'dikembalikan'; record.tanggal_dikembalikan = input.returnedAt;
-  record.catatan_pengembalian = input.catatan || undefined; record.total_denda = totalFine;
+  const hasActiveItems = record.items.some((item) => item.status === 'borrowed');
+  record.raw_status = hasActiveItems ? 'partial' : 'returned';
+  record.status = hasActiveItems ? 'dipinjam' : 'dikembalikan';
+  if (!hasActiveItems) record.tanggal_dikembalikan = input.returnedAt;
+  record.catatan_pengembalian = input.catatan || record.catatan_pengembalian;
+  record.total_denda = Number(record.total_denda || 0) + totalFine;
   record.processed_return_by = input.actorId; record.updated_by = input.actorId; record.updated_at = new Date().toISOString();
   return { data: asMemoryRecord(record), error: null };
 }
@@ -247,6 +286,22 @@ export function createBorrowingMutationsRepository(client: SupabaseLike, state: 
       });
       if (result.error) return { data: null, error: result.error };
       return findById(client, input.borrowingId);
+    },
+    async getActiveBorrowingEquipmentIds(borrowingId) {
+      if (!client) {
+        const record = state.borrowings.find((item) => item.id === borrowingId);
+        if (!record) return { data: null, error: error('NOT_FOUND', 'Peminjaman tidak ditemukan.') };
+        return {
+          data: record.items.filter((item) => item.status === 'borrowed').map((item) => item.equipment_id),
+          error: null,
+        };
+      }
+      const result = await client.from('borrowing_items')
+        .select('equipment_id')
+        .eq('borrowing_id', borrowingId)
+        .eq('status', 'borrowed');
+      if (result.error) return { data: null, error: result.error };
+      return { data: (result.data || []).map((row) => String(row.equipment_id)), error: null };
     },
     async previewReturn(input) {
       if (!client) {
@@ -314,7 +369,7 @@ export function createBorrowingMutationsRepository(client: SupabaseLike, state: 
     async getReturnEvidence(evidenceId) {
       if (!client) return { data: (state.returnEvidence ?? []).find((item) => item.id === evidenceId) ?? null, error: null };
       const result = await client.from('borrowing_return_evidence')
-        .select('id,borrowing_id,borrowing_item_id,equipment_id,assessment_item_id,object_key,storage_provider,mime_type,file_size_bytes,original_filename,upload_status,created_by,created_at,updated_at')
+        .select('id,borrowing_id,borrowing_item_id,equipment_id,assessment_item_id,object_key,storage_provider,mime_type,file_size_bytes,original_filename,upload_status,created_by,created_at,updated_at,return_report_id,source')
         .eq('id', evidenceId)
         .maybeSingle();
       if (result.error) return { data: null, error: result.error };
@@ -330,7 +385,7 @@ export function createBorrowingMutationsRepository(client: SupabaseLike, state: 
         };
       }
       const result = await client.from('borrowing_return_evidence')
-        .select('id,borrowing_id,borrowing_item_id,equipment_id,assessment_item_id,object_key,storage_provider,mime_type,file_size_bytes,original_filename,upload_status,created_by,created_at,updated_at')
+        .select('id,borrowing_id,borrowing_item_id,equipment_id,assessment_item_id,object_key,storage_provider,mime_type,file_size_bytes,original_filename,upload_status,created_by,created_at,updated_at,return_report_id,source')
         .eq('borrowing_id', borrowingId)
         .eq('upload_status', 'attached')
         .order('created_at', { ascending: true })
@@ -340,6 +395,86 @@ export function createBorrowingMutationsRepository(client: SupabaseLike, state: 
         data: (result.data || []).map((row) => mapReturnEvidence(row as unknown as Record<string, unknown>)),
         error: null,
       };
+    },
+    async reserveReturnReportEvidence(input) {
+      if (!client) return { data: null, error: error('NOT_CONFIGURED', 'Database belum dikonfigurasi.') };
+      const result = await client.rpc('reserve_borrowing_self_return_evidence_atomic', {
+        p_borrowing_id: input.borrowingId, p_equipment_id: input.equipmentId, p_object_key: input.objectKey,
+        p_mime_type: input.mimeType, p_file_size_bytes: input.fileSizeBytes,
+        p_original_filename: input.originalFilename, p_actor_id: input.actorId,
+      });
+      if (result.error) return { data: null, error: result.error };
+      const payload = result.data as { evidence?: Record<string, unknown>; report_id?: string | null } | null;
+      if (!payload?.evidence) return { data: null, error: error('PGRST204', 'RPC tidak mengembalikan bukti pengembalian.') };
+      return { data: { ...mapReturnEvidence(payload.evidence), report_id: payload.report_id ?? null }, error: null };
+    },
+    async submitReturnReport(input) {
+      if (!client) return { data: null, error: error('NOT_CONFIGURED', 'Database belum dikonfigurasi.') };
+      const result = await client.rpc('submit_borrowing_self_return_atomic', {
+        p_report_id: input.reportId, p_evidence_ids: input.evidenceIds, p_notes: input.notes,
+        p_actor_id: input.actorId, p_idempotency_key: input.idempotencyKey, p_change_reason: input.changeReason,
+      });
+      if (result.error) return { data: null, error: result.error };
+      return findById(client, input.borrowingId);
+    },
+    async verifyReturnReport(input) {
+      if (!client) return { data: null, error: error('NOT_CONFIGURED', 'Database belum dikonfigurasi.') };
+      const result = await client.rpc('verify_borrowing_self_return_atomic', {
+        p_report_id: input.reportId, p_decision: input.decision, p_verification_method: input.verificationMethod,
+        p_item_conditions: input.itemConditions, p_rejection_reason: input.rejectionReason,
+        p_verified_by: input.actorId, p_idempotency_key: input.idempotencyKey, p_change_reason: input.changeReason,
+      });
+      if (result.error) return { data: null, error: result.error };
+      return findById(client, input.borrowingId);
+    },
+    async hasReturnVerificationOperation(idempotencyKey) {
+      if (!client) return { data: false, error: null };
+      const result = await client.from('borrowing_return_operations')
+        .select('idempotency_key')
+        .eq('idempotency_key', idempotencyKey)
+        .maybeSingle();
+      if (result.error) return { data: null, error: result.error };
+      return { data: Boolean(result.data), error: null };
+    },
+    async getReturnReportStatus(reportId) {
+      if (!client) return { data: null, error: null };
+      const result = await client.from('borrowing_return_reports')
+        .select('id,borrowing_id,reporter_id,status')
+        .eq('id', reportId)
+        .maybeSingle();
+      if (result.error) return { data: null, error: result.error };
+      if (!result.data) return { data: null, error: null };
+      const row = result.data as Record<string, unknown>;
+      return {
+        data: {
+          id: String(row.id), borrowing_id: String(row.borrowing_id), reporter_id: String(row.reporter_id),
+          status: String(row.status) as BorrowingReturnReportRecord['status'],
+        },
+        error: null,
+      };
+    },
+    async getReturnReport(borrowingId) {
+      if (!client) return { data: null, error: null };
+      const reportResult = await client.from('borrowing_return_reports')
+        .select('id,borrowing_id,reporter_id,status,notes,rejection_reason,verification_method,verified_by,reported_at,verified_at')
+        .eq('borrowing_id', borrowingId)
+        .order('created_at', { ascending: false }).limit(1).maybeSingle();
+      if (reportResult.error) return { data: null, error: reportResult.error };
+      if (!reportResult.data) return { data: null, error: null };
+      const evidenceResult = await client.from('borrowing_return_evidence')
+        .select('id,borrowing_id,borrowing_item_id,equipment_id,assessment_item_id,object_key,storage_provider,mime_type,file_size_bytes,original_filename,upload_status,created_by,created_at,updated_at,return_report_id,source')
+        .eq('return_report_id', String((reportResult.data as Record<string, unknown>).id))
+        .in('upload_status', ['pending', 'attached'])
+        .order('created_at', { ascending: true }).limit(50);
+      if (evidenceResult.error) return { data: null, error: evidenceResult.error };
+      const evidence = (evidenceResult.data || []).map((row) => mapReturnEvidence(row as unknown as Record<string, unknown>));
+      return { data: mapReturnReport(reportResult.data as unknown as Record<string, unknown>, evidence.map((item) => ({
+        evidence_id: item.id, borrowing_id: item.borrowing_id, borrowing_item_id: item.borrowing_item_id,
+        equipment_id: item.equipment_id, assessment_item_id: item.assessment_item_id,
+        original_filename: item.original_filename, mime_type: item.mime_type, file_size_bytes: item.file_size_bytes,
+        created_at: item.created_at, access_url: item.object_key, expires_in_seconds: 0,
+        return_report_id: item.return_report_id, source: item.source,
+      }))), error: null };
     },
   };
 }

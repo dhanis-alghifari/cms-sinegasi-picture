@@ -1,4 +1,4 @@
-import type { ActorSummary } from '@/shared/types/common';
+import type { ActorSummary, StudentRole } from '@/shared/types/common';
 
 export const PEMINATAN_VALUES = ['kamera', 'editing', 'naskah'] as const;
 export type Peminatan = typeof PEMINATAN_VALUES[number];
@@ -36,7 +36,9 @@ export interface StudentAccountCredentials {
   username: string;
   role: string;
   is_first_login: boolean;
-  temporary_password: string;
+  operation_replayed?: boolean;
+  whatsapp_number?: string;
+  temporary_password?: string;
 }
 
 export interface StudentAccountResponse {
@@ -58,10 +60,23 @@ export interface CreateStudentPayload {
   nis: string;
   nama: string;
   kelas: string;
+  username: string;
   peminatan?: Peminatan;
   no_telepon?: string;
   foto_url?: string;
+  role?: StudentRole;
   change_reason?: string;
+}
+
+export interface LinkExistingStudentAccountPayload extends Omit<CreateStudentPayload, 'role' | 'username'> {
+  user_id: string;
+}
+
+export interface UnlinkedStudentAccount {
+  id: string;
+  username: string;
+  nama: string;
+  role: string;
 }
 
 export interface UpdateStudentPayload extends Partial<CreateStudentPayload> {

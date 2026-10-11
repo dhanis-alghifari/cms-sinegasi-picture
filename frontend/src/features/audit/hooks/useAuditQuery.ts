@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { QUERY_KEYS } from '@/shared/constants/queryKeys';
 import { auditService } from '../api/audit.service';
 import type { AuditLogFilterParams } from '../types/audit.types';
@@ -7,6 +7,7 @@ export function useAuditLogsQuery(params: AuditLogFilterParams) {
   return useQuery({
     queryKey: [...QUERY_KEYS.AUDIT_LOGS, params],
     queryFn: () => auditService.getLogs(params),
+    placeholderData: keepPreviousData,
     staleTime: 15_000,
   });
 }

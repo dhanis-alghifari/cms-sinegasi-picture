@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { Client } from 'pg';
 import { runtimeConfig } from '../config/env.js';
+import { assertLegacyMigrationTarget } from './migrationSafety.js';
 
 async function main(): Promise<void> {
   const databaseUrl = runtimeConfig.databaseUrl;
@@ -12,12 +13,13 @@ async function main(): Promise<void> {
     return;
   }
 
-  const candidates = [
-    path.resolve(__dirname, '../migrations/013_grades_management_hardening.sql'),
-    path.resolve(__dirname, '../../src/migrations/013_grades_management_hardening.sql'),
-  ];
-  const migrationPath = candidates.find((candidate) => fs.existsSync(candidate));
-  if (!migrationPath) throw new Error('File migration 013_grades_management_hardening.sql tidak ditemukan.');
+  const migrationNames = ['013_grades_management_hardening.sql', '074_grade_reports_and_pkl_periods.sql'];
+  const migrationPaths = migrationNames.map((name) => {
+    const candidates = [path.resolve(__dirname, `../migrations/${name}`), path.resolve(__dirname, `../../src/migrations/${name}`)];
+    const migrationPath = candidates.find((candidate) => fs.existsSync(candidate));
+    if (!migrationPath) throw new Error(`File migration ${name} tidak ditemukan.`);
+    return migrationPath;
+  });
 
   const client = new Client({
     connectionString: databaseUrl,
@@ -25,9 +27,10 @@ async function main(): Promise<void> {
   });
 
   try {
+    assertLegacyMigrationTarget(databaseUrl, runtimeConfig.environment === 'production');
     await client.connect();
     await client.query('BEGIN');
-    await client.query(await readFile(migrationPath, 'utf8'));
+    for (const migrationPath of migrationPaths) await client.query(await readFile(migrationPath, 'utf8'));
     await client.query('COMMIT');
     console.log('Migration nilai berhasil diterapkan dan schema cache diminta untuk reload.');
   } catch (error) {

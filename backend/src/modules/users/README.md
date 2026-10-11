@@ -32,14 +32,25 @@ capability `users.manage`; username baru dipakai pada login berikutnya dan
 tidak mengubah relasi siswa, nilai, absensi, atau audit yang menggunakan UUID.
 
 Pada deployment Supabase, repository memanggil
-`public.update_user_account_atomic`—bukan `UPDATE users` langsung. RPC ini
-mengunci target, memvalidasi capability dan invariant akun-siswa, mengatur
+`public.update_user_account_atomic`, bukan `UPDATE users` langsung. RPC ini
+mengunci target, memvalidasi capability dan aturan akun-siswa, mengatur
 konteks audit trigger, lalu menulis satu event audit kanonik. Perubahan yang
 tidak menghasilkan state baru dikembalikan sebagai no-op tanpa audit duplikat.
 
+Pembuatan akun di Pengguna hanya untuk akun operasional: `teacher` dan
+`treasurer`. Akun siswa dibuat dari Data Siswa dengan default `member` atau
+role `leader`, `vice_leader`, `secretary`, `treasurer`, `equipment_team`, dan
+`contest_team`. Role `treasurer` dapat dipakai oleh akun operasional maupun
+siswa yang ditugaskan sebagai bendahara.
+Akun siswa lama yang belum punya profil tidak boleh dipromosikan dari Pengguna;
+Guru menautkannya secara eksplisit dari Data Siswa. Relasi dapat dibuat saat
+membuat profil baru atau dipasang ke profil siswa aktif yang belum berakun,
+tanpa mengganti username atau password.
+
 Error penting: `DUPLICATE_USERNAME` (409), `USER_LINKED_STUDENT_ROLE` atau
+`USER_UNLINKED_STUDENT_ROLE`/`UNLINKED_STUDENT_ROLE`,
 `USER_LINKED_STUDENT_NAME` (422), `USER_INACTIVE_STUDENT` (409), dan
-`USERS_SCHEMA_UNAVAILABLE` (503 ketika migration 041 belum diterapkan).
+`USERS_SCHEMA_UNAVAILABLE` (503 ketika migration akun yang diperlukan belum diterapkan).
 
 ## Error contract
 
@@ -49,7 +60,11 @@ message, request_id }`. Kode penting: `RESET_USER_NOT_FOUND` (404),
 `RESET_REASON_INVALID`/`RESET_OPERATION_KEY_INVALID` (422).
 
 Migration `040_admin_password_reset_atomic.sql` dan
-`041_user_account_update_atomic.sql` wajib diterapkan setelah migration 039
-sebelum endpoint production digunakan. Migration 040 memperbaiki audit trigger
+`041_user_account_update_atomic.sql` wajib diterapkan setelah migration 039,
+kemudian migration `067_allow_student_committee_roles.sql` dan
+`076_student_account_boundaries.sql` sebelum endpoint production digunakan.
+Migration `078_allow_student_treasurer_role.sql` diperlukan agar `treasurer`
+dapat dipakai pada akun siswa tanpa mengubah batas role `teacher`.
+Migration 040 memperbaiki audit trigger
 untuk seluruh perubahan users baru; audit historis immutable yang terlanjur
 mengandung hash tidak ditulis ulang otomatis.

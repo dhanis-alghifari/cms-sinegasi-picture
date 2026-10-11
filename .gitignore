@@ -1,33 +1,74 @@
+# =============================================
 # Environment files
+# =============================================
 .env
-.env.local
-backend/.env
-frontend/.env
+.env.*
+!.env.example
 
-# Node modules & build
+# =============================================
+# Dependencies & build outputs
+# =============================================
 node_modules/
 dist/
 build/
-.DS_Store
 
-# IDE & OS files
+# Frontend build-check artifacts (agent-generated verification builds)
+frontend/build-check*/
+
+# =============================================
+# OS files
+# =============================================
+.DS_Store
+Thumbs.db
+
+# =============================================
+# IDE & editor config
+# =============================================
 .idea/
 .vscode/
+*.swp
+*.swo
+*~
 
-# Local AI/tooling metadata
+# =============================================
+# AI agent & tooling metadata
+# =============================================
 .agents/
+agent/
 .claude/
 .codegraph/
 .codex/
 .cursor/
 .gemini/
 .ngodingpakeai/
+.ngodingpakeaiignore
 .mcp.json
+.worktreeinclude
+skills-lock.json
+opencode.jsonc
+orca.yaml
 
-# Keep README documentation; keep planning/agent markdown local
+# =============================================
+# Documentation (keep only READMEs in git)
+# =============================================
 *.md
 !README.md
 !**/README.md
+!/docs/security/*.md
 
 # Private UX/design planning docs
 /frontend/docs/
+
+# PRD & feature specs (local planning, not deployed)
+/sistem-manajemen-sekolah/
+/docs/internal/
+04_UI_UX_DESIGN_RULES.md
+CHANGELOG.md
+
+# =============================================
+# Logs
+# =============================================
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

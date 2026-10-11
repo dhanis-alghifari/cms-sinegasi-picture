@@ -93,7 +93,7 @@ export const CONTEST_RESULT_KIND_LABELS = {
   special_award: 'Penghargaan khusus',
   finalist: 'Finalis',
   nominee: 'Nominasi',
-  honorable_mention: 'Honorable mention',
+  honorable_mention: 'Penghargaan kehormatan',
   other: 'Lainnya',
 } satisfies Record<ContestResultKind, string>;
 

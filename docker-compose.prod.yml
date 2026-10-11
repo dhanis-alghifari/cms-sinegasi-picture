@@ -1,0 +1,46 @@
+services:
+  api-prod:
+    # API_IMAGE is a reviewed GHCR sha256 digest, never a mutable tag.
+    image: ${API_IMAGE:?Set the approved image digest through ops/deploy-prod.sh}
+    platform: linux/amd64
+    container_name: sinegasi-api-prod
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,noexec,nosuid
+    mem_limit: 512m
+    cpus: 1.0
+    pids_limit: 100
+    ports:
+      - "127.0.0.1:3002:5001"
+    env_file:
+      - ${PRODUCTION_ENV_FILE:?Set the private production runtime configuration path}
+    environment:
+      - NODE_ENV=production
+      - PUBLIC_DEPLOYMENT=true
+      - HOST=0.0.0.0
+      - PORT=5001
+      - ALLOW_DEV_AUTH=false
+      - BACKGROUND_JOBS_ENABLED=false
+      - SUPABASE_URL=https://pvbdiftvzoeelibxlxzb.supabase.co
+      - CORS_ORIGINS=https://sinegasi.pictures
+      - TRUST_PROXY=${PRODUCTION_TRUST_PROXY:?Approve the actual proxy topology first}
+      - NTFY_ENABLED=false
+    networks:
+      - caddy_net
+    # No public Caddy label: connect the production hostname separately through
+    # the reviewed Tunnel route to the loopback port above.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    stop_grace_period: 30s
+
+networks:
+  caddy_net:
+    external: true

@@ -1,0 +1,548 @@
+{
+  "formatVersion": 1,
+  "projectRef": "pvbdiftvzoeelibxlxzb",
+  "status": "draft",
+  "approval": null,
+  "entries": [
+    {
+      "name": "001_student_dashboard_tables.sql",
+      "checksum": "027487b726dfe97ebe021ae60bc5f899e268c01db7eabe8f98b3e725fb65c882",
+      "decision": "blocked",
+      "reason": "Foundation incomplete: view depends on debt_records not created by this file."
+    },
+    {
+      "name": "002_seed_data_development.sql",
+      "checksum": "526e2c578d140eb900c3be85c57fcd399115e3ba89ebaa6315ec0bbe6ee40a88",
+      "decision": "exclude-development",
+      "reason": "Development seed is never permitted in production."
+    },
+    {
+      "name": "003_notifications_table.sql",
+      "checksum": "b3edbdb532de8482db4a6a9fc0dda520c3190c204b97d0456c0d34045619863d",
+      "decision": "blocked",
+      "reason": "Mixed schema and development sample notifications."
+    },
+    {
+      "name": "004_grade_distribution_tables.sql",
+      "checksum": "ae7ffa1d0c3602c6d012dd4f7e4b506e101a2cea875ba3dc74a1856663769547",
+      "decision": "blocked",
+      "reason": "Mixed schema and development audit/contest/member seed."
+    },
+    {
+      "name": "005_enable_supabase_realtime.sql",
+      "checksum": "07cdd68f8a4ce86762e66cd16e7af266dafaafec09031e313716c325e84380fd",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "006_contest_film_works_tables.sql",
+      "checksum": "f5cf73bd43dae89d7b3796a0e831cb3dcdd2fb91a407c9df7eb81d02d074092f",
+      "decision": "blocked",
+      "reason": "Mixed schema and development contest/member seed."
+    },
+    {
+      "name": "007_supabase_pwa_schema.sql",
+      "checksum": "31e3be01eec1578879aff2434d5898f70c5615a0831961c2335ce4ccc11851b0",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "008_create_classes_table.sql",
+      "checksum": "274791721832e336f67d7d9d97034b554d1245e5e297786ec0532a9a977effa7",
+      "decision": "blocked",
+      "reason": "45 seeded master classes and incompatible CREATE OR REPLACE VIEW column order; reconcile first."
+    },
+    {
+      "name": "009_equipment_catalog_fields.sql",
+      "checksum": "592c85c2210e5cd06f3caf64c4a80e243a8bb2fd1e12a14b45374d75562c1401",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "010_cash_proof_fields.sql",
+      "checksum": "45cfc3cf5e62653afa3c0eb79b79f6a00f408cdf53e7a0b3496c9d16481f9c50",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "011_cash_management_hardening.sql",
+      "checksum": "d32882c60a10544aa78a6a4c52bed1bfb12c73a6bbc0957736ff319da44e99be",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "012_cash_legacy_schema_upgrade.sql",
+      "checksum": "bf0bb6c225e2db7911344cd7cb9821128cedc49532c34f5a6cc107b71bdde40a",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "013_grades_management_hardening.sql",
+      "checksum": "bbb5f1cbab283b9d8890123fc57949bef50591652e9cf1416d073f8f95e9ac12",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "014_borrowing_items_hardening.sql",
+      "checksum": "3274149fee504ea266316eef2ce0c56ea227b024fdba58e6d60a9cd99877acbb",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "015_borrowing_notifications_hardening.sql",
+      "checksum": "64a65f64f965a1cb872a06f5d1757c0d6e5d73fb5a37d8191dbf851d93324974",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "016_cash_reporting.sql",
+      "checksum": "4cd0277a51fe1e5f1284bf599da92c38343606e72dd5fa9591f39458991648ac",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "017_audit_trail_hardening.sql",
+      "checksum": "eca441db7c8e79c31b5c3fcde6313280cec2da64f28485d23cfd9f41dee26384",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "018_cash_accounting_report_hardening.sql",
+      "checksum": "840257b9e0a738436f2bdbb0c1e4dd416b300317afa4aaf0c0ee806f88bc8eb7",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "019_student_account_provisioning.sql",
+      "checksum": "041b35785424bedab3579e4e098a8ef08f89b2dc410cca007626c9ae0297e2ae",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "020_cash_transaction_date_hardening.sql",
+      "checksum": "8fea685cb5040451424ae465059f2ebea74a29f60f87ad7c5e8592c2f9bf76bc",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "021_auth_session_hardening.sql",
+      "checksum": "e65207f64442255d468af6dc7729206c550fb3434768b77cfd26be421f666e12",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "022_password_change_atomic.sql",
+      "checksum": "35436216174adf7111ab3a36460ce3c2637c01d910c9c33a1bd7e8f94a94da76",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "023_cash_payment_methods.sql",
+      "checksum": "2633445a0caee00fb1e803173a37fb1cd221c0acf4ca7be20492304aa7f72521",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "024_cash_unpaid_atomic.sql",
+      "checksum": "c578b4d6708ba6b42d51943075ca0d4bade6b0e1be50f81241d68d1306ec50f2",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "025_security_privileges_hardening.sql",
+      "checksum": "857c39ad0c69bdc6c637c9f598976c437553b369e7e176db086b51fe3e49256e",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "026_attendance_summary_aggregate.sql",
+      "checksum": "63b256815bca1fe28df7bb64d489283c466d1102f67e311c2cba969763bbbefb",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "027_resilience_stores.sql",
+      "checksum": "1def0348fcd685f83b5aadda2c6ab55bca6ea10bff96920cd153de49b8e08ead",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "028_contest_query_hardening.sql",
+      "checksum": "21a545d5cc1e661ef56db070d33257a3e624d8fccb0d431a7bf5c0be84275ea9",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "029_contest_frontend_contract.sql",
+      "checksum": "d8b2d2e3513094db9875dbc543cd9ad0f454fb2f7743ddae303a9afd110e72ad",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "030_equipment_query_hardening.sql",
+      "checksum": "30bf09bef06ed18e72ea15426ed2d515cca769494c8eb980f75d0397327517fe",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "031_notifications_query_hardening.sql",
+      "checksum": "4962ed0879709c0d9436396a66b8bccb3b755d082090b2b248428b8d49daca39",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "032_users_query_hardening.sql",
+      "checksum": "ec1b39ab6d76d477e939f1fc551ff394fcefcc966fd0583765e89872ab95be23",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "033_classes_query_hardening.sql",
+      "checksum": "bdd004767712298bc1a97332b85b20f1ab8f1f3e44e6268efe720b6318984512",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "034_students_query_hardening.sql",
+      "checksum": "971aba90dcc09fafe872f51af722aef4e057225f9c9614ce175f9d7749baccd5",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "035_access_control_rbac.sql",
+      "checksum": "dceb082795001b73aca52bdd64b1aae2ba04cda7bd43bc9bbe0cfffec9350595",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "036_access_control_actor_snapshots.sql",
+      "checksum": "b1f97304340a41c73b5368a5f2b2a90f9e90ee434d8418c8d34efaa866e69ab7",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "037_sensitive_mutation_audit.sql",
+      "checksum": "a24f50db132472e14062b86a1aacfcf6a64c81e131fba80bbb56d161e774b9ba",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "038_supabase_security_linter_hardening.sql",
+      "checksum": "e733af95cbee67ce96ff74f3dfe022d963ddc48a0d68741e8462a6a84b94bd94",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "039_supabase_security_advisor_hardening.sql",
+      "checksum": "3904594d1aa44eec612d8f3c77a9ebdadbc452e87a92e4a959a6a44861e8d432",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "040_admin_password_reset_atomic.sql",
+      "checksum": "ceda240a9fb3b295b70de8aca7a1b8ebc3646b8de5a4b13f5e1f58caa968148e",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "041_user_account_update_atomic.sql",
+      "checksum": "99d7988dc7f79dc44f9a5399ac47f9e6d3a12cde64450d55b2ad3a6a228a92a4",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "042_member_dashboard_disputes.sql",
+      "checksum": "8503eca4265b8c027ab38fe3fa5d6b155f1cc43ba16eb971d7ab244f2dab4340",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "043_member_grades_scope.sql",
+      "checksum": "026526ec6372de48cb8336f46eba4ba6366fbc5b98130198dc5514eeb4a400fc",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "044_attendance_batch_roster.sql",
+      "checksum": "b39a01eb3eae82b3a949e174918608bdcfbaddfc4cab4033466fbae3da3309b0",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "045_cash_dispute_schema_compatibility.sql",
+      "checksum": "189243f2c118df51a14ffd289dbcf0dfdecf4356b8d44dc7efedc345a881fd1c",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "046_cash_dispute_monthly_quota.sql",
+      "checksum": "96109c2353db05261d863dd38ea7d354d19f849216ee6c45723352023ab68380",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "047_contest_schema_reconciliation.sql",
+      "checksum": "d56b00d590ef444eb974ec85d30b9632fa1fafbd5391b6c114c8a2fe7f0435d7",
+      "decision": "blocked",
+      "reason": "References legacy columns absent from the fresh numbered migration chain."
+    },
+    {
+      "name": "048_contest_media_works.sql",
+      "checksum": "d8b63eef0707256856e1fb1a911cda40c830be3666f0dc70328a8d76ec5ccc70",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "049_contest_event_contract.sql",
+      "checksum": "d0501ed38a96c89bdbe52fcf82788fa55701b42c0fcd5fbd2ccc5c550f0341d3",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "050_contest_entry_results.sql",
+      "checksum": "01eabdd7cdff79a3de2b9aee9abbfe402b585944899d2cf420b2e0e4016fbc7b",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "051_contest_update_atomic.sql",
+      "checksum": "a279c70127696007432846f64bc668e7ba4e616187aa42e907b820ad93faaf7d",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "052_contest_scope_contract.sql",
+      "checksum": "307d3a7f105f0b3c9896a516e49dc9eece29addbecc55d8f3d31e4a81fb0dce7",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "053_contest_pipeline_evidence_contract.sql",
+      "checksum": "1e35d77aca587fb113cfe00f50b88e62ce41ec97d2ff59872b9f995a93821525",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "054_attendance_batch_audit_context.sql",
+      "checksum": "7ff1ac8793053633247ceb3391c0c141bf1b3846f4ce0158e1e9abf7e35afe4b",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "054_contest_achievement_recap_read.sql",
+      "checksum": "fb87153696cc7670e2ce2acadcc8113b3a7daecabf871f50997f25478a069c7d",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "055_operational_dashboard_summary.sql",
+      "checksum": "a484a75a8fdda20ba76c5feb43c1c78b622c0c7d4d718f6df70c3cb7e099a6f8",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "056_equipment_mutations_atomic.sql",
+      "checksum": "68343d93989c73410876998715327205c16a6c6c39121dc79882fa199f46a2b5",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "057_attendance_correction_atomic.sql",
+      "checksum": "1d5db3ec745f8f5aa79fd2f110c685779fbf5e64dee1fcbd791bdf6244950a45",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "058_attendance_reporting_filters.sql",
+      "checksum": "0f12cf2ac258b8808885fda36daa368e089c900c00451f2e23500f85c865e735",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "059_attendance_summary_filter_scope.sql",
+      "checksum": "aec0f262cff6a95d8d56151b3ff632f9d62459eef9a971170dd4bb8bea18e5dd",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "060_equipment_valuation_return_assessment.sql",
+      "checksum": "cb8d46aef7577736e55a2dbd0168114d77bec7ddc5e1929e9b9ce9669fe0c5bb",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "061_equipment_valuation_ordering.sql",
+      "checksum": "365b5f22b2aac69920f12cf06594a5f48059e5cd8af52c460adf061c018594c6",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "062_borrowing_return_evidence.sql",
+      "checksum": "ac6bc291fd173c9e3e7dc742bac8b995efb02050ed2b69b1a6a9a9b959a535c5",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "063_equipment_recovery_and_charges.sql",
+      "checksum": "447b93eed2be41fe9782f31dcfce399cd2d947c33d379cde15a0338881d2f657",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "064_equipment_charge_payment_evidence.sql",
+      "checksum": "2ff62b340be28391b38f89fd64650d90a95ccb1a469eefbf6bb99e5bef3a127b",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "065_disable_legacy_mutation_paths.sql",
+      "checksum": "58147b0567894a56b2784e71245224fad4052179d5e9debdce09c5da640146ea",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "066_cash_migration_history_rls.sql",
+      "checksum": "acd42e1b8da8b50c98c966c8b74812d22c3e82e4577f5ab1d77f2e0179b6a82c",
+      "decision": "blocked",
+      "reason": "Requires legacy cash_migration_history table not created by numbered migrations."
+    },
+    {
+      "name": "067_allow_student_committee_roles.sql",
+      "checksum": "e4277d36813ad0458cc97f1028b4e52631477a79ad4bbc695c051628e68bff48",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "068_borrowing_self_return_verification.sql",
+      "checksum": "190b150ac65044202a93995d1b674bb717e7fc54fd28b78e81f345cc926e7ffe",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "069_borrowing_request_capability.sql",
+      "checksum": "5afa4f666805d6e7115fe4e5f8ac69845032899b83ea724c061f61f884f83111",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "070_agenda_activities.sql",
+      "checksum": "6d950485732a661d0b05cda990267fc946dc37c27a1399d092fe8c15669f4657",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "071_cash_personal_scope_and_teacher_dispute_review.sql",
+      "checksum": "72c9e84cf61f403f0683ee5ca5ed341e70ad68bd6880424dd4da043662e29ede",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "072_cash_dispute_single_pending.sql",
+      "checksum": "fb257d2a95bab92c5d397484b680f6a1ce6a784b119d264e79783d7572130d1c",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "073_cash_dispute_per_target_pending.sql",
+      "checksum": "502d1153aa3bf0e632ee74a93dc764f4b164b71d4d284be6351caf1de02b8a37",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "074_grade_reports_and_pkl_periods.sql",
+      "checksum": "cb2493b38451654bc305930f3febf32b9d9d5e623653929cbeef2b86f1ed7c18",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "075_cash_dispute_derive_debt_amount.sql",
+      "checksum": "849fe7b1026bb206a4cbea6424e7196c54ce6357b38a47f28ddd97265d4e3e14",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "076_student_account_boundaries.sql",
+      "checksum": "258d81d74fe2c564b96d2bbd2ff5d3935d2e6d35d9b8359d4ce83938c9d72420",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "077_student_history_purge.sql",
+      "checksum": "148db60c1f68c0c4edc8ec53e824d57ea2a54a4a4a14cbffb657577e39a11f61",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "078_allow_student_treasurer_role.sql",
+      "checksum": "9a351ad3cbe91a791a116030f56b2c5d4cc72a012ee564f9513f4b7a159fe6dd",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "079_cash_dispute_read_all.sql",
+      "checksum": "a3b4f7fe477264e9b254f9f7b8b4c6e7d825223f65fa31d2c0074f39dca68862",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "080_partial_borrowing_return_verification.sql",
+      "checksum": "914e7fc0eb4971867ea0df250d587aac2c16045fe55eea7df49b9dada570b81a",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "081_return_recovery_gate.sql",
+      "checksum": "652e5986c9e86436ce6778f75956af2eb145d1c9d5669eedb4d4c65d1d003ab8",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "082_social_media_role_enum.sql",
+      "checksum": "ecd0a60992756d50abe4681b7d52230d4d08a6739ab3c3efa9728df1c6d549cf",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "083_social_media_schema_and_rbac.sql",
+      "checksum": "bc79a99199ca4a5ee3d5a1d54b4d61f7f1a85b1ffce979342577cbc9f5152d6b",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "084_agenda_optional_instructor.sql",
+      "checksum": "b06a5d22fcd332097481cecf848aac8190441d5b613730ddc3b313832d177147",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "085_repair_social_media_team_capabilities.sql",
+      "checksum": "0805b595323321283338c10a8a27f8650fb045a878d334fd2cded63c70a5ebb8",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "086_social_media_monthly_archive.sql",
+      "checksum": "6df44bee1c67b34d8ffdd43df446201a49bb339c131b1fdd821f516d64629674",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "087_api_rate_limit_windows.sql",
+      "checksum": "f88b6c85646a91f6bea75a580cc388e61c278e24f4f819d8d143bb88365205a3",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "088_student_account_onboarding.sql",
+      "checksum": "d25b6ac24f0dc693a8aed10564dbf55d732387f3d594db3e6bce33849a10bc04",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    },
+    {
+      "name": "089_query_performance_hardening.sql",
+      "checksum": "dd8a44eb6d0551497a85b7a4b6c348322918aa2ada9691f8f0a823f5764370bc",
+      "decision": "review-required",
+      "reason": "Review DDL/DML, dependencies, privileges and isolated rehearsal before approval."
+    }
+  ]
+}

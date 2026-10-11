@@ -7,8 +7,14 @@ import { createUsersRepository } from './users.repository.js';
 import { UsersService } from './users.service.js';
 import usersRoutes from './users.routes.js';
 
-async function createApp() {
+async function createApp(routeCacheConfig?: Map<string, boolean>) {
   const app = Fastify();
+  if (routeCacheConfig) {
+    app.addHook('onRoute', (route) => {
+      const config = route.config as { disableIdempotencyCache?: boolean } | undefined;
+      if (route.method === 'POST') routeCacheConfig.set(route.url, config?.disableIdempotencyCache === true);
+    });
+  }
   await app.register(jwt, { secret: 'test-secret-that-is-long-enough' });
   await app.register(usersRoutes, {
     usersService: new UsersService(createUsersRepository(null, createUsersMemoryState())),
@@ -16,6 +22,15 @@ async function createApp() {
   });
   return app;
 }
+
+test('user creation and password reset explicitly disable credential response caching', async (t) => {
+  const routeCacheConfig = new Map<string, boolean>();
+  const app = await createApp(routeCacheConfig);
+  t.after(() => app.close());
+  await app.ready();
+  assert.equal(routeCacheConfig.get('/api/users'), true);
+  assert.equal(routeCacheConfig.get('/api/users/:id/reset-password'), true);
+});
 
 test('users routes require teacher role and preserve list/create envelopes', async (t) => {
   const app = await createApp();
@@ -37,6 +52,14 @@ test('users routes require teacher role and preserve list/create envelopes', asy
   assert.equal(typeof created.json().temporary_password, 'string');
   assert.equal(Object.prototype.hasOwnProperty.call(created.json().data, 'password_hash'), false);
 
+  const invalidStudentRole = await app.inject({
+    method: 'POST',
+    url: '/api/users',
+    headers,
+    payload: { username: 'route_leader', name: 'Route Leader', role: 'leader', password: 'Strong123' },
+  });
+  assert.equal(invalidStudentRole.statusCode, 400);
+
   const list = await app.inject({ method: 'GET', url: '/api/users?page=1&pageSize=1', headers });
   assert.equal(list.statusCode, 200);
   assert.equal(list.json().success, true);
@@ -51,7 +74,7 @@ test('users routes validate change reasons and reset response', async (t) => {
   const headers = { authorization: `Bearer ${token}` };
   const created = await app.inject({
     method: 'POST', url: '/api/users', headers,
-    payload: { username: 'reset_route', name: 'Reset Route', role: 'leader', password: 'Strong123' },
+    payload: { username: 'reset_route', name: 'Reset Route', role: 'treasurer', password: 'Strong123' },
   });
   const id = created.json().data.id;
   const invalid = await app.inject({ method: 'PUT', url: `/api/users/${id}`, headers, payload: { name: 'Nama Baru' } });

@@ -1,5 +1,5 @@
 import { asDatabaseError } from '../../shared/database/database.types.js';
-import { generateR2PrivateAccessUrl, generateR2PrivateUploadUrl, inspectCloudflareR2Object } from '../../services/cloudflareR2Service.js';
+import { generateR2PrivateAccessUrl, generateR2PrivateUploadUrl, verifyCloudflareR2ImageUpload } from '../../services/cloudflareR2Service.js';
 import { validatePhotoUrl } from './equipment.helpers.js';
 import type {
   EquipmentEvidenceType,
@@ -29,6 +29,18 @@ const evidenceTypes = new Set<EquipmentEvidenceType>(['payment', 'repair', 'repl
 const evidenceMimeTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const maxEvidenceBytes = 600 * 1024;
 const evidenceIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+type EquipmentEvidenceStorage = {
+  createUpload(fileName: string, folder: string, contentType: string): { uploadUrl: string; key: string; expiresInSeconds: number };
+  verifyUpload(objectKey: string, contentType: string, fileSizeBytes: number): Promise<boolean>;
+  createAccess(objectKey: string): { accessUrl: string; expiresInSeconds: number };
+};
+
+const defaultEquipmentEvidenceStorage: EquipmentEvidenceStorage = {
+  createUpload: generateR2PrivateUploadUrl,
+  verifyUpload: verifyCloudflareR2ImageUpload,
+  createAccess: generateR2PrivateAccessUrl,
+};
 
 function text(value: unknown, field: string, max = 500): string {
   if (typeof value !== 'string' || value.trim().length === 0 || value.trim().length > max) throw new EquipmentRecoveryServiceError(422, 'INVALID_INPUT', `${field} wajib diisi.`);
@@ -82,13 +94,16 @@ function repositoryFailure(error: unknown, fallback: string): never {
 
 function photos(value: unknown, minimum: number): string[] {
   if (!Array.isArray(value) || value.length < minimum || value.length > 12) throw new EquipmentRecoveryServiceError(422, 'RECOVERY_EVIDENCE_REQUIRED', `Minimal ${minimum} foto wajib diunggah.`);
+  if (value.some((candidate) => typeof candidate !== 'string' || !validatePhotoUrl(candidate))) throw new EquipmentRecoveryServiceError(422, 'RECOVERY_EVIDENCE_INVALID', 'Foto yang dikirim tidak valid.');
   const values = value.map((candidate) => typeof candidate === 'string' ? candidate.trim() : '');
-  if (values.some((candidate) => !candidate || !validatePhotoUrl(candidate))) throw new EquipmentRecoveryServiceError(422, 'RECOVERY_EVIDENCE_INVALID', 'Foto yang dikirim tidak valid.');
   return values;
 }
 
 export class EquipmentRecoveryService {
-  constructor(private readonly repository: EquipmentRecoveryRepository) {}
+  constructor(
+    private readonly repository: EquipmentRecoveryRepository,
+    private readonly evidenceStorage: EquipmentEvidenceStorage = defaultEquipmentEvidenceStorage,
+  ) {}
   repositoryIsConfigured(): boolean { return this.repository.isConfigured(); }
 
   async listCases(query: { equipment_id?: string; status?: string }): Promise<EquipmentRecoveryCase[]> {
@@ -164,7 +179,7 @@ export class EquipmentRecoveryService {
       throw new EquipmentRecoveryServiceError(422, 'CHARGE_EVIDENCE_FILE_INVALID', 'Foto harus berupa JPG, PNG, atau WebP dengan ukuran maksimal 600 KB.');
     }
     let upload: ReturnType<typeof generateR2PrivateUploadUrl>;
-    try { upload = generateR2PrivateUploadUrl(fileName, `equipment-charge-evidence/${normalizedSettlementId}/${evidenceType}`); }
+    try { upload = this.evidenceStorage.createUpload(fileName, `equipment-charge-evidence/${normalizedSettlementId}/${evidenceType}`, contentType); }
     catch { throw new EquipmentRecoveryServiceError(503, 'CHARGE_EVIDENCE_STORAGE_UNAVAILABLE', 'Penyimpanan bukti sedang tidak tersedia.'); }
     const result = await this.repository.reserveChargeEvidence({ settlementId: normalizedSettlementId, evidenceType, objectKey: upload.key, mimeType: contentType, fileSizeBytes, originalFilename: fileName, actorId });
     if (result.error || !result.data) repositoryFailure(result.error, 'Gagal menyiapkan unggahan bukti.');
@@ -188,15 +203,13 @@ export class EquipmentRecoveryService {
     const records = evidence.map((result) => result.data);
     if (records.some((item) => !item || item.settlement_id !== settlementId || item.created_by !== actorId || item.upload_status !== 'pending')) throw new EquipmentRecoveryServiceError(422, 'CHARGE_EVIDENCE_INVALID', 'Bukti pembayaran tidak sesuai dengan tagihan ini.');
     if (!records.some((item) => item?.evidence_type === 'payment')) throw new EquipmentRecoveryServiceError(422, 'CHARGE_EVIDENCE_REQUIRED', 'Bukti pembayaran wajib diunggah.');
-    if (this.repository.isConfigured()) {
-      await Promise.all(records.map(async (item) => {
-        if (!item) return;
-        let object: Awaited<ReturnType<typeof inspectCloudflareR2Object>>;
-        try { object = await inspectCloudflareR2Object(item.object_key); }
-        catch { throw new EquipmentRecoveryServiceError(503, 'CHARGE_EVIDENCE_STORAGE_UNAVAILABLE', 'Bukti belum dapat diverifikasi dari penyimpanan.'); }
-        if (!object.exists || (object.contentType && object.contentType.toLowerCase() !== item.mime_type.toLowerCase()) || (object.contentLength !== null && object.contentLength !== undefined && object.contentLength !== item.file_size_bytes)) throw new EquipmentRecoveryServiceError(422, 'CHARGE_EVIDENCE_UPLOAD_INCOMPLETE', 'Unggahan bukti belum selesai atau ukurannya berubah.');
-      }));
-    }
+    await Promise.all(records.map(async (item) => {
+      if (!item) return;
+      let isValidUpload: boolean;
+      try { isValidUpload = await this.evidenceStorage.verifyUpload(item.object_key, item.mime_type, item.file_size_bytes); }
+      catch { throw new EquipmentRecoveryServiceError(503, 'CHARGE_EVIDENCE_STORAGE_UNAVAILABLE', 'Bukti belum dapat diverifikasi dari penyimpanan.'); }
+      if (!isValidUpload) throw new EquipmentRecoveryServiceError(422, 'CHARGE_EVIDENCE_UPLOAD_INCOMPLETE', 'Unggahan bukti belum selesai atau ukurannya berubah.');
+    }));
     const input: ChargePaymentEventInput = { settlementId, paymentAmount, evidenceIds, notes: optionalText(body.notes), actorId, changeReason: reason(body.change_reason) };
     const result = await this.repository.recordChargePaymentEvent(input);
     if (result.error || !result.data) repositoryFailure(result.error, 'Pembayaran tagihan gagal disimpan.');
@@ -209,7 +222,7 @@ export class EquipmentRecoveryService {
     const result = await this.repository.getChargeEvidence(normalizedEvidenceId);
     if (result.error) repositoryFailure(result.error, 'Gagal memuat bukti pembayaran.');
     if (!result.data || result.data.upload_status !== 'attached') throw new EquipmentRecoveryServiceError(404, 'CHARGE_EVIDENCE_NOT_FOUND', 'Bukti pembayaran tidak ditemukan.');
-    try { const access = generateR2PrivateAccessUrl(result.data.object_key); return { access_url: access.accessUrl, expires_in_seconds: access.expiresInSeconds }; }
+    try { const access = this.evidenceStorage.createAccess(result.data.object_key); return { access_url: access.accessUrl, expires_in_seconds: access.expiresInSeconds }; }
     catch { throw new EquipmentRecoveryServiceError(503, 'CHARGE_EVIDENCE_STORAGE_UNAVAILABLE', 'Bukti pembayaran sedang tidak dapat dibuka.'); }
   }
 
@@ -218,7 +231,7 @@ export class EquipmentRecoveryService {
     if (result.error) repositoryFailure(result.error, 'Gagal memuat bukti tagihan.');
     try {
       return result.data.map((item) => {
-        const access = generateR2PrivateAccessUrl(item.object_key);
+        const access = this.evidenceStorage.createAccess(item.object_key);
         return { evidence_id: item.id, evidence_type: item.evidence_type, original_filename: item.original_filename, mime_type: item.mime_type, file_size_bytes: item.file_size_bytes, access_url: access.accessUrl, expires_in_seconds: access.expiresInSeconds, created_at: item.created_at };
       });
     } catch { throw new EquipmentRecoveryServiceError(503, 'CHARGE_EVIDENCE_STORAGE_UNAVAILABLE', 'Bukti tagihan sedang tidak dapat dibuka.'); }

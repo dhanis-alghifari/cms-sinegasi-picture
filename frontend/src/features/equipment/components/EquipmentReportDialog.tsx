@@ -281,12 +281,12 @@ export function EquipmentReportDialog({ open, onOpenChange, search, kategori, ko
           </label>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
-          {reportQuery.isLoading && <div className="space-y-3" aria-label="Memuat laporan"><div className="h-8 animate-pulse rounded bg-surface-2" /><div className="h-40 animate-pulse rounded bg-surface-2" /><div className="h-64 animate-pulse rounded bg-surface-2" /></div>}
+          {reportQuery.isLoading && <div className="space-y-3" aria-label="Memuat laporan" aria-busy="true"><div className="motion-safe:animate-pulse h-8 rounded bg-surface-2" /><div className="motion-safe:animate-pulse h-40 rounded bg-surface-2" /><div className="motion-safe:animate-pulse h-64 rounded bg-surface-2" /></div>}
           {reportQuery.isError && !reportQuery.isLoading && <Card className="border-semantic-danger/30 bg-semantic-danger/5"><CardContent className="space-y-3 pt-5 text-sm text-semantic-danger"><p>{getErrorMessage(reportQuery.error)}</p><Button type="button" variant="outline" onClick={() => void reportQuery.refetch()} className="border-semantic-danger/30 text-semantic-danger"><RefreshCcw size={14} /> Coba lagi</Button></CardContent></Card>}
           {reportQuery.data && !reportQuery.isLoading && !reportQuery.isError && <div id="equipment-report-print">{format === 'a4' ? <A4Document report={reportQuery.data} includePhotos={includePhotos} /> : <PresentationDocument report={reportQuery.data} includePhotos={includePhotos} />}</div>}
         </div>
-        <DialogFooter className="equipment-report-screen-only border-t border-hairline bg-surface-2 px-5 py-3">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="border-hairline bg-surface-1 text-ink"><X size={14} /> Tutup</Button>
+        <DialogFooter className="equipment-report-screen-only border-t border-hairline bg-surface-2 px-5 py-3 md:pb-3">
+          <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}><X size={14} /> Tutup</Button>
           <Button type="button" onClick={() => printEquipmentReport(format)} disabled={!reportQuery.data || reportQuery.isLoading} className="bg-primary text-primary-foreground"><Printer size={14} /> Cetak / Simpan PDF</Button>
         </DialogFooter>
       </DialogContent>

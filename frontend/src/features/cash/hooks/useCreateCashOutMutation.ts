@@ -9,6 +9,7 @@ export function useCreateCashOutMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    meta: { successMessage: 'Pengeluaran kas berhasil dicatat.' },
     mutationFn: ({
       payload,
       idempotencyKey,

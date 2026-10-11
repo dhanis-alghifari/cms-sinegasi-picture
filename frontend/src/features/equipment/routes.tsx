@@ -1,7 +1,7 @@
 
 import { lazy, Suspense } from 'react';
 import type { RouteObject } from 'react-router-dom';
-import { PageLoader } from '@/shared/ui/LoadingSpinner';
+import { RouteContentSkeleton } from '@/shared/ui/LoadingSkeletons';
 import { CapabilityRoute } from '@/app/router/CapabilityRoute';
 
 const EquipmentPage = lazy(() =>
@@ -13,7 +13,7 @@ export const equipmentRoutes: RouteObject[] = [
     element: <CapabilityRoute capabilities={['equipment.read']} />,
     children: [{
       path: 'equipment',
-      element: <Suspense fallback={<PageLoader />}><EquipmentPage /></Suspense>,
+      element: <Suspense fallback={<RouteContentSkeleton />}><EquipmentPage /></Suspense>,
     }],
   },
 ];

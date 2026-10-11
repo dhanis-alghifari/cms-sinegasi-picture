@@ -1,7 +1,7 @@
 
 import { lazy, Suspense } from 'react';
 import type { RouteObject } from 'react-router-dom';
-import { PageLoader } from '@/shared/ui/LoadingSpinner';
+import { RouteContentSkeleton } from '@/shared/ui/LoadingSkeletons';
 import { CapabilityRoute } from '@/app/router/CapabilityRoute';
 
 const DashboardPage = lazy(() =>
@@ -13,7 +13,7 @@ export const dashboardRoutes: RouteObject[] = [
     element: <CapabilityRoute capabilities={['dashboard.read.operational', 'dashboard.read.own']} />,
     children: [{
       path: 'dashboard',
-      element: <Suspense fallback={<PageLoader />}><DashboardPage /></Suspense>,
+      element: <Suspense fallback={<RouteContentSkeleton />}><DashboardPage /></Suspense>,
     }],
   },
 ];

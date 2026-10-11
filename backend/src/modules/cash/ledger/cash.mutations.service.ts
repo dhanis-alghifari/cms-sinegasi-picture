@@ -1,4 +1,4 @@
-import { CASH_SCHEMA_MIGRATION_MESSAGE, getBusinessTodayDate, isIsoDate, isMissingCashSchemaError, normalizePaymentMethodCode, MAX_CASH_PROOF_URL_LENGTH } from '../shared/cash.helpers.js';
+import { CASH_SCHEMA_MIGRATION_MESSAGE, getBusinessTodayDate, isIsoDate, isMissingCashSchemaError, normalizePaymentMethodCode, MAX_CASH_PROOF_URL_LENGTH, validateCashProofUrl } from '../shared/cash.helpers.js';
 import type { CashInInput, CashOutInput } from './cash.mutations.types.js';
 import type { CashMutationsRepository, CashMutationResult } from './cash.mutations.repository.js';
 import type { CashRepositoryError } from '../shared/cash.types.js';
@@ -12,10 +12,15 @@ export class CashMutationsServiceError extends Error {
 
 function mapRepositoryError(error: CashRepositoryError, fallback: string): never {
   if (isMissingCashSchemaError(error)) throw new CashMutationsServiceError(503, 'CASH_SCHEMA_UNAVAILABLE', CASH_SCHEMA_MIGRATION_MESSAGE);
+  const insufficientBalanceMessage = 'Saldo kas tidak mencukupi untuk pengeluaran ini.';
+  // The deployed RPC raises this exact business exception with SQLSTATE P0001.
+  // Do not expose arbitrary database messages or classify every P0001 as a client error.
+  const insufficientBalance = error?.code === 'INSUFFICIENT_BALANCE'
+    || (error?.code === 'P0001' && error.message === insufficientBalanceMessage);
+  if (insufficientBalance) throw new CashMutationsServiceError(400, 'INSUFFICIENT_BALANCE', insufficientBalanceMessage);
   const code = error?.code || 'CASH_MUTATION_FAILED';
   let statusCode = 500;
   if (['INVALID_PAYMENT_METHOD', 'STUDENT_NOT_FOUND', 'FUTURE_DEBT'].includes(code)) statusCode = 422;
-  else if (code === 'INSUFFICIENT_BALANCE') statusCode = 400;
   else if (code === '23505' || code === 'DUPLICATE') statusCode = 409;
   throw new CashMutationsServiceError(statusCode, code, statusCode >= 500 ? fallback : error?.message || fallback);
 }
@@ -50,6 +55,9 @@ export class CashMutationsService {
     if (typeof input.foto_bukti_url === 'string' && input.foto_bukti_url.length > MAX_CASH_PROOF_URL_LENGTH) {
       throw new CashMutationsServiceError(422, 'PROOF_TOO_LONG', 'URL foto bukti terlalu panjang. Pilih foto yang lebih kecil.');
     }
+    if (typeof input.foto_bukti_url === 'string' && input.foto_bukti_url.trim() && !validateCashProofUrl(input.foto_bukti_url)) {
+      throw new CashMutationsServiceError(422, 'INVALID_INPUT', 'Foto bukti harus berupa JPG, PNG, atau WebP base64 yang valid, atau URL http(s) tanpa kredensial.');
+    }
     if (!Number.isFinite(nominal) || nominal < 0 || nominal > 9_999_999_999.99) throw new CashMutationsServiceError(422, 'INVALID_AMOUNT', 'Nominal kas masuk harus nol atau angka positif yang valid dan tidak melebihi batas sistem.');
     if (!isIsoDate(tanggal)) throw new CashMutationsServiceError(422, 'INVALID_DATE', 'Tanggal transaksi harus berupa tanggal kalender yang valid (YYYY-MM-DD).');
     if (type !== 'iuran_wajib' && type !== 'pemasukan') throw new CashMutationsServiceError(422, 'INVALID_TYPE', 'Tipe pemasukan kas tidak valid.');
@@ -73,6 +81,9 @@ export class CashMutationsService {
     const paymentMethodCode = input.metode_pembayaran === undefined ? 'cash' : normalizePaymentMethodCode(input.metode_pembayaran);
     if (typeof input.foto_bukti_url === 'string' && input.foto_bukti_url.length > MAX_CASH_PROOF_URL_LENGTH) {
       throw new CashMutationsServiceError(422, 'PROOF_TOO_LONG', 'URL foto bukti terlalu panjang. Pilih foto yang lebih kecil.');
+    }
+    if (typeof input.foto_bukti_url === 'string' && input.foto_bukti_url.trim() && !validateCashProofUrl(input.foto_bukti_url)) {
+      throw new CashMutationsServiceError(422, 'INVALID_INPUT', 'Foto bukti harus berupa JPG, PNG, atau WebP base64 yang valid, atau URL http(s) tanpa kredensial.');
     }
     if (!Number.isFinite(nominal) || nominal <= 0 || !keterangan) throw new CashMutationsServiceError(422, 'INVALID_INPUT', 'nominal dan keterangan wajib diisi.');
     if (!paymentMethodCode) throw new CashMutationsServiceError(422, 'INVALID_PAYMENT_METHOD', 'Metode pembayaran tidak valid.');

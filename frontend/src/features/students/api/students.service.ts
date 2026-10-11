@@ -5,6 +5,7 @@ import {
   decodeStudentAccountResponse,
   decodeStudentList,
   decodeStudentOptions,
+  decodeUnlinkedStudentAccounts,
 } from './students.responses';
 import { decodeVoidResponse } from '@/shared/api/responseValidation';
 import type { PaginatedResponse } from '@/shared/types/common';
@@ -15,13 +16,15 @@ import type {
   UpdateStudentPayload,
   StudentAccountResponse,
   StudentOption,
+  LinkExistingStudentAccountPayload,
+  UnlinkedStudentAccount,
 } from '../types/students.types';
 
 const specializationValues: Readonly<Record<string, string>> = {
   kamera: 'camera', editing: 'editing', naskah: 'screenwriting',
 };
 
-function toStudentRequest(payload: CreateStudentPayload | UpdateStudentPayload) {
+function toStudentRequest(payload: CreateStudentPayload | UpdateStudentPayload | LinkExistingStudentAccountPayload) {
   const {
     nis: student_number,
     nama: name,
@@ -73,15 +76,44 @@ export const studentsService = {
     return apiClient.getParsed(endpoint, decodeStudentOptions, options);
   },
 
-  createStudent(payload: CreateStudentPayload): Promise<StudentAccountResponse> {
+  getUnlinkedAccounts(
+    params?: { search?: string; limit?: number },
+    options: Pick<RequestInit, 'signal'> = {},
+  ): Promise<UnlinkedStudentAccount[]> {
+    const query = new URLSearchParams();
+    if (params?.search?.trim()) query.append('q', params.search.trim());
+    if (params?.limit) query.append('limit', String(params.limit));
+    const endpoint = `/api/students/unlinked-accounts${query.toString() ? `?${query.toString()}` : ''}`;
+    return apiClient.getParsed(endpoint, decodeUnlinkedStudentAccounts, options);
+  },
+
+  createStudent(payload: CreateStudentPayload, idempotencyKey: string): Promise<StudentAccountResponse> {
     return apiClient.postParsed('/api/students', toStudentRequest(payload), decodeStudentAccountResponse, {
-      changeReason: payload.change_reason || 'Menambahkan siswa dan membuat akun anggota',
+      changeReason: payload.change_reason || 'Menambahkan siswa dan membuat akun sesuai peran',
+      idempotencyKey,
     });
   },
 
-  provisionStudentAccount(id: string, changeReason: string): Promise<StudentAccountResponse> {
-    return apiClient.postParsed(`/api/students/${id}/provision-account`, {}, decodeStudentAccountResponse, {
+  linkExistingAccount(payload: LinkExistingStudentAccountPayload): Promise<StudentAccountResponse> {
+    return apiClient.postParsed('/api/students/account-links', toStudentRequest(payload), decodeStudentAccountResponse, {
+      changeReason: payload.change_reason || 'Menautkan akun lama ke data siswa',
+    });
+  },
+
+  linkAccountToExistingProfile(studentId: string, userId: string, changeReason: string): Promise<StudentAccountResponse> {
+    return apiClient.postParsed(`/api/students/${studentId}/account-links`, { user_id: userId, change_reason: changeReason }, decodeStudentAccountResponse, {
       changeReason,
+    });
+  },
+
+  provisionStudentAccount(
+    id: string,
+    payload: { username: string; phone_number: string; change_reason: string },
+    idempotencyKey: string,
+  ): Promise<StudentAccountResponse> {
+    return apiClient.postParsed(`/api/students/${id}/provision-account`, payload, decodeStudentAccountResponse, {
+      idempotencyKey,
+      changeReason: payload.change_reason,
     });
   },
 
@@ -97,6 +129,7 @@ export const studentsService = {
 
   deleteStudent(id: string, changeReason: string): Promise<void> {
     return apiClient.deleteParsed(`/api/students/${id}`, decodeVoidResponse, {
+      body: JSON.stringify({ change_reason: changeReason }),
       changeReason,
     });
   },

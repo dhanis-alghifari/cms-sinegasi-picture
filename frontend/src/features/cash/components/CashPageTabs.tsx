@@ -3,10 +3,8 @@ import { lazy, Suspense } from 'react';
 
 import { Pagination } from '@/shared/ui/Pagination';
 import { AnimatedTabs } from '@/shared/ui/motion/animated-tabs';
-import type { ReportPrintFormat } from '@/shared/types/report';
-import type { PaginatedResponse } from '@/shared/types/common';
-import type { StudentOption } from '@/features/students/types/students.types';
-
+import { PanelSkeleton } from '@/shared/ui/LoadingSkeletons';
+import { StatusBadge } from '@/shared/ui/StatusBadge';
 import { CashOperationsOverview } from './CashOperationsOverview';
 import { CashSectionError, CashSectionSkeleton } from './CashSectionState';
 import { CashTransactionTable } from './CashTransactionTable';
@@ -14,93 +12,14 @@ import { CashTransactionMobileList } from './CashTransactionMobileList';
 import { DebtRecordsTable } from './DebtRecordsTable';
 import { DebtRecordsMobileList } from './DebtRecordsMobileList';
 import { CashDisputeQueue } from './CashDisputeQueue';
-import type {
-  CashDisputeQuota,
-  CashPaymentMethod,
-  CashReport,
-  CashTransaction,
-  DebtRecord,
-} from '../types/cash.types';
-import type { CashReportPreset } from '../utils/reportDates';
-
-export type CashView = 'activity' | 'transactions' | 'debts' | 'disputes' | 'report';
+import { CashDebtViewPanel } from './CashDebtViewPanel';
+import { useCashDisputesQuery } from '../hooks/useCashQuery';
+import type { CashPageTabsProps, CashView } from './CashPageTabs.types';
+export type { CashView } from './CashPageTabs.types';
 
 function isCashView(value: string): value is CashView {
   return ['activity', 'transactions', 'debts', 'disputes', 'report'].includes(value);
 }
-
-type CashPageTabsProps = {
-  navigation: {
-    currentView: CashView;
-    isTreasurerOrTeacher: boolean;
-    isStudent: boolean;
-    isMobile: boolean;
-    pageSize: number;
-    onChange: (view: CashView) => void;
-  };
-  paymentMethods: {
-    items: CashPaymentMethod[];
-    isLoading: boolean;
-  };
-  transactions: {
-    data?: PaginatedResponse<CashTransaction>;
-    isLoading: boolean;
-    error?: unknown;
-    page: number;
-    onRetry: () => void;
-    onPageChange: (page: number) => void;
-  };
-  transactionFilters: {
-    startDate: string;
-    endDate: string;
-    paymentMethod: string;
-    onStartDateChange: (value: string) => void;
-    onEndDateChange: (value: string) => void;
-    onPaymentMethodChange: (value: string) => void;
-    onReset: () => void;
-  };
-  studentScope: {
-    canFilter: boolean;
-    selectedStudent: StudentOption | null;
-    options: StudentOption[];
-    isLoading: boolean;
-    error?: unknown;
-    onValueChange: (studentId: string) => void;
-    onSelectedStudentChange: (student: StudentOption | null) => void;
-    onSearchChange: (value: string) => void;
-    onClear: () => void;
-    onRetry: () => void;
-  };
-  debts: {
-    data?: PaginatedResponse<DebtRecord>;
-    isLoading: boolean;
-    error?: unknown;
-    page: number;
-    onRetry: () => void;
-    onPageChange: (page: number) => void;
-    outstandingAmount: number;
-  };
-  report: {
-    data?: CashReport;
-    isLoading: boolean;
-    error?: unknown;
-    rangeError?: string;
-    startDate: string;
-    endDate: string;
-    paymentMethod: string;
-    onStartDateChange: (value: string) => void;
-    onEndDateChange: (value: string) => void;
-    onPaymentMethodChange: (value: string) => void;
-    onPreset: (days: CashReportPreset) => void;
-    onExportCsv: (report: CashReport) => void;
-    onPrintPdf: (format: ReportPrintFormat) => void;
-  };
-  actions: {
-    onDisputeTransaction: (transaction: CashTransaction) => void;
-    onDisputeDebt: (debt: DebtRecord) => void;
-    disputeQuota?: CashDisputeQuota;
-  };
-};
 
 const LazyCashReportPanel = lazy(() =>
   import('./CashReportPanel').then(({ CashReportPanel }) => ({ default: CashReportPanel })),
@@ -108,10 +27,6 @@ const LazyCashReportPanel = lazy(() =>
 
 const LazyCashTransactionFilter = lazy(() =>
   import('./CashTransactionFilter').then(({ CashTransactionFilter }) => ({ default: CashTransactionFilter })),
-);
-
-const LazyCashDebtFilter = lazy(() =>
-  import('./CashDebtFilter').then(({ CashDebtFilter }) => ({ default: CashDebtFilter })),
 );
 
 export function CashPageTabs({
@@ -128,10 +43,20 @@ export function CashPageTabs({
     currentView,
     isTreasurerOrTeacher,
     isStudent,
+    canReviewDisputes,
+    canReadAllDisputes,
+    canReadOwnDisputes,
     isMobile,
     pageSize,
     onChange: setActiveView,
   } = navigation;
+  const canViewDisputes = canReviewDisputes || canReadAllDisputes || canReadOwnDisputes;
+  const disputeScope = canReviewDisputes || canReadAllDisputes ? 'manage' : 'own';
+  const pendingDisputesQuery = useCashDisputesQuery(
+    { scope: disputeScope, page: 1, pageSize: 1, status: 'pending' },
+    canViewDisputes,
+  );
+  const pendingDisputeCount = pendingDisputesQuery.data?.total;
   const handleViewChange = (value: string) => {
     if (!isCashView(value)) return;
     setActiveView(value);
@@ -190,7 +115,11 @@ export function CashPageTabs({
     onExportCsv,
     onPrintPdf: onPrintReport,
   } = reportState;
-  const { onDisputeTransaction, onDisputeDebt, disputeQuota } = actions;
+  const {
+    onDisputeTransaction,
+    onDisputeDebt,
+    disputeQuota,
+  } = actions;
   const isActivityView = currentView === 'activity';
   const isTransactionsView = currentView === 'transactions';
   const isDebtsView = currentView === 'debts';
@@ -284,7 +213,18 @@ export function CashPageTabs({
           ...(isTreasurerOrTeacher ? [{ value: 'activity', label: <><span className="md:hidden">Aktivitas</span><span className="hidden md:inline">Aktivitas Kas</span></> }] : []),
           { value: 'transactions', label: <><span className="md:hidden">Transaksi</span><span className="hidden md:inline">Riwayat Transaksi Kas</span></> },
           { value: 'debts', label: <><span className="md:hidden">Tunggakan</span><span className="hidden md:inline">{isStudent ? 'Tunggakan Saya' : 'Daftar Tunggakan Siswa'}</span></> },
-          { value: 'disputes', label: <><span className="md:hidden">Sanggahan</span><span className="hidden md:inline">Sanggahan Kas</span></> },
+          ...(canViewDisputes ? [{
+            value: 'disputes',
+            label: (
+              <>
+                <span className="md:hidden">Sanggahan</span>
+                <span className="hidden md:inline">Sanggahan Kas</span>
+                {pendingDisputeCount !== undefined && pendingDisputeCount > 0 && (
+                  <StatusBadge label={String(pendingDisputeCount)} variant="warning" className="ml-1 px-1.5" />
+                )}
+              </>
+            ),
+          }] : []),
           ...(isTreasurerOrTeacher ? [{ value: 'report', label: <><span className="md:hidden">Laporan</span><span className="hidden md:inline">Laporan Kas</span></> }] : []),
         ]}
       />
@@ -335,7 +275,7 @@ export function CashPageTabs({
 
         {isTransactionsView && (
           <div>
-            <Suspense fallback={<div className="mb-4 h-28 animate-pulse rounded-xl border border-hairline bg-surface-1" aria-label="Memuat filter transaksi" />}>
+            <Suspense fallback={<PanelSkeleton rows={2} label="Memuat filter transaksi..." className="mb-4" />}>
               <LazyCashTransactionFilter
                 filters={{
                   startDate: tanggalMulai,
@@ -368,34 +308,33 @@ export function CashPageTabs({
         )}
 
         {isDebtsView && (
-          <div>
-            {canFilterCashHistoryByStudent && (
-              <Suspense fallback={<div className="mb-4 h-28 animate-pulse rounded-xl border border-hairline bg-surface-1" aria-label="Memuat filter tunggakan" />}>
-                <LazyCashDebtFilter
-                  studentScope={{
-                    selectedStudent: selectedHistoryStudent,
-                    options: historyStudentOptions,
-                    isLoading: isHistoryStudentOptionsLoading,
-                    error: historyStudentOptionsError,
-                    totalDebts: debtsData?.total,
-                  }}
-                  actions={{
-                    onValueChange: onHistoryStudentValueChange,
-                    onSelectedStudentChange: onSelectedHistoryStudentChange,
-                    onSearchChange: onHistoryStudentSearchChange,
-                    onClear: onClearStudentScope,
-                    onRetry: onRetryHistoryStudentOptions,
-                  }}
-                />
-              </Suspense>
-            )}
+          <CashDebtViewPanel
+            showStudentFilter={canFilterCashHistoryByStudent}
+            studentScope={{
+              selectedStudent: selectedHistoryStudent,
+              options: historyStudentOptions,
+              isLoading: isHistoryStudentOptionsLoading,
+              error: historyStudentOptionsError,
+              totalDebts: debtsData?.total,
+            }}
+            actions={{
+              onValueChange: onHistoryStudentValueChange,
+              onSelectedStudentChange: onSelectedHistoryStudentChange,
+              onSearchChange: onHistoryStudentSearchChange,
+              onClear: onClearStudentScope,
+              onRetry: onRetryHistoryStudentOptions,
+            }}
+          >
             {debtContent}
-          </div>
+          </CashDebtViewPanel>
         )}
 
-        {isDisputesView && (
+        {canViewDisputes && isDisputesView && (
           <div>
-            <CashDisputeQueue reviewer={isTreasurerOrTeacher} />
+            <CashDisputeQueue
+              reviewer={canReviewDisputes}
+              scope={disputeScope}
+            />
           </div>
         )}
       </div>

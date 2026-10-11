@@ -8,6 +8,7 @@ export function useLoginMutation() {
   const { setSession } = useAuthStore();
 
   return useMutation({
+    meta: { suppressSuccessToast: true },
     mutationFn: (data: LoginRequest) => authService.login(data),
     onSuccess: (response) => {
       setSession(response.user, response.token);

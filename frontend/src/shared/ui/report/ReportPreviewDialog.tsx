@@ -29,6 +29,7 @@ interface ReportPreviewDialogProps {
   };
   actions: {
     onPrint: () => void;
+    disabled?: boolean;
   };
   children: ReactNode;
 }
@@ -75,8 +76,12 @@ export function ReportPreviewDialog({
   const pageSelector = scopedClass(pageClass);
   const slideSelector = scopedClass(slideClass || pageClass);
   const previewSelector = format === 'presentation' ? slideSelector || '.report-preview-document' : pageSelector || '.report-preview-document';
-  const screenOnlyRule = screenOnlySelector ? `${screenOnlySelector} { display: none !important; }` : '';
-  const printOnlyRule = printOnlySelector ? `${printOnlySelector} { display: block !important; }` : '';
+  const screenOnlyRule = screenOnlySelector
+    ? `@media print { ${screenOnlySelector} { display: none !important; } }`
+    : '';
+  const printOnlyRule = printOnlySelector
+    ? `${printOnlySelector} { display: none !important; } @media print { ${printOnlySelector} { display: block !important; } }`
+    : '';
   const ratio = getReportAspectRatio(format, a4Orientation);
   const previewWidth = getReportPreviewWidth(format, a4Orientation);
 
@@ -94,11 +99,11 @@ export function ReportPreviewDialog({
           </div>
         </div>
 
-        <DialogFooter className="shrink-0 border-t border-hairline bg-surface-2 px-5 py-3">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="border-hairline bg-surface-1 text-ink">
+        <DialogFooter className="shrink-0 border-t border-hairline bg-surface-2 px-5 py-3 md:pb-3">
+          <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
             Tutup
           </Button>
-          <Button type="button" onClick={actions.onPrint} className="bg-primary text-primary-foreground">
+          <Button type="button" onClick={actions.onPrint} disabled={actions.disabled} className="bg-primary text-primary-foreground">
             <Printer size={14} />
             Cetak / Simpan PDF
           </Button>

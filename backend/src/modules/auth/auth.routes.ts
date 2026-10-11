@@ -4,7 +4,7 @@ import { authenticate } from '../../middleware/authMiddleware.js';
 import { changePasswordRouteSchema, loginRouteSchema } from '../../shared/http/schemas/auth.schema.js';
 import { authenticatedRouteSchema } from '../../shared/http/schemas/core.schema.js';
 import { AuthService, AuthServiceError } from './auth.service.js';
-import type { LoginRateLimiter } from './loginRateLimiter.js';
+import { getLoginRateLimitKeys, LOGIN_RATE_LIMIT_WINDOW_SECONDS, type LoginRateLimiter } from './loginRateLimiter.js';
 
 export interface AuthRoutesOptions {
   authService: AuthService;
@@ -26,10 +26,21 @@ function sendServiceError(error: unknown, reply: FastifyReply): unknown {
   throw error;
 }
 
+function sendLoginLimiterUnavailable(reply: FastifyReply): unknown {
+  return reply.header('Retry-After', '5').status(503).send({
+    success: false,
+    error: 'AUTHENTICATION_UNAVAILABLE',
+    message: 'Layanan login sementara tidak tersedia. Coba lagi sebentar.',
+  });
+}
+
 const authRoutes: FastifyPluginAsync<AuthRoutesOptions> = async (fastify, options) => {
   const { authService, loginRateLimiter } = options;
 
-  fastify.post('/api/auth/login', { schema: loginRouteSchema }, async (request, reply) => {
+  fastify.post('/api/auth/login', {
+    schema: loginRouteSchema,
+    config: { disableIdempotencyCache: true },
+  }, async (request, reply) => {
     const body = (request.body || {}) as { username?: string; password?: string };
     const username = body.username?.trim();
     const password = body.password;
@@ -41,23 +52,38 @@ const authRoutes: FastifyPluginAsync<AuthRoutesOptions> = async (fastify, option
       });
     }
 
-    const rateKey = `${request.ip}:${username.toLowerCase()}`;
-    if (await loginRateLimiter.isLimited(rateKey)) {
-      return reply.status(429).send({
-        success: false,
-        error: 'TOO_MANY_REQUESTS',
-        message: 'Terlalu banyak percobaan login. Coba lagi beberapa menit lagi.',
-      });
+    let rateKeys: readonly [string, string];
+    try {
+      rateKeys = getLoginRateLimitKeys(request.ip, username);
+      const decisions = await Promise.all(rateKeys.map((key) => loginRateLimiter.isLimited(key)));
+      if (decisions.some((decision) => typeof decision !== 'boolean')) return sendLoginLimiterUnavailable(reply);
+      if (decisions.some((decision) => decision)) {
+        return reply.header('Retry-After', String(LOGIN_RATE_LIMIT_WINDOW_SECONDS)).status(429).send({
+          success: false,
+          error: 'TOO_MANY_REQUESTS',
+          message: 'Terlalu banyak percobaan login. Coba lagi beberapa menit lagi.',
+        });
+      }
+    } catch {
+      return sendLoginLimiterUnavailable(reply);
     }
 
     try {
       const result = await authService.login(username, password);
+      try {
+        await Promise.all(rateKeys.map((key) => loginRateLimiter.clear(key)));
+      } catch {
+        return sendLoginLimiterUnavailable(reply);
+      }
       const token = fastify.jwt.sign(result.payload, { expiresIn: '8h' });
-      await loginRateLimiter.clear(rateKey);
       return reply.send({ success: true, token, user: result.user });
     } catch (error) {
       if (error instanceof AuthServiceError && error.errorCode === 'INVALID_CREDENTIALS') {
-        await loginRateLimiter.recordFailure(rateKey);
+        try {
+          await Promise.all(rateKeys.map((key) => loginRateLimiter.recordFailure(key)));
+        } catch {
+          return sendLoginLimiterUnavailable(reply);
+        }
       }
       return sendServiceError(error, reply);
     }

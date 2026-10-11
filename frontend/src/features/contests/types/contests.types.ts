@@ -37,7 +37,7 @@ export interface FilmSubmission {
   link_video: string;
   award_status: AwardStatus;
   sertifikat_url?: string;
-  created_at: string;
+  created_at?: string | null;
   created_actor?: ActorSummary;
 }
 
@@ -82,7 +82,7 @@ export interface ContestSummary {
 
 export interface CreateContestPayload {
   nama_lomba: string;
-  kota: string;
+  kota?: string | null;
   tingkat: ContestScope;
   deadline: string;
   status: ContestStatus;
@@ -128,21 +128,10 @@ export interface ContestEntry {
   updated_at?: string;
 }
 
-export interface ContestEntryResult {
-  result_id: string | null;
-  entry_id: string;
-  contest_id: string;
-  work_id: string;
-  pipeline_status: ContestEntryStatus;
-  outcome_status: ContestOutcomeStatus;
-  work_title: string;
-  work_type_code: string;
-  nama_lomba: string;
-  kota?: string | null;
-  tingkat?: string | null;
-  tahun_event?: number | null;
-  status_public?: ContestStatus | null;
-  result_kind: ContestResultKind | null;
+export interface ContestAchievementAward {
+  id: string;
+  entry_id?: string;
+  result_kind: ContestResultKind;
   result_title: string;
   position?: number | null;
   category_name?: string | null;
@@ -150,12 +139,84 @@ export interface ContestEntryResult {
   created_at?: string | null;
 }
 
+export interface ContestAchievementEvidence {
+  id: string;
+  entry_id?: string;
+  evidence_type: 'submission' | 'result' | 'other';
+  target_status?: Extract<ContestEntryStatus, 'sudah_terkirim' | 'selesai'> | null;
+  storage_provider?: 'legacy_url' | 'r2' | string;
+  mime_type?: string | null;
+  file_size_bytes?: number | null;
+  original_filename?: string | null;
+  upload_status?: 'pending' | 'attached' | 'abandoned' | string;
+  attached_status?: Extract<ContestEntryStatus, 'sudah_terkirim' | 'selesai'> | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface ContestAchievementTimelineItem {
+  id: string;
+  kind: 'status' | 'result';
+  status?: string | null;
+  from_status?: string | null;
+  to_status?: string | null;
+  change_reason: string;
+  changed_by?: string | null;
+  changed_by_name?: string | null;
+  created_at: string;
+}
+
+export interface ContestAchievementRecord {
+  entry_id: string;
+  contest_id: string;
+  work_id: string;
+  pipeline_status: 'selesai';
+  outcome_status: Extract<ContestOutcomeStatus, 'awarded' | 'not_awarded'>;
+  work_title: string;
+  work_type_code: string;
+  nama_lomba: string;
+  kota?: string | null;
+  tingkat?: string | null;
+  tahun_event?: number | null;
+  status_public?: ContestStatus | null;
+  completed_at?: string | null;
+  awards: ContestAchievementAward[];
+  evidence_count?: number;
+}
+
+/** @deprecated Use ContestAchievementRecord. */
+export type ContestEntryResult = ContestAchievementRecord;
+
 export interface ContestAchievementsResponse {
-  data: ContestEntryResult[];
+  data: ContestAchievementRecord[];
   total: number;
   page: number;
   pageSize: number;
   totalPages: number;
+}
+
+export interface ContestAchievementDetail {
+  entry: {
+    id: string;
+    contest_id: string;
+    work_id: string;
+    pipeline_status: ContestEntryStatus;
+    outcome_status: ContestOutcomeStatus;
+    result_label?: string | null;
+    result_note?: string | null;
+    submitted_at?: string | null;
+    completed_at?: string | null;
+    work: MediaWork;
+    contest: Pick<Contest, 'id' | 'nama_lomba' | 'kota' | 'tingkat' | 'tahun_event' | 'status_public'>;
+  };
+  awards: ContestAchievementAward[];
+  evidence: ContestAchievementEvidence[];
+  timeline: ContestAchievementTimelineItem[];
+}
+
+export interface ContestEvidenceAccessResponse {
+  access_url: string;
+  expires_in_seconds: number | null;
 }
 
 export interface ContestAchievementsParams {

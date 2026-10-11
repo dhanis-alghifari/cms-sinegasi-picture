@@ -7,6 +7,7 @@ import type { RecordContestResultPayload } from '../types/contests.types';
 export function useRecordContestResultMutation() {
   const queryClient = useQueryClient();
   return useMutation({
+    meta: { successMessage: 'Hasil festival berhasil dicatat.' },
     mutationFn: ({ entryId, payload }: { entryId: string; payload: RecordContestResultPayload }) => contestsService.recordContestResult(entryId, payload),
     onSuccess: async () => {
       await invalidateActiveQueries(queryClient, [QUERY_KEYS.CONTEST_ACHIEVEMENTS, QUERY_KEYS.CONTESTS, QUERY_KEYS.DASHBOARD_SUMMARY]);

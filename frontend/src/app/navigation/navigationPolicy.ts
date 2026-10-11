@@ -1,7 +1,7 @@
 import type { ElementType } from 'react';
 import {
-  Bell, CalendarCheck, Camera, GraduationCap, History, Layers, LayoutDashboard,
-  PackageCheck, ShieldCheck, Trophy, Users, Wallet,
+  Bell, CalendarCheck, CalendarDays, Camera, GraduationCap, History, Layers, LayoutDashboard,
+  Megaphone, PackageCheck, ShieldCheck, Trophy, Users, Wallet,
 } from 'lucide-react';
 import type { AuthUser } from '@/features/auth/types/auth.types';
 import type { UserRole } from '@/shared/types/common';
@@ -18,6 +18,14 @@ export type NavigationItem = {
   mobilePriority?: number;
 };
 
+export type NavigationGroup = {
+  id: string;
+  label: string;
+  icon: ElementType;
+  items: NavigationItem[];
+  collapsible: boolean;
+};
+
 export type NavigationSubject = AuthUser | UserRole | null | undefined;
 
 export const NAVIGATION_ITEMS: readonly NavigationItem[] = [
@@ -30,10 +38,31 @@ export const NAVIGATION_ITEMS: readonly NavigationItem[] = [
   { id: 'equipment', to: '/equipment', icon: Camera, label: 'Alat', requiredCapabilities: ['equipment.read'], mobilePriority: 2 },
   { id: 'borrowing', to: '/borrowing', icon: PackageCheck, label: 'Peminjaman', requiredCapabilities: ['borrowing.read'], mobilePriority: 3 },
   { id: 'contests', to: '/contests', icon: Trophy, label: 'Lomba', requiredCapabilities: ['contests.read'] },
+  { id: 'agenda', to: '/agenda', icon: CalendarDays, label: 'Agenda', requiredCapabilities: ['agenda.read'] },
+  { id: 'social-media', to: '/social-media', icon: Megaphone, label: 'Humas & Media Sosial', requiredCapabilities: ['social_media.read'], mobilePriority: 2 },
   { id: 'notifications', to: '/notifications', icon: Bell, label: 'Notifikasi', requiredCapabilities: ['notifications.read'], mobilePriority: 4 },
   { id: 'audit', to: '/audit-logs', icon: History, label: 'Audit Trail', requiredCapabilities: ['audit.read'] },
   { id: 'users', to: '/users', icon: Users, label: 'Pengguna', requiredCapabilities: ['users.manage'] },
   { id: 'access-control', to: '/access-control', icon: ShieldCheck, label: 'Pengaturan Akses', requiredCapabilities: ['access_control.read'] },
+];
+
+type NavigationGroupDefinition = {
+  id: string;
+  label: string;
+  icon: ElementType;
+  itemIds: readonly string[];
+  collapsible: boolean;
+};
+
+const NAVIGATION_GROUPS: readonly NavigationGroupDefinition[] = [
+  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, itemIds: ['dashboard'], collapsible: false },
+  { id: 'academic', label: 'Akademik', icon: GraduationCap, itemIds: ['students', 'classes', 'attendance', 'grades'], collapsible: true },
+  { id: 'cash', label: 'Uang Kas', icon: Wallet, itemIds: ['cash'], collapsible: false },
+  { id: 'inventory', label: 'Inventaris', icon: PackageCheck, itemIds: ['equipment', 'borrowing'], collapsible: true },
+  { id: 'activities', label: 'Kegiatan', icon: CalendarDays, itemIds: ['contests', 'agenda'], collapsible: true },
+  { id: 'social-media', label: 'Publikasi', icon: Megaphone, itemIds: ['social-media'], collapsible: false },
+  { id: 'notifications', label: 'Notifikasi', icon: Bell, itemIds: ['notifications'], collapsible: false },
+  { id: 'administration', label: 'Administrasi', icon: ShieldCheck, itemIds: ['audit', 'users', 'access-control'], collapsible: true },
 ];
 
 function canSee(item: NavigationItem, subject: NavigationSubject): boolean {
@@ -49,6 +78,26 @@ export function getVisibleNavigationItems(subject?: NavigationSubject): Navigati
   return NAVIGATION_ITEMS.filter((item) => canSee(item, subject));
 }
 
+export function getVisibleNavigationGroups(subject?: NavigationSubject): NavigationGroup[] {
+  const visibleItems = new Map(getVisibleNavigationItems(subject).map((item) => [item.id, item]));
+
+  return NAVIGATION_GROUPS.flatMap((group) => {
+    const items = group.itemIds.flatMap((itemId) => {
+      const item = visibleItems.get(itemId);
+      return item ? [item] : [];
+    });
+
+    if (items.length === 0) return [];
+
+    return [{
+      ...group,
+      items,
+      // A filtered group with one child should not add an unnecessary click.
+      collapsible: group.collapsible && items.length > 1,
+    }];
+  });
+}
+
 export function getMobileNavigationItems(subject?: NavigationSubject): NavigationItem[] {
   return getVisibleNavigationItems(subject)
     .filter((item) => item.mobilePriority !== undefined)
@@ -56,7 +105,11 @@ export function getMobileNavigationItems(subject?: NavigationSubject): Navigatio
     .slice(0, 5);
 }
 
+export function isNavigationItemActive(item: NavigationItem, pathname: string): boolean {
+  return pathname === item.to || pathname.startsWith(`${item.to}/`);
+}
+
 export function getNavigationLabel(pathname: string): string {
-  const match = NAVIGATION_ITEMS.find((item) => pathname === item.to || pathname.startsWith(`${item.to}/`));
+  const match = NAVIGATION_ITEMS.find((item) => isNavigationItemActive(item, pathname));
   return match?.label ?? 'Sinegasi CMS';
 }

@@ -3,6 +3,7 @@ import type { ActorSummary, PaginatedResponse } from '@/shared/types/common';
 export type TransactionType = 'masuk' | 'keluar';
 export type DisputeStatus = 'pending' | 'approved' | 'resolved' | 'rejected';
 export type DebtStatus = 'unpaid' | 'paid';
+export type CashScope = 'own' | 'manage';
 
 export interface CashDisputeQuota {
   period: string;
@@ -180,6 +181,7 @@ export interface UpdateBillingRulePayload {
 }
 
 export interface CashTransactionFilters {
+  scope?: CashScope;
   page?: number;
   pageSize?: number;
   search?: string;
@@ -191,6 +193,7 @@ export interface CashTransactionFilters {
 }
 
 export interface CashDebtFilters {
+  scope?: CashScope;
   page?: number;
   pageSize?: number;
   search?: string;

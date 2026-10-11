@@ -1,7 +1,8 @@
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { authenticate, type JwtPayload } from '../../../middleware/authMiddleware.js';
-import { hasCapability, requireCapability, requireAnyCapability } from '../../../middleware/capabilities.js';
-import { resolveDatabaseStudentId, resolveDatabaseUserId } from '../../auth/auth.identity.js';
+import { requireCapability, requireAnyCapability } from '../../../middleware/capabilities.js';
+import { resolveDatabaseUserId } from '../../auth/auth.identity.js';
+import { resolveCashScope, scopeErrorMessage } from '../shared/cash.scope.js';
 import {
   cashBillingRulesUpdateRouteSchema,
   cashDebtListRouteSchema,
@@ -48,11 +49,11 @@ const cashReportingRoutes: FastifyPluginAsync<CashReportingRoutesOptions> = asyn
     preHandler: [authenticate, requireAnyCapability('cash.read', 'cash.read.own')],
   }, async (request, reply) => {
     const user = request.user as JwtPayload;
-    const own = !hasCapability(user.role, 'cash.read');
     const query = request.query as Record<string, string | undefined>;
-    const studentId = own ? await resolveDatabaseStudentId(user) : query.student_id || null;
-    if (own && !studentId) return reply.status(403).send({ success: false, error_code: 'STUDENT_SCOPE_UNAVAILABLE', message: 'Akun member belum terhubung ke data siswa.' });
-    const scope = { studentId };
+    const resolved = await resolveCashScope(user, query.scope, options.reportingService.repositoryIsConfigured() ? undefined : user.studentId);
+    if (resolved.errorCode) return reply.status(403).send({ success: false, error_code: resolved.errorCode, message: scopeErrorMessage(resolved.errorCode) });
+    const scope = { studentId: resolved.studentId };
+    if (resolved.scope === 'own') delete query.student_id;
     try {
       return reply.send({ success: true, ...(await options.reportingService.listDebts(query, scope)) });
     } catch (error) {

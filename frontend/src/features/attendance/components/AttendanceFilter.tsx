@@ -43,36 +43,38 @@ export function AttendanceFilter({
   };
 
   return (
-    <div className="grid grid-cols-1 gap-3 mb-4 sm:grid-cols-2 xl:flex xl:items-center">
+    <div className="mb-4 flex flex-col gap-2.5 lg:flex-row lg:items-center">
       {/* Date Picker */}
-      <div className="relative w-full xl:w-44">
-        <CalendarIcon size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-tertiary pointer-events-none" />
+      <div className="relative w-full min-w-0 lg:w-44 lg:shrink-0">
+        <CalendarIcon size={14} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-tertiary" />
         <Input
           type="date"
+          aria-label="Filter tanggal absensi"
           value={tanggal}
           onChange={(e) => onTanggalChange(e.target.value)}
-          className="pl-9 bg-surface-1 border-hairline text-ink text-xs"
+          className="h-9 w-full bg-surface-1 pl-9 text-xs text-ink"
         />
       </div>
 
       {/* Search Input */}
-      {!isOwn && <div className="relative flex-1">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-tertiary" />
+      {!isOwn && <div className="relative min-w-0 flex-1">
+        <Search size={16} aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-tertiary" />
         <Input
           type="text"
+          aria-label="Cari catatan absensi"
           placeholder="Cari Nama atau NIS..."
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
-          className="pl-9 bg-surface-1 border-hairline text-ink placeholder:text-ink-tertiary text-xs"
+          className="h-9 w-full min-w-0 bg-surface-1 pl-9 text-xs text-ink placeholder:text-ink-tertiary"
         />
       </div>}
 
       {/* Kelas Select */}
       {!isOwn && <Select value={kelas} onValueChange={handleKelasValueChange}>
-        <SelectTrigger className="w-full xl:w-36 bg-surface-1 border-hairline text-ink text-xs">
+        <SelectTrigger aria-label="Filter kelas absensi" className="h-9 w-full bg-surface-1 text-xs text-ink lg:w-36">
           <SelectValue placeholder="Pilih Kelas" />
         </SelectTrigger>
-        <SelectContent className="bg-surface-3 border-hairline text-ink">
+        <SelectContent>
           <SelectItem value={UI_CONSTANTS.ALL_FILTER_VALUE}>Semua Kelas</SelectItem>
           <SelectItem value="X">Kelas X</SelectItem>
           <SelectItem value="XI">Kelas XI</SelectItem>
@@ -82,10 +84,10 @@ export function AttendanceFilter({
 
       {/* Status Select */}
       <Select value={status} onValueChange={handleStatusValueChange}>
-        <SelectTrigger className="w-full xl:w-36 bg-surface-1 border-hairline text-ink text-xs">
+        <SelectTrigger aria-label="Filter status absensi" className="h-9 w-full bg-surface-1 text-xs text-ink lg:w-36">
           <SelectValue placeholder="Status Kehadiran" />
         </SelectTrigger>
-        <SelectContent className="bg-surface-3 border-hairline text-ink">
+        <SelectContent>
           <SelectItem value={UI_CONSTANTS.ALL_FILTER_VALUE}>Semua Status</SelectItem>
           <SelectItem value="hadir">Hadir</SelectItem>
           <SelectItem value="sakit">Sakit</SelectItem>
@@ -97,10 +99,11 @@ export function AttendanceFilter({
       {/* Make the all-dates state explicit so the table and summary share the same scope. */}
       {!isOwn && tanggal && (
         <Button
+          type="button"
           variant="ghost"
           size="sm"
           onClick={() => onTanggalChange('')}
-          className="text-ink-subtle hover:text-ink hover:bg-surface-2 text-xs h-9"
+          className="h-9 shrink-0 text-xs text-ink-subtle hover:bg-surface-2 hover:text-ink"
         >
           Semua tanggal
         </Button>
@@ -109,10 +112,11 @@ export function AttendanceFilter({
       {/* Reset Button */}
       {hasActiveFilters && (
         <Button
+          type="button"
           variant="ghost"
           size="sm"
           onClick={onReset}
-          className="text-ink-subtle hover:text-ink hover:bg-surface-2 text-xs h-9"
+          className="h-9 shrink-0 text-xs text-ink-subtle hover:bg-surface-2 hover:text-ink"
         >
           <X size={14} className="mr-1" />
           Reset

@@ -1,6 +1,6 @@
 
 import { PageHeader } from '@/shared/ui/PageHeader';
-import { PageLoader } from '@/shared/ui/LoadingSpinner';
+import { RouteContentSkeleton } from '@/shared/ui/LoadingSkeletons';
 import { Button } from '@/shared/ui/primitives/button';
 import { RefreshCw } from 'lucide-react';
 import { getErrorMessage } from '@/shared/api/errors';
@@ -25,12 +25,12 @@ export function DashboardPage() {
         </div>
       );
     }
-    if (isLoading) return <PageLoader label="Memuat ringkasan dashboard..." />;
+    if (isLoading) return <RouteContentSkeleton />;
     return <DashboardOverview data={data} isStudentRole={isPersonalDashboard} />;
   })();
 
   return (
-    <div className="mx-auto max-w-7xl space-y-5 px-4 py-5 sm:space-y-6 sm:p-6">
+    <div className="space-y-5 px-4 py-5 sm:space-y-6 sm:p-6">
       <PageHeader
         title={`Selamat Datang, ${user?.nama ?? 'Pengguna'}`}
         subtitle={`${isPersonalDashboard ? 'Dashboard Pribadi' : 'Dashboard Operasional Guru'}: Peran: ${formatRoleLabel(user?.role, 'Anggota / Siswa')}`}

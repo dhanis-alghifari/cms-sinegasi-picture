@@ -1,4 +1,5 @@
 
+import { useMemo } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Film, Loader2 } from 'lucide-react';
@@ -15,6 +16,7 @@ import { Button } from '@/shared/ui/primitives/button';
 import { Input } from '@/shared/ui/primitives/input';
 import { Label } from '@/shared/ui/primitives/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/primitives/select';
+import { SearchableCombobox } from '@/shared/ui/SearchableCombobox';
 import { cn } from '@/shared/utils/cn';
 import { getErrorMessage } from '@/shared/api/errors';
 
@@ -60,7 +62,18 @@ export function SubmitFilmEntryModal({
 
   const selectedDirectorId = useWatch({ control: form.control, name: 'sutradara_id' });
   const selectedAwardStatus = useWatch({ control: form.control, name: 'award_status' });
-  const selectedDirector = students.find((student) => student.id === selectedDirectorId);
+  const searchableStudentOptions = useMemo(
+    () => students.map((student) => ({
+      id: student.id,
+      label: student.nama,
+      secondaryLabel: student.kelas,
+    })),
+    [students],
+  );
+  const selectedDirectorOption = useMemo(
+    () => searchableStudentOptions.find((student) => student.id === selectedDirectorId) ?? null,
+    [searchableStudentOptions, selectedDirectorId],
+  );
 
   const handleSubmit = form.handleSubmit(async (data) => {
     await onSubmit({
@@ -121,23 +134,18 @@ export function SubmitFilmEntryModal({
             {/* Sutradara */}
             <div className="space-y-1">
               <Label className="text-ink-muted text-xs">Sutradara / Pembuat Karya *</Label>
-              <Select
+              <SearchableCombobox
+                options={searchableStudentOptions}
                 value={selectedDirectorId}
+                selectedOption={selectedDirectorOption}
                 onValueChange={handleDirectorValueChange}
-              >
-                <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs">
-                  <SelectValue placeholder="Pilih Sutradara">
-                    {selectedDirector ? `${selectedDirector.nama} (${selectedDirector.kelas})` : undefined}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent className="bg-surface-3 border-hairline text-ink">
-                  {students.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.nama} ({s.kelas})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                ariaLabel="Cari dan pilih sutradara siswa"
+                triggerLabel="Buka daftar sutradara"
+                placeholder="Cari nama atau kelas..."
+                emptyMessage="Siswa aktif tidak ditemukan."
+                loadingMessage="Memuat daftar siswa..."
+                errorMessage={form.formState.errors.sutradara_id?.message}
+              />
             </div>
 
             {/* Status Penghargaan */}
@@ -150,7 +158,7 @@ export function SubmitFilmEntryModal({
                 <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs font-semibold">
                   <SelectValue placeholder="Pilih status penghargaan" />
                 </SelectTrigger>
-                <SelectContent className="bg-surface-3 border-hairline text-ink">
+                <SelectContent>
                   <SelectItem value="Juara 1">Juara 1 (Gold Winner)</SelectItem>
                   <SelectItem value="Juara 2">Juara 2 (Silver Winner)</SelectItem>
                   <SelectItem value="Juara 3">Juara 3 (Bronze Winner)</SelectItem>
@@ -187,7 +195,7 @@ export function SubmitFilmEntryModal({
           </div>
 
           <DialogFooter className="pt-2">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="bg-surface-2 border-hairline text-ink text-xs h-9">
+            <Button type="button" variant="secondary" onClick={() => onOpenChange(false)} className="text-xs h-9">
               Batal
             </Button>
             <Button type="submit" disabled={isLoading} className="bg-primary hover:bg-primary-hover text-primary-foreground text-xs h-9 font-medium">

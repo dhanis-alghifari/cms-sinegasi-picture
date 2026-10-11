@@ -119,8 +119,12 @@ export function EquipmentFormDialog({
 
   const handleSubmit = form.handleSubmit(async (data) => {
     setFormError(null);
+    form.clearErrors('change_reason');
     if (isEditing && (!data.change_reason || data.change_reason.trim().length < 5)) {
-      setFormError('Alasan perubahan wajib diisi (minimal 5 karakter)');
+      form.setError('change_reason', {
+        type: 'manual',
+        message: 'Alasan perubahan wajib diisi (minimal 5 karakter).',
+      });
       return;
     }
     try {
@@ -193,7 +197,7 @@ export function EquipmentFormDialog({
                 <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs">
                   <SelectValue placeholder="Kategori" />
                 </SelectTrigger>
-                <SelectContent className="bg-surface-3 border-hairline text-ink">
+                <SelectContent>
                   <SelectItem value="Kamera">Kamera</SelectItem>
                   <SelectItem value="Lensa">Lensa</SelectItem>
                   <SelectItem value="Audio">Audio</SelectItem>
@@ -228,7 +232,7 @@ export function EquipmentFormDialog({
                 <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs">
                   <SelectValue placeholder="Pilih kondisi" />
                 </SelectTrigger>
-                <SelectContent className="bg-surface-3 border-hairline text-ink">
+                <SelectContent>
                   <SelectItem value="bagus">Bagus</SelectItem>
                   <SelectItem value="sedikit_kerusakan">Sedikit Rusak</SelectItem>
                   <SelectItem value="rusak">Rusak</SelectItem>
@@ -314,7 +318,7 @@ export function EquipmentFormDialog({
           )}
 
           <DialogFooter className="pt-2">
-            <Button type="button" variant="outline" onClick={() => handleDialogOpenChange(false)} className="bg-surface-2 border-hairline text-ink text-xs h-9">
+            <Button type="button" variant="secondary" onClick={() => handleDialogOpenChange(false)} className="text-xs h-9">
               Batal
             </Button>
             <Button type="submit" disabled={isLoading || isImageProcessing} className="bg-primary hover:bg-primary-hover text-primary-foreground text-xs h-9 font-medium">

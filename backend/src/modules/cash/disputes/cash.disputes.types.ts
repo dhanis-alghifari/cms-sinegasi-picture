@@ -72,6 +72,7 @@ export type CashDisputeListQuery = {
   status?: string;
   cursor?: string;
   limit?: string;
+  scope?: 'own' | 'manage';
 };
 
 export type CreateCashDisputeResult = {

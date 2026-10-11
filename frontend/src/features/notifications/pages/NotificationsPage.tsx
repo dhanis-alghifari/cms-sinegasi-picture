@@ -1,8 +1,9 @@
 import { useState } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import { CheckCheck } from 'lucide-react';
 
 import { PageHeader } from '@/shared/ui/PageHeader';
-import { PageLoader } from '@/shared/ui/LoadingSpinner';
+import { MobileCardListSkeleton, RefreshingIndicator } from '@/shared/ui/LoadingSkeletons';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { Button } from '@/shared/ui/primitives/button';
 import { AnimatedTabs } from '@/shared/ui/motion/animated-tabs';
@@ -26,6 +27,7 @@ export function NotificationsPage() {
   const {
     data: notificationsData,
     isLoading,
+    isFetching,
     isError,
     refetch: refetchNotifications,
   } = useNotificationsQuery({
@@ -39,7 +41,7 @@ export function NotificationsPage() {
   const notificationsList = notificationsData?.data ?? [];
 
   return (
-    <div className="mx-auto max-w-4xl space-y-5 px-4 py-5 sm:space-y-6 sm:p-6">
+    <div className="space-y-5 px-4 py-5 sm:space-y-6 sm:p-6">
       <PageHeader
         title="Pusat Notifikasi &amp; Peringatan Sistem"
         subtitle="Riwayat pengumuman, peringatan tunggakan kas, kunci absensi 48 jam, dan status peminjaman alat."
@@ -83,42 +85,53 @@ export function NotificationsPage() {
         ]}
       />
 
-      <div id="notifications-list" role="tabpanel" aria-labelledby={`notifications-filter-${filterTab}`} tabIndex={-1}>
-        {isLoading && (
-          <PageLoader />
-        )}
-        {isError && (
-          <EmptyState
-            title="Notifikasi gagal dimuat"
-            description="Terjadi kendala saat mengambil notifikasi. Silakan coba lagi."
-            action={(
-              <Button variant="outline" onClick={() => refetchNotifications()}>
-                Coba lagi
-              </Button>
+      <div id="notifications-list" role="tabpanel" aria-labelledby={`notifications-filter-${filterTab}`} tabIndex={-1} className="min-h-[300px]">
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={filterTab}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.28, ease: 'easeOut' }}
+          >
+            {isFetching && !isLoading && <RefreshingIndicator visible />}
+            {isLoading && (
+              <MobileCardListSkeleton rows={5} label="Memuat notifikasi..." />
             )}
-          />
-        )}
-        {!isLoading && !isError && notificationsList.length === 0 && (
-          <EmptyState
-            title="Tidak ada notifikasi"
-            description={
-              filterTab === 'unread'
-                ? 'Semua notifikasi telah dibaca.'
-                : 'Belum ada notifikasi sistem yang diterima.'
-            }
-          />
-        )}
-        {!isLoading && !isError && notificationsList.length > 0 && (
-          <div className="space-y-2.5">
-            {notificationsList.map((notification) => (
-              <NotificationItem
-                key={notification.id}
-                notification={notification}
-                onMarkRead={(id) => markReadMutation.mutate(id)}
+            {isError && (
+              <EmptyState
+                title="Notifikasi gagal dimuat"
+                description="Terjadi kendala saat mengambil notifikasi. Silakan coba lagi."
+                action={(
+                  <Button variant="outline" onClick={() => refetchNotifications()}>
+                    Coba lagi
+                  </Button>
+                )}
               />
-            ))}
-          </div>
-        )}
+            )}
+            {!isLoading && !isError && notificationsList.length === 0 && (
+              <EmptyState
+                title="Tidak ada notifikasi"
+                description={
+                  filterTab === 'unread'
+                    ? 'Semua notifikasi telah dibaca.'
+                    : 'Belum ada notifikasi sistem yang diterima.'
+                }
+              />
+            )}
+            {!isLoading && !isError && notificationsList.length > 0 && (
+              <div className="space-y-2.5">
+                {notificationsList.map((notification) => (
+                  <NotificationItem
+                    key={notification.id}
+                    notification={notification}
+                    onMarkRead={(id) => markReadMutation.mutate(id)}
+                  />
+                ))}
+              </div>
+            )}
+          </motion.div>
+        </AnimatePresence>
       </div>
     </div>
   );

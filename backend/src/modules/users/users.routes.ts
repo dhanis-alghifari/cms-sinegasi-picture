@@ -79,7 +79,11 @@ const usersRoutes: FastifyPluginAsync<UsersRoutesOptions> = async (fastify, opti
     }
   });
 
-  fastify.post('/api/users', { schema: userCreateRouteSchema, preHandler: [authenticate, requireCapability('users.manage')] }, async (request, reply) => {
+  fastify.post('/api/users', {
+    schema: userCreateRouteSchema,
+    config: { disableIdempotencyCache: true },
+    preHandler: [authenticate, requireCapability('users.manage')],
+  }, async (request, reply) => {
     try {
       const actorId = await actorIdFor(request);
       const body = mapRequestFields(requestBody(request), { name: 'nama' });
@@ -120,9 +124,9 @@ const usersRoutes: FastifyPluginAsync<UsersRoutesOptions> = async (fastify, opti
         action: 'DELETE', tableName: 'users', recordId: result.data.id,
         oldValues: result.data as unknown as Record<string, unknown>,
         changeReason: reason,
-        metadata: { operation: 'delete_unlinked_operational_account' },
+        metadata: { operation: 'delete_unlinked_account' },
       });
-      return reply.send({ success: true, message: 'Akun operasional berhasil dihapus.' });
+      return reply.send({ success: true, message: 'Akun berhasil dihapus.' });
     } catch (error) {
       return sendServiceError(error, reply);
     }

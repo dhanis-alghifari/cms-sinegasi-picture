@@ -14,6 +14,7 @@ import { Label } from '@/shared/ui/primitives/label';
 import { Textarea } from '@/shared/ui/primitives/textarea';
 import { cn } from '@/shared/utils/cn';
 import { getErrorMessage } from '@/shared/api/errors';
+import { FieldError } from '@/shared/ui/FieldError';
 
 import type { Student } from '../types/students.types';
 
@@ -36,12 +37,14 @@ export function StudentStatusDialog({
 }: StudentStatusDialogProps) {
   const [reason, setReason] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
+  const [reasonError, setReasonError] = useState<string | null>(null);
   const isDeactivating = student?.is_active ?? false;
 
   const handleDialogOpenChange = (nextOpen: boolean) => {
     if (!nextOpen) {
       setReason('');
       setFormError(null);
+      setReasonError(null);
     }
     onOpenChange(nextOpen);
   };
@@ -50,11 +53,12 @@ export function StudentStatusDialog({
     event.preventDefault();
     const trimmedReason = reason.trim();
     if (trimmedReason.length < 5) {
-      setFormError('Alasan wajib diisi minimal 5 karakter.');
+      setReasonError('Alasan wajib diisi minimal 5 karakter.');
       return;
     }
 
     setFormError(null);
+    setReasonError(null);
     try {
       await onSubmit(trimmedReason);
       handleDialogOpenChange(false);
@@ -65,6 +69,7 @@ export function StudentStatusDialog({
 
   const handleReasonChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
     setReason(event.target.value);
+    if (reasonError) setReasonError(null);
     if (formError) setFormError(null);
   };
 
@@ -108,13 +113,16 @@ export function StudentStatusDialog({
               placeholder={isDeactivating ? 'Contoh: Lulus dan sudah menjadi alumni.' : 'Contoh: Kembali aktif mengikuti kegiatan sekolah.'}
               rows={3}
               disabled={isLoading}
-              className={cn('bg-surface-2 border-hairline text-ink text-xs', formError && 'border-semantic-danger')}
+              aria-invalid={Boolean(reasonError)}
+              aria-describedby={reasonError ? 'student-status-reason-error' : undefined}
+              className={cn('bg-surface-2 border-hairline text-ink text-xs', reasonError && 'border-semantic-danger')}
             />
             <p className="text-ink-tertiary text-[10px]">Minimal 5 karakter.</p>
+            <FieldError id="student-status-reason-error" message={reasonError} />
           </div>
 
           <DialogFooter className="pt-2">
-            <Button type="button" variant="outline" onClick={() => handleDialogOpenChange(false)} disabled={isLoading} className="bg-surface-2 border-hairline text-ink text-xs h-9">
+            <Button type="button" variant="secondary" onClick={() => handleDialogOpenChange(false)} disabled={isLoading} className="text-xs h-9">
               Batal
             </Button>
             <Button

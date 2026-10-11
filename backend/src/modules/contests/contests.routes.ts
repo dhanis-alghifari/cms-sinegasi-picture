@@ -66,7 +66,7 @@ const contestsRoutes: FastifyPluginAsync<ContestsRoutesOptions> = async (fastify
 
   fastify.get('/api/contests/summary', { schema: authenticatedRouteSchema, preHandler: [authenticate, requireCapability('contests.read')] }, async (_request, reply) => {
     try {
-      return reply.send({ success: true, ...(await options.contestsService.summary()) });
+      return reply.send({ success: true, data: await options.contestsService.summary() });
     } catch (error) {
       return sendServiceError(error, reply);
     }

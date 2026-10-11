@@ -40,6 +40,7 @@ const ROLE_LABELS: Record<string, string> = {
   secretary: 'Sekretaris',
   equipment_team: 'Tim Alat',
   contest_team: 'Tim Lomba',
+  social_media_team: 'Tim Humas',
   member: 'Siswa / Anggota',
 };
 
@@ -50,6 +51,7 @@ const STATUS_LABELS: Record<string, string> = {
   approved: 'Disetujui',
   rejected: 'Ditolak',
   borrowed: 'Dipinjam',
+  pending_resolution: 'Menunggu tindak lanjut',
   returned: 'Dikembalikan',
   partial: 'Sebagian diproses',
   menunggu_persetujuan: 'Menunggu persetujuan',

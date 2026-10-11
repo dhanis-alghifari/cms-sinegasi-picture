@@ -1,10 +1,10 @@
 
 import { useState } from 'react';
-import { ClipboardList, GraduationCap, PlusCircle } from 'lucide-react';
+import { ClipboardList, FileText, GraduationCap, PlusCircle } from 'lucide-react';
 
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { ResponsivePageActions } from '@/shared/ui/ResponsivePageActions';
-import { PageLoader } from '@/shared/ui/LoadingSpinner';
+import { DataTableSkeleton, RefreshingIndicator } from '@/shared/ui/LoadingSkeletons';
 import { QueryErrorState } from '@/shared/ui/QueryErrorState';
 import { Pagination } from '@/shared/ui/Pagination';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/primitives/tabs';
@@ -29,6 +29,7 @@ import { GradeTable } from '../components/GradeTable';
 import { GradeMobileList } from '../components/GradeMobileList';
 import { CreateAssignmentModal } from '../components/CreateAssignmentModal';
 import { BulkGradingModal } from '../components/BulkGradingModal';
+import { GradeReportPanel } from '../components/GradeReportPanel';
 
 import { ASSIGNMENT_CATEGORY_VALUES } from '../types/grades.types';
 import type { BulkGradeItem } from '../types/grades.types';
@@ -109,6 +110,7 @@ export function GradesPage() {
   const {
     data: gradesData,
     isLoading: isGradesLoading,
+    isFetching: isGradesFetching,
     isError: isGradesError,
     error: gradesError,
     refetch: refetchGrades,
@@ -174,7 +176,7 @@ export function GradesPage() {
   };
 
   return (
-    <div className="mx-auto max-w-7xl space-y-5 px-4 py-5 sm:space-y-6 sm:p-6">
+    <div className="space-y-5 px-4 py-5 sm:space-y-6 sm:p-6">
       <PageHeader
         title={isPersonalView ? 'Nilai & Tugas Saya' : 'Evaluasi & Nilai Universal (A–E)'}
         subtitle={isPersonalView ? 'Pantau hasil penilaian dan tugas yang ditujukan untuk kelas Anda.' : 'Sistem penilaian Universal Grading A-E untuk tugas kelas, karya crew film, dan kegiatan eksternal.'}
@@ -207,15 +209,18 @@ export function GradesPage() {
       />
 
       <Tabs defaultValue="grades" className="w-full">
-        <TabsList aria-label="Menu nilai" className="grid min-h-12 w-full grid-cols-2 gap-2 border border-hairline bg-surface-2 p-2 md:flex md:min-h-9 md:w-fit md:gap-2 md:p-1">
-          <TabsTrigger value="grades" className="min-h-12 min-w-0 flex-1 gap-1.5 px-2 text-xs leading-tight md:min-h-9 md:min-w-44 md:flex-none md:whitespace-nowrap md:px-3">
+        <TabsList aria-label="Menu nilai" className={`grid w-full ${isPersonalView ? 'grid-cols-2' : 'grid-cols-3'} md:flex md:w-fit`}>
+          <TabsTrigger value="grades" className="min-w-0 gap-1.5 px-2 text-xs leading-tight md:min-w-44 md:flex-none md:whitespace-nowrap md:px-3">
             <GraduationCap size={14} />
             <span className="md:hidden">Nilai</span>
             <span className="hidden md:inline">{isPersonalView ? 'Riwayat Nilai Saya' : 'Rekap Nilai Siswa'}</span>
           </TabsTrigger>
-          <TabsTrigger value="assignments" className="min-h-12 min-w-0 flex-1 gap-1.5 px-2 text-xs leading-tight md:min-h-9 md:min-w-44 md:flex-none md:whitespace-nowrap md:px-3">
+          <TabsTrigger value="assignments" className="min-w-0 gap-1.5 px-2 text-xs leading-tight md:min-w-44 md:flex-none md:whitespace-nowrap md:px-3">
             <ClipboardList size={14} /><span className="md:hidden">Tugas</span><span className="hidden md:inline">{isPersonalView ? 'Tugas Saya' : 'Daftar Tugas'}</span>
           </TabsTrigger>
+          {!isPersonalView && <TabsTrigger value="reports" className="min-w-0 gap-1.5 px-2 text-xs leading-tight md:min-w-44 md:flex-none md:whitespace-nowrap md:px-3">
+            <FileText size={14} /><span className="md:hidden">Raport</span><span className="hidden md:inline">Raport Semester</span>
+          </TabsTrigger>}
         </TabsList>
 
         <TabsContent value="grades" className="space-y-6 pt-2">
@@ -232,8 +237,9 @@ export function GradesPage() {
             scope={{ isOwn: isPersonalView }}
           />
 
+          {isGradesFetching && !isGradesLoading && <RefreshingIndicator visible />}
           {isGradesLoading && (
-            <PageLoader label="Memuat rekap nilai..." />
+            <DataTableSkeleton columns={7} rows={7} mobile={isMobile} label="Memuat rekap nilai..." />
           )}
           {isGradesError && (
             <QueryErrorState
@@ -285,6 +291,10 @@ export function GradesPage() {
             actions={{ onRetry: refetchAssignments }}
           />
         </TabsContent>
+
+        {!isPersonalView && <TabsContent value="reports" className="pt-2">
+          <GradeReportPanel students={studentsData?.data ?? []} />
+        </TabsContent>}
       </Tabs>
 
       {/* Modals */}

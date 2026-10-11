@@ -9,6 +9,7 @@ export function useUpdateContestMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    meta: { successMessage: 'Perubahan event festival berhasil disimpan.' },
     mutationFn: ({
       id,
       payload,

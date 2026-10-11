@@ -4,7 +4,7 @@ import { UserPlus } from 'lucide-react';
 
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { ResponsivePageActions } from '@/shared/ui/ResponsivePageActions';
-import { PageLoader } from '@/shared/ui/LoadingSpinner';
+import { DataTableSkeleton, RefreshingIndicator } from '@/shared/ui/LoadingSkeletons';
 import { QueryErrorState } from '@/shared/ui/QueryErrorState';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { Pagination } from '@/shared/ui/Pagination';
@@ -82,7 +82,7 @@ export function UsersPage() {
   const [deleteTargetUser, setDeleteTargetUser] = useState<UserAccount | null>(null);
 
   // Queries & Mutations
-  const { data, isLoading, isError, error, refetch } = useUsersQuery({
+  const { data, isLoading, isFetching, isError, error, refetch } = useUsersQuery({
     page,
     pageSize,
     search: debouncedSearch || undefined,
@@ -190,8 +190,8 @@ export function UsersPage() {
   };
 
   const userContent = (() => {
-    if (isLoading) return <PageLoader label="Memuat daftar akun..." />;
-    if (isError) {
+    if (isLoading) return <DataTableSkeleton columns={6} rows={6} mobile={isMobile} label="Memuat daftar akun..." />;
+    if (isError && !data) {
       return <QueryErrorState title="Daftar akun belum dapat dimuat" error={error} onRetry={refetch} />;
     }
 
@@ -226,7 +226,7 @@ export function UsersPage() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl space-y-5 px-4 py-5 sm:space-y-6 sm:p-6">
+    <div className="space-y-5 px-4 py-5 sm:space-y-6 sm:p-6">
       <PageHeader
         title="Manajemen Pengguna & Akses"
         subtitle="Kelola akun pengguna, penetapan 8 tingkatan peran (RBAC), reset password, dan status keaktifan."
@@ -252,6 +252,7 @@ export function UsersPage() {
         onReset={handleResetFilter}
       />
 
+      <RefreshingIndicator visible={isFetching && !isLoading} />
       {userContent}
 
       <Suspense fallback={null}>
@@ -300,8 +301,8 @@ export function UsersPage() {
               onOpenChange: (open) => { if (!open) setDeleteTargetUser(null); },
             }}
             content={{
-              title: 'Hapus Akun Operasional',
-              description: `Akun @${deleteTargetUser.username} akan dihapus permanen. Akun yang terhubung ke siswa tidak dapat dihapus; gunakan status Alumni dari halaman Data Siswa.`,
+              title: 'Hapus Akun Permanen',
+              description: `Akun tanpa tautan siswa @${deleteTargetUser.username} akan dihapus permanen. Akun yang masih terhubung ke data siswa hanya dapat dihapus melalui purge data siswa nonaktif.`,
             }}
             action={{ confirmLabel: 'Hapus Akun', onConfirm: handleConfirmDelete }}
             reason={{ label: 'Alasan Penghapusan *', placeholder: 'Contoh: Akun duplikat dan tidak memiliki histori' }}

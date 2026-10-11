@@ -14,6 +14,7 @@ export function useEquipmentValuationsQuery(id: string | undefined, enabled = tr
 export function useCreateEquipmentValuationMutation() {
   const queryClient = useQueryClient();
   return useMutation({
+    meta: { successMessage: 'Nilai penggantian alat berhasil diperbarui.' },
     mutationFn: ({ id, payload, changeReason }: { id: string; payload: CreateEquipmentValuationPayload; changeReason: string }) =>
       equipmentService.createEquipmentValuation(id, payload, changeReason),
     onSuccess: async (_, variables) => {

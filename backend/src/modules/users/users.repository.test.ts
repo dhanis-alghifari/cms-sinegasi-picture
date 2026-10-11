@@ -6,6 +6,20 @@ import { createUsersRepository } from './users.repository.js';
 test('production reset repository delegates to the atomic RPC and never issues a direct update', async () => {
   const calls: Array<{ name: string; args: Record<string, unknown> }> = [];
   const client = {
+    from(table: string) {
+      assert.equal(table, 'students');
+      return {
+        select() {
+          return {
+            eq() {
+              return {
+                async maybeSingle() { return { data: null, error: null }; },
+              };
+            },
+          };
+        },
+      };
+    },
     rpc(name: string, args: Record<string, unknown>) {
       calls.push({ name, args });
       return {
@@ -46,6 +60,20 @@ test('production reset repository delegates to the atomic RPC and never issues a
 test('production user update delegates to the atomic RPC with audit context', async () => {
   const calls: Array<{ name: string; args: Record<string, unknown> }> = [];
   const client = {
+    from(table: string) {
+      assert.equal(table, 'students');
+      return {
+        select() {
+          return {
+            eq() {
+              return {
+                async maybeSingle() { return { data: null, error: null }; },
+              };
+            },
+          };
+        },
+      };
+    },
     rpc(name: string, args: Record<string, unknown>) {
       calls.push({ name, args });
       return {

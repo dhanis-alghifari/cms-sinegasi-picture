@@ -89,7 +89,7 @@ export function ImagePreviewDialog({
               {download.isLoading ? (download.loadingLabel || 'Menyiapkan...') : (download.label || 'Download')}
             </Button>
           )}
-          <DialogClose render={<Button type="button" variant="outline" className="min-h-11 w-full border-hairline bg-surface-2 text-ink sm:w-auto" />}>Tutup</DialogClose>
+          <DialogClose render={<Button type="button" variant="secondary" className="min-h-11 w-full sm:w-auto" />}>Tutup</DialogClose>
         </DialogFooter>
       </DialogContent>
     </Dialog>

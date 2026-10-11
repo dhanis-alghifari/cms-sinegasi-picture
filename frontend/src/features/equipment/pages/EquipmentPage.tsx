@@ -1,10 +1,10 @@
 
-import { lazy, Suspense, useState } from 'react';
+import { lazy, Suspense, useRef, useState } from 'react';
 import { FileDown, Plus, Tags } from 'lucide-react';
 
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { ResponsivePageActions } from '@/shared/ui/ResponsivePageActions';
-import { PageLoader } from '@/shared/ui/LoadingSpinner';
+import { DataTableSkeleton, MetricCardsSkeleton, RefreshingIndicator } from '@/shared/ui/LoadingSkeletons';
 import { QueryErrorState } from '@/shared/ui/QueryErrorState';
 import { Pagination } from '@/shared/ui/Pagination';
 
@@ -14,7 +14,10 @@ import { UI_CONSTANTS } from '@/shared/constants/ui';
 import { useIsMobile } from '@/shared/hooks/use-mobile';
 import { hasCapability } from '@/shared/auth/capabilities';
 import { isOneOf } from '@/shared/utils/isOneOf';
+import { getErrorMessage } from '@/shared/api/errors';
+import { toast } from '@/shared/ui/primitives/toast';
 
+import { equipmentService } from '../api/equipment.service';
 import { useEquipmentQuery, useEquipmentSummaryQuery } from '../hooks/useEquipmentQuery';
 import { useCreateEquipmentMutation } from '../hooks/useCreateEquipmentMutation';
 import { useUpdateEquipmentMutation } from '../hooks/useUpdateEquipmentMutation';
@@ -90,6 +93,7 @@ export function EquipmentPage() {
 
   const [formOpen, setFormOpen] = useState(false);
   const [selectedEquipment, setSelectedEquipment] = useState<Equipment | null>(null);
+  const editLoadSequence = useRef(0);
 
   const [conditionOpen, setConditionOpen] = useState(false);
   const [conditionTarget, setConditionTarget] = useState<Equipment | null>(null);
@@ -111,6 +115,7 @@ export function EquipmentPage() {
   const {
     data: equipmentData,
     isLoading: isEquipmentLoading,
+    isFetching: isEquipmentFetching,
     isError: isEquipmentError,
     error: equipmentError,
     refetch: refetchEquipment,
@@ -133,17 +138,27 @@ export function EquipmentPage() {
   const registerReplacementMutation = useRegisterEquipmentReplacementMutation();
 
   const handleOpenAdd = () => {
+    editLoadSequence.current += 1;
     createMutation.reset();
     updateMutation.reset();
     setSelectedEquipment(null);
     setFormOpen(true);
   };
 
-  const handleOpenEdit = (eq: Equipment) => {
+  const handleOpenEdit = async (eq: Equipment) => {
+    const sequence = ++editLoadSequence.current;
     createMutation.reset();
     updateMutation.reset();
-    setSelectedEquipment(eq);
-    setFormOpen(true);
+    try {
+      const completeEquipment = await equipmentService.getEquipmentById(eq.id);
+      if (sequence !== editLoadSequence.current) return;
+      setSelectedEquipment(completeEquipment);
+      setFormOpen(true);
+    } catch (error) {
+      if (sequence === editLoadSequence.current) {
+        toast.add({ type: 'error', title: 'Data alat gagal dimuat', description: getErrorMessage(error) });
+      }
+    }
   };
 
   const handleOpenCondition = (eq: Equipment) => {
@@ -224,7 +239,7 @@ export function EquipmentPage() {
   })();
 
   return (
-    <div className="mx-auto max-w-7xl space-y-5 px-4 py-5 sm:space-y-6 sm:p-6">
+    <div className="space-y-5 px-4 py-5 sm:space-y-6 sm:p-6">
       <PageHeader
         title="Katalog & Inventaris Alat Sinematografi"
         subtitle="Kelola data kamera, lensa, audio, lighting, status ketersediaan, dan laporan maintenance fisik."
@@ -252,7 +267,7 @@ export function EquipmentPage() {
       )}
 
       {isSummaryLoading && (
-        <PageLoader label="Memuat ringkasan alat..." />
+        <MetricCardsSkeleton count={6} label="Memuat ringkasan alat..." />
       )}
       {isSummaryError && (
         <QueryErrorState
@@ -276,8 +291,9 @@ export function EquipmentPage() {
         }}
       />
 
+      {isEquipmentFetching && !isEquipmentLoading && <RefreshingIndicator visible />}
       {isEquipmentLoading && (
-        <PageLoader label="Memuat daftar alat..." />
+        <DataTableSkeleton columns={6} rows={6} mobile={isMobile} label="Memuat daftar alat..." />
       )}
       {isEquipmentError && (
         <QueryErrorState

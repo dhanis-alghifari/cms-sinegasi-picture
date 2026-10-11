@@ -4,10 +4,10 @@ import { Trophy } from 'lucide-react';
 
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { ResponsivePageActions } from '@/shared/ui/ResponsivePageActions';
-import { PageLoader } from '@/shared/ui/LoadingSpinner';
+import { DataTableSkeleton, MetricCardsSkeleton, RefreshingIndicator } from '@/shared/ui/LoadingSkeletons';
 import { QueryErrorState } from '@/shared/ui/QueryErrorState';
 import { Pagination } from '@/shared/ui/Pagination';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/primitives/tabs';
+import { AnimatedTabs } from '@/shared/ui/motion/animated-tabs';
 
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import { useDebouncedValue } from '@/shared/hooks/useDebouncedValue';
@@ -91,6 +91,7 @@ export function ContestsPage() {
   const {
     data: contestPage,
     isLoading: isContestPageLoading,
+    isFetching: isContestPageFetching,
     isError: isContestPageError,
     error: contestPageError,
     refetch: refetchContestPage,
@@ -130,7 +131,7 @@ export function ContestsPage() {
         id: selectedContest.id,
         payload: {
           nama_lomba: contestFormPayload.nama_lomba,
-          kota: contestFormPayload.kota,
+          kota: contestFormPayload.kota || null,
           tingkat: contestFormPayload.tingkat,
           ...(contestFormPayload.deadline !== selectedContest.deadline ? { deadline: contestFormPayload.deadline } : {}),
           status: contestFormPayload.status,
@@ -144,7 +145,7 @@ export function ContestsPage() {
       await createContestMutation.mutateAsync({
         payload: {
           nama_lomba: contestFormPayload.nama_lomba,
-          kota: contestFormPayload.kota,
+          kota: contestFormPayload.kota || null,
           tingkat: contestFormPayload.tingkat,
           deadline: contestFormPayload.deadline,
           status: contestFormPayload.status,
@@ -157,7 +158,7 @@ export function ContestsPage() {
   };
 
   return (
-    <div className="mx-auto max-w-7xl space-y-5 px-4 py-5 sm:space-y-6 sm:p-6">
+    <div className="space-y-5 px-4 py-5 sm:space-y-6 sm:p-6">
       <PageHeader
         title="Perlombaan &amp; Prestasi Karya Siswa"
         subtitle="Direktori festival, pendaftaran karya film/media, dan rekapitulasi penghargaan atau hasil kejuaraan."
@@ -176,7 +177,7 @@ export function ContestsPage() {
       />
 
       {isContestSummaryLoading && (
-        <PageLoader label="Memuat ringkasan perlombaan..." />
+        <MetricCardsSkeleton count={4} label="Memuat ringkasan perlombaan..." />
       )}
       {isContestSummaryError && (
         <QueryErrorState
@@ -189,63 +190,70 @@ export function ContestsPage() {
         <ContestSummaryCards summary={contestSummary} />
       )}
 
-      <Tabs
+      <AnimatedTabs
+        id="contest-tabs"
         value={activeView}
-        onValueChange={handleActiveViewChange}
-        className="w-full"
-      >
-        <TabsList aria-label="Perlombaan dan prestasi" className="grid min-h-12 w-full grid-cols-2 border border-hairline bg-surface-2 p-1 sm:w-fit sm:min-h-9 sm:gap-1">
-          <TabsTrigger value="events" className="min-h-10 px-3 text-xs sm:min-h-9">Event &amp; pendaftaran</TabsTrigger>
-          <TabsTrigger value="achievements" className="min-h-10 px-3 text-xs sm:min-h-9">Karya &amp; prestasi</TabsTrigger>
-        </TabsList>
+        onValueChange={(val) => handleActiveViewChange(val)}
+        ariaLabel="Perlombaan dan prestasi"
+        ariaControls="contest-tab-panel"
+        className="w-full md:w-fit"
+        tabs={[
+          { value: 'events', label: 'Event & pendaftaran' },
+          { value: 'achievements', label: 'Karya & prestasi selesai' },
+        ]}
+      />
 
-        <TabsContent value="achievements" className="pt-2">
-          {activeView === 'achievements' && (
-            <Suspense fallback={<PageLoader label="Memuat rekap prestasi..." />}>
+      <div id="contest-tab-panel" role="tabpanel" aria-labelledby={`contest-tabs-${activeView}`} className="w-full">
+        {activeView === 'achievements' && (
+          <div className="pt-2">
+            <Suspense fallback={<DataTableSkeleton columns={5} rows={4} mobile={isMobile} label="Memuat rekap prestasi..." />}>
               <ContestAchievementsPanel />
             </Suspense>
-          )}
-        </TabsContent>
+          </div>
+        )}
 
-        <TabsContent value="events" className="space-y-4 pt-2">
-          <ContestFilter
-            search={search}
-            onSearchChange={handleSearchChange}
-            tingkat={scopeFilter}
-            onTingkatChange={handleScopeFilterChange}
-            status={statusFilter}
-            onStatusChange={handleStatusFilterChange}
-            onReset={handleResetContestFilters}
-          />
-
-          {isContestPageLoading && (
-            <PageLoader label="Memuat daftar perlombaan..." />
-          )}
-          {isContestPageError && (
-            <QueryErrorState
-              title="Daftar perlombaan belum dapat dimuat"
-              error={contestPageError}
-              onRetry={refetchContestPage}
+        {activeView === 'events' && (
+          <div className="space-y-4 pt-2">
+            <ContestFilter
+              search={search}
+              onSearchChange={handleSearchChange}
+              tingkat={scopeFilter}
+              onTingkatChange={handleScopeFilterChange}
+              status={statusFilter}
+              onStatusChange={handleStatusFilterChange}
+              onReset={handleResetContestFilters}
             />
-          )}
-          {!isContestPageLoading && !isContestPageError && (
-            <div className="space-y-4">
-              {isMobile ? (
-                <ContestMobileList contests={contestPage?.data ?? []} onEdit={handleOpenEditContest} onManageEntries={handleOpenContestEntries} canManage={canManage} />
-              ) : (
-                <ContestTable contests={contestPage?.data ?? []} onEdit={handleOpenEditContest} onManageEntries={handleOpenContestEntries} canManage={canManage} />
-              )}
-              <Pagination
-                page={contestPage?.page ?? page}
-                totalPages={contestPage?.totalPages ?? 1}
-                total={contestPage?.total ?? 0}
-                pageSize={contestPage?.pageSize ?? pageSize}
-                onPageChange={setPage}
+
+            {isContestPageFetching && !isContestPageLoading && <RefreshingIndicator visible />}
+            {isContestPageLoading && (
+              <DataTableSkeleton columns={7} rows={6} mobile={isMobile} label="Memuat daftar perlombaan..." />
+            )}
+            {isContestPageError && (
+              <QueryErrorState
+                title="Daftar perlombaan belum dapat dimuat"
+                error={contestPageError}
+                onRetry={refetchContestPage}
               />
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
+            )}
+            {!isContestPageLoading && !isContestPageError && (
+              <div className="space-y-4">
+                {isMobile ? (
+                  <ContestMobileList contests={contestPage?.data ?? []} onEdit={handleOpenEditContest} onManageEntries={handleOpenContestEntries} canManage={canManage} />
+                ) : (
+                  <ContestTable contests={contestPage?.data ?? []} onEdit={handleOpenEditContest} onManageEntries={handleOpenContestEntries} canManage={canManage} />
+                )}
+                <Pagination
+                  page={contestPage?.page ?? page}
+                  totalPages={contestPage?.totalPages ?? 1}
+                  total={contestPage?.total ?? 0}
+                  pageSize={contestPage?.pageSize ?? pageSize}
+                  onPageChange={setPage}
+                />
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {canManage && (
         <Suspense fallback={null}>

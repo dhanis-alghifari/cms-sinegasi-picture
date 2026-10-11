@@ -3,6 +3,7 @@ import test from 'node:test';
 import { CashMutationsService, CashMutationsServiceError } from './cash.mutations.service.js';
 import { createCashMutationsRepository } from './cash.mutations.repository.js';
 import type { CashMutationMemoryState } from './cash.mutations.types.js';
+import type { CashMutationsRepository } from './cash.mutations.repository.js';
 
 function state(): CashMutationMemoryState {
   const now = new Date().toISOString();
@@ -44,6 +45,28 @@ test('cash mutation service rejects an expense larger than the current balance',
   );
 });
 
+test('cash mutation service maps the exact PostgreSQL insufficient-balance exception to a safe 400', async () => {
+  const repository: CashMutationsRepository = {
+    isConfigured: () => true,
+    async recordCashIn() { throw new Error('Unexpected income operation'); },
+    async recordCashOut() { return { data: null, error: { code: 'P0001', message: 'Saldo kas tidak mencukupi untuk pengeluaran ini.' } }; },
+  };
+  await assert.rejects(new CashMutationsService(repository).recordOut({ nominal: 9000, keterangan: 'Fixture expense' }, 'fixture'),
+    (error: unknown) => error instanceof CashMutationsServiceError && error.statusCode === 400
+      && error.errorCode === 'INSUFFICIENT_BALANCE' && error.message === 'Saldo kas tidak mencukupi untuk pengeluaran ini.');
+});
+
+test('cash mutation service keeps unknown SQL exceptions generic and server-side', async () => {
+  const repository: CashMutationsRepository = {
+    isConfigured: () => true,
+    async recordCashIn() { throw new Error('Unexpected income operation'); },
+    async recordCashOut() { return { data: null, error: { code: 'P0001', message: 'Private row values or provider diagnostics' } }; },
+  };
+  await assert.rejects(new CashMutationsService(repository).recordOut({ nominal: 9000, keterangan: 'Fixture expense' }, 'fixture'),
+    (error: unknown) => error instanceof CashMutationsServiceError && error.statusCode === 500
+      && error.errorCode === 'P0001' && error.message === 'Gagal mencatat pengeluaran kas.');
+});
+
 test('cash mutation service validates payment method and calendar date before persistence', async () => {
   const service = new CashMutationsService(createCashMutationsRepository(null, state()));
   await assert.rejects(
@@ -54,4 +77,32 @@ test('cash mutation service validates payment method and calendar date before pe
     service.recordOut({ nominal: 1000, keterangan: 'Beli perlengkapan', metode_pembayaran: 'qris dana' }, 'user-1'),
     (error: unknown) => error instanceof CashMutationsServiceError && error.errorCode === 'INVALID_PAYMENT_METHOD',
   );
+});
+
+test('cash mutation service rejects invalid income and expense proof before persistence', async () => {
+  const memory = state();
+  const service = new CashMutationsService(createCashMutationsRepository(null, memory));
+  for (const foto_bukti_url of ['data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=', 'data:image/png;base64,AAAA', 'https://user:password@example.test/proof.png']) {
+    await assert.rejects(
+      service.recordIn({ nominal: 1000, type: 'pemasukan', metode_pembayaran: 'cash', foto_bukti_url }, 'user-1', 'proof-in-1'),
+      (error: unknown) => error instanceof CashMutationsServiceError && error.errorCode === 'INVALID_INPUT',
+    );
+    await assert.rejects(
+      service.recordOut({ nominal: 1000, keterangan: 'Perlengkapan', foto_bukti_url }, 'user-1', 'proof-out-1'),
+      (error: unknown) => error instanceof CashMutationsServiceError && error.errorCode === 'INVALID_INPUT',
+    );
+  }
+  assert.equal(memory.transactions.length, 0);
+});
+
+test('cash mutation service preserves optional empty proof and its existing length error', async () => {
+  const memory = state();
+  const service = new CashMutationsService(createCashMutationsRepository(null, memory));
+  const input = { nominal: 1000, type: 'pemasukan', metode_pembayaran: 'cash' };
+  await service.recordIn({ ...input, foto_bukti_url: '' }, 'user-1', 'proof-empty-1');
+  await assert.rejects(
+    service.recordIn({ ...input, foto_bukti_url: 'x'.repeat(900_001) }, 'user-1', 'proof-large-1'),
+    (error: unknown) => error instanceof CashMutationsServiceError && error.errorCode === 'PROOF_TOO_LONG',
+  );
+  assert.equal(memory.transactions.length, 1);
 });

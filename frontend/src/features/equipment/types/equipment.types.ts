@@ -65,6 +65,7 @@ export interface CreateEquipmentValuationPayload {
 export interface EquipmentFilterParams {
   page?: number;
   pageSize?: number;
+  purpose?: 'borrowing_request';
   search?: string;
   kategori?: EquipmentCategory;
   kondisi?: EquipmentCondition;

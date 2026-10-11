@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { Client } from 'pg';
 import { runtimeConfig } from '../config/env.js';
+import { assertLegacyMigrationTarget } from './migrationSafety.js';
 
 const migrationNames = [
   '011_cash_management_hardening.sql',
@@ -15,6 +16,11 @@ const migrationNames = [
   '045_cash_dispute_schema_compatibility.sql',
   '046_cash_dispute_monthly_quota.sql',
   '066_cash_migration_history_rls.sql',
+  '071_cash_personal_scope_and_teacher_dispute_review.sql',
+  '072_cash_dispute_single_pending.sql',
+  '073_cash_dispute_per_target_pending.sql',
+  '075_cash_dispute_derive_debt_amount.sql',
+  '079_cash_dispute_read_all.sql',
 ] as const;
 
 type MigrationName = (typeof migrationNames)[number];
@@ -133,6 +139,59 @@ const migrationProbes: Record<MigrationName, MigrationProbe> = {
         AND relrowsecurity = TRUE
     ) AS complete
   `),
+  '071_cash_personal_scope_and_teacher_dispute_review.sql': (client) => schemaProbe(client, `
+    SELECT to_regprocedure('public.guard_cash_dispute_actor()') IS NOT NULL
+      AND to_regprocedure('public.guard_cash_dispute_reviewer()') IS NOT NULL
+      AND EXISTS (
+        SELECT 1
+        FROM pg_trigger
+        WHERE tgrelid = 'public.cash_disputes'::regclass
+          AND tgname = 'trg_guard_cash_dispute_actor'
+          AND NOT tgisinternal
+      )
+      AND EXISTS (
+        SELECT 1
+        FROM public.access_role_permissions
+        WHERE role_key = 'teacher' AND permission_key = 'cash.dispute.review'
+      )
+      AND NOT EXISTS (
+        SELECT 1
+        FROM public.access_role_permissions
+        WHERE role_key = 'treasurer' AND permission_key = 'cash.dispute.review'
+      ) AS complete
+  `),
+  '072_cash_dispute_single_pending.sql': (client) => schemaProbe(client, `
+    SELECT to_regprocedure('public.create_cash_dispute_atomic(uuid,uuid,uuid,text,text,uuid,text)') IS NOT NULL
+      AND to_regclass('public.idx_cash_disputes_student_pending') IS NOT NULL
+      AND COALESCE(pg_get_functiondef(to_regprocedure('public.create_cash_dispute_atomic(uuid,uuid,uuid,text,text,uuid,text)')), '') LIKE '%student_id = p_student_id%status = ''pending''%'
+      AS complete
+  `),
+  '073_cash_dispute_per_target_pending.sql': (client) => schemaProbe(client, `
+    SELECT to_regprocedure('public.create_cash_dispute_atomic(uuid,uuid,uuid,text,text,uuid,text)') IS NOT NULL
+      AND COALESCE(pg_get_functiondef(to_regprocedure('public.create_cash_dispute_atomic(uuid,uuid,uuid,text,text,uuid,text)')), '') LIKE '%active-target check is intentionally scoped%'
+      AND COALESCE(pg_get_functiondef(to_regprocedure('public.create_cash_dispute_atomic(uuid,uuid,uuid,text,text,uuid,text)')), '') NOT LIKE '%A student resolves one dispute at a time across both transactions and debts.%'
+      AS complete
+  `),
+  '075_cash_dispute_derive_debt_amount.sql': (client) => schemaProbe(client, `
+    SELECT to_regprocedure('public.review_cash_dispute_atomic(uuid,text,text,uuid,date,numeric,text)') IS NOT NULL
+      AND COALESCE(pg_get_functiondef(to_regprocedure('public.review_cash_dispute_atomic(uuid,text,text,uuid,date,numeric,text)')), '') LIKE '%p_resolution_amount IS NOT NULL%'
+      AND COALESCE(pg_get_functiondef(to_regprocedure('public.review_cash_dispute_atomic(uuid,text,text,uuid,date,numeric,text)')), '') LIKE '%v_debt.amount%'
+      AS complete
+  `),
+  '079_cash_dispute_read_all.sql': (client) => schemaProbe(client, `
+    SELECT EXISTS (
+        SELECT 1 FROM public.access_permissions
+        WHERE permission_key = 'cash.dispute.read.all'
+      )
+      AND EXISTS (
+        SELECT 1 FROM public.access_role_permissions
+        WHERE role_key = 'treasurer' AND permission_key = 'cash.dispute.read.all'
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM public.access_role_permissions
+        WHERE role_key = 'treasurer' AND permission_key = 'cash.dispute.review'
+      ) AS complete
+  `),
 };
 
 function resolveMigrationPath(migrationName: string): string {
@@ -232,6 +291,7 @@ async function main(): Promise<void> {
   }
 
   try {
+    assertLegacyMigrationTarget(databaseUrl, runtimeConfig.environment === 'production');
     await runCashMigrations(databaseUrl);
   } catch (error) {
     console.error(error instanceof Error ? error.message : error);

@@ -1,13 +1,16 @@
 
 import { z } from 'zod';
+import { STUDENT_ROLE_VALUES } from '@/shared/types/common';
 import { PEMINATAN_VALUES } from '../types/students.types';
 
 export const studentSchema = z.object({
   nis: z.string({ error: 'NIS wajib diisi.' }).min(1, 'NIS wajib diisi').trim(),
   nama: z.string({ error: 'Nama siswa wajib diisi.' }).min(2, 'Nama siswa minimal 2 karakter').trim(),
   kelas: z.string({ error: 'Kelas wajib dipilih.' }).min(1, 'Kelas wajib dipilih').trim(),
+  username: z.string().optional(),
   peminatan: z.enum(PEMINATAN_VALUES).optional(),
   no_telepon: z.string().optional(),
+  whatsapp_confirmed: z.boolean().optional(),
   foto_url: z
     .string()
     .refine(
@@ -16,6 +19,7 @@ export const studentSchema = z.object({
     )
     .optional()
     .or(z.literal('')),
+  role: z.enum(STUDENT_ROLE_VALUES).optional(),
   change_reason: z.string().optional(),
 });
 

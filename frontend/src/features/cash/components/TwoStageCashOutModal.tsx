@@ -211,7 +211,7 @@ export function TwoStageCashOutModal({
           <DialogFooter className="pt-2">
             {step === 1 ? (
               <>
-                <Button type="button" variant="outline" onClick={handleClose} className="bg-surface-2 border-hairline text-ink text-xs h-9">
+                <Button type="button" variant="secondary" onClick={handleClose} className="text-xs h-9">
                   Batal
                 </Button>
                 <Button
@@ -226,7 +226,7 @@ export function TwoStageCashOutModal({
               </>
             ) : (
               <>
-                <Button type="button" variant="outline" onClick={handleBackStep} className="bg-surface-2 border-hairline text-ink text-xs h-9">
+                <Button type="button" variant="secondary" onClick={handleBackStep} className="text-xs h-9">
                   <ArrowLeft size={14} className="mr-1" />
                   Kembali
                 </Button>

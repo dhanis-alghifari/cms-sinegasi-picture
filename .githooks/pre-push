@@ -1,0 +1,5 @@
+#!/bin/sh
+set -e
+
+echo "🛡️  [Pre-Push Guardrail] Verifying configuration integrity before push..."
+node scripts/verify-guardrails.mjs

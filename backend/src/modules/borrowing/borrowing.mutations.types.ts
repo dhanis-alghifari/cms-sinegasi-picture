@@ -67,7 +67,7 @@ export type BorrowingMemoryEquipment = {
 
 export type BorrowingMemoryRecord = BorrowingReadRecord & {
   idempotency_key?: string;
-  raw_status: 'pending' | 'approved' | 'rejected' | 'borrowed' | 'returned';
+  raw_status: 'pending' | 'approved' | 'rejected' | 'borrowed' | 'partial' | 'returned';
   items: BorrowingReadItem[];
 };
 
@@ -92,6 +92,47 @@ export type BorrowingReturnEvidenceRecord = {
   created_by?: string | null;
   created_at?: string;
   updated_at?: string;
+  return_report_id?: string | null;
+  source?: 'teacher_return' | 'student_report';
+};
+
+export type BorrowingReturnReportEvidenceUploadInput = {
+  equipment_id: string;
+  file_name: string;
+  content_type: string;
+  file_size_bytes: number;
+};
+
+export type BorrowingReturnReportSubmitInput = {
+  report_id: string;
+  evidence_ids: string[];
+  notes?: string;
+  idempotency_key?: string;
+  change_reason?: string;
+};
+
+export type BorrowingReturnReportVerifyInput = {
+  report_id: string;
+  decision: 'approve' | 'reject';
+  verification_method?: 'photo' | 'physical_check' | 'photo_and_physical';
+  item_conditions?: BorrowingReturnItemCondition[];
+  rejection_reason?: string;
+  idempotency_key?: string;
+  change_reason?: string;
+};
+
+export type BorrowingReturnReportRecord = {
+  id: string;
+  borrowing_id: string;
+  reporter_id: string;
+  status: 'draft' | 'pending_verification' | 'approved' | 'rejected';
+  notes?: string | null;
+  rejection_reason?: string | null;
+  verification_method?: string | null;
+  verified_by?: string | null;
+  reported_at?: string | null;
+  verified_at?: string | null;
+  evidence: BorrowingReturnEvidenceAccessRecord[];
 };
 
 export type BorrowingReturnEvidenceAccessRecord = {
@@ -106,6 +147,8 @@ export type BorrowingReturnEvidenceAccessRecord = {
   created_at?: string;
   access_url: string;
   expires_in_seconds: number;
+  return_report_id?: string | null;
+  source?: 'teacher_return' | 'student_report';
 };
 
 export type BorrowingReturnEvidenceUploadInput = {
@@ -116,8 +159,8 @@ export type BorrowingReturnEvidenceUploadInput = {
 };
 
 export interface BorrowingReturnEvidenceStorage {
-  createUpload(fileName: string, folder: string): { uploadUrl: string; key: string; expiresInSeconds: number };
-  inspect(objectKey: string): Promise<{ exists: boolean; contentType?: string; contentLength?: number }>;
+  createUpload(fileName: string, folder: string, contentType: string): { uploadUrl: string; key: string; expiresInSeconds: number };
+  verifyUpload(objectKey: string, contentType: string, fileSizeBytes: number): Promise<boolean>;
   createAccess(objectKey: string): { accessUrl: string; expiresInSeconds: number };
 }
 

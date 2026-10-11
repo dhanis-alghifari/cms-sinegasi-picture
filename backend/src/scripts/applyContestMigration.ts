@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { Client } from 'pg';
 import { runtimeConfig } from '../config/env.js';
+import { assertLegacyMigrationTarget } from './migrationSafety.js';
 
 const migrationNames = [
   '047_contest_schema_reconciliation.sql',
@@ -12,6 +13,7 @@ const migrationNames = [
   '051_contest_update_atomic.sql',
   '052_contest_scope_contract.sql',
   '053_contest_pipeline_evidence_contract.sql',
+  '054_contest_achievement_recap_read.sql',
 ];
 const historyTable = 'public.contest_migration_history';
 
@@ -58,6 +60,7 @@ async function main(): Promise<void> {
   });
 
   try {
+    assertLegacyMigrationTarget(databaseUrl, runtimeConfig.environment === 'production');
     await client.connect();
     for (const migrationName of migrationNames) {
       if (await isMigrationRecorded(client, migrationName)) {

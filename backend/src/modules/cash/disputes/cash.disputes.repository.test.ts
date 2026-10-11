@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createCashDisputesRepository } from './cash.disputes.repository.js';
+import type { CashDisputeMemoryState } from './cash.disputes.types.js';
 
 test('cash dispute repository creates through the atomic RPC contract', async () => {
   const row = {
@@ -72,4 +73,43 @@ test('cash dispute repository disambiguates the transaction relationship', async
   await repository.list({ page: '1', pageSize: '5' }, null);
 
   assert.match(selection, /cash_transactions!cash_disputes_transaction_id_fkey\(/);
+});
+
+test('cash dispute repository settles an unpaid debt using its recorded amount', async () => {
+  const debt = {
+    id: 'debt-1',
+    student_id: 'student-1',
+    amount: 26998,
+    status: 'unpaid' as const,
+    keterangan: 'Iuran tertunggak',
+    periode: '2026-09',
+    idempotency_key: 'debt-key-1',
+    created_at: '2026-09-01T00:00:00.000Z',
+  };
+  const dispute = {
+    id: 'dispute-1',
+    debt_record_id: debt.id,
+    student_id: debt.student_id,
+    reason: 'Pembayaran sudah dilakukan',
+    has_evidence: true,
+    status: 'pending' as const,
+    quota_period_start: '2026-09-01',
+    attempt_number: 1,
+    created_at: '2026-09-15T00:00:00.000Z',
+  };
+  const memory: CashDisputeMemoryState = { transactions: [], debts: [debt], disputes: [dispute] };
+  const repository = createCashDisputesRepository(null, memory);
+
+  const result = await repository.reviewAtomic({
+    id: dispute.id,
+    status: 'approved',
+    reviewNote: 'Bukti pembayaran sesuai.',
+    actorId: 'teacher-1',
+    resolutionDate: '2026-09-20',
+    paymentMethodCode: 'cash',
+  });
+
+  assert.equal(result.error, null);
+  assert.equal(memory.transactions[0]?.nominal, debt.amount);
+  assert.equal(debt.status, 'paid');
 });

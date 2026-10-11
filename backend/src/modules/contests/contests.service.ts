@@ -195,9 +195,7 @@ export class ContestsService {
     const status = normalizeContestStatus(input.status) || 'progres';
     const hasil = cleanText(input.hasil, 500);
     const statusPublic = isPublicContract ? toPublicContestStatus(input.status) : null;
-    const kota = isPublicContract
-      ? requiredText(input.kota, 'kota', 120)
-      : cleanText(input.kota, 120);
+    const kota = cleanText(input.kota, 120);
     const tahunEvent = getEventYear(input, isPublicContract);
     if (!actorId && this.repositoryIsConfigured()) {
       throw new ContestsServiceError(503, 'DATABASE_IDENTITY_UNAVAILABLE', 'Akun login belum terhubung ke users.id database yang valid.');
@@ -264,7 +262,7 @@ export class ContestsService {
       changes.tanggal = value;
       if (input.deadline !== undefined) changes.deadline = value;
     }
-    if (input.kota !== undefined) changes.kota = requiredText(input.kota, 'kota', 120);
+    if (input.kota !== undefined) changes.kota = cleanText(input.kota, 120);
     if (input.tahun_event !== undefined) changes.tahun_event = requiredYear(input.tahun_event);
     if (input.status !== undefined) {
       changes.status = normalizeContestStatus(input.status) || requiredText(input.status, 'status', 32);

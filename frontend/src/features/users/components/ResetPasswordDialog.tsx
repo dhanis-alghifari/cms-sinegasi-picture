@@ -175,7 +175,7 @@ export function ResetPasswordDialog({
             </div>
 
             <DialogFooter className="pt-2">
-              <Button type="button" variant="outline" onClick={handleClose} className="bg-surface-2 border-hairline text-ink text-xs h-9">
+              <Button type="button" variant="secondary" onClick={handleClose} className="text-xs h-9">
                 Batal
               </Button>
               <Button type="submit" disabled={isLoading} className="bg-semantic-warning text-white hover:bg-semantic-warning/90 font-semibold text-xs h-9">

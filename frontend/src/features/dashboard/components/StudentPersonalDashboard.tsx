@@ -53,7 +53,7 @@ export function StudentPersonalDashboard({ data }: StudentPersonalDashboardProps
               Sudah dibayar: <span className="text-ink font-medium">{formatCurrency(kas.totalDibayar)}</span>
             </p>
             <p className="mt-1 text-xs text-ink-subtle">{formatNumber(kas.jumlahPembayaran)} pembayaran tercatat</p>
-            <Link to="/cash" className="mt-3 inline-flex min-h-11 items-center gap-1 text-xs font-medium text-primary hover:underline">Lihat riwayat kas <ArrowRight size={13} /></Link>
+            <Link to="/cash?scope=own" className="mt-3 inline-flex min-h-11 items-center gap-1 text-xs font-medium text-primary hover:underline">Lihat riwayat kas <ArrowRight size={13} /></Link>
           </CardContent>
         </Card>
 

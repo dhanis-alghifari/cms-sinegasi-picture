@@ -2,12 +2,12 @@ import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { authenticate, type JwtPayload } from '../../middleware/authMiddleware.js';
 import { hasCapability, requireAnyCapability, requireCapability } from '../../middleware/capabilities.js';
 import { resolveDatabaseStudentId, resolveDatabaseUserId } from '../auth/auth.identity.js';
-import { assignmentCreateRouteSchema, assignmentListRouteSchema, bulkGradeRouteSchema, gradeDistributionRouteSchema, gradeListRouteSchema } from '../../shared/http/schemas/grades.schema.js';
+import { assignmentCreateRouteSchema, assignmentListRouteSchema, bulkGradeRouteSchema, gradeDistributionRouteSchema, gradeListRouteSchema, pklCreateRouteSchema, pklListRouteSchema, pklReviewRouteSchema, reportActionRouteSchema, reportListRouteSchema, reportPeriodCreateRouteSchema, reportPeriodListRouteSchema } from '../../shared/http/schemas/grades.schema.js';
 import { authenticatedRouteSchema } from '../../shared/http/schemas/core.schema.js';
 import { sendServiceError } from '../../shared/http/sendServiceError.js';
 import { mapRequestFields, mapRequestRecords } from '../../shared/http/request-field-mapping.js';
 import { GradesService } from './grades.service.js';
-import type { AssignmentListQuery, BulkGradeInput, CreateAssignmentInput, GradeListQuery } from './grades.types.js';
+import type { AssignmentListQuery, BulkGradeInput, CreateAssignmentInput, GradeListQuery, GradeReportQuery } from './grades.types.js';
 
 type AuditInput = { action: string; tableName: string; recordId?: string | null; newValues?: Record<string, unknown> | null; changeReason: string };
 export interface GradesRoutesOptions { gradesService: GradesService; persistAuditLog: (request: FastifyRequest, input: AuditInput) => Promise<void>; }
@@ -89,6 +89,83 @@ const gradesRoutes: FastifyPluginAsync<GradesRoutesOptions> = async (fastify, op
   });
   fastify.get('/api/grades/student-summary', { schema: authenticatedRouteSchema, preHandler: [authenticate, requireCapability('grades.read')] }, async (_request, reply) => {
     try { return reply.send({ success: true, data: await options.gradesService.studentSummary() }); } catch (error) { return sendServiceError(error, reply); }
+  });
+  fastify.get('/api/grades/report-periods', { schema: reportPeriodListRouteSchema, preHandler: [authenticate, requireAnyCapability('grades.read', 'grades.read.own')] }, async (_request, reply) => {
+    try { return reply.send({ success: true, data: await options.gradesService.listReportPeriods() }); } catch (error) { return sendServiceError(error, reply); }
+  });
+  fastify.post('/api/grades/report-periods', { schema: reportPeriodCreateRouteSchema, preHandler: [authenticate, requireCapability('grades.manage')] }, async (request, reply) => {
+    const user = request.user as JwtPayload;
+    const actorId = options.gradesService.repositoryIsConfigured() ? await resolveDatabaseUserId(user) : user.userId;
+    try {
+      const data = await options.gradesService.createReportPeriod(request.body as Record<string, unknown>, actorId);
+      await options.persistAuditLog(request, { action: 'INSERT', tableName: 'grade_report_periods', recordId: data.id, newValues: data as unknown as Record<string, unknown>, changeReason: String(request.headers['x-change-reason'] || 'Membuat periode raport') });
+      return reply.status(201).send({ success: true, data });
+    } catch (error) { return sendServiceError(error, reply); }
+  });
+  fastify.get('/api/grades/reports', { schema: reportListRouteSchema, preHandler: [authenticate, requireAnyCapability('grades.read', 'grades.read.own')] }, async (request, reply) => {
+    try {
+      const user = request.user as JwtPayload;
+      const query = mapRequestFields(request.query as Record<string, unknown>, { class_name: 'kelas' }) as Record<string, unknown>;
+      if (query.scope === 'own' || !hasCapability(user.role, 'grades.read')) {
+        const studentId = await resolveDatabaseStudentId(user);
+        if (!studentId) return reply.status(403).send({ success: false, error_code: 'STUDENT_SCOPE_UNAVAILABLE', message: 'Akun belum terhubung ke profil siswa.' });
+        query.student_id = studentId;
+        query.scope = 'own';
+        delete query.kelas;
+      }
+      return reply.send({ success: true, data: await options.gradesService.listReports(query as GradeReportQuery) });
+    } catch (error) { return sendServiceError(error, reply); }
+  });
+  fastify.post('/api/grades/reports/generate', { schema: reportActionRouteSchema, preHandler: [authenticate, requireCapability('grades.manage')] }, async (request, reply) => {
+    const user = request.user as JwtPayload;
+    const actorId = options.gradesService.repositoryIsConfigured() ? await resolveDatabaseUserId(user) : user.userId;
+    try {
+      const periodId = String((request.body as Record<string, unknown>).period_id || '');
+      const data = await options.gradesService.generateReports(periodId, actorId);
+      await options.persistAuditLog(request, { action: 'UPSERT', tableName: 'grade_reports', recordId: periodId, newValues: { period_id: periodId, report_count: data.length }, changeReason: String(request.headers['x-change-reason'] || 'Membuat rekap raport semester') });
+      return reply.send({ success: true, data });
+    } catch (error) { return sendServiceError(error, reply); }
+  });
+  fastify.post('/api/grades/reports/approve', { schema: reportActionRouteSchema, preHandler: [authenticate, requireCapability('grades.manage')] }, async (request, reply) => {
+    const user = request.user as JwtPayload;
+    const actorId = options.gradesService.repositoryIsConfigured() ? await resolveDatabaseUserId(user) : user.userId;
+    try {
+      const periodId = String((request.body as Record<string, unknown>).period_id || '');
+      const data = await options.gradesService.approveReports(periodId, actorId);
+      await options.persistAuditLog(request, { action: 'UPDATE', tableName: 'grade_report_periods', recordId: periodId, newValues: { period_id: periodId, status: 'approved', report_count: data.length }, changeReason: String(request.headers['x-change-reason'] || 'Mengesahkan raport semester') });
+      return reply.send({ success: true, data });
+    } catch (error) { return sendServiceError(error, reply); }
+  });
+  fastify.get('/api/grades/pkl-periods', { schema: pklListRouteSchema, preHandler: [authenticate, requireAnyCapability('grades.read', 'grades.read.own')] }, async (request, reply) => {
+    try {
+      const user = request.user as JwtPayload;
+      const query = mapRequestFields(request.query as Record<string, unknown>, { class_name: 'kelas' }) as Record<string, unknown>;
+      if (!hasCapability(user.role, 'grades.read')) {
+        const studentId = await resolveDatabaseStudentId(user);
+        if (!studentId) return reply.status(403).send({ success: false, error_code: 'STUDENT_SCOPE_UNAVAILABLE', message: 'Akun belum terhubung ke profil siswa.' });
+        query.student_id = studentId;
+        delete query.kelas;
+      }
+      return reply.send({ success: true, data: await options.gradesService.listPklPeriods(query as { student_id?: string; kelas?: string }) });
+    } catch (error) { return sendServiceError(error, reply); }
+  });
+  fastify.post('/api/grades/pkl-periods', { schema: pklCreateRouteSchema, preHandler: [authenticate, requireAnyCapability('grades.manage', 'attendance.correct')] }, async (request, reply) => {
+    const user = request.user as JwtPayload;
+    const actorId = options.gradesService.repositoryIsConfigured() ? await resolveDatabaseUserId(user) : user.userId;
+    try {
+      const data = await options.gradesService.createPklPeriod(request.body as Record<string, unknown>, actorId);
+      await options.persistAuditLog(request, { action: 'INSERT', tableName: 'student_pkl_periods', recordId: data.id, newValues: data as unknown as Record<string, unknown>, changeReason: String(request.headers['x-change-reason'] || 'Mengajukan periode PKL siswa') });
+      return reply.status(201).send({ success: true, data });
+    } catch (error) { return sendServiceError(error, reply); }
+  });
+  fastify.post('/api/grades/pkl-periods/review', { schema: pklReviewRouteSchema, preHandler: [authenticate, requireCapability('grades.manage')] }, async (request, reply) => {
+    const user = request.user as JwtPayload;
+    const actorId = options.gradesService.repositoryIsConfigured() ? await resolveDatabaseUserId(user) : user.userId;
+    try {
+      const data = await options.gradesService.reviewPklPeriod(request.body as Record<string, unknown>, actorId);
+      await options.persistAuditLog(request, { action: 'UPDATE', tableName: 'student_pkl_periods', recordId: data.id, newValues: data as unknown as Record<string, unknown>, changeReason: String(request.headers['x-change-reason'] || 'Review periode PKL') });
+      return reply.send({ success: true, data });
+    } catch (error) { return sendServiceError(error, reply); }
   });
 };
 

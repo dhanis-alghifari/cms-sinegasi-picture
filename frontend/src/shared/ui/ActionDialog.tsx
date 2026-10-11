@@ -1,4 +1,4 @@
-import { useState, type ChangeEvent, type ReactNode } from 'react';
+import { useId, useState, type ChangeEvent, type ReactNode } from 'react';
 import { AlertTriangle, Info, Loader2 } from 'lucide-react';
 
 import {
@@ -14,6 +14,7 @@ import { Input } from '@/shared/ui/primitives/input';
 import { Label } from '@/shared/ui/primitives/label';
 import { getErrorMessage } from '@/shared/api/errors';
 import { cn } from '@/shared/utils/cn';
+import { FieldError } from '@/shared/ui/FieldError';
 
 type AsyncAction = () => Promise<void> | void;
 
@@ -52,6 +53,8 @@ interface ReasonDialogProps {
   };
   destructive?: boolean;
 }
+
+const COMPACT_DIALOG_FOOTER_CLASS = 'border-t-0 bg-transparent pt-2';
 
 function useActionDialogState() {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -118,13 +121,13 @@ export function ConfirmDialog({
 
         <ActionError message={errorMessage} />
 
-        <DialogFooter className="pt-2">
+        <DialogFooter className={COMPACT_DIALOG_FOOTER_CLASS}>
           <Button
             type="button"
-            variant="outline"
+            variant="secondary"
             onClick={() => handleOpenChange(false)}
             disabled={isSubmitting}
-            className="bg-surface-2 border-hairline text-ink text-xs h-9"
+            className="text-xs h-9"
           >
             {cancelLabel}
           </Button>
@@ -160,15 +163,19 @@ export function ReasonDialog({
   const { confirmLabel = 'Simpan', cancelLabel = 'Batal', onConfirm } = action;
   const { label: reasonLabel = 'Alasan *', placeholder: reasonPlaceholder = 'Masukkan alasan (minimal 5 karakter)...' } = reasonConfig ?? {};
   const [reason, setReason] = useState('');
+  const [reasonError, setReasonError] = useState<string | null>(null);
+  const reasonInputId = useId();
+  const reasonErrorId = `${reasonInputId}-error`;
   const { isSubmitting, setIsSubmitting, errorMessage, setErrorMessage } = useActionDialogState();
 
   const handleConfirm = async () => {
     const trimmedReason = reason.trim();
     if (trimmedReason.length < 5) {
-      setErrorMessage('Alasan wajib diisi minimal 5 karakter.');
+      setReasonError('Alasan wajib diisi minimal 5 karakter.');
       return;
     }
 
+    setReasonError(null);
     setErrorMessage(null);
     setIsSubmitting(true);
     try {
@@ -187,6 +194,7 @@ export function ReasonDialog({
     if (!isSubmitting) {
       if (!nextOpen) {
         setReason('');
+        setReasonError(null);
         setErrorMessage(null);
       }
       onOpenChange(nextOpen);
@@ -195,6 +203,7 @@ export function ReasonDialog({
 
   const handleReasonChange = (event: ChangeEvent<HTMLInputElement>) => {
     setReason(event.target.value);
+    if (reasonError) setReasonError(null);
     if (errorMessage) setErrorMessage(null);
   };
 
@@ -212,27 +221,33 @@ export function ReasonDialog({
         <ActionError message={errorMessage} />
 
         <div className="space-y-1">
-          <Label htmlFor="action-reason" className="text-ink-muted text-xs font-semibold">
+          <Label htmlFor={reasonInputId} className="text-ink-muted text-xs font-semibold">
             {reasonLabel}
           </Label>
           <Input
-            id="action-reason"
+            id={reasonInputId}
             autoFocus
             value={reason}
             onChange={handleReasonChange}
             placeholder={reasonPlaceholder}
             disabled={isSubmitting}
-            className="bg-surface-2 border-hairline text-ink text-xs h-9"
+            aria-invalid={Boolean(reasonError)}
+            aria-describedby={reasonError ? reasonErrorId : undefined}
+            className={cn(
+              'bg-surface-2 border-hairline text-ink text-xs h-9',
+              reasonError && 'border-semantic-danger',
+            )}
           />
+          <FieldError id={reasonErrorId} message={reasonError} />
         </div>
 
-        <DialogFooter className="pt-2">
+        <DialogFooter className={COMPACT_DIALOG_FOOTER_CLASS}>
           <Button
             type="button"
-            variant="outline"
+            variant="secondary"
             onClick={() => handleOpenChange(false)}
             disabled={isSubmitting}
-            className="bg-surface-2 border-hairline text-ink text-xs h-9"
+            className="text-xs h-9"
           >
             {cancelLabel}
           </Button>
@@ -282,11 +297,12 @@ export function NoticeDialog({
           </div>
           <DialogDescription className="text-ink-subtle text-xs">{description}</DialogDescription>
         </DialogHeader>
-        <DialogFooter className="pt-2">
+        <DialogFooter className={COMPACT_DIALOG_FOOTER_CLASS}>
           <Button
             type="button"
+            variant="secondary"
             onClick={() => onOpenChange(false)}
-            className="bg-primary hover:bg-primary-hover text-primary-foreground text-xs h-9"
+            className="text-xs h-9"
           >
             {closeLabel}
           </Button>

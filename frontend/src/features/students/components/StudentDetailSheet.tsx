@@ -1,8 +1,10 @@
-import { KeyRound, Pencil, Phone, UserCheck, UserRound, UserX } from 'lucide-react';
+import { KeyRound, Link2, Pencil, Phone, Trash2, UserCheck, UserRound, UserX } from 'lucide-react';
 import { Button } from '@/shared/ui/primitives/button';
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/shared/ui/primitives/sheet';
 import { StatusBadge } from '@/shared/ui/StatusBadge';
 import { AuditHistoryButton } from '@/features/audit/components/AuditHistoryButton';
+import { AuthenticatedImage } from '@/shared/ui/AuthenticatedImage';
+import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import type { Student } from '../types/students.types';
 
 interface StudentDetailSheetProps {
@@ -21,7 +23,9 @@ interface StudentDetailSheetProps {
   actions: {
     onEdit: (student: Student) => void;
     onToggleActive: (student: Student) => void;
+    onDelete?: (student: Student) => void;
     onProvisionAccount?: (student: Student) => void;
+    onLinkLegacyAccount?: (student: Student) => void;
   };
 }
 
@@ -32,10 +36,11 @@ export function StudentDetailSheet({
   permissions,
   actions,
 }: StudentDetailSheetProps) {
+  const cacheScope = useAuthStore((state) => state.user?.id) ?? '';
   const { open, onOpenChange } = dialog;
   const { isMobile } = viewport;
   const { canManage = true, canManageStatus = false } = permissions ?? {};
-  const { onEdit, onToggleActive, onProvisionAccount } = actions;
+  const { onEdit, onToggleActive, onDelete, onProvisionAccount, onLinkLegacyAccount } = actions;
   if (!student) return null;
 
   const handleEdit = () => {
@@ -48,9 +53,19 @@ export function StudentDetailSheet({
     onProvisionAccount?.(student);
   };
 
+  const handleLinkLegacyAccount = () => {
+    onOpenChange(false);
+    onLinkLegacyAccount?.(student);
+  };
+
   const handleToggleActive = () => {
     onOpenChange(false);
     onToggleActive(student);
+  };
+
+  const handleDelete = () => {
+    onOpenChange(false);
+    onDelete?.(student);
   };
 
   return (
@@ -66,7 +81,13 @@ export function StudentDetailSheet({
 
         <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-5">
           <div className="flex items-center gap-3">
-            {student.foto_url ? <img src={student.foto_url} alt="" className="h-16 w-16 rounded-2xl border border-hairline object-cover" /> : <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-hairline bg-surface-3 text-2xl font-semibold uppercase text-ink-subtle">{student.nama.charAt(0)}</div>}
+            <AuthenticatedImage
+              endpoint={`/api/students/${encodeURIComponent(student.id)}/photo`}
+              cacheScope={cacheScope}
+              alt=""
+              className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-hairline bg-surface-2"
+              fallback={<span aria-hidden="true" className="flex h-full w-full items-center justify-center rounded-2xl bg-surface-3 text-2xl font-semibold uppercase text-ink-subtle">{student.nama.charAt(0)}</span>}
+            />
             <div className="min-w-0">
               <h3 className="truncate text-base font-semibold text-ink">{student.nama}</h3>
               <p className="font-mono text-sm text-ink-subtle">{student.nis}</p>
@@ -92,7 +113,9 @@ export function StudentDetailSheet({
             <div className="grid grid-cols-2 gap-2">
               <Button type="button" variant="outline" onClick={handleEdit} className="min-h-11 border-hairline text-ink"><Pencil size={16} className="mr-2" aria-hidden="true" />Edit</Button>
               {canManageStatus && !student.user_id && onProvisionAccount && <Button type="button" onClick={handleProvisionAccount} className="min-h-11"><KeyRound size={16} className="mr-2" aria-hidden="true" />Buat akun</Button>}
+              {canManageStatus && student.is_active && !student.user_id && onLinkLegacyAccount && <Button type="button" variant="outline" onClick={handleLinkLegacyAccount} className="col-span-2 min-h-11 border-hairline text-ink"><Link2 size={16} className="mr-2 text-primary" aria-hidden="true" />Tautkan akun lama</Button>}
               {canManageStatus && student.user_id && <Button type="button" variant="outline" onClick={handleToggleActive} className="col-span-2 min-h-11 border-hairline text-ink">{student.is_active ? <><UserX size={16} className="mr-2 text-semantic-warning" aria-hidden="true" />Nonaktifkan sebagai alumni</> : <><UserCheck size={16} className="mr-2 text-semantic-success" aria-hidden="true" />Aktifkan kembali</>}</Button>}
+              {canManageStatus && !student.is_active && onDelete && <Button type="button" variant="outline" onClick={handleDelete} className="col-span-2 min-h-11 border-semantic-danger/40 text-semantic-danger hover:bg-semantic-danger/10"><Trash2 size={16} className="mr-2" aria-hidden="true" />Hapus data permanen</Button>}
             </div>
           </SheetFooter>
         )}

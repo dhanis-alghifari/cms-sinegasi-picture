@@ -6,6 +6,8 @@ const borrowingStatusMap: Record<string, { label: string; variant: StatusBadgeVa
   approved: { label: 'Disetujui', variant: 'primary' },
   rejected: { label: 'Ditolak', variant: 'danger' },
   borrowed: { label: 'Dipinjam', variant: 'primary' },
+  pending_verification: { label: 'Menunggu Verifikasi Guru', variant: 'warning' },
+  menunggu_verifikasi: { label: 'Menunggu Verifikasi Guru', variant: 'warning' },
   returned: { label: 'Dikembalikan', variant: 'success' },
   partial: { label: 'Sebagian', variant: 'warning' },
 };

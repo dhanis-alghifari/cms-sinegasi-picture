@@ -1,12 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { ImagePlus, Loader2, Upload, X } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { ImagePlus, X } from 'lucide-react';
 
 import { getErrorMessage } from '@/shared/api/errors';
 import { Button } from '@/shared/ui/primitives/button';
+import { FieldError } from '@/shared/ui/FieldError';
 import { Label } from '@/shared/ui/primitives/label';
 import { cn } from '@/shared/utils/cn';
 import { compressImageFileToFile, MAX_COMPRESSED_IMAGE_BYTES, MAX_SOURCE_IMAGE_BYTES } from '@/shared/utils/compressImage';
 import { formatNumber } from '@/shared/utils/formatNumber';
+import { PhotoSourcePicker } from '@/shared/ui/PhotoSourcePicker';
 
 interface ReturnEvidenceUploadFieldProps {
   field: {
@@ -42,7 +44,6 @@ export function ReturnEvidenceUploadField({
     maxFiles = 5,
   } = validation ?? {};
   const { disabled, onProcessingChange } = state ?? {};
-  const inputRef = useRef<HTMLInputElement>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const setProcessing = (next: boolean) => {
@@ -56,9 +57,7 @@ export function ReturnEvidenceUploadField({
 
   useEffect(() => () => previews.forEach(({ url }) => URL.revokeObjectURL(url)), [previews]);
 
-  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files ?? []);
-    event.target.value = '';
+  const handleFilesSelected = async (files: File[]) => {
     if (files.length === 0) return;
     if (values.length + files.length > maxFiles) {
       setLocalError(`Maksimal ${maxFiles} foto untuk ${label.toLowerCase()}.`);
@@ -100,18 +99,6 @@ export function ReturnEvidenceUploadField({
       <Label htmlFor={id} className="text-[10px] text-ink-muted">
         {label} {required && <span className="text-semantic-danger">*</span>}
       </Label>
-      <input
-        ref={inputRef}
-        id={id}
-        type="file"
-        accept="image/jpeg,image/png,image/webp"
-        capture="environment"
-        multiple
-        aria-required={required}
-        onChange={handleFileChange}
-        disabled={disabled || isProcessing || values.length >= maxFiles}
-        className="sr-only"
-      />
       <div className={cn('rounded-md border border-dashed bg-surface-2 p-2.5', hasError ? 'border-semantic-danger' : 'border-hairline')}>
         {previews.length > 0 ? (
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
@@ -140,21 +127,24 @@ export function ReturnEvidenceUploadField({
             </span>
           </div>
         )}
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => inputRef.current?.click()}
+        <PhotoSourcePicker
+          id={id}
+          accept="image/jpeg,image/png,image/webp"
+          multiple
           disabled={disabled || isProcessing || values.length >= maxFiles}
-          className="mt-2 min-h-11 border-hairline bg-surface-1 text-xs sm:min-h-9"
-        >
-          {isProcessing ? <Loader2 size={14} className="mr-1.5 animate-spin" /> : <Upload size={14} className="mr-1.5" />}
-          {isProcessing ? 'Menyiapkan foto...' : 'Tambah foto'}
-        </Button>
+          onFilesSelected={handleFilesSelected}
+          galleryLabel={isProcessing ? 'Menyiapkan foto...' : 'Pilih dari Galeri'}
+          cameraLabel="Ambil foto"
+          className="mt-2"
+          buttonClassName="min-h-11 border-hairline bg-surface-1 text-xs sm:min-h-9"
+          aria-invalid={hasError}
+          aria-describedby={hasError ? `${id}-error` : undefined}
+        />
         <p className="mt-2 text-[10px] leading-4 text-ink-tertiary">
           {formatNumber(values.length)} foto dipilih; {required ? `minimal ${formatNumber(minFiles)}, ` : ''}maksimal {formatNumber(maxFiles)} foto. JPG, PNG, atau WebP.
         </p>
       </div>
-      {hasError && <p className="text-[10px] text-semantic-danger">{localError || error}</p>}
+      <FieldError id={`${id}-error`} message={localError || error} />
     </div>
   );
 }

@@ -10,10 +10,9 @@ import { EquipmentRecoveryService } from './equipment.recovery.service.js';
 import { EquipmentService } from './equipment.service.js';
 import equipmentRoutes from './equipment.routes.js';
 
-async function createApp() {
+async function createApp(state = createEquipmentMemoryState()) {
   const app = Fastify();
   await app.register(jwt, { secret: 'test-secret-that-is-long-enough' });
-  const state = createEquipmentMemoryState();
   await app.register(equipmentRoutes, {
     equipmentService: new EquipmentService(createEquipmentRepository(null, state)),
     equipmentRecoveryService: new EquipmentRecoveryService(createEquipmentRecoveryRepository(null, createEquipmentRecoveryMemoryState(), state)),
@@ -42,6 +41,8 @@ test('equipment routes require authentication and preserve the list envelope', a
   assert.equal(response.json().success, true);
   assert.equal(response.json().pageSize, 2);
   assert.equal(response.json().data.length, 2);
+  assert.equal('foto_urls' in response.json().data[0], false);
+  assert.equal('foto_url' in response.json().data[0], false);
 
   const report = await app.inject({
     method: 'GET',
@@ -59,6 +60,92 @@ test('equipment routes require authentication and preserve the list envelope', a
     headers: { authorization: `Bearer ${token(app, 'member')}` },
   });
   assert.equal(deniedReport.statusCode, 403);
+});
+
+test('equipment photo endpoint checks capability and never enables shared browser caching', async (t) => {
+  const state = createEquipmentMemoryState();
+  const photo = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jD1sAAAAASUVORK5CYII=';
+  state.equipment[0].foto_url = photo;
+  const app = await createApp(state);
+  t.after(() => app.close());
+
+  const allowed = await app.inject({ method: 'GET', url: '/api/equipment/eq-001/photo', headers: { authorization: `Bearer ${token(app, 'equipment_team')}` } });
+  assert.equal(allowed.statusCode, 200);
+  assert.equal(allowed.headers['content-type'], 'image/png');
+  assert.equal(allowed.headers['cache-control'], 'private, no-store');
+  assert.equal(allowed.headers['x-content-type-options'], 'nosniff');
+
+  const denied = await app.inject({ method: 'GET', url: '/api/equipment/eq-001/photo', headers: { authorization: `Bearer ${token(app, 'member')}` } });
+  assert.equal(denied.statusCode, 403);
+});
+
+test('configured equipment list omits photo columns from its query and response', async () => {
+  const selectedColumns: string[] = [];
+  const row = {
+    id: 'equipment-1', kode_alat: 'CAM-001', nama_alat: 'Kamera', kategori: 'Kamera', kondisi: 'bagus', status: 'tersedia',
+    fotos: ['data:image/jpeg;base64,large-photo'], foto_url: 'data:image/jpeg;base64,legacy-photo', created_at: '2026-01-01T00:00:00.000Z',
+  };
+  const queryBuilder = {
+    select(columns: string) { selectedColumns.push(columns); return this; },
+    eq() { return this; },
+    in() { return this; },
+    order() { return this; },
+    range() { return this; },
+    limit() { return this; },
+    then(resolve: (value: { data: typeof row[]; count: number; error: null }) => unknown, reject?: (reason: unknown) => unknown) {
+      return Promise.resolve({ data: selectedColumns.length === 1 ? [row] : [], count: 1, error: null }).then(resolve, reject);
+    },
+  };
+  const repository = createEquipmentRepository({ from: () => queryBuilder } as never, createEquipmentMemoryState());
+
+  const result = await repository.list({ page: 1, pageSize: 20 });
+
+  assert.equal(selectedColumns[0]?.includes('fotos'), false);
+  assert.equal(selectedColumns[0]?.includes('foto_url'), false);
+  assert.equal('foto_urls' in result.data[0], false);
+  assert.equal('foto_url' in result.data[0], false);
+});
+
+test('borrowing request roles can only see sanitized available equipment', async (t) => {
+  const app = await createApp();
+  t.after(() => app.close());
+
+  const response = await app.inject({
+    method: 'GET',
+    url: '/api/equipment?status=available&page=1&pageSize=10',
+    headers: { authorization: `Bearer ${token(app, 'secretary')}` },
+  });
+  assert.equal(response.statusCode, 200);
+  const first = response.json().data[0];
+  assert.equal(first.status, 'tersedia');
+  assert.equal(first.lokasi_penyimpanan, undefined);
+  assert.equal(first.serial_number, undefined);
+  assert.equal(first.foto_urls, undefined);
+
+  const forbidden = await app.inject({
+    method: 'GET',
+    url: '/api/equipment?status=maintenance',
+    headers: { authorization: `Bearer ${token(app, 'secretary')}` },
+  });
+  assert.equal(forbidden.statusCode, 403);
+
+  const equipmentTeamBorrowingOptions = await app.inject({
+    method: 'GET',
+    url: '/api/equipment?purpose=borrowing_request&status=available&page=1&pageSize=10',
+    headers: { authorization: `Bearer ${token(app, 'equipment_team')}` },
+  });
+  assert.equal(equipmentTeamBorrowingOptions.statusCode, 200);
+  const equipmentTeamItem = equipmentTeamBorrowingOptions.json().data[0];
+  assert.equal(equipmentTeamItem.lokasi_penyimpanan, undefined);
+  assert.equal(equipmentTeamItem.serial_number, undefined);
+  assert.equal(equipmentTeamItem.foto_urls, undefined);
+
+  const invalidPurpose = await app.inject({
+    method: 'GET',
+    url: '/api/equipment?purpose=borrowing_request',
+    headers: { authorization: `Bearer ${token(app, 'member')}` },
+  });
+  assert.equal(invalidPurpose.statusCode, 403);
 });
 
 test('equipment mutation routes keep the equipment-team role guard and validate schemas', async (t) => {

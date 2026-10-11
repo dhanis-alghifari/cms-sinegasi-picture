@@ -123,7 +123,7 @@ export function CashTransactionFilter({
             <SelectTrigger className="text-xs text-ink" aria-label="Filter metode pembayaran">
               <SelectValue placeholder="Semua metode" />
             </SelectTrigger>
-            <SelectContent className="border-hairline bg-surface-3 text-ink">
+            <SelectContent>
               <SelectItem value={UI_CONSTANTS.ALL_FILTER_VALUE}>Semua metode</SelectItem>
               {paymentMethods.map((method) => (
                 <SelectItem key={method.id} value={method.code}>

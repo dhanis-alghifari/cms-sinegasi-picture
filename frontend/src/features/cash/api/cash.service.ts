@@ -36,6 +36,7 @@ import type {
   CashDisputeListResponse,
   CashDisputeQuota,
   CreateDisputeResponse,
+  CashScope,
 } from '../types/cash.types';
 
 const transactionTypeValues: Readonly<Record<string, string>> = {
@@ -95,8 +96,8 @@ function toBillingRuleRequest(payload: UpdateBillingRulePayload) {
 }
 
 export const cashService = {
-  getSummary(): Promise<CashSummary> {
-    return apiClient.getParsed('/api/cash/summary', decodeCashSummary);
+  getSummary(scope: CashScope = 'manage'): Promise<CashSummary> {
+    return apiClient.getParsed(`/api/cash/summary?scope=${scope}`, decodeCashSummary);
   },
 
   getReport(params: CashReportFilters): Promise<CashReport> {
@@ -114,6 +115,7 @@ export const cashService = {
 
   getTransactions(params?: CashTransactionFilters): Promise<PaginatedResponse<CashTransaction>> {
     const query = new URLSearchParams();
+    if (params?.scope) query.append('scope', params.scope);
     if (params?.page) query.append('page', String(params.page));
     if (params?.pageSize) query.append('pageSize', String(params.pageSize));
     if (params?.search) query.append('search', params.search);
@@ -133,6 +135,7 @@ export const cashService = {
 
   getDebts(params?: CashDebtFilters): Promise<PaginatedResponse<DebtRecord>> {
     const query = new URLSearchParams();
+    if (params?.scope) query.append('scope', params.scope);
     if (params?.page) query.append('page', String(params.page));
     if (params?.pageSize) query.append('pageSize', String(params.pageSize));
     if (params?.search) query.append('search', params.search);
@@ -174,12 +177,13 @@ export const cashService = {
     return apiClient.getParsed('/api/cash/disputes/quota', decodeDisputeQuota);
   },
 
-  getDisputeEvidence(disputeId: string): Promise<{ success: boolean; data: { url: string } }> {
-    return apiClient.getParsed(`/api/cash/disputes/${disputeId}/evidence`, decodeDisputeEvidence);
+  getDisputeEvidence(disputeId: string, scope: CashScope = 'own'): Promise<{ success: boolean; data: { url: string } }> {
+    return apiClient.getParsed(`/api/cash/disputes/${disputeId}/evidence?scope=${scope}`, decodeDisputeEvidence);
   },
 
-  getDisputes(params?: { page?: number; pageSize?: number; status?: DisputeStatus; cursor?: string; limit?: number }): Promise<{ success: boolean } & CashDisputeListResponse> {
+  getDisputes(params?: { scope?: CashScope; page?: number; pageSize?: number; status?: DisputeStatus; cursor?: string; limit?: number }): Promise<{ success: boolean } & CashDisputeListResponse> {
     const query = new URLSearchParams();
+    if (params?.scope) query.set('scope', params.scope);
     if (params?.page) query.set('page', String(params.page));
     if (params?.pageSize) query.set('pageSize', String(params.pageSize));
     if (params?.status) query.set('status', params.status === 'resolved' ? 'approved' : params.status);
@@ -190,7 +194,7 @@ export const cashService = {
   },
 
   // Resolve or reject a dispute
-  resolveDispute(disputeId: string, input: { status: DisputeStatus; review_note: string; resolution_date?: string; resolution_amount?: number; payment_method_code?: string }, changeReason: string): Promise<{ success: boolean; data: { dispute: CashDispute; resolutionTransactionId?: string; idempotentReplay: boolean } }> {
+  resolveDispute(disputeId: string, input: { status: DisputeStatus; review_note: string; resolution_date?: string; payment_method_code?: string }, changeReason: string): Promise<{ success: boolean; data: { dispute: CashDispute; resolutionTransactionId?: string; idempotentReplay: boolean } }> {
     return apiClient.patchParsed(`/api/cash/disputes/${disputeId}`, { ...input, status: input.status === 'resolved' ? 'approved' : input.status }, decodeResolveDispute, {
       changeReason,
     });

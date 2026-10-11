@@ -1,15 +1,13 @@
 
 import { useMemo, useState } from "react";
-import { ArrowDownRight, ArrowUpRight, Settings } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
 
 import { PageHeader } from "@/shared/ui/PageHeader";
-import { ResponsivePageActions } from "@/shared/ui/ResponsivePageActions";
 
 import { useAuthStore } from "@/features/auth/hooks/useAuthStore";
 import { useStudentOptionsQuery } from "@/features/students/hooks/useStudentOptionsQuery";
 import { useIsMobile } from "@/shared/hooks/use-mobile";
 import { UI_CONSTANTS } from "@/shared/constants/ui";
-import { formatCurrency } from "@/shared/utils/formatCurrency";
 import { formatNumber } from "@/shared/utils/formatNumber";
 import { toast } from "@/shared/ui/primitives/toast";
 import { hasCapability } from "@/shared/auth/capabilities";
@@ -38,10 +36,12 @@ import {
 } from "../utils/reportDates";
 
 import type { StudentOption } from "@/features/students/types/students.types";
-import type { CashTransaction, DebtRecord } from "../types/cash.types";
+import type { CashScope, CashTransaction, DebtRecord } from "../types/cash.types";
 import { CashPageTabs, type CashView } from "../components/CashPageTabs";
+import { CashPageActions } from "../components/CashPageActions";
 import { exportCashReportCsv } from "../utils/exportCashReportCsv";
 import { printCashReport } from "../utils/printCashReport";
+import { showCashInSuccessToast } from "../utils/cashSuccessFeedback";
 import { CashPageModals } from "../components/CashPageModals";
 import type {
   CashInFormValues,
@@ -54,8 +54,18 @@ import type {
 export function CashPage() {
   const { user } = useAuthStore();
   const isMobile = useIsMobile();
-  const isTreasurerOrTeacher = hasCapability(user, "cash.manage");
-  const isStudent = user?.role === "member";
+  const canManageCash = hasCapability(user, "cash.manage");
+  const canReadOwnCash = hasCapability(user, "cash.read.own");
+  const canSubmitDispute = hasCapability(user, "cash.dispute.create");
+  const canReviewCashDisputes = user?.role === "teacher" && hasCapability(user, "cash.dispute.review");
+  const canReadAllCashDisputes = hasCapability(user, "cash.dispute.read.all");
+  const canReadOwnCashDisputes = hasCapability(user, "cash.dispute.read.own");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedOwnScope = searchParams.get("scope") === "own";
+  const cashScope: CashScope = canManageCash && !(requestedOwnScope && canReadOwnCash) ? "manage" : "own";
+  const isOwnScope = cashScope === "own";
+  const isTreasurerOrTeacher = canManageCash && !isOwnScope;
+  const isStudent = isOwnScope;
 
   // Modals state
   const [cashInOpen, setCashInOpen] = useState(false);
@@ -103,7 +113,7 @@ export function CashPage() {
     isLoading: isSummaryLoading,
     error: summaryError,
     refetch: refetchSummary,
-  } = useCashSummaryQuery();
+  } = useCashSummaryQuery(cashScope);
   const shouldLoadPaymentMethods =
     isTreasurerOrTeacher && (cashInOpen || isTransactionsView || isReportView);
   const shouldLoadStudentOptions = isTreasurerOrTeacher && (isTransactionsView || isDebtsView);
@@ -123,6 +133,7 @@ export function CashPage() {
     {
       page: txPage,
       pageSize: isActivityView ? 5 : pageSize,
+      scope: cashScope,
       tanggal_mulai: tanggalMulai || undefined,
       tanggal_selesai: tanggalSelesai || undefined,
       metode_pembayaran: metodePembayaran || undefined,
@@ -138,6 +149,7 @@ export function CashPage() {
   } = useCashDebtsQuery({
     page: debtsPage,
     pageSize,
+    scope: cashScope,
     student_id: isDebtsView ? selectedStudent?.id : undefined,
   }, isDebtsView);
   const {
@@ -153,7 +165,7 @@ export function CashPage() {
     isTreasurerOrTeacher && isReportView && !reportRangeError,
   );
   const { data: rulesData } = useBillingRulesQuery(cashInOpen || rulesOpen);
-  const { data: disputeQuotaData } = useCashDisputeQuotaQuery(isStudent);
+  const { data: disputeQuotaData } = useCashDisputeQuotaQuery(isOwnScope && canSubmitDispute);
   const disputeQuota = disputeQuotaData?.data;
 
   // Mutations
@@ -197,19 +209,7 @@ export function CashPage() {
       idempotencyKey: crypto.randomUUID(),
       optimisticPaymentMethodLabel,
     });
-    if (response.result.payment_status === "unpaid") {
-      toast.add({
-        type: "success",
-        title: "Tunggakan tercatat",
-        description: `Tunggakan ${formatCurrency(response.result.amount_outstanding)} berhasil dicatat untuk siswa tersebut.`,
-      });
-    } else if (response.result.payment_status === "partial") {
-      toast.add({
-        type: "success",
-        title: "Pembayaran tercatat",
-        description: `Pembayaran masuk dan tunggakan tersisa ${formatCurrency(response.result.amount_outstanding)}.`,
-      });
-    }
+    showCashInSuccessToast(response.result);
   };
 
   const handleCashOutSubmit = async (values: CashOutFormValues) => {
@@ -239,6 +239,11 @@ export function CashPage() {
     await disputeMutation.mutateAsync({
       payload: values,
       idempotencyKey: crypto.randomUUID(),
+    });
+    toast.add({
+      type: "success",
+      title: "Sanggahan terkirim",
+      description: "Status diubah menjadi menunggu pemeriksaan guru. Pengajuan yang sama tidak dapat dikirim ulang selama masih diperiksa.",
     });
   };
 
@@ -284,48 +289,33 @@ export function CashPage() {
     resetStudentScope();
   };
 
+  const handleScopeChange = (scope: CashScope) => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.set("scope", scope);
+      return next;
+    });
+    setActiveView(scope === "own" ? "transactions" : "activity");
+    resetStudentScope();
+  };
+
 
   return (
-    <div className="mx-auto max-w-7xl space-y-5 px-4 pb-28 pt-5 sm:space-y-6 sm:px-6 sm:pt-6 sm:pb-28 md:pb-6">
+    <div className="space-y-5 px-4 pb-28 pt-5 sm:space-y-6 sm:px-6 sm:pt-6 sm:pb-28 md:pb-6">
       <PageHeader
         title={isStudent ? 'Keuangan Kas Saya' : 'Uang Kas & Manajemen Utang'}
         subtitle={isStudent ? 'Pantau pembayaran, tunggakan, dan sanggahan kas Anda.' : 'Pencatatan iuran kas masuk, pengeluaran 2-tahap, saldo tidak boleh negatif, dan sanggahan siswa.'}
         actions={
-          isTreasurerOrTeacher ? (
-            <ResponsivePageActions
-              mobileLabel="Tindakan Kas"
-              mobileDescription="Pilih aktivitas kas yang ingin dicatat."
-              actions={[
-                {
-                  id: "cash-in",
-                  label: "Kas Masuk",
-                  description: "Catat iuran siswa atau pemasukan lain.",
-                  icon: ArrowDownRight,
-                  className:
-                    "bg-semantic-success text-white hover:bg-semantic-success/80",
-                  onSelect: () => setCashInOpen(true),
-                },
-                {
-                  id: "cash-out",
-                  label: "Pengeluaran",
-                  description: "Catat pengeluaran dengan kontrol saldo.",
-                  icon: ArrowUpRight,
-                  className:
-                    "bg-semantic-danger text-white hover:bg-semantic-danger/80",
-                  onSelect: () => setCashOutOpen(true),
-                },
-                {
-                  id: "billing-rules",
-                  label: "Pengaturan Iuran",
-                  description: "Atur nominal iuran dan periode libur.",
-                  icon: Settings,
-                  variant: "outline",
-                  className: "bg-surface-1 text-ink-subtle hover:text-ink",
-                  onSelect: () => setRulesOpen(true),
-                },
-              ]}
-            />
-          ) : undefined
+          <CashPageActions
+            canManageCash={canManageCash}
+            canReadOwnCash={canReadOwnCash}
+            isOwnScope={isOwnScope}
+            isTreasurerOrTeacher={isTreasurerOrTeacher}
+            onScopeChange={handleScopeChange}
+            onCashIn={() => setCashInOpen(true)}
+            onCashOut={() => setCashOutOpen(true)}
+            onBillingRules={() => setRulesOpen(true)}
+          />
         }
       />
 
@@ -337,7 +327,7 @@ export function CashPage() {
         onRetry={handleRetrySummary}
       />
 
-      {isStudent && disputeQuota && (
+      {isStudent && canSubmitDispute && disputeQuota && (
         <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm text-ink" role="status">
           <span><strong>Kuota sanggahan bulan {disputeQuota.period}:</strong> {formatNumber(disputeQuota.used)}/{formatNumber(disputeQuota.limit)} terpakai · {formatNumber(disputeQuota.remaining)} tersisa</span>
           <span className="text-xs text-ink-subtle">Reset {new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium' }).format(new Date(disputeQuota.resets_at))}</span>
@@ -349,6 +339,9 @@ export function CashPage() {
           currentView,
           isTreasurerOrTeacher,
           isStudent,
+          canReviewDisputes: canReviewCashDisputes,
+          canReadAllDisputes: canReadAllCashDisputes,
+          canReadOwnDisputes: canReadOwnCashDisputes,
           isMobile,
           pageSize,
           onChange: setActiveView,
@@ -415,7 +408,7 @@ export function CashPage() {
       />
 
       <CashPageModals
-        access={{ isTreasurerOrTeacher, isStudent }}
+        access={{ isTreasurerOrTeacher, isStudent: isStudent && canSubmitDispute }}
         cashIn={{
           open: cashInOpen, onOpenChange: setCashInOpen, onSubmit: handleCashInSubmit,
           isLoading: cashInMutation.isPending, error: cashInMutation.error, paymentMethodsError, paymentMethods,

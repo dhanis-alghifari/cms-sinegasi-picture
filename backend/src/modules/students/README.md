@@ -1,6 +1,12 @@
 # Students module
 
 Route menangani options dan lifecycle student. Service mengatur validasi profil,
-provisioning akun, dan status alumni. Repository memiliki explicit select,
-bounded search/pagination, dan memory adapter. Password hash tidak pernah masuk
-DTO atau audit value.
+provisioning akun, pengaitan akun lama, dan status alumni. Akun baru dibuat
+bersama profil siswa; role `treasurer` tersedia untuk siswa yang ditugaskan
+sebagai bendahara, sementara role akun operasional `teacher` tidak tersedia
+dari jalur ini. Guru dengan
+`users.manage` dapat mencari akun siswa lama yang aktif tetapi belum tertaut,
+lalu menautkannya ke profil baru atau profil siswa aktif yang sudah ada tanpa
+mengganti username atau password.
+Repository memakai explicit select, bounded search/pagination, dan memory
+adapter. Password hash tidak pernah masuk DTO atau audit value.

@@ -1,1 +1,0 @@
-import{t as e}from"./jsx-runtime-Cltr0gcK.js";import{V as t}from"./index-Be07XMbl.js";import{t as n}from"./PasswordChangeForm-sL51-wgJ.js";import{t as r}from"./AuthLayout-BZVgjPA-.js";var i=e();function a(){let e=t();return(0,i.jsx)(r,{children:(0,i.jsx)(n,{forced:!0,onSuccess:()=>e(`/dashboard`,{replace:!0})})})}export{a as ForceChangePasswordPage};

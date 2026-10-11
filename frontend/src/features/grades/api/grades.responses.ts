@@ -6,6 +6,10 @@ import {
   GRADE_LETTER_VALUES,
   type Assignment,
   type AssignmentCategory,
+  REPORT_SEMESTER_VALUES,
+  type GradeReport,
+  type GradeReportPeriod,
+  type StudentPklPeriod,
   type GradeSummary,
   type StudentGrade,
 } from '../types/grades.types';
@@ -145,3 +149,27 @@ export const decodeAssignmentList = decodeWithSchema(assignmentListPayloadSchema
 export const decodeGradeSummary = decodeDataEnvelope(gradeSummarySchema);
 export const decodeAssignment = decodeWithSchema(assignmentMutationResponseSchema);
 export const decodeBulkGrade = decodeVoidResponse;
+
+const reportPeriodSchema: z.ZodType<GradeReportPeriod> = z.object({
+  id: z.string().min(1), academic_year: z.string().min(9), semester: z.enum(REPORT_SEMESTER_VALUES), start_date: z.string().min(10), end_date: z.string().min(10), status: z.enum(['draft', 'review', 'approved']), created_at: z.string().min(1), updated_at: z.string().min(1),
+}).loose();
+
+const gradeReportSchema: z.ZodType<GradeReport> = z.object({
+  id: z.string().min(1), period_id: z.string().min(1), student_id: z.string().min(1), predikat: gradeLetterSchema.nullable().optional(), status: z.enum(['draft', 'approved']), deskripsi: z.string(), evidence_count: z.number().int().nonnegative(), hadir_count: z.number().int().nonnegative(), sakit_count: z.number().int().nonnegative(), izin_count: z.number().int().nonnegative(), alpha_count: z.number().int().nonnegative(), pkl_days: z.number().int().nonnegative(), attendance_percentage: z.number().nullable().optional(), generated_at: z.string().min(1), approved_at: optionalTextSchema, created_at: z.string().min(1), updated_at: z.string().min(1), student_nis: optionalTextSchema, student_nama: optionalTextSchema, kelas: optionalTextSchema,
+}).loose().transform((record) => ({ ...record, predikat: record.predikat ?? undefined, attendance_percentage: record.attendance_percentage ?? undefined }));
+
+const reportPeriodEnvelope = z.object({ success: z.literal(true), data: z.array(reportPeriodSchema) }).loose().transform(({ data }) => data);
+const reportEnvelope = z.object({ success: z.literal(true), data: z.array(gradeReportSchema) }).loose().transform(({ data }) => data);
+const reportPeriodMutationEnvelope = z.object({ success: z.literal(true), data: reportPeriodSchema }).loose().transform(({ data }) => data);
+
+export const decodeReportPeriods = decodeWithSchema(reportPeriodEnvelope);
+export const decodeReports = decodeWithSchema(reportEnvelope);
+export const decodeReportPeriod = decodeWithSchema(reportPeriodMutationEnvelope);
+
+const pklPeriodSchema: z.ZodType<StudentPklPeriod> = z.object({
+  id: z.string().min(1), student_id: z.string().min(1), start_date: z.string().min(10), end_date: z.string().min(10), institution: z.string().min(2), notes: optionalTextSchema, status: z.enum(['pending', 'approved', 'rejected', 'completed']), created_at: z.string().min(1), updated_at: z.string().min(1), student_nis: optionalTextSchema, student_nama: optionalTextSchema, kelas: optionalTextSchema,
+}).loose();
+const pklEnvelope = z.object({ success: z.literal(true), data: z.array(pklPeriodSchema) }).loose().transform(({ data }) => data);
+const pklMutationEnvelope = z.object({ success: z.literal(true), data: pklPeriodSchema }).loose().transform(({ data }) => data);
+export const decodePklPeriods = decodeWithSchema(pklEnvelope);
+export const decodePklPeriod = decodeWithSchema(pklMutationEnvelope);

@@ -1,0 +1,5 @@
+#!/bin/sh
+set -e
+
+echo "🛡️  [Pre-Commit Guardrail] Verifying configuration integrity..."
+node scripts/verify-guardrails.mjs

@@ -37,6 +37,7 @@ export function createCoreDependencies(fastify: FastifyInstance): CoreDependenci
   const authService = new AuthService(
     createAuthRepository(supabase),
     runtimeConfig.allowDevelopmentAuth,
+    runtimeConfig.publicDeployment,
   );
   const attendanceService = new AttendanceService(createAttendancePersistence(supabase));
   const auditRepository = createAuditRepository(supabase);
@@ -75,7 +76,9 @@ export function createCoreDependencies(fastify: FastifyInstance): CoreDependenci
 
   return {
     authService,
-    loginRateLimiter: createSupabaseLoginRateLimiter(supabase),
+    loginRateLimiter: createSupabaseLoginRateLimiter(supabase, undefined, 300, 10, {
+      persistentRequired: runtimeConfig.publicDeployment,
+    }),
     attendanceService,
     attendanceRequiresDatabaseUserId: supabase !== null,
     auditService,

@@ -6,12 +6,14 @@ import { Pagination } from '@/shared/ui/Pagination';
 import { Badge } from '@/shared/ui/primitives/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/primitives/table';
 import { QueryErrorState } from '@/shared/ui/QueryErrorState';
+import { DataTableSkeleton } from '@/shared/ui/LoadingSkeletons';
 import { formatDateShort } from '@/shared/utils/formatDate';
 import { formatEnumLabel } from '@/shared/utils/formatLabels';
 import { useIsMobile } from '@/shared/hooks/use-mobile';
 
 import { ASSIGNMENT_CATEGORY_LABELS, type Assignment } from '../types/grades.types';
 import { AuditHistoryButton } from '@/features/audit/components/AuditHistoryButton';
+import { useCanViewAuditHistory } from '@/features/audit/hooks/useCanViewAuditHistory';
 import { AssignmentMobileList } from './AssignmentMobileList';
 
 interface AssignmentListProps {
@@ -52,6 +54,7 @@ export function AssignmentList({
   const { isOwn = false } = view ?? {};
   const { onRetry } = actions ?? {};
   const isMobile = useIsMobile();
+  const canViewAuditHistory = useCanViewAuditHistory();
   return (
     <section className="space-y-3">
       <div>
@@ -62,9 +65,7 @@ export function AssignmentList({
       </div>
 
       {isLoading && (
-        <div className="rounded-lg border border-hairline bg-surface-1 px-4 py-10 text-center text-ink-subtle text-sm">
-          Memuat daftar tugas...
-        </div>
+        <DataTableSkeleton columns={(isOwn ? 4 : 5) + Number(canViewAuditHistory)} rows={5} mobile={isMobile} label="Memuat daftar tugas..." />
       )}
       {isError && (
         <QueryErrorState
@@ -93,7 +94,7 @@ export function AssignmentList({
                   <TableHead className="text-ink-subtle text-xs font-semibold">Kategori</TableHead>
                   {!isOwn && <TableHead className="text-ink-subtle text-xs font-semibold">Kelas</TableHead>}
                   <TableHead className="text-ink-subtle text-xs font-semibold">Deskripsi</TableHead>
-                  <TableHead className="text-right text-ink-subtle text-xs font-semibold">Riwayat</TableHead>
+                  {canViewAuditHistory && <TableHead className="text-right text-ink-subtle text-xs font-semibold">Riwayat</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -114,7 +115,7 @@ export function AssignmentList({
                     <TableCell className="text-ink-subtle text-xs min-w-56">
                       {assignment.description || '-'}
                     </TableCell>
-                    <TableCell className="text-right"><AuditHistoryButton tableName="assignments" recordId={assignment.id} /></TableCell>
+                    {canViewAuditHistory && <TableCell className="text-right"><AuditHistoryButton tableName="assignments" recordId={assignment.id} /></TableCell>}
                   </TableRow>
                 ))}
               </TableBody>

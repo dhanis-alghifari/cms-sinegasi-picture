@@ -74,7 +74,7 @@ export interface ContestCreateInput {
   hasil?: string | null;
   nama_lomba?: string;
   penyelenggara?: string;
-  kota?: string;
+  kota?: string | null;
   tingkat?: string;
   deadline?: string;
   tahun_event?: number;
@@ -96,7 +96,7 @@ export interface ContestUpdateInput {
   hasil?: string | null;
   nama_lomba?: string;
   penyelenggara?: string;
-  kota?: string;
+  kota?: string | null;
   tingkat?: string;
   deadline?: string;
   tahun_event?: number;

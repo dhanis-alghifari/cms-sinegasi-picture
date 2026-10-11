@@ -28,3 +28,36 @@ export const bulkGradeRouteSchema = {
 export const gradeDistributionRouteSchema = {
   querystring: { type: 'object', additionalProperties: false, properties: { category: { type: 'string', maxLength: 40 }, class_name: { type: 'string', maxLength: 80 }, term: { type: 'string', maxLength: 40 } } },
 } as const;
+
+export const reportPeriodListRouteSchema = {
+  querystring: { type: 'object', additionalProperties: false, properties: {} },
+} as const;
+
+export const reportPeriodCreateRouteSchema = {
+  body: { type: 'object', additionalProperties: false, required: ['academic_year', 'semester', 'start_date', 'end_date'], properties: {
+    academic_year: { type: 'string', pattern: '^[0-9]{4}/[0-9]{4}$' }, semester: { type: 'string', enum: ['ganjil', 'genap'] },
+    start_date: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' }, end_date: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
+  } },
+} as const;
+
+export const reportListRouteSchema = {
+  querystring: { type: 'object', additionalProperties: false, properties: { period_id: { type: 'string', maxLength: 128 }, student_id: { type: 'string', maxLength: 128 }, class_name: { type: 'string', maxLength: 80 }, scope: { type: 'string', enum: ['own', 'operational'] } } },
+} as const;
+
+export const reportActionRouteSchema = {
+  body: { type: 'object', additionalProperties: false, required: ['period_id'], properties: { period_id: { type: 'string', minLength: 1, maxLength: 128 } } },
+} as const;
+
+export const pklListRouteSchema = {
+  querystring: { type: 'object', additionalProperties: false, properties: { student_id: { type: 'string', maxLength: 128 }, class_name: { type: 'string', maxLength: 80 } } },
+} as const;
+
+export const pklCreateRouteSchema = {
+  body: { type: 'object', additionalProperties: false, required: ['student_id', 'start_date', 'end_date', 'institution'], properties: {
+    student_id: { type: 'string', minLength: 1, maxLength: 128 }, start_date: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' }, end_date: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' }, institution: { type: 'string', minLength: 2, maxLength: 200 }, notes: { type: 'string', maxLength: 1000 },
+  } },
+} as const;
+
+export const pklReviewRouteSchema = {
+  body: { type: 'object', additionalProperties: false, required: ['id', 'status'], properties: { id: { type: 'string', minLength: 1, maxLength: 128 }, status: { type: 'string', enum: ['approved', 'rejected', 'completed'] } } },
+} as const;

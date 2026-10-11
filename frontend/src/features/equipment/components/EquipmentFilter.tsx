@@ -42,25 +42,26 @@ export function EquipmentFilter({
   };
 
   return (
-    <div className="grid grid-cols-1 gap-3 mb-4 sm:grid-cols-2 xl:flex xl:items-center">
+    <div className="mb-4 flex flex-col gap-2.5 lg:flex-row lg:items-center">
       {/* Search Input */}
-      <div className="relative flex-1">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-tertiary" />
+      <div className="relative min-w-0 flex-1">
+        <Search size={16} aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-tertiary" />
         <Input
           type="text"
+          aria-label="Cari alat"
           placeholder="Cari Kode Alat atau Nama Alat..."
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
-          className="pl-9 bg-surface-1 border-hairline text-ink placeholder:text-ink-tertiary text-xs"
+          className="h-9 w-full min-w-0 bg-surface-1 pl-9 text-xs text-ink placeholder:text-ink-tertiary"
         />
       </div>
 
       {/* Kategori Select */}
       <Select value={kategori} onValueChange={handleKategoriValueChange}>
-        <SelectTrigger className="w-full xl:w-36 bg-surface-1 border-hairline text-ink text-xs">
+        <SelectTrigger aria-label="Filter kategori alat" className="h-9 w-full bg-surface-1 text-xs text-ink lg:w-36">
           <SelectValue placeholder="Kategori" />
         </SelectTrigger>
-        <SelectContent className="bg-surface-3 border-hairline text-ink">
+        <SelectContent>
           <SelectItem value={UI_CONSTANTS.ALL_FILTER_VALUE}>Semua Kategori</SelectItem>
           <SelectItem value="Kamera">Kamera</SelectItem>
           <SelectItem value="Lensa">Lensa</SelectItem>
@@ -73,10 +74,10 @@ export function EquipmentFilter({
 
       {/* Kondisi Select */}
       <Select value={kondisi} onValueChange={handleKondisiValueChange}>
-        <SelectTrigger className="w-full xl:w-36 bg-surface-1 border-hairline text-ink text-xs">
+        <SelectTrigger aria-label="Filter kondisi alat" className="h-9 w-full bg-surface-1 text-xs text-ink lg:w-36">
           <SelectValue placeholder="Kondisi" />
         </SelectTrigger>
-        <SelectContent className="bg-surface-3 border-hairline text-ink">
+        <SelectContent>
           <SelectItem value={UI_CONSTANTS.ALL_FILTER_VALUE}>Semua Kondisi</SelectItem>
           <SelectItem value="bagus">Bagus</SelectItem>
           <SelectItem value="sedikit_kerusakan">Sedikit Rusak</SelectItem>
@@ -89,10 +90,10 @@ export function EquipmentFilter({
 
       {/* Status Availability Select */}
       <Select value={status} onValueChange={handleStatusValueChange}>
-        <SelectTrigger className="w-full xl:w-36 bg-surface-1 border-hairline text-ink text-xs">
+        <SelectTrigger aria-label="Filter status ketersediaan alat" className="h-9 w-full bg-surface-1 text-xs text-ink lg:w-36">
           <SelectValue placeholder="Status Pinjam" />
         </SelectTrigger>
-        <SelectContent className="bg-surface-3 border-hairline text-ink">
+        <SelectContent>
           <SelectItem value={UI_CONSTANTS.ALL_FILTER_VALUE}>Semua Status</SelectItem>
           <SelectItem value="tersedia">Tersedia</SelectItem>
           <SelectItem value="dipinjam">Dipinjam</SelectItem>
@@ -103,10 +104,11 @@ export function EquipmentFilter({
       {/* Reset Button */}
       {hasActiveFilters && (
         <Button
+          type="button"
           variant="ghost"
           size="sm"
           onClick={onReset}
-          className="text-ink-subtle hover:text-ink hover:bg-surface-2 text-xs h-9"
+          className="h-9 shrink-0 text-xs text-ink-subtle hover:bg-surface-2 hover:text-ink"
         >
           <X size={14} className="mr-1" />
           Reset

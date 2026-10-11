@@ -3,11 +3,13 @@ import { useEffect, useState } from 'react';
 import { FileImage, Loader2, Send, Upload } from 'lucide-react';
 
 import { getErrorMessage } from '@/shared/api/errors';
+import { FieldError } from '@/shared/ui/FieldError';
 import { Button } from '@/shared/ui/primitives/button';
 import { Label } from '@/shared/ui/primitives/label';
 import { RadioGroup } from '@/shared/ui/primitives/radio-group';
 import { Textarea } from '@/shared/ui/primitives/textarea';
 import { cn } from '@/shared/utils/cn';
+import { PhotoSourcePicker } from '@/shared/ui/PhotoSourcePicker';
 import { isOneOf } from '@/shared/utils/isOneOf';
 
 import { useContestEntryPipelineMutation } from '../hooks/useContestEntryPipelineMutation';
@@ -18,12 +20,13 @@ import {
 } from '../types/contests.types';
 import { getContestEntryStatusLabel } from '../utils/contestLabels';
 import { ContestAwardResultFields } from './ContestAwardResultFields';
+import { ContestEntryPipelineStepper } from './ContestEntryPipelineStepper';
 import {
   type AwardResultDraft,
   createEmptyAwardResultDraft,
   getEvidenceFileError,
   getNextPipelineStatus,
-  getPipelineValidationError,
+  getPipelineValidationIssues,
   type FinalOutcomeStatus,
   toFinalizeResultPayload,
 } from '../utils/contestPipelineRules';
@@ -64,7 +67,9 @@ export function ContestPipelineUpdateForm({
   const [awardResultRows, setAwardResultRows] = useState<AwardResultDraft[]>([
     createEmptyAwardResultDraft(),
   ]);
-  const [validationError, setValidationError] = useState<string | null>(null);
+  const [evidenceError, setEvidenceError] = useState<string | null>(null);
+  const [changeReasonError, setChangeReasonError] = useState<string | null>(null);
+  const [awardsError, setAwardsError] = useState<string | null>(null);
   const requestError = contestEntryPipelineMutation.error;
   const isPipelineSaving = contestEntryPipelineMutation.isPending;
 
@@ -79,15 +84,15 @@ export function ContestPipelineUpdateForm({
     setSelectedEvidenceFile(null);
   };
 
-  const handleEvidenceFileSelected = (event: ChangeEvent<HTMLInputElement>) => {
-    const evidenceFile = event.target.files?.[0];
+  const handleEvidenceFilesSelected = (files: File[]) => {
+    const evidenceFile = files[0];
     clearSelectedEvidence();
-    setValidationError(null);
+    setEvidenceError(null);
     if (!evidenceFile) return;
 
     const fileError = getEvidenceFileError(evidenceFile);
     if (fileError) {
-      setValidationError(fileError);
+      setEvidenceError(fileError);
       return;
     }
 
@@ -96,6 +101,7 @@ export function ContestPipelineUpdateForm({
   };
 
   const handleAddAwardResult = () => {
+    setAwardsError(null);
     setAwardResultRows((existingResultRows) => [
       ...existingResultRows,
       createEmptyAwardResultDraft(),
@@ -103,12 +109,14 @@ export function ContestPipelineUpdateForm({
   };
 
   const handleRemoveAwardResult = (resultRowIndex: number) => {
+    setAwardsError(null);
     setAwardResultRows((existingResultRows) => existingResultRows.filter(
       (_, candidateIndex) => candidateIndex !== resultRowIndex,
     ));
   };
 
   const handleAwardResultTitleChange = (resultRowIndex: number, title: string) => {
+    setAwardsError(null);
     setAwardResultRows((existingResultRows) => existingResultRows.map(
       (resultRow, candidateIndex) => candidateIndex === resultRowIndex
         ? { ...resultRow, result_title: title }
@@ -120,6 +128,7 @@ export function ContestPipelineUpdateForm({
     resultRowIndex: number,
     resultKind: ContestFinalizeResultKind,
   ) => {
+    setAwardsError(null);
     setAwardResultRows((existingResultRows) => existingResultRows.map(
       (resultRow, candidateIndex) => updateAwardResultKindRow(
         resultRow,
@@ -131,6 +140,7 @@ export function ContestPipelineUpdateForm({
   };
 
   const handleAwardResultPositionChange = (resultRowIndex: number, position: string) => {
+    setAwardsError(null);
     setAwardResultRows((existingResultRows) => existingResultRows.map(
       (resultRow, candidateIndex) => candidateIndex === resultRowIndex
         ? { ...resultRow, position }
@@ -138,20 +148,31 @@ export function ContestPipelineUpdateForm({
     ));
   };
 
+  const handlePipelineChangeReason = (event: ChangeEvent<HTMLTextAreaElement>) => {
+    setPipelineChangeReason(event.target.value);
+    setChangeReasonError(null);
+  };
+
   const handlePipelineUpdateSubmit = async () => {
-    const validationMessage = getPipelineValidationError({
+    const validationIssues = getPipelineValidationIssues({
       nextStatus: nextPipelineStatus,
       changeReason: pipelineChangeReason,
       evidenceFile: selectedEvidenceFile,
       outcomeStatus: finalOutcomeStatus,
       resultRows: awardResultRows,
     });
-    if (validationMessage) {
-      setValidationError(validationMessage);
+    setChangeReasonError(null);
+    setEvidenceError(null);
+    setAwardsError(null);
+    if (validationIssues.length > 0) {
+      validationIssues.forEach((validationIssue) => {
+        if (validationIssue.field === 'change_reason') setChangeReasonError(validationIssue.message);
+        if (validationIssue.field === 'evidence') setEvidenceError(validationIssue.message);
+        if (validationIssue.field === 'awards') setAwardsError(validationIssue.message);
+      });
       return;
     }
 
-    setValidationError(null);
     if (nextPipelineStatus === 'selesai') {
       if (!selectedEvidenceFile) return;
       await contestEntryPipelineMutation.mutateAsync({
@@ -194,23 +215,32 @@ export function ContestPipelineUpdateForm({
           <p className="text-sm font-semibold text-ink">Perbarui pipeline</p>
           <p className="mt-0.5 text-xs text-ink-tertiary">{entry.work?.title}</p>
         </div>
-        <Button type="button" variant="ghost" size="sm" onClick={onClose}>Tutup</Button>
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          onClick={onClose}
+          className="h-8 shrink-0 px-3 text-xs"
+        >
+          Tutup
+        </Button>
       </div>
 
-      {(requestError || validationError) && (
+      {requestError && (
         <div role="alert" className="rounded-lg border border-semantic-danger/30 bg-semantic-danger/10 px-3 py-2 text-xs text-semantic-danger">
-          {validationError ?? getErrorMessage(requestError)}
+          {getErrorMessage(requestError)}
         </div>
       )}
 
-      <div className="space-y-1.5">
-        <Label className="text-xs text-ink-muted">Status berikutnya</Label>
-        <div role="status" className="flex min-h-[var(--touch-target-min)] items-center rounded-lg border border-hairline bg-surface-1 px-3 text-sm text-ink md:min-h-9">
-          {getContestEntryStatusLabel(nextPipelineStatus)}
+      <div className="space-y-3">
+        <ContestEntryPipelineStepper currentStatus={entry.pipeline_status} />
+        <div className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2.5">
+          <p className="text-[11px] font-semibold text-primary">Tindakan berikutnya</p>
+          <p className="mt-0.5 text-sm font-medium text-ink">{getContestEntryStatusLabel(nextPipelineStatus)}</p>
+          <p className="mt-0.5 text-[11px] text-ink-tertiary">
+            Status mengikuti urutan pipeline agar riwayat tetap akurat.
+          </p>
         </div>
-        <p className="text-[11px] text-ink-tertiary">
-          Pipeline diperbarui berurutan agar riwayat tetap akurat.
-        </p>
       </div>
 
       {(nextPipelineStatus === 'sudah_terkirim' || nextPipelineStatus === 'selesai') && (
@@ -218,12 +248,16 @@ export function ContestPipelineUpdateForm({
           <Label htmlFor="contest-evidence" className="text-xs text-ink-muted">
             Screenshot / foto bukti *
           </Label>
-          <label
-            htmlFor="contest-evidence"
-            className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-hairline bg-surface-1 px-4 py-5 text-center transition-colors hover:border-primary/60 hover:bg-primary/5"
+          <div
+            aria-invalid={Boolean(evidenceError)}
+            aria-describedby={evidenceError ? 'contest-evidence-error' : undefined}
+            className={cn(
+              'flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed bg-surface-1 px-4 py-5 text-center',
+              evidenceError ? 'border-semantic-danger' : 'border-hairline',
+            )}
           >
             {evidencePreviewUrl
-              ? <img src={evidencePreviewUrl} alt="Pratinjau bukti" className="max-h-44 rounded-lg object-contain" />
+              ? <img src={evidencePreviewUrl} alt="Pratinjau bukti" className="max-h-44 max-w-full rounded-lg object-contain" />
               : <Upload size={22} className="text-primary" />}
             <span className="text-xs font-medium text-ink">
               {selectedEvidenceFile?.name ?? 'Pilih screenshot atau foto bukti'}
@@ -231,15 +265,19 @@ export function ContestPipelineUpdateForm({
             <span className="text-[11px] text-ink-tertiary">
               JPG, PNG, atau WebP · ukuran sumber maksimal 5 MB
             </span>
-          </label>
-          <input
+          </div>
+          <PhotoSourcePicker
             id="contest-evidence"
-            type="file"
             accept="image/jpeg,image/png,image/webp"
-            capture="environment"
-            className="sr-only"
-            onChange={handleEvidenceFileSelected}
+            disabled={isPipelineSaving}
+            onFilesSelected={handleEvidenceFilesSelected}
+            galleryLabel={selectedEvidenceFile ? 'Ganti dari Galeri' : 'Pilih dari Galeri'}
+            cameraLabel={selectedEvidenceFile ? 'Ambil Foto Baru' : 'Ambil Foto'}
+            aria-invalid={Boolean(evidenceError)}
+            aria-describedby={evidenceError ? 'contest-evidence-error' : undefined}
+            buttonClassName="flex-1"
           />
+          <FieldError id="contest-evidence-error" message={evidenceError} />
           {selectedEvidenceFile && (
             <Button type="button" variant="ghost" size="sm" className="h-8 text-xs" onClick={clearSelectedEvidence}>
               <FileImage size={13} /> Ganti / hapus bukti
@@ -266,6 +304,7 @@ export function ContestPipelineUpdateForm({
           {finalOutcomeStatus === 'awarded' && (
             <ContestAwardResultFields
               resultRows={awardResultRows}
+              error={awardsError}
               onAddResult={handleAddAwardResult}
               onRemoveResult={handleRemoveAwardResult}
               onResultTitleChange={handleAwardResultTitleChange}
@@ -286,11 +325,14 @@ export function ContestPipelineUpdateForm({
         <Textarea
           id="entry-change-reason"
           value={pipelineChangeReason}
-          onChange={(event: ChangeEvent<HTMLTextAreaElement>) => setPipelineChangeReason(event.target.value)}
+          onChange={handlePipelineChangeReason}
           rows={2}
           placeholder="Contoh: Bukti pengiriman dari formulir pendaftaran sudah diterima"
-          className={cn('bg-surface-1 text-sm', validationError && 'border-semantic-danger')}
+          aria-invalid={Boolean(changeReasonError)}
+          aria-describedby={changeReasonError ? 'entry-change-reason-error' : undefined}
+          className={cn('bg-surface-1 text-sm', changeReasonError && 'border-semantic-danger')}
         />
+        <FieldError id="entry-change-reason-error" message={changeReasonError} />
       </div>
 
       <div className="flex justify-end">

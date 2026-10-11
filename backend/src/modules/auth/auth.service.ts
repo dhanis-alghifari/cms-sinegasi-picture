@@ -1,8 +1,13 @@
 import type { JwtPayload } from '../../shared/auth/auth.types.js';
 import { getCapabilities } from '../../middleware/capabilities.js';
-import { asDatabaseError } from '../../shared/database/database.types.js';
+import { USER_ROLE_VALUES } from '../../shared/auth/auth.types.js';
 import { clearAuthStateCache } from '../../middleware/authMiddleware.js';
-import { assertPasswordPolicy, hashPassword, verifyPassword } from '../../services/passwordService.js';
+import {
+  assertPasswordPolicy,
+  consumeUnknownAccountPasswordVerification,
+  hashPassword,
+  verifyPassword,
+} from '../../services/passwordService.js';
 import { resolveDatabaseStudentId, resolveDatabaseUserId } from './auth.identity.js';
 import type { AuthDatabaseUser, AuthRepository, LinkedStudent } from './auth.repository.js';
 
@@ -55,18 +60,9 @@ function isMissingPasswordSchemaError(error: { code?: string; message?: string }
     || error.message?.includes('change_password_atomic') === true;
 }
 
-function formatAuthError(error: unknown, fallback: string): string {
-  const databaseError = asDatabaseError(error);
-  if (!databaseError) return fallback;
-  if (databaseError.message?.trim()) {
-    const message = databaseError.message.trim();
-    if (!message.includes('{') && !/\b(SELECT|UPDATE|INSERT|DELETE)\b/i.test(message)) return message;
-  }
-  return fallback;
-}
-
 function getAuthVersion(user: AuthDatabaseUser): number | undefined {
-  return user.auth_version == null ? undefined : Number(user.auth_version);
+  const value = user.auth_version == null ? undefined : Number(user.auth_version);
+  return value !== undefined && Number.isSafeInteger(value) && value >= 1 ? value : undefined;
 }
 
 function createLoginResult(payload: JwtPayload, linkedStudent: LinkedStudent | null): AuthLoginResult {
@@ -91,18 +87,24 @@ export class AuthService {
   constructor(
     private readonly repository: AuthRepository,
     private readonly allowDevelopmentAuth: boolean,
+    private readonly requireAuthoritativeVersion = false,
   ) {}
 
   async login(username: string, password: string): Promise<AuthLoginResult> {
     if (this.repository.isConfigured()) {
       const { data: dbUser, error } = await this.repository.findUserForLogin(username);
       if (error || !dbUser || !dbUser.is_active) {
+        await consumeUnknownAccountPasswordVerification(password);
         throw new AuthServiceError(401, 'INVALID_CREDENTIALS', 'Username atau password salah.');
       }
 
       const verification = await verifyPassword(password, dbUser.password_hash);
       if (!verification.valid) {
         throw new AuthServiceError(401, 'INVALID_CREDENTIALS', 'Username atau password salah.');
+      }
+      if (!USER_ROLE_VALUES.includes(dbUser.role as JwtPayload['role'])
+        || (this.requireAuthoritativeVersion && getAuthVersion(dbUser) === undefined)) {
+        throw new AuthServiceError(503, 'AUTHENTICATION_UNAVAILABLE', 'Sesi keamanan belum dapat diverifikasi. Hubungi administrator.');
       }
 
       if (verification.needsRehash && password.length >= 8) {
@@ -112,7 +114,8 @@ export class AuthService {
         await this.repository.updatePasswordHash?.(dbUser.id, migratedHash);
       }
 
-      const { data: linkedStudent } = await this.repository.findLinkedStudent(dbUser.id);
+      const { data: linkedStudent, error: studentError } = await this.repository.findLinkedStudent(dbUser.id);
+      if (studentError) throw new AuthServiceError(503, 'AUTHENTICATION_UNAVAILABLE', 'Sesi keamanan belum dapat diverifikasi. Coba lagi sebentar.');
       if (linkedStudent && !linkedStudent.is_active) {
         throw new AuthServiceError(401, 'INVALID_CREDENTIALS', 'Username atau password salah.');
       }
@@ -235,7 +238,7 @@ export class AuthService {
         clearAuthStateCache(dbUser.id);
         throw new AuthServiceError(401, 'SESSION_REVOKED', 'Sesi keamanan berubah. Silakan login kembali.');
       }
-      throw new AuthServiceError(400, 'PASSWORD_CHANGE_FAILED', formatAuthError(error, 'Gagal mengubah password.'));
+      throw new AuthServiceError(400, 'PASSWORD_CHANGE_FAILED', 'Gagal mengubah password.');
     }
 
     clearAuthStateCache(dbUser.id);

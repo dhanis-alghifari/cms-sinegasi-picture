@@ -339,7 +339,7 @@ paths:
         '503': { description: Users schema or database identity is unavailable }
     put:
       summary: Update a user account
-      description: Username, role, name, and active status changes require an auditable reason. Username is the mutable login identifier; stable feature relationships continue to use users.id. Linked student accounts keep member role and student-owned name/status invariants. The backend commits the update and one redacted audit event through update_user_account_atomic; an effective no-op is safe to retry.
+      description: Username, role, name, and active status changes require an auditable reason. Username is the mutable login identifier; stable feature relationships continue to use users.id. Standalone accounts are restricted to Teacher or Treasurer; student accounts use student/committee roles and student-owned name/status invariants remain enforced. Legacy unlinked student accounts must be linked through Data Siswa, not promoted from this endpoint.
       parameters:
         - $ref: '#/components/parameters/UserId'
         - $ref: '#/components/parameters/ChangeReason'
@@ -358,8 +358,8 @@ paths:
         '422': { description: Invalid update or missing change reason }
         '503': { description: Users schema (including migration 041) or database identity is unavailable }
     delete:
-      summary: Delete an unlinked user account
-      description: Deletion is blocked for the current account and any account linked to a student; use inactive/alumni lifecycle changes for linked accounts.
+      summary: Delete an unlinked account
+      description: Standalone accounts can be deleted for duplicate/test cleanup. Self-delete and accounts linked to a student are blocked; linked student lifecycle and history are managed through Data Siswa.
       parameters:
         - $ref: '#/components/parameters/UserId'
         - $ref: '#/components/parameters/ChangeReason'
@@ -503,6 +503,58 @@ paths:
         '401': { description: Unauthenticated }
         '403': { description: Teacher or treasurer role required }
         '503': { description: Students schema is unavailable }
+  /api/students/unlinked-accounts:
+    get:
+      summary: Search eligible student accounts not linked to a student record
+      description: Requires users.manage. Results are active legacy student-role accounts only, exclude the signed-in account, and contain no credential data.
+      parameters:
+        - { name: q, in: query, required: false, schema: { type: string, maxLength: 100 } }
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 20, default: 20 } }
+      responses:
+        '200': { description: Bounded eligible account options ordered by name }
+        '401': { description: Unauthenticated }
+        '403': { description: users.manage capability required }
+        '503': { description: Student account linking migration or database identity is unavailable }
+  /api/students/account-links:
+    post:
+      summary: Create a student profile for an explicitly selected legacy account
+      description: Requires users.manage. Links an active, unlinked student-role account while retaining its ID, username, role, first-login state, and password. The student profile and relationship are committed atomically and audited.
+      parameters:
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StudentAccountLinkRequest'
+      responses:
+        '201': { description: Existing account linked to a student record; no password is returned or changed }
+        '401': { description: Unauthenticated }
+        '403': { description: users.manage capability required }
+        '409': { description: Account is inactive, already linked, or NIS is already used }
+        '422': { description: Invalid student data or change reason }
+        '503': { description: Student account linking migration or database identity is unavailable }
+  /api/students/{id}/account-links:
+    post:
+      summary: Attach an eligible legacy account to an existing student profile
+      description: Requires users.manage. Only active student profiles without an account and active unlinked student-role accounts are eligible. Username, password, role, and first-login state are retained.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StudentExistingProfileAccountLinkRequest'
+      responses:
+        '200': { description: Existing profile linked to the selected account without changing credentials }
+        '401': { description: Unauthenticated }
+        '403': { description: users.manage capability required }
+        '404': { description: Student profile not found }
+        '409': { description: Account or student profile is inactive or already linked }
+        '422': { description: Invalid identifiers or change reason }
+        '503': { description: Student account linking migration or database identity is unavailable }
   /api/students:
     get:
       summary: List students with server-side filters and pagination
@@ -521,9 +573,13 @@ paths:
         '503': { description: Students schema or database identity is unavailable }
     post:
       summary: Create a student and linked member account atomically
-      description: Secretary-only operation. A one-time temporary password is returned in the immediate response and is never stored in audit values.
+      description: Creates a student and linked account together. The username is entered manually and case-normalized; an Indonesian WhatsApp number is required and must be manually confirmed active by the operator (no OTP is sent). The server generates a random temporary password, marks the account for mandatory password change on first login, and returns the password only on the first successful response. Requests require an idempotency key; a replay returns the existing account without the password. The UI copies a reviewable message and opens WhatsApp without putting credentials in its URL; a human must review and send it.
       parameters:
         - $ref: '#/components/parameters/ChangeReason'
+        - name: X-Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string, format: uuid }
       requestBody:
         required: true
         content:
@@ -534,7 +590,7 @@ paths:
         '201': { description: Student and member account created }
         '401': { description: Unauthenticated }
         '403': { description: Secretary role required }
-        '409': { description: Duplicate NIS or generated username }
+        '409': { description: Duplicate NIS/manual username, or idempotency key reused with different request data }
         '422': { description: Invalid student profile }
         '503': { description: Students schema, provisioning function, or database identity is unavailable }
   /api/students/{id}:
@@ -567,24 +623,59 @@ paths:
         '422': { description: Invalid update, mixed lifecycle/profile fields, or missing change reason }
         '503': { description: Students schema or database identity is unavailable }
     delete:
-      summary: Reject permanent student deletion
-      description: Permanent deletion is disabled to preserve financial, attendance, and borrowing history. Use the lifecycle update with is_active=false.
-      parameters:
-        - $ref: '#/components/parameters/StudentId'
-        - $ref: '#/components/parameters/ChangeReason'
-      responses:
-        '409': { description: Permanent deletion is disabled }
-        '401': { description: Unauthenticated }
-        '403': { description: Teacher role required }
-  /api/students/{id}/provision-account:
-    post:
-      summary: Provision a member account for a legacy student
-      description: Secretary-only repair operation. The client never supplies a password; the generated temporary password is returned once.
+      summary: Purge an inactive student's school history
+      description: Deletes an inactive student's profile, attendance, debt records, billing-only receivables, and related school history in one transaction. Real cash movements remain in the ledger and are detached from the deleted student. A linked account is deleted when no immutable audit/restricted actor history depends on it; otherwise it is deactivated so audit history remains intact.
       parameters:
         - $ref: '#/components/parameters/StudentId'
         - $ref: '#/components/parameters/ChangeReason'
       requestBody:
         required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                change_reason: { type: string, minLength: 5, maxLength: 500 }
+      responses:
+        '204': { description: Student history purged }
+        '401': { description: Unauthenticated }
+        '403': { description: Teacher role required }
+        '409': { description: Student is active or account/history dependency prevents the requested purge }
+        '422': { description: Invalid student ID or change reason }
+        '503': { description: Students schema or database identity is unavailable }
+  /api/students/{id}/photo:
+    get:
+      summary: Read one student's photo without embedding it in list responses
+      description: Requires an authenticated account with students.read. Responses are private and no-store; legacy remote image references return a URL rather than being fetched by the backend.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/StudentId'
+      responses:
+        '200':
+          description: Raster image bytes or an allow-listed HTTP(S) legacy photo reference
+          content:
+            image/jpeg: { schema: { type: string, format: binary } }
+            image/png: { schema: { type: string, format: binary } }
+            image/webp: { schema: { type: string, format: binary } }
+            application/json:
+              schema: { type: object, required: [url], properties: { url: { type: string, format: uri } } }
+        '204': { description: Student exists but no valid photo is stored }
+        '401': { description: Unauthenticated }
+        '403': { description: students.read capability required }
+  /api/students/{id}/provision-account:
+    post:
+      summary: Provision a member account for a legacy student
+      description: Secretary-only repair operation. Requires a manually entered username and confirmed-active Indonesian WhatsApp number. The client never supplies a password; the server creates one randomly and requires changing it on first login. The one-time password is returned only on first success; idempotent replay omits it. The UI copies a reviewable message and opens WhatsApp without putting credentials in its URL; a human must send it.
+      parameters:
+        - $ref: '#/components/parameters/StudentId'
+        - $ref: '#/components/parameters/ChangeReason'
+        - name: X-Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -594,7 +685,7 @@ paths:
         '401': { description: Unauthenticated }
         '403': { description: Secretary role required }
         '404': { description: Student not found }
-        '409': { description: Student already has an account or generated username conflicts }
+        '409': { description: Student already has an account, manual username is already used, or idempotency key was reused for different input }
         '422': { description: Invalid student ID or change reason }
         '503': { description: Database, provisioning function, or database identity is unavailable }
   /api/students/{id}/dashboard-summary:
@@ -677,6 +768,372 @@ paths:
         '403': { description: Capability denied }
         '409': { description: Attendance conflicts with a concurrent change }
         '422': { description: Invalid class, record, or status }
+  /api/agenda:
+    get:
+      summary: List agenda kegiatan with bounded search and date filters
+      parameters:
+        - { name: search, in: query, required: false, schema: { type: string, maxLength: 100 } }
+        - { name: date_from, in: query, required: false, schema: { type: string, format: date } }
+        - { name: date_to, in: query, required: false, schema: { type: string, format: date } }
+        - { name: page, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 10000, default: 1 } }
+        - { name: pageSize, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+      responses:
+        '200': { description: Paginated agenda activities }
+        '401': { description: Unauthenticated }
+        '403': { description: Agenda read capability missing }
+        '422': { description: Invalid date range or a range longer than 90 days }
+    post:
+      summary: Create an agenda activity
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgendaActivityRequest'
+      responses:
+        '201': { description: Agenda activity created }
+        '401': { description: Unauthenticated or unmapped account }
+        '403': { description: Agenda write capability missing }
+        '422': { description: Invalid activity data or future date }
+  /api/agenda/report:
+    get:
+      summary: Read a bounded printable agenda report with short-lived photo URLs
+      parameters:
+        - { name: search, in: query, required: false, schema: { type: string, maxLength: 100 } }
+        - { name: date_from, in: query, required: false, schema: { type: string, format: date } }
+        - { name: date_to, in: query, required: false, schema: { type: string, format: date } }
+      responses:
+        '200': { description: Up to 100 filtered agenda activities; photo_access_url is included only when an attached private photo is available }
+        '401': { description: Unauthenticated }
+        '403': { description: Agenda read capability missing }
+        '422': { description: Invalid date range or a range longer than 90 days }
+  /api/agenda/{id}:
+    get:
+      summary: Read one agenda activity
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, maxLength: 64 } }
+      responses:
+        '200': { description: Agenda activity detail }
+        '403': { description: Agenda read capability missing }
+        '404': { description: Agenda activity not found }
+    patch:
+      summary: Update an agenda activity with optimistic versioning
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, maxLength: 64 } }
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/AgendaActivityRequest'
+                - type: object
+                  required: [expected_version, change_reason]
+                  properties:
+                    expected_version: { type: integer, minimum: 1 }
+                    change_reason: { type: string, minLength: 5, maxLength: 500 }
+      responses:
+        '200': { description: Agenda activity updated }
+        '403': { description: Agenda write capability missing }
+        '404': { description: Agenda activity not found }
+        '409': { description: Version conflict }
+    delete:
+      summary: Archive an agenda activity (teacher only)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, maxLength: 64 } }
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [change_reason]
+              properties:
+                change_reason: { type: string, minLength: 5, maxLength: 500 }
+      responses:
+        '200': { description: Agenda activity archived }
+        '403': { description: Teacher-only archive capability }
+        '404': { description: Agenda activity not found }
+  /api/agenda/{id}/photo-uploads:
+    post:
+      summary: Reserve a private agenda photo upload
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, maxLength: 64 } }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [file_name, content_type, file_size_bytes]
+              properties:
+                file_name: { type: string, minLength: 1, maxLength: 255 }
+                content_type: { type: string, enum: [image/jpeg, image/png, image/webp] }
+                file_size_bytes: { type: integer, minimum: 1, maximum: 614400 }
+      responses:
+        '201': { description: Short-lived private PUT URL issued }
+        '403': { description: Agenda write capability missing }
+  /api/agenda/{id}/photo-uploads/{photoId}/complete:
+    post:
+      summary: Verify and attach an uploaded agenda photo
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, maxLength: 64 } }
+        - { name: photoId, in: path, required: true, schema: { type: string, maxLength: 64 } }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200': { description: Photo verified and attached }
+        '403': { description: Agenda write capability missing }
+        '422': { description: Uploaded bytes do not match metadata }
+  /api/agenda/{id}/photo-access:
+    get:
+      summary: Issue a short-lived private agenda photo URL
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, maxLength: 64 } }
+      responses:
+        '200': { description: Signed private GET URL }
+        '403': { description: Agenda read capability missing }
+        '404': { description: Attached photo not found }
+  /api/social-media/accounts:
+    get:
+      summary: List active official social accounts
+      parameters:
+        - { name: include_inactive, in: query, required: false, schema: { type: string, enum: ['true', 'false'] } }
+      responses:
+        '200': { description: Active accounts; inactive accounts are visible only to teachers when explicitly requested }
+        '401': { description: Unauthenticated }
+        '403': { description: Social media read capability missing }
+    post:
+      summary: Register an official social account (teacher only)
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKeyRequired'
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SocialAccountRequest' }
+      responses:
+        '201': { description: Official account created }
+        '403': { description: Teacher-only account management }
+        '409': { description: Duplicate account name or idempotency conflict }
+        '422': { description: Account URL is not HTTPS on the selected platform }
+  /api/social-media/accounts/{id}:
+    patch:
+      summary: Update or reactivate an official social account (teacher only)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - $ref: '#/components/parameters/IdempotencyKeyRequired'
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SocialAccountUpdateRequest' }
+      responses:
+        '200': { description: Official account updated }
+        '403': { description: Teacher-only account management }
+        '404': { description: Account not found }
+        '409': { description: Account version conflict }
+  /api/social-media/publications:
+    get:
+      summary: List social publications with bounded pagination
+      parameters:
+        - { name: from, in: query, required: false, schema: { type: string, format: date } }
+        - { name: to, in: query, required: false, schema: { type: string, format: date } }
+        - { name: platform, in: query, required: false, schema: { type: string, enum: [instagram, tiktok, youtube, whatsapp] } }
+        - { name: page, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 10000, default: 1 } }
+        - { name: pageSize, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+      responses:
+        '200': { description: Paginated publications and safe evidence metadata }
+        '403': { description: Social media read capability missing }
+        '422': { description: Invalid date range or pagination }
+    post:
+      summary: Create a social publication as a draft or recorded post
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKeyRequired'
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SocialPublicationRequest' }
+      responses:
+        '201': { description: Publication created }
+        '403': { description: Publication management capability missing }
+        '409': { description: Idempotency key conflict }
+        '422': { description: Invalid platform/content/date/link or evidence required before recording }
+  /api/social-media/publications/{id}:
+    patch:
+      summary: Finalize a publication after required evidence is verified
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - $ref: '#/components/parameters/IdempotencyKeyRequired'
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SocialFinalizeRequest' }
+      responses:
+        '200': { description: Publication marked recorded }
+        '403': { description: Publication management capability missing }
+        '404': { description: Publication not found }
+        '409': { description: Publication version conflict }
+        '422': { description: Required link or verified evidence is missing }
+  /api/social-media/publications/{id}/evidence-uploads:
+    post:
+      summary: Reserve private photo evidence upload for a draft publication
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - $ref: '#/components/parameters/IdempotencyKeyRequired'
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SocialEvidenceReserveRequest' }
+      responses:
+        '201': { description: Short-lived private R2 upload URL issued; object key is not returned }
+        '403': { description: Publication management capability missing }
+        '409': { description: Another evidence upload is pending or publication is no longer a draft }
+        '422': { description: Invalid image metadata }
+  /api/social-media/publications/{id}/evidence-uploads/{evidenceId}/complete:
+    post:
+      summary: Verify uploaded publication evidence and attach it
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: evidenceId, in: path, required: true, schema: { type: string, format: uuid } }
+        - $ref: '#/components/parameters/IdempotencyKeyRequired'
+        - $ref: '#/components/parameters/ChangeReason'
+      responses:
+        '200': { description: Evidence verified with a short-lived private access URL }
+        '403': { description: Publication management capability missing }
+        '410': { description: Upload reservation expired }
+        '422': { description: Uploaded image bytes do not match declared metadata }
+  /api/social-media/publications/{id}/evidence-access:
+    get:
+      summary: Issue short-lived private access URLs for attached publication evidence
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Attached evidence IDs and expiring URLs; private object keys are never exposed }
+        '403': { description: Social media read capability missing }
+  /api/social-media/metrics:
+    get:
+      summary: Read account snapshots and insight periods for a bounded range
+      parameters:
+        - { name: from, in: query, required: false, schema: { type: string, format: date } }
+        - { name: to, in: query, required: false, schema: { type: string, format: date } }
+      responses:
+        '200': { description: Snapshots include the preceding snapshot date and count used for growth; out-of-range comparison rows are not included as records. Also returns recorded insight periods. }
+        '403': { description: Social media read capability missing }
+        '422': { description: Invalid or oversized date range }
+  /api/social-media/snapshots:
+    post:
+      summary: Record an account audience snapshot as of a real date
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKeyRequired'
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SocialSnapshotRequest' }
+      responses:
+        '201': { description: Audience snapshot recorded }
+        '403': { description: Metrics management capability missing }
+        '409': { description: Snapshot already exists for this account and date }
+        '422': { description: Invalid account, date, or audience count }
+  /api/social-media/insight-periods:
+    post:
+      summary: Create one monthly platform-specific insight archive per account
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKeyRequired'
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SocialInsightRequest' }
+      responses:
+        '201': { description: Draft insight period created }
+        '403': { description: Metrics management capability missing }
+        '409': { description: Monthly account archive already exists or idempotency conflict }
+        '422': { description: Incomplete month, unsupported platform metric, or invalid values }
+  /api/social-media/insight-periods/{id}:
+    patch:
+      summary: Finalize an insight period after a graph screenshot is verified
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - $ref: '#/components/parameters/IdempotencyKeyRequired'
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SocialFinalizeRequest' }
+      responses:
+        '200': { description: Insight period marked recorded }
+        '403': { description: Metrics management capability missing }
+        '409': { description: Insight period version conflict }
+        '422': { description: At least one verified graph screenshot is required }
+  /api/social-media/insight-periods/{id}/evidence-uploads:
+    post:
+      summary: Reserve private graph screenshot upload for a draft insight period
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - $ref: '#/components/parameters/IdempotencyKeyRequired'
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SocialEvidenceReserveRequest' }
+      responses:
+        '201': { description: Short-lived private R2 upload URL issued }
+        '403': { description: Metrics management capability missing }
+        '409': { description: Another evidence upload is pending or insight is no longer a draft }
+        '422': { description: Invalid image metadata }
+  /api/social-media/insight-periods/{id}/evidence-uploads/{evidenceId}/complete:
+    post:
+      summary: Verify uploaded insight evidence and attach it
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: evidenceId, in: path, required: true, schema: { type: string, format: uuid } }
+        - $ref: '#/components/parameters/IdempotencyKeyRequired'
+        - $ref: '#/components/parameters/ChangeReason'
+      responses:
+        '200': { description: Evidence verified with a short-lived private access URL }
+        '403': { description: Metrics management capability missing }
+        '410': { description: Upload reservation expired }
+        '422': { description: Uploaded image bytes do not match declared metadata }
+  /api/social-media/insight-periods/{id}/evidence-access:
+    get:
+      summary: Issue short-lived private access URLs for attached insight evidence
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Attached evidence IDs and expiring URLs; private object keys are never exposed }
+        '403': { description: Social media read capability missing }
+  /api/social-media/reports:
+    get:
+      summary: Read a complete monthly social media report
+      description: The selected from and to dates must describe one completed calendar month. The response contains recorded publications and insight archives for that month plus 12 monthly audience snapshots per account, with missing snapshot months represented as null rather than zero. Agenda activities are not part of this report.
+      parameters:
+        - { name: from, in: query, required: true, schema: { type: string, format: date } }
+        - { name: to, in: query, required: true, schema: { type: string, format: date } }
+      responses:
+        '200': { description: Complete bounded monthly report with per-account monthly audience trend, publication counts, insight archives, signed private evidence URLs, and explicit totals }
+        '403': { description: Social media read capability missing }
+        '422': { description: Invalid range or any report section exceeds the safe row limit }
   /api/attendance/summary:
     get:
       summary: Summarize attendance for one date
@@ -702,7 +1159,9 @@ paths:
   /api/cash/summary:
     get:
       summary: Read the authenticated user's cash summary
-      description: Teachers and leaders receive the class summary. Member accounts are scoped to their own student record from the JWT.
+      description: Use scope=own for the linked student's ledger or scope=manage for the global ledger when the account has global cash access. Roles without global access are always forced to own.
+      parameters:
+        - { name: scope, in: query, required: false, schema: { type: string, enum: [own, manage], default: manage } }
       responses:
         '200':
           description: Cash balance, income, expense, and outstanding student debt totals
@@ -725,6 +1184,7 @@ paths:
         - { name: metode_pembayaran, in: query, required: false, schema: { type: string, pattern: '^[a-z0-9]+(?:_[a-z0-9]+)*$', maxLength: 40 } }
         - { name: page, in: query, required: false, schema: { type: integer, minimum: 1, default: 1 } }
         - { name: pageSize, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+        - { name: scope, in: query, required: false, schema: { type: string, enum: [own, manage] } }
       responses:
         '200':
           description: Paginated cash transactions ordered by transaction date and creation time
@@ -831,11 +1291,12 @@ paths:
   /api/cash/debts:
     get:
       summary: List unpaid cash debts with bounded pagination
-      description: Member accounts are automatically scoped to their own student ID from the JWT.
+      description: Use scope=own for the linked student's debts or scope=manage for the global debt list. Roles without global access are always forced to own.
       parameters:
         - { name: search, in: query, required: false, schema: { type: string, maxLength: 100 } }
         - { name: page, in: query, required: false, schema: { type: integer, minimum: 1, default: 1 } }
         - { name: pageSize, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+        - { name: scope, in: query, required: false, schema: { type: string, enum: [own, manage] } }
       responses:
         '200': { description: Paginated unpaid cash debts }
         '401': { description: Unauthenticated }
@@ -871,6 +1332,7 @@ paths:
         - { name: cursor, in: query, required: false, schema: { type: string, maxLength: 512 } }
         - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 50, default: 10 } }
         - { name: status, in: query, required: false, schema: { type: string, enum: [pending, approved, rejected] } }
+        - { name: scope, in: query, required: false, schema: { type: string, enum: [own, manage] } }
       responses:
         '200': { description: Paginated disputes scoped to the member or reviewer queue }
         '401': { description: Unauthenticated }
@@ -905,6 +1367,7 @@ paths:
       summary: Lazily retrieve one dispute proof for an authorized member or reviewer
       parameters:
         - { name: id, in: path, required: true, schema: { type: string, maxLength: 64 } }
+        - { name: scope, in: query, required: false, schema: { type: string, enum: [own, manage] } }
       responses:
         '200': { description: Evidence URL/data returned; never included in list responses }
         '403': { description: Evidence is outside the caller's scope }
@@ -922,18 +1385,18 @@ paths:
               $ref: '#/components/schemas/CashDisputeUpdateRequest'
       responses:
         '200': { description: Dispute status updated }
-        '403': { description: Teacher or treasurer role required }
+        '403': { description: Teacher role required }
         '404': { description: Dispute not found }
         '422': { description: Invalid status, review note, or debt settlement details }
         '503': { description: Cash schema or database identity is not available }
   /api/borrowing:
     get:
-      summary: List borrowing records with server-side scope and pagination
+      summary: List borrowing records with database-side search, scope, and pagination
       parameters:
-        - { name: status, in: query, required: false, schema: { type: string, enum: [menunggu_persetujuan, disetujui, ditolak, dipinjam, dikembalikan, terlambat] } }
+        - { name: status, in: query, required: false, schema: { type: string, enum: [menunggu_persetujuan, disetujui, ditolak, dipinjam, menunggu_verifikasi, dikembalikan, terlambat] } }
         - { name: borrower_id, in: query, required: false, schema: { type: string, maxLength: 64 } }
         - { name: search, in: query, required: false, schema: { type: string, maxLength: 100 } }
-        - { name: page, in: query, required: false, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: page, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 10000, default: 1 } }
         - { name: pageSize, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
       responses:
         '200': { description: Paginated borrowing records }
@@ -952,7 +1415,7 @@ paths:
               $ref: '#/components/schemas/BorrowingCreateRequest'
       responses:
         '201': { description: Borrowing request created or replayed idempotently }
-        '403': { description: Member attempted to borrow for another student }
+        '403': { description: Non-teacher attempted to borrow for a different student or account lacks request capability }
         '409': { description: Equipment is unavailable or already reserved }
         '422': { description: Invalid dates, purpose, or equipment list }
         '503': { description: Borrowing schema or database identity is not available }
@@ -1070,8 +1533,112 @@ paths:
         - { name: borrowing_id, in: path, required: true, schema: { type: string, maxLength: 128 } }
       responses:
         '200': { description: Attached return evidence metadata and signed access URLs }
-        '403': { description: Borrowing read capability required }
+        '403': { description: Borrowing management capability required }
         '503': { description: Return evidence schema or storage is not available }
+  /api/borrowing/{borrowing_id}/return-report-evidence-uploads:
+    post:
+      summary: Reserve a private student return-report photo upload
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: borrowing_id, in: path, required: true, schema: { type: string, maxLength: 128 } }
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BorrowingReturnEvidenceUploadRequest'
+      responses:
+        '201': { description: Signed upload URL, evidence identifier, and report identifier }
+        '403': { description: Student return-report capability or ownership is required }
+        '422': { description: Invalid image metadata or borrowing item }
+        '503': { description: Return evidence storage is not configured }
+  /api/borrowing/{borrowing_id}/report-return:
+    post:
+      summary: Submit an asynchronous student return report for teacher verification
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: borrowing_id, in: path, required: true, schema: { type: string, maxLength: 128 } }
+        - $ref: '#/components/parameters/ChangeReason'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [report_id, evidence_ids]
+              properties:
+                report_id: { type: string, format: uuid }
+                evidence_ids: { type: array, minItems: 2, maxItems: 50, uniqueItems: true, items: { type: string, format: uuid } }
+                notes: { type: string, maxLength: 1000 }
+      responses:
+        '200': { description: Report submitted and borrowing moved to pending verification }
+        '403': { description: Student return-report capability or ownership is required }
+        '409': { description: Report transition or idempotency conflict }
+        '422': { description: Evidence is missing, incomplete, or does not belong to the report }
+        '503': { description: Borrowing schema or evidence storage is not available }
+  /api/borrowing/{borrowing_id}/verify-return:
+    post:
+      summary: Approve or reject a student return report (teacher only)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: borrowing_id, in: path, required: true, schema: { type: string, maxLength: 128 } }
+        - $ref: '#/components/parameters/ChangeReason'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [report_id, decision]
+              properties:
+                report_id: { type: string, format: uuid }
+                decision: { type: string, enum: [approve, reject] }
+                verification_method: { type: string, enum: [photo, physical_check, photo_and_physical] }
+                rejection_reason: { type: string, maxLength: 500 }
+                item_conditions:
+                  type: array
+                  maxItems: 50
+                  items:
+                    type: object
+                    required: [equipment_id, condition]
+                    properties:
+                      equipment_id: { type: string, format: uuid }
+                      condition: { type: string, enum: [good, minor_damage, damaged, severely_damaged, lost] }
+                      settlement_method: { type: string, enum: [none, repair, replacement] }
+                      repair_cost: { type: number, exclusiveMinimum: 0 }
+                      notes: { type: string, maxLength: 500 }
+      responses:
+        '200': { description: Report approved/rejected and borrowing status updated atomically }
+        '403': { description: Teacher role and verification capability required }
+        '404': { description: Return report not found for this borrowing }
+        '409': { description: Report transition or idempotency conflict }
+        '422': { description: Invalid decision, evidence, conditions, or audit reason }
+        '503': { description: Borrowing schema or evidence storage is not available }
+  /api/borrowing/{borrowing_id}/return-report:
+    get:
+      summary: Read a return report and short-lived private evidence URLs
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: borrowing_id, in: path, required: true, schema: { type: string, maxLength: 128 } }
+      responses:
+        '200': { description: Return report metadata and signed evidence URLs }
+        '403': { description: Teacher or report-owner scope is required }
+        '404': { description: Return report not found }
+        '503': { description: Return evidence storage is not available }
+  /api/borrowing/{borrowing_id}/return-report-evidence:
+    get:
+      summary: List private evidence attached to a student return report
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: borrowing_id, in: path, required: true, schema: { type: string, maxLength: 128 } }
+      responses:
+        '200': { description: Signed evidence access URLs }
+        '403': { description: Teacher or report-owner scope is required }
+        '404': { description: Return report not found }
+        '503': { description: Return evidence storage is not available }
   /api/borrowing-return-evidence/{evidence_id}/access:
     get:
       summary: Issue a short-lived access URL for attached return evidence
@@ -1080,7 +1647,7 @@ paths:
         - { name: evidence_id, in: path, required: true, schema: { type: string, minLength: 36, maxLength: 36 } }
       responses:
         '200': { description: Signed evidence access URL }
-        '403': { description: Borrowing read capability required }
+        '403': { description: Borrowing management capability required }
         '404': { description: Attached evidence not found }
   /api/grades:
     get:
@@ -1174,13 +1741,148 @@ paths:
       responses:
         '200': { description: Grade summary by student }
         '403': { description: Secretary role required }
+  /api/grades/report-periods:
+    get:
+      summary: List semester report periods
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Semester report periods }
+        '401': { description: Unauthenticated }
+        '503': { description: Grade report schema is not available }
+    post:
+      summary: Create a semester report period
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [academic_year, semester, start_date, end_date]
+              properties:
+                academic_year: { type: string, pattern: '^[0-9]{4}/[0-9]{4}$' }
+                semester: { type: string, enum: [ganjil, genap] }
+                start_date: { type: string, format: date }
+                end_date: { type: string, format: date }
+      responses:
+        '201': { description: Report period created }
+        '403': { description: Teacher capability required }
+        '422': { description: Invalid report period }
+  /api/grades/reports:
+    get:
+      summary: List generated student semester reports
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: period_id, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: student_id, in: query, schema: { type: string, format: uuid } }
+        - { name: kelas, in: query, schema: { type: string, maxLength: 80 } }
+        - { name: scope, in: query, schema: { type: string, enum: [own, operational], default: operational } }
+      responses:
+        '200': { description: A-E semester reports with attendance and PKL context }
+        '401': { description: Unauthenticated }
+        '403': { description: Personal scope requires a linked student account }
+        '422': { description: Invalid period identifier }
+        '503': { description: Grade report schema is not available }
+  /api/grades/reports/generate:
+    post:
+      summary: Generate draft A-E reports for all active students
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [period_id]
+              properties:
+                period_id: { type: string, format: uuid }
+      responses:
+        '200': { description: Draft reports generated }
+        '403': { description: Teacher capability required }
+        '422': { description: Invalid period or locked report }
+  /api/grades/reports/approve:
+    post:
+      summary: Approve a complete semester report set
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [period_id]
+              properties:
+                period_id: { type: string, format: uuid }
+      responses:
+        '200': { description: Reports approved }
+        '403': { description: Teacher capability required }
+        '422': { description: Report evidence is incomplete }
+  /api/grades/pkl-periods:
+    get:
+      summary: List verified or pending PKL periods
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: student_id, in: query, schema: { type: string, format: uuid } }
+        - { name: kelas, in: query, schema: { type: string, maxLength: 80 } }
+      responses:
+        '200': { description: PKL periods }
+        '401': { description: Unauthenticated }
+        '503': { description: Grade report schema is not available }
+    post:
+      summary: Request a PKL period for a student
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [student_id, start_date, end_date, institution]
+              properties:
+                student_id: { type: string, format: uuid }
+                start_date: { type: string, format: date }
+                end_date: { type: string, format: date }
+                institution: { type: string, minLength: 2, maxLength: 200 }
+                notes: { type: string, maxLength: 1000 }
+      responses:
+        '201': { description: PKL period requested }
+        '403': { description: Attendance correction or grade management capability required }
+        '422': { description: Invalid PKL period }
+  /api/grades/pkl-periods/review:
+    post:
+      summary: Review a PKL period
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ChangeReason'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id, status]
+              properties:
+                id: { type: string, format: uuid }
+                status: { type: string, enum: [approved, rejected, completed] }
+      responses:
+        '200': { description: PKL period reviewed }
+        '403': { description: Teacher capability required }
+        '422': { description: Invalid PKL review }
   /api/contests:
     get:
       summary: List contest achievements with bounded pagination
       parameters:
         - { name: status, in: query, required: false, schema: { type: string, maxLength: 32 } }
         - { name: tingkat, in: query, required: false, schema: { type: string, maxLength: 32 } }
-        - { name: tahun_event, in: query, required: false, schema: { type: integer, minimum: 1900, maximum: 2200 } }
+        - { name: event_year, in: query, required: false, schema: { type: integer, minimum: 1900, maximum: 2200 } }
         - { name: search, in: query, required: false, schema: { type: string, maxLength: 100 } }
         - { name: page, in: query, required: false, schema: { type: integer, minimum: 1, default: 1 } }
         - { name: pageSize, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
@@ -1362,11 +2064,11 @@ paths:
         - { name: id, in: path, required: true, schema: { type: string, maxLength: 64 } }
       responses:
         '200': { description: Signed evidence access URL issued }
-        '403': { description: Contest manage capability required }
+        '403': { description: Contest read capability required }
         '404': { description: Attached evidence not found }
   /api/contest-achievements:
     get:
-      summary: List normalized contest outcomes and achievements
+      summary: List completed contest entries with grouped outcomes and achievements
       security: [{ bearerAuth: [] }]
       parameters:
         - { name: search, in: query, required: false, schema: { type: string, maxLength: 100 } }
@@ -1377,9 +2079,20 @@ paths:
         - { name: page, in: query, required: false, schema: { type: integer, minimum: 1, default: 1 } }
         - { name: pageSize, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
       responses:
-        '200': { description: Paginated achievement rows; one entry may return multiple result rows }
+        '200': { description: Paginated completed entries; each entry groups all active result rows }
         '401': { description: Unauthenticated }
         '503': { description: Contest results schema unavailable }
+  /api/contest-achievements/{id}:
+    get:
+      summary: Read a completed contest entry with evidence and status history
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, maxLength: 64 } }
+      responses:
+        '200': { description: Completed entry detail with grouped awards, attached evidence metadata, and timeline }
+        '401': { description: Unauthenticated }
+        '403': { description: Contest read capability required }
+        '404': { description: Completed contest entry not found }
   /api/contest-entries/{id}/results:
     post:
       summary: Legacy endpoint; use the contest entry finalize endpoint
@@ -1408,10 +2121,11 @@ paths:
         - { name: kategori, in: query, required: false, schema: { type: string, enum: [Kamera, Lensa, Audio, Lighting, Aksesoris, Lainnya] } }
         - { name: kondisi, in: query, required: false, schema: { type: string, enum: [bagus, sedikit_kerusakan, rusak, rusak_besar, sedang_diperbaiki, hilang] } }
         - { name: status, in: query, required: false, schema: { type: string, enum: [tersedia, dipinjam, maintenance] } }
+        - { name: purpose, in: query, required: false, schema: { type: string, enum: [borrowing_request] }, description: Return only selectable available equipment with sanitized fields }
         - { name: page, in: query, required: false, schema: { type: integer, minimum: 1, default: 1 } }
         - { name: pageSize, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
       responses:
-        '200': { description: Paginated equipment records with reservation status }
+        '200': { description: Paginated equipment records; borrowing-request roles receive only available, sanitized selection fields }
         '401': { description: Unauthenticated }
     post:
       summary: Create an equipment catalog record
@@ -1473,6 +2187,26 @@ paths:
         '403': { description: Equipment team role required }
         '404': { description: Equipment not found }
         '409': { description: Equipment is still referenced by borrowing data }
+  /api/equipment/{id}/photo:
+    get:
+      summary: Read one equipment photo without embedding photo arrays in list responses
+      description: Requires an authenticated account with equipment.read. Responses are private and no-store; the backend does not fetch legacy external image URLs.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, minLength: 1, maxLength: 64 } }
+      responses:
+        '200':
+          description: Raster image bytes or an allow-listed HTTP(S) legacy photo reference
+          content:
+            image/jpeg: { schema: { type: string, format: binary } }
+            image/png: { schema: { type: string, format: binary } }
+            image/webp: { schema: { type: string, format: binary } }
+            application/json:
+              schema: { type: object, required: [url], properties: { url: { type: string, format: uri } } }
+        '204': { description: Equipment exists but no valid photo is stored }
+        '401': { description: Unauthenticated }
+        '403': { description: equipment.read capability required }
+        '404': { description: Equipment not found }
   /api/equipment/{id}/valuations:
     get:
       summary: List versioned replacement valuations for equipment
@@ -1749,6 +2483,29 @@ components:
       required: false
       schema: { type: string, minLength: 5, maxLength: 500 }
   schemas:
+    SocialInsightRequest:
+      type: object
+      additionalProperties: false
+      required: [social_account_id, archive_month]
+      properties:
+        social_account_id: { type: string, minLength: 1, maxLength: 64 }
+        archive_month: { type: string, pattern: '^\d{4}-(0[1-9]|1[0-2])$' }
+        views: { type: integer, minimum: 0, maximum: 9007199254740991 }
+        reach: { type: integer, minimum: 0, maximum: 9007199254740991 }
+        profile_visits: { type: integer, minimum: 0, maximum: 9007199254740991 }
+        likes: { type: integer, minimum: 0, maximum: 9007199254740991 }
+        comments: { type: integer, minimum: 0, maximum: 9007199254740991 }
+        shares: { type: integer, minimum: 0, maximum: 9007199254740991 }
+        saves: { type: integer, minimum: 0, maximum: 9007199254740991 }
+        watch_time_minutes: { type: integer, minimum: 0, maximum: 9007199254740991 }
+        subscribers_gained: { type: integer, minimum: 0, maximum: 9007199254740991 }
+        subscribers_lost: { type: integer, minimum: 0, maximum: 9007199254740991 }
+        impressions: { type: integer, minimum: 0, maximum: 9007199254740991 }
+        followers_gained: { type: integer, minimum: 0, maximum: 9007199254740991 }
+        followers_lost: { type: integer, minimum: 0, maximum: 9007199254740991 }
+        reactions: { type: integer, minimum: 0, maximum: 9007199254740991 }
+        poll_votes: { type: integer, minimum: 0, maximum: 9007199254740991 }
+        notes: { type: string, maxLength: 2000 }
     SuccessEnvelope:
       type: object
       required: [success]
@@ -1818,7 +2575,7 @@ components:
         reason: { type: string, maxLength: 2000 }
     UserAccount:
       type: object
-      required: [id, username, nama, role, is_first_login, is_active, created_at]
+      required: [id, username, nama, role, is_first_login, is_active, is_linked_student, created_at]
       properties:
         id: { type: string, format: uuid }
         username: { type: string, minLength: 3, maxLength: 30 }
@@ -1826,6 +2583,8 @@ components:
         role: { type: string, enum: [teacher, leader, vice_leader, treasurer, secretary, equipment_team, contest_team, member] }
         is_first_login: { type: boolean }
         is_active: { type: boolean }
+        is_linked_student: { type: boolean, description: True when the account is linked to a student profile }
+        student_id: { type: string, nullable: true, format: uuid }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, nullable: true, format: date-time }
         created_by: { type: string, nullable: true, format: uuid }
@@ -1846,11 +2605,11 @@ components:
     UserCreateRequest:
       type: object
       additionalProperties: false
-      required: [username, nama, role, password]
+      required: [username, name, role, password]
       properties:
         username: { type: string, minLength: 3, maxLength: 30, pattern: '^[a-zA-Z0-9._-]+$' }
-        nama: { type: string, minLength: 2, maxLength: 200 }
-        role: { type: string, enum: [teacher, leader, vice_leader, treasurer, secretary, equipment_team, contest_team] }
+        name: { type: string, minLength: 2, maxLength: 200 }
+        role: { type: string, enum: [teacher, treasurer] }
         password: { type: string, minLength: 1, maxLength: 128 }
         change_reason: { type: string, maxLength: 500 }
     UserUpdateRequest:
@@ -1859,9 +2618,23 @@ components:
       minProperties: 1
       properties:
         username: { type: string, minLength: 3, maxLength: 30, pattern: '^[a-zA-Z0-9._-]+$' }
-        nama: { type: string, minLength: 2, maxLength: 200 }
+        name: { type: string, minLength: 2, maxLength: 200 }
         role: { type: string, enum: [teacher, leader, vice_leader, treasurer, secretary, equipment_team, contest_team, member] }
         is_active: { type: boolean }
+    AgendaActivityRequest:
+      type: object
+      additionalProperties: false
+      required: [activity_date, activity_name, activity_description, instructor_name, pic_names]
+      properties:
+        activity_date: { type: string, format: date }
+        activity_name: { type: string, minLength: 2, maxLength: 120 }
+        activity_description: { type: string, minLength: 2, maxLength: 2000 }
+        instructor_name: { type: string, minLength: 2, maxLength: 120 }
+        pic_names:
+          type: array
+          minItems: 1
+          maxItems: 10
+          items: { type: string, minLength: 2, maxLength: 100 }
         change_reason: { type: string, minLength: 5, maxLength: 500 }
     UserResetPasswordRequest:
       type: object
@@ -1977,31 +2750,59 @@ components:
     StudentCreateRequest:
       type: object
       additionalProperties: false
-      required: [nis, nama, kelas]
+      required: [student_number, name, class_name, username, phone_number]
       properties:
-        nis: { type: string, minLength: 1, maxLength: 40 }
-        nama: { type: string, minLength: 2, maxLength: 120 }
-        kelas: { type: string, minLength: 1, maxLength: 80 }
-        peminatan: { type: string, enum: [kamera, editing, naskah] }
-        no_telepon: { type: string, maxLength: 40 }
-        foto_url: { type: string, maxLength: 2000000 }
+        student_number: { type: string, minLength: 1, maxLength: 40 }
+        name: { type: string, minLength: 2, maxLength: 120 }
+        class_name: { type: string, minLength: 1, maxLength: 80 }
+        username: { type: string, minLength: 3, maxLength: 30, pattern: '^[a-zA-Z0-9._-]+$' }
+        specialization: { type: string, enum: [camera, editing, screenwriting, kamera, naskah] }
+        phone_number: { type: string, minLength: 1, maxLength: 40, description: Required Indonesian WhatsApp number; it is manually confirmed, not OTP-verified. }
+        photo_url: { type: string, maxLength: 2000000 }
+        role:
+          type: string
+          enum: [leader, vice_leader, secretary, treasurer, equipment_team, contest_team, social_media_team, member]
+          description: Role for the linked student account. Teacher is reserved for operational accounts.
         change_reason: { type: string, maxLength: 500 }
+    StudentAccountLinkRequest:
+      type: object
+      additionalProperties: false
+      required: [user_id, student_number, name, class_name, change_reason]
+      properties:
+        user_id: { type: string, format: uuid }
+        student_number: { type: string, minLength: 1, maxLength: 40 }
+        name: { type: string, minLength: 2, maxLength: 120 }
+        class_name: { type: string, minLength: 1, maxLength: 80 }
+        specialization: { type: string, enum: [camera, editing, screenwriting, kamera, naskah] }
+        phone_number: { type: string, maxLength: 40 }
+        photo_url: { type: string, maxLength: 2000000 }
+        change_reason: { type: string, minLength: 5, maxLength: 500 }
+    StudentExistingProfileAccountLinkRequest:
+      type: object
+      additionalProperties: false
+      required: [user_id, change_reason]
+      properties:
+        user_id: { type: string, format: uuid }
+        change_reason: { type: string, minLength: 5, maxLength: 500 }
     StudentUpdateRequest:
       type: object
       additionalProperties: false
       minProperties: 1
       properties:
-        nama: { type: string, minLength: 2, maxLength: 120 }
-        kelas: { type: string, minLength: 1, maxLength: 80 }
-        peminatan: { type: string, enum: [kamera, editing, naskah] }
-        no_telepon: { type: string, maxLength: 40 }
-        foto_url: { type: string, maxLength: 2000000 }
+        name: { type: string, minLength: 2, maxLength: 120 }
+        class_name: { type: string, minLength: 1, maxLength: 80 }
+        specialization: { type: string, enum: [camera, editing, screenwriting, kamera, naskah] }
+        phone_number: { type: string, maxLength: 40 }
+        photo_url: { type: string, maxLength: 2000000 }
         is_active: { type: boolean }
         change_reason: { type: string, minLength: 5, maxLength: 500 }
     StudentProvisionRequest:
       type: object
       additionalProperties: false
+      required: [username, phone_number, change_reason]
       properties:
+        username: { type: string, minLength: 3, maxLength: 30, pattern: '^[a-zA-Z0-9._-]+$' }
+        phone_number: { type: string, minLength: 1, maxLength: 40, description: Required Indonesian WhatsApp number; it is manually confirmed, not OTP-verified. }
         change_reason: { type: string, minLength: 5, maxLength: 500 }
     StudentDashboardSummaryEnvelope:
       type: object

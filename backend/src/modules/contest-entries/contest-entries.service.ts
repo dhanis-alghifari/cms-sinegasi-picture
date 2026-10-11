@@ -2,7 +2,7 @@ import { databaseErrorCode } from '../../shared/database/database.types.js';
 import {
   generateR2PrivateAccessUrl,
   generateR2PrivateUploadUrl,
-  inspectCloudflareR2Object,
+  verifyCloudflareR2ImageUpload,
 } from '../../services/cloudflareR2Service.js';
 import { cleanEntryText, entryErrorMessage } from './contest-entries.helpers.js';
 import { CONTEST_WORK_TYPES } from './contest-entries.types.js';
@@ -87,7 +87,7 @@ function getDatabaseErrorCode(code: string | undefined): string {
 
 const defaultEvidenceStorage: ContestEvidenceStorage = {
   createUpload: generateR2PrivateUploadUrl,
-  inspect: inspectCloudflareR2Object,
+  verifyUpload: verifyCloudflareR2ImageUpload,
   createAccess: generateR2PrivateAccessUrl,
 };
 
@@ -171,7 +171,7 @@ export class ContestEntriesService {
 
     let upload: ReturnType<ContestEvidenceStorage['createUpload']>;
     try {
-      upload = this.evidenceStorage.createUpload(fileName, `contest-evidence/${normalizedEntryId}/${targetStatus}`);
+      upload = this.evidenceStorage.createUpload(fileName, `contest-evidence/${normalizedEntryId}/${targetStatus}`, contentType);
     } catch {
       throw new ContestEntriesServiceError(503, 'CONTEST_EVIDENCE_STORAGE_UNAVAILABLE', 'Penyimpanan bukti sedang tidak tersedia.');
     }
@@ -201,15 +201,13 @@ export class ContestEntriesService {
         || !evidence.object_key || !evidence.mime_type || !evidence.file_size_bytes) {
       throw new ContestEntriesServiceError(422, 'CONTEST_ENTRY_EVIDENCE_INVALID', 'Bukti unggahan tidak sesuai dengan perubahan status ini.');
     }
-    let object: Awaited<ReturnType<ContestEvidenceStorage['inspect']>>;
+    let isValidUpload: boolean;
     try {
-      object = await this.evidenceStorage.inspect(evidence.object_key);
+      isValidUpload = await this.evidenceStorage.verifyUpload(evidence.object_key, evidence.mime_type, evidence.file_size_bytes);
     } catch {
       throw new ContestEntriesServiceError(503, 'CONTEST_EVIDENCE_STORAGE_UNAVAILABLE', 'Bukti belum dapat diverifikasi dari penyimpanan.');
     }
-    if (!object.exists
-        || (object.contentType && object.contentType.toLowerCase() !== evidence.mime_type.toLowerCase())
-        || (object.contentLength != null && object.contentLength !== evidence.file_size_bytes)) {
+    if (!isValidUpload) {
       throw new ContestEntriesServiceError(422, 'CONTEST_EVIDENCE_UPLOAD_INCOMPLETE', 'Unggahan bukti belum selesai atau metadata file tidak sesuai.');
     }
     return evidence;
@@ -303,6 +301,11 @@ export class ContestEntriesService {
     if ('error' in result) mapRepositoryError(result.error, 'Gagal memuat bukti.');
     const evidence = result.data;
     if (!evidence || evidence.upload_status !== 'attached') {
+      throw new ContestEntriesServiceError(404, 'CONTEST_EVIDENCE_NOT_FOUND', 'Bukti tidak ditemukan.');
+    }
+    const entryResult = await this.repository.get(evidence.entry_id);
+    if ('error' in entryResult) mapRepositoryError(entryResult.error, 'Gagal memeriksa karya bukti.');
+    if (!entryResult.data || entryResult.data.pipeline_status !== 'selesai') {
       throw new ContestEntriesServiceError(404, 'CONTEST_EVIDENCE_NOT_FOUND', 'Bukti tidak ditemukan.');
     }
     if (evidence.storage_provider === 'legacy_url' && evidence.public_url) {

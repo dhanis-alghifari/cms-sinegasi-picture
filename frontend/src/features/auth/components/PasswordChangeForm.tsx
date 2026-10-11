@@ -153,11 +153,11 @@ export function PasswordChangeForm({ forced = false, onSuccess, onCancel }: Pass
           </Button>
 
           {forced ? (
-            <Button type="button" variant="outline" onClick={handleLogout} disabled={changePasswordMutation.isPending} className="w-full h-11 border-hairline text-ink hover:bg-surface-2">
+            <Button type="button" variant="secondary" onClick={handleLogout} disabled={changePasswordMutation.isPending} className="w-full h-11">
               <LogOut size={16} className="mr-2" />Keluar dan lanjutkan nanti
             </Button>
           ) : (
-            <Button type="button" variant="outline" onClick={onCancel} disabled={changePasswordMutation.isPending} className="w-full h-11 border-hairline text-ink hover:bg-surface-2">
+            <Button type="button" variant="secondary" onClick={onCancel} disabled={changePasswordMutation.isPending} className="w-full h-11">
               Batal
             </Button>
           )}

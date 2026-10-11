@@ -17,6 +17,8 @@ import { Button } from '@/shared/ui/primitives/button';
 import { Input } from '@/shared/ui/primitives/input';
 import { Label } from '@/shared/ui/primitives/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/primitives/select';
+import { SearchableCombobox } from '@/shared/ui/SearchableCombobox';
+import { FieldError } from '@/shared/ui/FieldError';
 import { cn } from '@/shared/utils/cn';
 import { isOneOf } from '@/shared/utils/isOneOf';
 import { getErrorMessage } from '@/shared/api/errors';
@@ -56,6 +58,7 @@ export function RecordAttendanceModal({
 }: RecordAttendanceModalProps) {
   const [selectedKelas, setSelectedKelas] = useState('X');
   const [attendanceMap, setAttendanceMap] = useState<Record<string, { status: AttendanceStatus; keterangan: string }>>({});
+  const [noteErrors, setNoteErrors] = useState<Record<string, string>>({});
   const [validationMessage, setValidationMessage] = useState<string | null>(null);
   const previousTanggal = useRef<string | undefined>(undefined);
 
@@ -89,10 +92,22 @@ export function RecordAttendanceModal({
       return true;
     });
   }, [classes]);
+  const searchableClassChoices = useMemo(
+    () => classChoices.map((choice) => ({
+      id: choice.value,
+      label: choice.label,
+    })),
+    [classChoices],
+  );
+  const selectedClassOption = useMemo(
+    () => searchableClassChoices.find((choice) => choice.id === selectedKelas) ?? null,
+    [searchableClassChoices, selectedKelas],
+  );
 
   useEffect(() => {
     if (previousTanggal.current !== undefined && previousTanggal.current !== selectedTanggal) {
       setAttendanceMap({});
+      setNoteErrors({});
     }
     previousTanggal.current = selectedTanggal;
   }, [selectedTanggal]);
@@ -103,6 +118,12 @@ export function RecordAttendanceModal({
   };
 
   const handleStatusChange = (studentId: string, status: AttendanceStatus) => {
+    setNoteErrors((current) => {
+      if (!current[studentId]) return current;
+      const next = { ...current };
+      delete next[studentId];
+      return next;
+    });
     setAttendanceMap((prev) => ({
       ...prev,
       [studentId]: {
@@ -119,6 +140,12 @@ export function RecordAttendanceModal({
   };
 
   const handleKeteranganChange = (studentId: string, keterangan: string) => {
+    setNoteErrors((current) => {
+      if (!current[studentId]) return current;
+      const next = { ...current };
+      delete next[studentId];
+      return next;
+    });
     setAttendanceMap((prev) => ({
       ...prev,
       [studentId]: {
@@ -130,6 +157,7 @@ export function RecordAttendanceModal({
 
   const handleClose = () => {
     setAttendanceMap({});
+    setNoteErrors({});
     setValidationMessage(null);
     onOpenChange(false);
   };
@@ -138,6 +166,7 @@ export function RecordAttendanceModal({
     setSelectedKelas(value);
     form.setValue('kelas', value, { shouldValidate: true });
     setAttendanceMap({});
+    setNoteErrors({});
   };
 
   const handleSelectedClassValueChange = (value: string | null) => {
@@ -168,7 +197,11 @@ export function RecordAttendanceModal({
       (record) => record.status !== 'hadir' && (!record.keterangan || record.keterangan.trim().length === 0),
     );
     if (hasMissingNotes) {
-      setValidationMessage('Keterangan wajib diisi untuk siswa yang Sakit, Izin, atau Alpha.');
+      setNoteErrors(Object.fromEntries(
+        records
+          .filter((record) => record.status !== 'hadir' && !record.keterangan)
+          .map((record) => [record.student_id, 'Keterangan wajib diisi untuk status ini.']),
+      ));
       return;
     }
 
@@ -186,6 +219,7 @@ export function RecordAttendanceModal({
     return students.map((student) => {
       const item = itemFor(student);
       const isNotesRequired = item.status !== 'hadir';
+      const noteError = noteErrors[student.student_id];
       return (
         <div key={student.student_id} className="flex flex-col items-stretch justify-between gap-2 rounded border border-hairline/60 bg-surface-2/60 p-2.5 sm:flex-row sm:items-center">
           <div className="min-w-0">
@@ -195,19 +229,24 @@ export function RecordAttendanceModal({
           <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
             <Select value={item.status} onValueChange={(value) => handleStudentStatusValueChange(student.student_id, value)}>
               <SelectTrigger className="w-full bg-surface-1 text-xs text-ink sm:w-28"><SelectValue placeholder="Status" /></SelectTrigger>
-              <SelectContent className="bg-surface-3 text-ink">
+              <SelectContent>
                 <SelectItem value="hadir">Hadir</SelectItem>
                 <SelectItem value="sakit">Sakit</SelectItem>
                 <SelectItem value="izin">Izin</SelectItem>
                 <SelectItem value="alpha">Alpha</SelectItem>
               </SelectContent>
             </Select>
-            <Input
-              placeholder={isNotesRequired ? 'Keterangan wajib*' : 'Catatan opsional'}
-              value={item.keterangan}
-              onChange={(event) => handleKeteranganChange(student.student_id, event.target.value)}
-              className={cn('w-full bg-surface-1 text-xs text-ink sm:w-40', isNotesRequired && !item.keterangan && 'border-semantic-warning placeholder:text-semantic-warning')}
-            />
+            <div className="w-full space-y-1 sm:w-40">
+              <Input
+                placeholder={isNotesRequired ? 'Keterangan wajib*' : 'Catatan opsional'}
+                value={item.keterangan}
+                onChange={(event) => handleKeteranganChange(student.student_id, event.target.value)}
+                aria-invalid={Boolean(noteError)}
+                aria-describedby={noteError ? `attendance-note-${student.student_id}-error` : undefined}
+                className={cn('w-full bg-surface-1 text-xs text-ink', isNotesRequired && !item.keterangan && 'border-semantic-warning placeholder:text-semantic-warning', noteError && 'border-semantic-danger')}
+              />
+              <FieldError id={`attendance-note-${student.student_id}-error`} message={noteError} />
+            </div>
           </div>
         </div>
       );
@@ -252,14 +291,19 @@ export function RecordAttendanceModal({
               </div>
               <div className="space-y-1">
                 <Label className="text-ink-muted text-xs">Pilih Kelas *</Label>
-                <Select value={selectedKelas} onValueChange={handleSelectedClassValueChange}>
-                  <SelectTrigger className="bg-surface-2 text-xs text-ink">
-                    <SelectValue placeholder="Pilih Kelas" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-surface-3 text-ink">
-                    {classChoices.map((choice) => <SelectItem key={choice.value} value={choice.value}>{choice.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <SearchableCombobox
+                  options={searchableClassChoices}
+                  value={selectedKelas}
+                  selectedOption={selectedClassOption}
+                  onValueChange={handleSelectedClassValueChange}
+                  disabled={Boolean(classOptionsError)}
+                  errorMessage={classOptionsError ? getErrorMessage(classOptionsError) : undefined}
+                  ariaLabel="Cari dan pilih kelas absensi"
+                  triggerLabel="Buka daftar kelas absensi"
+                  placeholder="Cari atau pilih kelas..."
+                  emptyMessage="Kelas tidak ditemukan."
+                  loadingMessage="Memuat pilihan kelas..."
+                />
               </div>
             </div>
 
@@ -291,7 +335,7 @@ export function RecordAttendanceModal({
             )}
 
             <DialogFooter className="shrink-0 pt-2">
-              <Button type="button" variant="outline" onClick={handleClose} className="h-9 bg-surface-2 text-xs text-ink">Batal</Button>
+              <Button type="button" variant="secondary" onClick={handleClose} className="h-9 text-xs">Batal</Button>
               <Button type="submit" disabled={isLoading || rosterQuery.isLoading || rosterQuery.hasNextPage || students.length === 0} className="h-9 bg-semantic-success text-xs font-medium text-white hover:bg-semantic-success/80">
                 {isLoading ? <><Loader2 size={14} className="mr-1.5 animate-spin" /> Menyimpan...</> : 'Simpan Absensi Massal'}
               </Button>

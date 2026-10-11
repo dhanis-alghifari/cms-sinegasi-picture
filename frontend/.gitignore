@@ -10,7 +10,22 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+build-check*
+coverage/
+playwright-report/
+test-results/
+.vite/
+.vite-sidebar-check*/
+.cache/
+.turbo/
+*.tsbuildinfo
+.eslintcache
+.oxlint-cache
+docs/
 *.local
+.env
+.env.*
+!.env.example
 
 # Editor directories and files
 .vscode/*

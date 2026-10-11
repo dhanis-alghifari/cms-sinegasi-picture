@@ -7,7 +7,7 @@ interface AuthLayoutProps {
 
 export function AuthLayout({ children }: AuthLayoutProps) {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-inverse-surface-1 px-4 text-inverse-ink">
+    <div className="h-full min-h-screen overflow-y-auto flex items-center justify-center bg-inverse-surface-1 px-4 text-inverse-ink">
       {/* Subtle background texture */}
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-sidebar-accent/70 via-inverse-surface-1 to-inverse-surface-1 pointer-events-none" />
 

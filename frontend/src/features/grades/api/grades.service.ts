@@ -7,6 +7,11 @@ import {
   decodeBulkGrade,
   decodeGradeList,
   decodeGradeSummary,
+  decodeReportPeriod,
+  decodeReportPeriods,
+  decodeReports,
+  decodePklPeriod,
+  decodePklPeriods,
 } from './grades.responses';
 import type {
   StudentGrade,
@@ -15,6 +20,11 @@ import type {
   BulkGradingPayload,
   CreateAssignmentPayload,
   AssignmentFilterParams,
+  CreateReportPeriodPayload,
+  GradeReport,
+  GradeReportPeriod,
+  CreatePklPeriodPayload,
+  StudentPklPeriod,
   GradeSummary,
 } from '../types/grades.types';
 
@@ -77,5 +87,38 @@ export const gradesService = {
   // Bulk Grading Entry (Teacher Only)
   bulkGrade(payload: BulkGradingPayload, changeReason: string): Promise<void> {
     return apiClient.postParsed('/api/grades/bulk', toBulkGradeRequest(payload), decodeBulkGrade, { changeReason });
+  },
+
+  getReportPeriods(): Promise<GradeReportPeriod[]> {
+    return apiClient.getParsed('/api/grades/report-periods', decodeReportPeriods);
+  },
+
+  getReports(periodId: string): Promise<GradeReport[]> {
+    const query = new URLSearchParams({ period_id: periodId, scope: 'operational' });
+    return apiClient.getParsed(`/api/grades/reports?${query.toString()}`, decodeReports);
+  },
+
+  createReportPeriod(payload: CreateReportPeriodPayload): Promise<GradeReportPeriod> {
+    return apiClient.postParsed('/api/grades/report-periods', payload, decodeReportPeriod, { changeReason: 'Membuat periode raport semester' });
+  },
+
+  generateReports(periodId: string): Promise<GradeReport[]> {
+    return apiClient.postParsed('/api/grades/reports/generate', { period_id: periodId }, decodeReports, { changeReason: 'Membuat rekap raport semester' });
+  },
+
+  approveReports(periodId: string): Promise<GradeReport[]> {
+    return apiClient.postParsed('/api/grades/reports/approve', { period_id: periodId }, decodeReports, { changeReason: 'Mengesahkan raport semester' });
+  },
+
+  getPklPeriods(): Promise<StudentPklPeriod[]> {
+    return apiClient.getParsed('/api/grades/pkl-periods', decodePklPeriods);
+  },
+
+  createPklPeriod(payload: CreatePklPeriodPayload): Promise<StudentPklPeriod> {
+    return apiClient.postParsed('/api/grades/pkl-periods', payload, decodePklPeriod, { changeReason: 'Mengajukan periode PKL siswa' });
+  },
+
+  reviewPklPeriod(id: string, status: 'approved' | 'rejected' | 'completed'): Promise<StudentPklPeriod> {
+    return apiClient.postParsed('/api/grades/pkl-periods/review', { id, status }, decodePklPeriod, { changeReason: `Review periode PKL: ${status}` });
   },
 };

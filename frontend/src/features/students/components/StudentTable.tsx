@@ -1,6 +1,5 @@
 
-import { useState } from "react";
-import { MoreVertical, Edit2, KeyRound, UserCheck, UserX } from "lucide-react";
+import { MoreVertical, Edit2, KeyRound, Link2, Trash2, UserCheck, UserX } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -19,29 +18,26 @@ import { Button } from "@/shared/ui/primitives/button";
 import { StatusBadge } from "@/shared/ui/StatusBadge";
 import { EmptyState } from "@/shared/ui/EmptyState";
 import { AuditHistoryButton } from "@/features/audit/components/AuditHistoryButton";
+import { useCanViewAuditHistory } from "@/features/audit/hooks/useCanViewAuditHistory";
+import { AuthenticatedImage } from "@/shared/ui/AuthenticatedImage";
+import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import type { Student } from "../types/students.types";
 
 interface StudentAvatarProps {
-  fotoUrl?: string;
+  studentId: string;
   nama: string;
+  cacheScope: string;
 }
 
-function StudentAvatar({ fotoUrl, nama }: StudentAvatarProps) {
-  const [isError, setIsError] = useState(false);
-
-  // If fotoUrl changes, allow retry
-  return fotoUrl && !isError ? (
-    <img
-      key={fotoUrl}
-      src={fotoUrl}
+function StudentAvatar({ studentId, nama, cacheScope }: StudentAvatarProps) {
+  return (
+    <AuthenticatedImage
+      endpoint={`/api/students/${encodeURIComponent(studentId)}/photo`}
+      cacheScope={cacheScope}
       alt={nama}
-      onError={() => setIsError(true)}
-      className="w-7 h-7 rounded-full object-cover shrink-0 border border-hairline bg-surface-2"
+      className="h-7 w-7 shrink-0 overflow-hidden rounded-full border border-hairline bg-surface-2"
+      fallback={<span aria-hidden="true" className="flex h-full w-full items-center justify-center bg-surface-3 text-[11px] font-bold uppercase text-ink-subtle">{nama.charAt(0)}</span>}
     />
-  ) : (
-    <div className="w-7 h-7 rounded-full bg-surface-3 border border-hairline flex items-center justify-center shrink-0 text-ink-subtle text-[11px] uppercase font-bold">
-      {nama.charAt(0)}
-    </div>
   );
 }
 
@@ -49,7 +45,9 @@ interface StudentTableProps {
   students: Student[];
   onEdit: (student: Student) => void;
   onToggleActive: (student: Student) => void;
+  onDelete?: (student: Student) => void;
   onProvisionAccount?: (student: Student) => void;
+  onLinkLegacyAccount?: (student: Student) => void;
   canManage?: boolean;
   canManageStatus?: boolean;
 }
@@ -58,10 +56,15 @@ export function StudentTable({
   students,
   onEdit,
   onToggleActive,
+  onDelete,
   onProvisionAccount,
+  onLinkLegacyAccount,
   canManage = true,
   canManageStatus = false,
 }: StudentTableProps) {
+  const canViewAuditHistory = useCanViewAuditHistory();
+  const cacheScope = useAuthStore((state) => state.user?.id) ?? '';
+
   if (students.length === 0) {
     return (
       <EmptyState
@@ -97,9 +100,11 @@ export function StudentTable({
             <TableHead className="text-ink-subtle text-xs font-semibold">
               Akun Login
             </TableHead>
-            <TableHead className="text-right text-ink-subtle text-xs font-semibold">
-              Riwayat
-            </TableHead>
+            {canViewAuditHistory && (
+              <TableHead className="text-right text-ink-subtle text-xs font-semibold">
+                Riwayat
+              </TableHead>
+            )}
             {canManage && (
               <TableHead className="text-right text-ink-subtle text-xs font-semibold">
                 Aksi
@@ -120,8 +125,9 @@ export function StudentTable({
               <TableCell className="text-ink text-xs font-medium">
                 <div className="flex items-center gap-2.5">
                   <StudentAvatar
-                    fotoUrl={student.foto_url}
+                    studentId={student.id}
                     nama={student.nama}
+                    cacheScope={cacheScope}
                   />
                   {student.nama}
                 </div>
@@ -147,9 +153,11 @@ export function StudentTable({
                   variant={student.user_id ? "success" : "warning"}
                 />
               </TableCell>
-              <TableCell className="text-right">
-                <AuditHistoryButton tableName="students" recordId={student.id} />
-              </TableCell>
+              {canViewAuditHistory && (
+                <TableCell className="text-right">
+                  <AuditHistoryButton tableName="students" recordId={student.id} />
+                </TableCell>
+              )}
               {canManage && (
                 <TableCell className="text-right">
                   <div className="flex items-center justify-end gap-1">
@@ -185,6 +193,15 @@ export function StudentTable({
                           Buat Akun Anggota
                         </DropdownMenuItem>
                       )}
+                      {canManageStatus && student.is_active && !student.user_id && onLinkLegacyAccount && (
+                        <DropdownMenuItem
+                          onClick={() => onLinkLegacyAccount(student)}
+                          className="text-xs cursor-pointer"
+                        >
+                          <Link2 size={14} className="mr-2 text-primary" />
+                          Tautkan akun lama
+                        </DropdownMenuItem>
+                      )}
                       {canManageStatus && (
                         <DropdownMenuItem
                           onClick={() => onToggleActive(student)}
@@ -201,6 +218,15 @@ export function StudentTable({
                               Aktifkan Kembali
                             </>
                           )}
+                        </DropdownMenuItem>
+                      )}
+                      {canManageStatus && !student.is_active && onDelete && (
+                        <DropdownMenuItem
+                          onClick={() => onDelete(student)}
+                          className="cursor-pointer text-xs text-semantic-danger focus:text-semantic-danger"
+                        >
+                          <Trash2 size={14} className="mr-2" aria-hidden="true" />
+                          Hapus data permanen
                         </DropdownMenuItem>
                       )}
                     </DropdownMenuContent>

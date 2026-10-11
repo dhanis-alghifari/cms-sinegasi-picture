@@ -32,13 +32,13 @@ export interface RequestOptions extends RequestInit {
 
 export type ResponseDecoder<T> = (payload: unknown) => T;
 
-async function request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
+async function fetchResponse(endpoint: string, options: RequestOptions = {}): Promise<Response> {
   const { changeReason, idempotencyKey, headers: customHeaders, ...rest } = options;
 
   const token = getToken();
 
   const headers = new Headers(customHeaders);
-  if (!headers.has('Content-Type')) {
+  if (typeof rest.body === 'string' && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
   }
 
@@ -88,6 +88,12 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
     }
   }
 
+  return response;
+}
+
+async function request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
+  const response = await fetchResponse(endpoint, options);
+
   // 204 No Content
   if (response.status === 204) {
     return undefined as T;
@@ -105,6 +111,34 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
   }
 }
 
+export type AuthenticatedImageResult =
+  | { kind: 'blob'; blob: Blob }
+  | { kind: 'remote'; url: string }
+  | null;
+
+async function requestImage(endpoint: string, options: RequestOptions = {}): Promise<AuthenticatedImageResult> {
+  const response = await fetchResponse(endpoint, { method: 'GET', ...options });
+  if (response.status === 204) return null;
+
+  const contentType = response.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase();
+  if (contentType && ['image/jpeg', 'image/png', 'image/webp'].includes(contentType)) {
+    return { kind: 'blob', blob: await response.blob() };
+  }
+
+  const payload: unknown = await response.json().catch(() => null);
+  if (payload && typeof payload === 'object' && 'url' in payload && typeof payload.url === 'string') {
+    try {
+      const url = new URL(payload.url);
+      if (payload.url.length <= 2048 && (url.protocol === 'https:' || url.protocol === 'http:') && !url.username && !url.password) {
+        return { kind: 'remote', url: url.toString() };
+      }
+    } catch {
+      // Report a typed response error below instead of leaking URL parser details.
+    }
+  }
+  throw new ApiError('Respon gambar dari server tidak valid', response.status);
+}
+
 async function requestParsed<T>(
   endpoint: string,
   decoder: ResponseDecoder<T>,
@@ -117,6 +151,10 @@ async function requestParsed<T>(
 export const apiClient = {
   get<T>(endpoint: string, options?: RequestOptions): Promise<T> {
     return request<T>(endpoint, { method: 'GET', ...options });
+  },
+
+  getImage(endpoint: string, options?: RequestOptions): Promise<AuthenticatedImageResult> {
+    return requestImage(endpoint, options);
   },
 
   getParsed<T>(endpoint: string, decoder: ResponseDecoder<T>, options?: RequestOptions): Promise<T> {

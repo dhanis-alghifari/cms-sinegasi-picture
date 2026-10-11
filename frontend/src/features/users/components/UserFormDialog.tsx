@@ -18,7 +18,8 @@ import { Label } from '@/shared/ui/primitives/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/primitives/select';
 import { cn } from '@/shared/utils/cn';
 import { ApiError, getErrorMessage } from '@/shared/api/errors';
-import { USER_ROLE_VALUES } from '@/shared/types/common';
+import { FieldError } from '@/shared/ui/FieldError';
+import { STUDENT_ROLE_VALUES, type StudentRole, type UserRole } from '@/shared/types/common';
 import { isOneOf } from '@/shared/utils/isOneOf';
 
 import { userSchema, type UserFormValues } from '../schemas/userSchema';
@@ -33,6 +34,26 @@ interface UserFormDialogProps {
   error?: unknown;
 }
 
+const ROLE_OPTIONS: ReadonlyArray<{ value: UserRole; label: string }> = [
+  { value: 'teacher', label: 'Teacher (Guru Pembina)' },
+  { value: 'treasurer', label: 'Treasurer (Bendahara)' },
+];
+
+const STUDENT_ROLE_LABELS: Record<StudentRole, string> = {
+  leader: 'Leader (Ketua)',
+  vice_leader: 'Vice Leader (Wakil Ketua)',
+  secretary: 'Secretary (Sekretaris)',
+  treasurer: 'Treasurer (Bendahara)',
+  equipment_team: 'Equipment Team',
+  contest_team: 'Contest Team',
+  social_media_team: 'Tim Humas',
+  member: 'Member (Siswa)',
+};
+const STUDENT_ROLE_OPTIONS: ReadonlyArray<{ value: StudentRole; label: string }> = STUDENT_ROLE_VALUES.map((value) => ({
+  value,
+  label: STUDENT_ROLE_LABELS[value],
+}));
+
 export function UserFormDialog({
   open,
   onOpenChange,
@@ -42,6 +63,27 @@ export function UserFormDialog({
   error,
 }: UserFormDialogProps) {
   const isEditing = Boolean(userAccount);
+  const isLinkedStudent = Boolean(userAccount?.is_linked_student);
+  const isLegacyStudentAccount = Boolean(
+    userAccount
+    && !isLinkedStudent
+    && userAccount.role !== 'treasurer'
+    && isOneOf(userAccount.role, STUDENT_ROLE_VALUES),
+  );
+  let roleOptions: ReadonlyArray<{ value: UserRole; label: string }> = ROLE_OPTIONS;
+  if (isLinkedStudent) roleOptions = STUDENT_ROLE_OPTIONS;
+  if (isLegacyStudentAccount && userAccount) {
+    roleOptions = [{ value: userAccount.role, label: STUDENT_ROLE_LABELS[userAccount.role as StudentRole] }];
+  }
+  let roleFieldLabel = 'Peran Akses';
+  if (isLinkedStudent) roleFieldLabel = 'Peran Siswa';
+  if (isLegacyStudentAccount) roleFieldLabel = 'Peran Akun Siswa Lama';
+  let dialogDescription = isEditing
+    ? 'Ubah username login, nama, atau peran pengguna. Wajib mencantumkan alasan perubahan.'
+    : 'Buat akun operasional. Akun siswa baru dan penautan akun siswa lama dikelola dari halaman Data Siswa.';
+  if (isLegacyStudentAccount) {
+    dialogDescription = 'Akun siswa lama ini belum terhubung ke profil. Tautkan melalui Data Siswa sebelum mengubah perannya.';
+  }
 
   const form = useForm<UserFormValues>({
     resolver: zodResolver(userSchema),
@@ -95,12 +137,19 @@ export function UserFormDialog({
 
   const handleSubmit = form.handleSubmit(async (data) => {
     setFormError(null);
+    form.clearErrors(['password', 'change_reason']);
     if (!isEditing && (!data.password || data.password.trim().length < 8)) {
-      setFormError('Kata sandi akun operasional wajib diisi minimal 8 karakter.');
+      form.setError('password', {
+        type: 'manual',
+        message: 'Kata sandi akun operasional wajib diisi minimal 8 karakter.',
+      });
       return;
     }
     if (isEditing && (!data.change_reason || data.change_reason.trim().length < 5)) {
-      setFormError('Alasan perubahan wajib diisi (minimal 5 karakter)');
+      form.setError('change_reason', {
+        type: 'manual',
+        message: 'Alasan perubahan wajib diisi (minimal 5 karakter).',
+      });
       return;
     }
     try {
@@ -109,7 +158,6 @@ export function UserFormDialog({
     } catch (err: unknown) {
       if (err instanceof ApiError && err.errorCode === 'DUPLICATE_USERNAME') {
         form.setError('username', { type: 'server', message: 'Nama pengguna ini sudah digunakan akun lain.' });
-        setFormError('Nama pengguna tidak tersedia. Gunakan nama pengguna lain.');
         return;
       }
       setFormError(getErrorMessage(err) || 'Terjadi kesalahan saat menyimpan data pengguna');
@@ -118,7 +166,7 @@ export function UserFormDialog({
 
   const handleRoleValueChange = (value: string | null) => {
     if (value === null) return;
-    if (!isOneOf(value, USER_ROLE_VALUES)) return;
+    if (!isOneOf(value, roleOptions.map(({ value: role }) => role))) return;
     form.setValue('role', value);
   };
 
@@ -130,9 +178,7 @@ export function UserFormDialog({
             {isEditing ? 'Edit Akun Pengguna' : 'Tambah Akun Pengguna Baru'}
           </DialogTitle>
           <DialogDescription className="text-ink-subtle text-xs">
-            {isEditing
-              ? 'Ubah username login, nama, atau peran pengguna. Wajib mencantumkan alasan perubahan.'
-              : 'Buat akun operasional. Akun siswa dibuat otomatis dari halaman Data Siswa.'}
+            {dialogDescription}
           </DialogDescription>
         </DialogHeader>
 
@@ -172,39 +218,41 @@ export function UserFormDialog({
             <Input
               id="nama"
               placeholder="Masukkan nama lengkap"
+              readOnly={isLinkedStudent}
               className={cn('bg-surface-2 border-hairline text-ink text-xs', form.formState.errors.nama && 'border-semantic-danger')}
               {...form.register('nama')}
             />
             {form.formState.errors.nama && (
               <p className="text-semantic-danger text-[10px]">{form.formState.errors.nama.message}</p>
             )}
+            {isLinkedStudent && !form.formState.errors.nama && (
+              <p className="text-ink-tertiary text-[10px]">Nama akun mengikuti data siswa. Ubah dari halaman Data Siswa.</p>
+            )}
           </div>
 
           {/* Role */}
           <div className="space-y-1">
-            <Label className="text-ink-muted text-xs">Peran Akses *</Label>
+            <Label className="text-ink-muted text-xs">{roleFieldLabel} *</Label>
             <Select
               value={selectedRole}
               onValueChange={handleRoleValueChange}
+              disabled={isLegacyStudentAccount}
             >
               <SelectTrigger className="bg-surface-2 border-hairline text-ink text-xs">
                 <SelectValue placeholder="Pilih Role" />
               </SelectTrigger>
-            <SelectContent className="bg-surface-3 border-hairline text-ink">
-                <SelectItem value="teacher">Teacher (Guru Pembina)</SelectItem>
-                <SelectItem value="leader">Leader (Ketua)</SelectItem>
-                <SelectItem value="vice_leader">Vice Leader (Wakil Ketua)</SelectItem>
-                <SelectItem value="treasurer">Treasurer (Bendahara)</SelectItem>
-                <SelectItem value="secretary">Secretary (Sekretaris)</SelectItem>
-                <SelectItem value="equipment_team">Equipment Team</SelectItem>
-                <SelectItem value="contest_team">Contest Team</SelectItem>
-                {isEditing && userAccount?.role === 'member' && (
-                  <SelectItem value="member">Member (Siswa)</SelectItem>
-                )}
+              <SelectContent>
+                {roleOptions.map(({ value, label }) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
               </SelectContent>
             </Select>
             {form.formState.errors.role && (
               <p className="text-semantic-danger text-[10px]">{form.formState.errors.role.message}</p>
+            )}
+            {isLegacyStudentAccount && !form.formState.errors.role && (
+              <p className="text-ink-tertiary text-[10px]">Tautkan akun ini dari halaman Data Siswa sebelum mengubah perannya.</p>
+            )}
+            {isLinkedStudent && !form.formState.errors.role && (
+              <p className="text-ink-tertiary text-[10px]">Teacher khusus akun operasional; Bendahara dapat menjadi role siswa maupun akun operasional.</p>
             )}
           </div>
 
@@ -216,9 +264,12 @@ export function UserFormDialog({
                 id="password"
                 type="password"
                 placeholder="Password bawaan akun baru"
-              className={cn('bg-surface-2 border-hairline text-ink text-xs', form.formState.errors.password && 'border-semantic-danger')}
+                aria-invalid={Boolean(form.formState.errors.password)}
+                aria-describedby={form.formState.errors.password ? 'password-error' : undefined}
+                className={cn('bg-surface-2 border-hairline text-ink text-xs', form.formState.errors.password && 'border-semantic-danger')}
                 {...form.register('password')}
               />
+              <FieldError id="password-error" message={form.formState.errors.password?.message} />
               <p className="text-ink-tertiary text-[10px]">
                 Pengguna akan diwajibkan mengganti password ini saat login pertama kali. Jangan gunakan password yang sama untuk banyak akun.
               </p>
@@ -234,21 +285,21 @@ export function UserFormDialog({
               <Input
                 id="change_reason"
                 placeholder="cth. Perubahan nama pengurus / promosi role"
-              className={cn('bg-surface-2 border-hairline text-ink text-xs', form.formState.errors.change_reason && 'border-semantic-danger')}
+                aria-invalid={Boolean(form.formState.errors.change_reason)}
+                aria-describedby={form.formState.errors.change_reason ? 'user-change-reason-error' : undefined}
+                className={cn('bg-surface-2 border-hairline text-ink text-xs', form.formState.errors.change_reason && 'border-semantic-danger')}
                 {...form.register('change_reason')}
               />
-              {form.formState.errors.change_reason && (
-                <p className="text-semantic-danger text-[10px]">{form.formState.errors.change_reason.message}</p>
-              )}
+              <FieldError id="user-change-reason-error" message={form.formState.errors.change_reason?.message} />
             </div>
           )}
 
           <DialogFooter className="pt-2">
             <Button
               type="button"
-              variant="outline"
+              variant="secondary"
               onClick={() => handleDialogOpenChange(false)}
-              className="bg-surface-2 border-hairline text-ink text-xs h-9"
+              className="text-xs h-9"
             >
               Batal
             </Button>

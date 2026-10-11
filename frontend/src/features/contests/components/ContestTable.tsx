@@ -28,6 +28,7 @@ import {
   getContestStatusLabel,
 } from '../utils/contestLabels';
 import { AuditHistoryButton } from '@/features/audit/components/AuditHistoryButton';
+import { useCanViewAuditHistory } from '@/features/audit/hooks/useCanViewAuditHistory';
 
 interface ContestTableProps {
   contests: Contest[];
@@ -42,6 +43,8 @@ export function ContestTable({
   onManageEntries,
   canManage = true,
 }: ContestTableProps) {
+  const canViewAuditHistory = useCanViewAuditHistory();
+
   if (contests.length === 0) {
     return (
       <EmptyState
@@ -61,7 +64,7 @@ export function ContestTable({
             <TableHead className="text-ink-subtle text-xs font-semibold">Deadline</TableHead>
             <TableHead className="text-ink-subtle text-xs font-semibold">Status Event</TableHead>
             <TableHead className="text-ink-subtle text-xs font-semibold">Karya Submitted</TableHead>
-            <TableHead className="text-right text-ink-subtle text-xs font-semibold">Riwayat</TableHead>
+            {canViewAuditHistory && <TableHead className="text-right text-ink-subtle text-xs font-semibold">Riwayat</TableHead>}
             {canManage && <TableHead className="text-right text-ink-subtle text-xs font-semibold">Aksi</TableHead>}
           </TableRow>
         </TableHeader>
@@ -132,7 +135,7 @@ export function ContestTable({
                 )}
               </TableCell>
 
-              <TableCell className="text-right"><AuditHistoryButton tableName="contests" recordId={c.id} /></TableCell>
+              {canViewAuditHistory && <TableCell className="text-right"><AuditHistoryButton tableName="contests" recordId={c.id} /></TableCell>}
 
               {/* Action Menu */}
                 {canManage && (

@@ -11,6 +11,20 @@ export const USER_ROLE_VALUES = [
   'secretary',
   'equipment_team',
   'contest_team',
+  'social_media_team',
+  'member',
+] as const;
+
+export const OPERATIONAL_USER_ROLE_VALUES = ['teacher', 'treasurer'] as const;
+
+export const STUDENT_ACCOUNT_ROLE_VALUES = [
+  'leader',
+  'vice_leader',
+  'secretary',
+  'treasurer',
+  'equipment_team',
+  'contest_team',
+  'social_media_team',
   'member',
 ] as const;
 

@@ -9,6 +9,7 @@ export function useBulkGradingMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    meta: { successMessage: 'Penilaian massal berhasil disimpan.' },
     mutationFn: ({
       payload,
       changeReason,

@@ -22,7 +22,7 @@ const calendarDate = z.string({ error: 'Tanggal wajib diisi.' })
 
 const contestFields = {
   nama_lomba: z.string({ error: 'Nama lomba wajib diisi.' }).min(3, 'Nama lomba minimal 3 karakter').trim(),
-  kota: z.string({ error: 'Kota wajib diisi.' }).min(2, 'Kota minimal 2 karakter').max(120).trim(),
+  kota: z.string().max(120, 'Kota maksimal 120 karakter').trim().optional(),
   tingkat: contestLevelEnum,
   status: contestStatusEnum,
   tahun_event: z.number({ error: 'Tahun event wajib diisi.' }).int().min(1900, 'Tahun event harus antara 1900 dan 2200').max(2200, 'Tahun event harus antara 1900 dan 2200'),

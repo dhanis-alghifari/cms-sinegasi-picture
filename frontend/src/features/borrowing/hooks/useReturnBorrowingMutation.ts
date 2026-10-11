@@ -9,6 +9,7 @@ export function useReturnBorrowingMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    meta: { successMessage: 'Pengembalian alat berhasil diproses.' },
     mutationFn: ({
       payload,
       changeReason,
@@ -33,6 +34,7 @@ export function useReturnBorrowingMutation() {
 
 export function useReturnAssessmentPreviewMutation() {
   return useMutation({
+    meta: { suppressSuccessToast: true },
     mutationFn: borrowingService.previewReturn,
   });
 }

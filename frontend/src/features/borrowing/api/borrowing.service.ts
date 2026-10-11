@@ -9,6 +9,8 @@ import {
   decodeReturnAssessmentPreview,
   decodeReturnEvidenceAccessList,
   decodeReturnEvidenceUploadReservation,
+  decodeReturnReport,
+  decodeReturnReportEvidenceList,
 } from './borrowing.responses';
 import type { PaginatedResponse } from '@/shared/types/common';
 import type {
@@ -21,10 +23,14 @@ import type {
   ReturnAssessmentPreview,
   ReturnEvidenceAccessRecord,
   ReturnEvidenceUploadReservation,
+  ReturnReportPayload,
+  VerifyReturnPayload,
+  ReturnReport,
+  ReturnReportEvidenceAccessRecord,
 } from '../types/borrowing.types';
 
 const borrowingStatusValues: Readonly<Record<string, string>> = {
-  menunggu_persetujuan: 'pending_approval', disetujui: 'approved', ditolak: 'rejected', dipinjam: 'borrowed', dikembalikan: 'returned', terlambat: 'overdue',
+  menunggu_persetujuan: 'pending_approval', disetujui: 'approved', ditolak: 'rejected', dipinjam: 'borrowed', menunggu_verifikasi: 'pending_verification', dikembalikan: 'returned', terlambat: 'overdue',
 };
 
 const equipmentConditionValues: Readonly<Record<string, string>> = {
@@ -54,6 +60,17 @@ function toReturnRequest(payload: ProcessReturnPayload, includeEvidence = true) 
       ...(includeEvidence && evidence_ids?.length ? { evidence_ids } : {}),
     })),
     ...(return_notes !== undefined ? { return_notes } : {}),
+  };
+}
+
+function toVerifyReturnRequest(payload: VerifyReturnPayload) {
+  return {
+    ...payload,
+    item_conditions: payload.item_conditions?.map(({ kondisi_kembali: condition, catatan: notes, ...item }) => ({
+      ...item,
+      condition: equipmentConditionValues[condition] ?? condition,
+      ...(notes !== undefined ? { notes } : {}),
+    })),
   };
 }
 
@@ -137,5 +154,73 @@ export const borrowingService = {
       throw new ApiError('Unggahan foto kondisi gagal. Silakan coba lagi.', 502, undefined, 'RETURN_EVIDENCE_UPLOAD_FAILED');
     }
     return reservation.evidence_id;
+  },
+
+  async uploadReturnReportEvidence(borrowingId: string, equipmentId: string, file: File): Promise<{ evidence_id: string; report_id: string }> {
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size < 1 || file.size > MAX_SOURCE_IMAGE_BYTES) {
+      throw new ApiError('Foto bukti pengembalian harus berupa JPG, PNG, atau WebP dengan ukuran sumber maksimal 5 MB.', 422, undefined, 'RETURN_EVIDENCE_FILE_INVALID');
+    }
+    const compressedFile = file.type === 'image/jpeg' && file.size <= MAX_COMPRESSED_IMAGE_BYTES
+      ? file
+      : await compressImageFileToFile(file);
+    const reservation = await apiClient.postParsed<ReturnEvidenceUploadReservation>(
+      `/api/borrowing/${encodeURIComponent(borrowingId)}/return-report-evidence-uploads`,
+      {
+        equipment_id: equipmentId,
+        file_name: compressedFile.name,
+        content_type: compressedFile.type,
+        file_size_bytes: compressedFile.size,
+      },
+      decodeReturnEvidenceUploadReservation,
+      { changeReason: 'Menyiapkan unggahan foto bukti pengembalian mandiri' },
+    );
+    const uploadResponse = await fetch(reservation.upload_url, {
+      method: 'PUT',
+      headers: { 'Content-Type': compressedFile.type },
+      body: compressedFile,
+    });
+    if (!uploadResponse.ok) {
+      throw new ApiError('Unggahan bukti pengembalian gagal. Silakan coba lagi.', 502, undefined, 'RETURN_REPORT_EVIDENCE_UPLOAD_FAILED');
+    }
+    if (!reservation.report_id) {
+      throw new ApiError('Server tidak mengembalikan identitas laporan pengembalian.', 502, undefined, 'RETURN_REPORT_ID_MISSING');
+    }
+    return { evidence_id: reservation.evidence_id, report_id: reservation.report_id };
+  },
+
+  submitReturnReport(
+    borrowingId: string,
+    payload: ReturnReportPayload,
+    changeReason: string,
+    idempotencyKey: string,
+  ): Promise<BorrowingRecord> {
+    return apiClient.postParsed(
+      `/api/borrowing/${encodeURIComponent(borrowingId)}/report-return`,
+      payload,
+      decodeBorrowingRecord,
+      { changeReason, idempotencyKey },
+    );
+  },
+
+  getReturnReport(borrowingId: string): Promise<ReturnReport> {
+    return apiClient.getParsed(`/api/borrowing/${encodeURIComponent(borrowingId)}/return-report`, decodeReturnReport);
+  },
+
+  listReturnReportEvidence(borrowingId: string): Promise<ReturnReportEvidenceAccessRecord[]> {
+    return apiClient.getParsed(`/api/borrowing/${encodeURIComponent(borrowingId)}/return-report-evidence`, decodeReturnReportEvidenceList);
+  },
+
+  verifyReturnReport(
+    borrowingId: string,
+    payload: VerifyReturnPayload,
+    changeReason: string,
+    idempotencyKey: string,
+  ): Promise<BorrowingRecord> {
+    return apiClient.postParsed(
+      `/api/borrowing/${encodeURIComponent(borrowingId)}/verify-return`,
+      toVerifyReturnRequest(payload),
+      decodeBorrowingRecord,
+      { changeReason, idempotencyKey },
+    );
   },
 };

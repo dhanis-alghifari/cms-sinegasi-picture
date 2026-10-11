@@ -205,7 +205,7 @@ export function AuditDetailSheet({ log, onOpenChange }: AuditDetailSheetProps) {
         </div>
 
         <SheetFooter className="border-t border-hairline">
-          <SheetClose render={<Button variant="outline" className="w-full bg-surface-2 border-hairline text-ink text-xs" />}>Tutup</SheetClose>
+          <SheetClose render={<Button variant="secondary" className="w-full text-xs" />}>Tutup</SheetClose>
         </SheetFooter>
         </SheetContent>
       </Sheet>

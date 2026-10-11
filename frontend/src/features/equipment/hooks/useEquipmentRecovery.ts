@@ -33,6 +33,7 @@ function invalidateEquipment(client: ReturnType<typeof useQueryClient>) {
 export function useCreateEquipmentRecoveryMutation() {
   const client = useQueryClient();
   return useMutation({
+    meta: { successMessage: 'Laporan pemulihan alat berhasil dicatat.' },
     mutationFn: ({ equipmentId, payload }: { equipmentId: string; payload: { recovery_type: RecoveryType; reported_condition: string; notes?: string; change_reason: string } }) => equipmentService.createRecoveryCase(equipmentId, payload),
     onSuccess: () => invalidateEquipment(client),
   });
@@ -41,6 +42,7 @@ export function useCreateEquipmentRecoveryMutation() {
 export function useCompleteEquipmentRepairMutation() {
   const client = useQueryClient();
   return useMutation({
+    meta: { successMessage: 'Perbaikan alat berhasil dicatat.' },
     mutationFn: (payload: { case_id: string; inspection_photos: string[]; inspection_passed: boolean; actual_cost?: number; notes?: string; change_reason: string }) => equipmentService.completeRecoveryRepair(payload),
     onSuccess: () => invalidateEquipment(client),
   });
@@ -49,6 +51,7 @@ export function useCompleteEquipmentRepairMutation() {
 export function useRegisterEquipmentReplacementMutation() {
   const client = useQueryClient();
   return useMutation({
+    meta: { successMessage: 'Alat pengganti berhasil didaftarkan.' },
     mutationFn: (payload: { case_id: string; equipment_code: string; name: string; category: string; storage_location?: string; serial_number?: string; photo_urls: string[]; description?: string; replacement_value?: number; change_reason: string }) => equipmentService.registerRecoveryReplacement(payload),
     onSuccess: () => invalidateEquipment(client),
   });
@@ -66,6 +69,7 @@ export function useEquipmentChargesQuery(studentId?: string, enabled = true, inc
 export function useRecordEquipmentChargePaymentMutation() {
   const client = useQueryClient();
   return useMutation({
+    meta: { successMessage: 'Pembayaran biaya alat berhasil dicatat.' },
     mutationFn: (payload: { settlement_id: string; paid_amount: number; status: 'unpaid' | 'partial' | 'paid' | 'waived'; notes?: string; change_reason: string }) => equipmentService.recordEquipmentChargePayment(payload),
     onSuccess: () => client.invalidateQueries({ queryKey: QUERY_KEYS.EQUIPMENT_CHARGES, refetchType: 'active' }),
   });
@@ -74,6 +78,7 @@ export function useRecordEquipmentChargePaymentMutation() {
 export function useRecordEquipmentChargePaymentEventMutation() {
   const client = useQueryClient();
   return useMutation({
+    meta: { successMessage: 'Bukti pembayaran biaya alat berhasil dicatat.' },
     mutationFn: (payload: { settlement_id: string; payment_amount: number; evidence_ids: string[]; notes?: string; change_reason: string }) => equipmentService.recordEquipmentChargePaymentEvent(payload),
     onSuccess: () => Promise.all([
       client.invalidateQueries({ queryKey: QUERY_KEYS.EQUIPMENT_CHARGES, refetchType: 'active' }),

@@ -4,6 +4,7 @@ import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { ProtectedRoute } from './ProtectedRoute';
 import { PublicRoute } from './PublicRoute';
 import { FirstLoginRoute } from './FirstLoginRoute';
+import { RouteErrorBoundary } from './RouteErrorBoundary';
 import { PageLoader } from '@/shared/ui/LoadingSpinner';
 import { authRoutes, firstLoginRoutes, passwordRoutes } from '@/features/auth/routes';
 import { dashboardRoutes } from '@/features/dashboard/routes';
@@ -19,6 +20,8 @@ import { notificationRoutes } from '@/features/notifications/routes';
 import { classRoutes } from '@/features/classes/routes';
 import { auditRoutes } from '@/features/audit/routes';
 import { accessControlRoutes } from '@/features/access-control/routes';
+import { agendaRoutes } from '@/features/agenda/routes';
+import { socialMediaRoutes } from '@/features/social-media/routes';
 
 // The router module contains route elements alongside the router export.
 // Fast Refresh's component-only rule does not apply to this boundary.
@@ -33,12 +36,14 @@ export const router = createBrowserRouter([
   // Public Routes (Auth)
   {
     element: <PublicRoute />,
+    errorElement: <RouteErrorBoundary />,
     children: authRoutes,
   },
 
   // Protected Dashboard Application Routes
   {
     element: <ProtectedRoute />,
+    errorElement: <RouteErrorBoundary />,
     children: [
       {
         element: <FirstLoginRoute />,
@@ -46,7 +51,7 @@ export const router = createBrowserRouter([
       },
       {
         element: (
-          <Suspense fallback={<PageLoader />}>
+          <Suspense fallback={<PageLoader label="Menyiapkan aplikasi..." />}>
             <LazyDashboardLayout />
           </Suspense>
         ),
@@ -65,6 +70,8 @@ export const router = createBrowserRouter([
           ...notificationRoutes,
           ...auditRoutes,
           ...accessControlRoutes,
+          ...agendaRoutes,
+          ...socialMediaRoutes,
           // Fallback root redirect to /dashboard
           {
             path: '/',
@@ -78,6 +85,7 @@ export const router = createBrowserRouter([
   // 404 Catch-all
   {
     path: '*',
+    errorElement: <RouteErrorBoundary />,
     element: <Navigate to="/dashboard" replace />,
   },
 ]);

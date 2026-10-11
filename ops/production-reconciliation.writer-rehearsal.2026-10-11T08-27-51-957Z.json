@@ -1,0 +1,35 @@
+{
+  "status": "RECONCILIATION_WRITER_ISOLATED_PASSED",
+  "packageSha256": "919dd3aa2a1ea18726216cbad5986d2e9d9e6ffca09d97821338c8d3212b5b65",
+  "checks": {
+    "wrongIdentityRefused": true,
+    "nonemptyRefused": true,
+    "concurrentRefused": true,
+    "enumRollback": true,
+    "schemaAndReferenceRollback": true,
+    "resumeAfterEnumCommit": true,
+    "fullCatalogVerified": true,
+    "referenceRows213": true,
+    "repeatVerifiedNoop": true,
+    "driftRefused": true,
+    "browserAndPrivateHistoryDenied": true,
+    "commitUncertaintyReported": true,
+    "legacyApply": true
+  },
+  "postgresVersion": "17.11 (Debian 17.11-1.pgdg12+2)",
+  "tables": 73,
+  "referenceRows": 213,
+  "productionChanged": false,
+  "devDatabaseChanged": false,
+  "productionApproved": false,
+  "managedSupabaseIntegrationTested": false,
+  "cleanupVerified": true,
+  "runnerSourceSha256": "92b5a72221fdcd3c589142196ad3dea571d87e40585679add374dad6be3f9121",
+  "priorEvidenceSha256": {
+    "production-reconciliation.fresh-rehearsal.json": "14b1e985a5f1bf5629d629a7f6764f7c7b338a697984b9daa26d48d607f5b117",
+    "production-reconciliation.rehearsal.json": "7da8b40428296c03202500acce4f544793bfc60da404cbe5efbf33462d3f11fa",
+    "production-reference-data.rehearsal.json": "4660fb9b3512240982eb0f8d415607627dc56a689497475a1453fe63ad9b161e",
+    "production-api.rehearsal.json": "657fb8b6fe896f2d945f23102a15653a04ac6ac4334375b5629afd4d1e965731"
+  },
+  "verifiedAt": "2026-10-11T08:27:51.957Z"
+}

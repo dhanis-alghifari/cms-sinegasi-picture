@@ -49,6 +49,9 @@ export function printReport({
         break-after: page;
         page-break-after: always;
         min-height: ${a4MinHeight};
+        height: auto !important;
+        aspect-ratio: auto !important;
+        overflow: visible !important;
         box-sizing: border-box;
       }
       ${pageSelector}:last-of-type {
@@ -96,6 +99,10 @@ export function printReport({
         padding: 0 !important;
         background: #fff !important;
         color: #000 !important;
+        height: auto !important;
+        min-height: 0 !important;
+        aspect-ratio: auto !important;
+        overflow: visible !important;
         ${rootFontSize}
       }
       ${rootSelector} * { color: #000 !important; }
@@ -143,7 +150,8 @@ export function printReport({
         display: none !important;
       }
       ${rootSelector} .equipment-report-break-inside-avoid,
-      ${rootSelector} .cash-report-page-break-inside-avoid { break-inside: avoid; }
+      ${rootSelector} .cash-report-page-break-inside-avoid,
+      ${rootSelector} .social-follower-trend-figure { break-inside: avoid; page-break-inside: avoid; }
     }
   `;
   document.head.appendChild(style);

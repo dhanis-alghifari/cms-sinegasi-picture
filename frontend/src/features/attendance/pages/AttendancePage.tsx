@@ -3,7 +3,7 @@ import { CalendarCheck } from 'lucide-react';
 
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { ResponsivePageActions } from '@/shared/ui/ResponsivePageActions';
-import { PageLoader } from '@/shared/ui/LoadingSpinner';
+import { DataTableSkeleton, MetricCardsSkeleton } from '@/shared/ui/LoadingSkeletons';
 import { Pagination } from '@/shared/ui/Pagination';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/primitives/tabs';
 
@@ -151,8 +151,8 @@ export function AttendancePage() {
   };
 
   const dailySummaryContent = (() => {
-    if (summaryQuery.isPending) return <PageLoader />;
-    if (summaryQuery.isError) {
+    if (summaryQuery.isPending) return <MetricCardsSkeleton count={4} label="Memuat ringkasan absensi..." />;
+    if (summaryQuery.isError && !summaryQuery.data) {
       return (
         <AttendanceQueryError
           error={summaryQuery.error}
@@ -165,8 +165,8 @@ export function AttendancePage() {
   })();
 
   const dailyAttendanceContent = (() => {
-    if (attendanceQuery.isPending) return <PageLoader />;
-    if (attendanceQuery.isError) {
+    if (attendanceQuery.isPending) return <DataTableSkeleton columns={9} rows={7} mobile={isMobile} label="Memuat daftar absensi..." />;
+    if (attendanceQuery.isError && !attendanceQuery.data) {
       return (
         <AttendanceQueryError
           error={attendanceQuery.error}
@@ -216,7 +216,7 @@ export function AttendancePage() {
   );
 
   return (
-    <div className="mx-auto max-w-7xl space-y-5 px-4 py-5 sm:space-y-6 sm:p-6">
+    <div className="space-y-5 px-4 py-5 sm:space-y-6 sm:p-6">
       <PageHeader
         title={isOwn ? 'Absensi Saya' : 'Absensi Siswa Sinematografi'}
         subtitle={isOwn ? 'Riwayat kehadiran pribadi Anda.' : 'Pencatatan harian kehadiran siswa, ringkasan metrics, dan koreksi otomatis kunci 48 jam.'}
@@ -237,7 +237,7 @@ export function AttendancePage() {
 
       {!isOwn && canReadStudents ? (
         <Tabs value={view} onValueChange={handleViewChange} className="w-full">
-          <TabsList className="w-full max-w-xl">
+          <TabsList aria-label="Menu absensi" className="w-full max-w-xl">
             <TabsTrigger value="daily">Absensi harian</TabsTrigger>
             <TabsTrigger value="student_report">Rekap siswa</TabsTrigger>
           </TabsList>
@@ -245,7 +245,7 @@ export function AttendancePage() {
             {dailyContent}
           </TabsContent>
           <TabsContent value="student_report" keepMounted={hasVisitedStudentReport} className="mt-5 sm:mt-6">
-            <Suspense fallback={<PageLoader />}>
+            <Suspense fallback={<DataTableSkeleton columns={6} rows={5} mobile={isMobile} label="Memuat laporan siswa..." />}>
               <LazyAttendanceStudentReport canReadStudents={canReadStudents} isActive={view === 'student_report'} />
             </Suspense>
           </TabsContent>

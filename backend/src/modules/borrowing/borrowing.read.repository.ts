@@ -13,9 +13,9 @@ type SupabaseLike = SupabaseClient | null;
 type BorrowingDbRow = DatabaseRow;
 const VALUATION_LOOKUP_LIMIT = 5_000;
 
-export const BORROWING_SELECT = 'id,student_id,tanggal_pinjam,borrowed_at,rencana_kembali,due_at,returned_at,keperluan,status,catatan_persetujuan,catatan_pengembalian,total_denda,approved_by,processed_return_by,created_by,updated_by,created_at,updated_at,students(id,nis,nama,kelas),borrowing_items(id,borrowing_id,equipment_id,status,kondisi_awal,kondisi_kembali,denda,tanggal_diserahkan,tanggal_dikembalikan,catatan,equipment(id,kode_alat,kode_qr,nama_alat,kategori,kondisi,physical_condition,status,availability_status))';
+export const BORROWING_SELECT = 'id,student_id,tanggal_pinjam,borrowed_at,rencana_kembali,due_at,returned_at,keperluan,status,catatan_persetujuan,catatan_pengembalian,total_denda,approved_by,processed_return_by,created_by,updated_by,created_at,updated_at,return_reported_at,return_notes,return_verified_at,return_verified_by,students(id,nis,nama,kelas),borrowing_items(id,borrowing_id,equipment_id,status,kondisi_awal,kondisi_kembali,denda,tanggal_diserahkan,tanggal_dikembalikan,catatan,equipment(id,kode_alat,kode_qr,nama_alat,kategori,kondisi,physical_condition,status,availability_status))';
 const STATUS_MAP: Record<string, BorrowingReadRecord['status']> = {
-  pending: 'menunggu_persetujuan', approved: 'disetujui', rejected: 'ditolak', borrowed: 'dipinjam', returned: 'dikembalikan', partial: 'dipinjam',
+  pending: 'menunggu_persetujuan', approved: 'disetujui', rejected: 'ditolak', borrowed: 'dipinjam', pending_verification: 'menunggu_verifikasi', returned: 'dikembalikan', partial: 'dipinjam',
 };
 
 function asRow(value: unknown): DatabaseRow {
@@ -131,19 +131,36 @@ export function mapBorrowingRow(row: BorrowingDbRow, replacementValues?: Readonl
     catatan_pengembalian: typeof row.catatan_pengembalian === 'string' ? row.catatan_pengembalian : undefined, total_denda: Number(row.total_denda || items.reduce((sum, item) => sum + item.denda_kerusakan, 0)),
     approved_by: typeof row.approved_by === 'string' ? row.approved_by : undefined, processed_return_by: typeof row.processed_return_by === 'string' ? row.processed_return_by : undefined, created_by: typeof row.created_by === 'string' ? row.created_by : undefined,
     updated_by: typeof row.updated_by === 'string' ? row.updated_by : undefined, created_at: text(row.created_at), updated_at: typeof row.updated_at === 'string' ? row.updated_at : undefined,
+    return_reported_at: typeof row.return_reported_at === 'string' ? row.return_reported_at : undefined,
+    return_notes: typeof row.return_notes === 'string' ? row.return_notes : undefined,
+    return_verified_at: typeof row.return_verified_at === 'string' ? row.return_verified_at : undefined,
+    return_verified_by: typeof row.return_verified_by === 'string' ? row.return_verified_by : undefined,
   };
 }
 
 function parsePage(query: BorrowingReadQuery) {
   const rawPage = Number(query.page); const rawSize = Number(query.pageSize);
-  const page = Number.isFinite(rawPage) ? Math.max(1, Math.floor(rawPage)) : 1;
+  const page = Number.isFinite(rawPage) ? Math.min(10_000, Math.max(1, Math.floor(rawPage))) : 1;
   const pageSize = Number.isFinite(rawSize) ? Math.min(100, Math.max(1, Math.floor(rawSize))) : 20;
   return { page, pageSize, from: (page - 1) * pageSize, to: page * pageSize - 1 };
 }
 
+function parseSearchPage(value: unknown): { ids: string[]; total: number } | null {
+  const payload = Array.isArray(value) ? value[0] : value;
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null;
+  const record = payload as Record<string, unknown>;
+  if (!Array.isArray(record.ids)) return null;
+  const total = Number(record.total);
+  if (!Number.isSafeInteger(total) || total < 0) return null;
+  return {
+    ids: record.ids.filter((id): id is string => typeof id === 'string' && id.length > 0),
+    total,
+  };
+}
+
 function requestedStatus(status?: string): string | undefined {
   if (status === 'menunggu_persetujuan') return 'pending'; if (status === 'disetujui') return 'approved'; if (status === 'ditolak') return 'rejected';
-  if (status === 'dipinjam' || status === 'terlambat') return 'borrowed'; if (status === 'dikembalikan') return 'returned'; return undefined;
+  if (status === 'dipinjam' || status === 'terlambat') return 'borrowed'; if (status === 'menunggu_verifikasi') return 'pending_verification'; if (status === 'dikembalikan') return 'returned'; return undefined;
 }
 
 function emptySummary(): BorrowingSummary { return { totalActive: 0, pendingApproval: 0, overdueCount: 0, returnedToday: 0 }; }
@@ -171,7 +188,7 @@ export function createBorrowingReadRepository(
         const requested = requestedStatus(query.status);
         if (query.status === 'terlambat') rows = rows.filter((row) => row.status === 'terlambat');
         else if (requested) rows = rows.filter((row) => ({
-          pending: 'menunggu_persetujuan', approved: 'disetujui', rejected: 'ditolak', borrowed: 'dipinjam', returned: 'dikembalikan',
+          pending: 'menunggu_persetujuan', approved: 'disetujui', rejected: 'ditolak', borrowed: 'dipinjam', pending_verification: 'menunggu_verifikasi', returned: 'dikembalikan',
         } as Record<string, string>)[requested] === row.status);
         const search = query.search?.trim().toLowerCase();
         if (search) rows = rows.filter((row) => row.borrower_nama.toLowerCase().includes(search) || row.borrower_nis?.toLowerCase().includes(search) || row.items.some((item) => item.kode_alat.toLowerCase().includes(search) || item.nama_alat.toLowerCase().includes(search)));
@@ -179,24 +196,69 @@ export function createBorrowingReadRepository(
         const total = rows.length;
         return { data: { data: rows.slice(from, to + 1), total, page, pageSize, totalPages: Math.ceil(total / pageSize) || 1 }, error: null };
       }
+      const status = requestedStatus(query.status);
+      const normalizedSearch = query.search?.trim();
+      if (normalizedSearch) {
+        const now = new Date();
+        const nowIso = now.toISOString();
+        const todayUtc = nowIso.slice(0, 10);
+        const { data: rawPage, error: pageError } = await client.rpc('search_borrowings_page_ids', {
+          p_search: normalizedSearch,
+          p_status: query.status === 'terlambat' ? null : status ?? null,
+          p_student_id: scope.studentId,
+          p_borrower_id: scope.studentId ? null : query.borrower_id ?? null,
+          p_overdue_only: query.status === 'terlambat',
+          p_now: nowIso,
+          p_today: todayUtc,
+          p_limit: pageSize,
+          p_offset: from,
+        });
+        const pageErrorValue = asDatabaseError(pageError);
+        if (pageErrorValue) return { data: null, error: pageErrorValue };
+        const searchPage = parseSearchPage(rawPage);
+        if (!searchPage) return { data: null, error: { code: 'BORROWING_SEARCH_INVALID_RESPONSE', message: 'Invalid borrowing search page response.' } };
+        if (searchPage.ids.length === 0) {
+          return { data: { data: [], total: searchPage.total, page, pageSize, totalPages: Math.ceil(searchPage.total / pageSize) || 1 }, error: null };
+        }
+
+        const pageResult = await client.from('borrowings').select(BORROWING_SELECT).in('id', searchPage.ids);
+        const pageResultError = asDatabaseError(pageResult.error);
+        if (pageResultError) return { data: null, error: pageResultError };
+        const rowsById = new Map(((pageResult.data || []) as unknown as DatabaseRow[]).map((row) => [text(row.id), row]));
+        const rawRows = searchPage.ids.flatMap((id) => {
+          const row = rowsById.get(id);
+          return row ? [row] : [];
+        });
+        const replacementValues = await loadLatestReplacementValues(client, rawRows);
+        if (replacementValues.error) return { data: null, error: replacementValues.error };
+        const rows = rawRows.map((row) => mapBorrowingRow(row, replacementValues.data));
+        return {
+          data: { data: rows, total: searchPage.total, page, pageSize, totalPages: Math.ceil(searchPage.total / pageSize) || 1 },
+          error: null,
+        };
+      }
+
       let dbQuery = client.from('borrowings').select(BORROWING_SELECT, { count: 'exact' });
-      const status = requestedStatus(query.status); if (status) dbQuery = dbQuery.eq('status', status);
+      if (query.status === 'terlambat') {
+        const now = new Date();
+        const nowIso = now.toISOString();
+        const todayUtc = nowIso.slice(0, 10);
+        dbQuery = dbQuery.eq('status', 'borrowed')
+          .or(`due_at.lt.${nowIso},and(due_at.is.null,rencana_kembali.lte.${todayUtc})`);
+      } else if (status) dbQuery = dbQuery.eq('status', status);
       if (scope.studentId) dbQuery = dbQuery.eq('student_id', scope.studentId);
       if (query.borrower_id && !scope.studentId) dbQuery = dbQuery.eq('student_id', query.borrower_id);
       dbQuery = dbQuery.order('created_at', { ascending: false }).order('id', { ascending: false });
-      const canRangeInDatabase = !query.search && query.status !== 'terlambat';
-      if (canRangeInDatabase) dbQuery = dbQuery.range(from, to);
+      dbQuery = dbQuery.range(from, to);
       const { data, count, error } = await dbQuery;
       if (error) return { data: null, error };
       const rawRows = (data || []) as unknown as DatabaseRow[];
       const replacementValues = await loadLatestReplacementValues(client, rawRows);
       if (replacementValues.error) return { data: null, error: replacementValues.error };
       let rows: BorrowingReadRecord[] = rawRows.map((row) => mapBorrowingRow(row, replacementValues.data));
-      const search = query.search?.trim().toLowerCase();
-      if (search) rows = rows.filter((record: BorrowingReadRecord) => record.borrower_nama.toLowerCase().includes(search) || record.borrower_nis?.toLowerCase().includes(search) || record.items.some((item) => item.kode_alat.toLowerCase().includes(search) || item.nama_alat.toLowerCase().includes(search)));
       if (query.status === 'terlambat') rows = rows.filter((record: BorrowingReadRecord) => record.status === 'terlambat');
-      const total = canRangeInDatabase ? (count || 0) : rows.length;
-      return { data: { data: canRangeInDatabase ? rows : rows.slice(from, to + 1), total, page, pageSize, totalPages: Math.ceil(total / pageSize) || 1 }, error: null };
+      const total = count || 0;
+      return { data: { data: rows, total, page, pageSize, totalPages: Math.ceil(total / pageSize) || 1 }, error: null };
     },
     async summary(scope) {
       if (!client) {
@@ -204,7 +266,7 @@ export function createBorrowingReadRepository(
         const rows = memoryRows.map((row) => mapBorrowingRow(row, replacementValues)).filter((row) => !scope.studentId || row.borrower_id === scope.studentId);
         const today = new Date().toISOString().slice(0, 10);
         return { data: {
-          totalActive: rows.filter((row) => ['menunggu_persetujuan', 'disetujui', 'dipinjam', 'terlambat'].includes(row.status)).length,
+          totalActive: rows.filter((row) => ['menunggu_persetujuan', 'disetujui', 'dipinjam', 'menunggu_verifikasi', 'terlambat'].includes(row.status)).length,
           pendingApproval: rows.filter((row) => row.status === 'menunggu_persetujuan').length,
           overdueCount: rows.filter((row) => row.status === 'terlambat').length,
           returnedToday: rows.filter((row) => row.status === 'dikembalikan' && row.tanggal_dikembalikan?.slice(0, 10) === today).length,
@@ -219,7 +281,7 @@ export function createBorrowingReadRepository(
         return query;
       };
       const [active, pending, overdue, returnedToday] = await Promise.all([
-        count().in('status', ['pending', 'approved', 'borrowed', 'partial']),
+        count().in('status', ['pending', 'approved', 'borrowed', 'partial', 'pending_verification']),
         count().eq('status', 'pending'),
         count().eq('status', 'borrowed').lt('due_at', now.toISOString()),
         count().eq('status', 'returned').gte('returned_at', todayStart).lt('returned_at', tomorrowStart),

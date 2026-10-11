@@ -12,7 +12,7 @@ test('borrowing mutation service executes the complete memory workflow atomicall
   };
   const storage = {
     createUpload: (fileName: string, folder: string) => ({ uploadUrl: 'https://upload.example.test/signed', key: `${folder}/${fileName}-${Math.random()}`, expiresInSeconds: 900 }),
-    inspect: async (objectKey: string) => ({ exists: true, contentType: 'image/jpeg', contentLength: objectKey.includes('second') ? 101 : 100 }),
+    verifyUpload: async () => true,
     createAccess: () => ({ accessUrl: 'https://download.example.test/signed', expiresInSeconds: 900 }),
   };
   const service = new BorrowingMutationsService(createBorrowingMutationsRepository(null, state), storage);
@@ -53,6 +53,39 @@ test('borrowing mutation service prevents a member from creating for another stu
   );
 });
 
+test('borrowing mutation service prevents every non-teacher role from creating for another student', async () => {
+  const returnDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const service = new BorrowingMutationsService(createBorrowingMutationsRepository(null, {
+    equipment: [{ id: 'eq-1', kode_alat: 'CAM-001', nama_alat: 'Camera', kondisi: 'bagus', status: 'tersedia' }], borrowings: [],
+  }));
+
+  await assert.rejects(
+    () => service.create(
+      { borrower_id: 'student-2', equipment_ids: ['eq-1'], rencana_kembali: returnDate, keperluan: 'Produksi tugas film' },
+      { userId: 'leader-1', role: 'leader' },
+      'student-1',
+      'leader-1',
+    ),
+    (error: unknown) => error instanceof BorrowingMutationsServiceError && error.statusCode === 403,
+  );
+});
+
+test('committee role can create a request for its linked student', async () => {
+  const returnDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const service = new BorrowingMutationsService(createBorrowingMutationsRepository(null, {
+    equipment: [{ id: 'eq-1', kode_alat: 'CAM-001', nama_alat: 'Camera', kondisi: 'bagus', status: 'tersedia' }], borrowings: [],
+  }));
+
+  const created = await service.create(
+    { borrower_id: 'student-1', equipment_ids: ['eq-1'], rencana_kembali: returnDate, keperluan: 'Produksi tugas film' },
+    { userId: 'leader-1', role: 'leader' },
+    'student-1',
+    'leader-1',
+    'leader-request-001',
+  );
+  assert.equal(created.borrower_id, 'student-1');
+});
+
 test('borrowing return rejects a physical condition without evidence', async () => {
   const state = {
     equipment: [{ id: 'eq-1', kode_alat: 'CAM-001', nama_alat: 'Camera', kondisi: 'bagus', status: 'tersedia' }],
@@ -65,7 +98,7 @@ test('borrowing return rejects a physical condition without evidence', async () 
   };
   const service = new BorrowingMutationsService(createBorrowingMutationsRepository(null, state), {
     createUpload: () => ({ uploadUrl: 'https://upload.example.test/signed', key: 'return/evidence.jpg', expiresInSeconds: 900 }),
-    inspect: async () => ({ exists: true, contentType: 'image/jpeg', contentLength: 100 }),
+    verifyUpload: async () => true,
     createAccess: () => ({ accessUrl: 'https://download.example.test/signed', expiresInSeconds: 900 }),
   });
 
@@ -73,4 +106,32 @@ test('borrowing return rejects a physical condition without evidence', async () 
     () => service.returnBorrowing('bor-1', { item_conditions: [{ equipment_id: 'eq-1', kondisi_kembali: 'bagus' }] }, 'teacher-1', 'Alat sudah kembali'),
     (error: unknown) => error instanceof BorrowingMutationsServiceError && error.errorCode === 'RETURN_EVIDENCE_REQUIRED',
   );
+});
+
+test('borrowing return refuses to attach an evidence object with an invalid image signature', async () => {
+  const state = {
+    equipment: [{ id: 'eq-1', kode_alat: 'CAM-001', nama_alat: 'Camera', kondisi: 'bagus', status: 'dipinjam' }],
+    borrowings: [{
+      id: 'bor-1', raw_status: 'borrowed' as const, borrower_id: 'student-1', borrower_nama: 'Siswa',
+      items: [{ equipment_id: 'eq-1', kode_alat: 'CAM-001', nama_alat: 'Camera', status: 'borrowed' as const, kondisi_awal: 'bagus' }],
+      tanggal_pinjam: '2026-09-01', rencana_kembali: '2026-09-12', keperluan: 'Produksi tugas film', status: 'dipinjam' as const,
+      created_at: '2026-09-01T00:00:00.000Z',
+    }],
+  };
+  const service = new BorrowingMutationsService(createBorrowingMutationsRepository(null, state), {
+    createUpload: (fileName: string, folder: string) => ({ uploadUrl: 'https://upload.example.test/signed', key: `${folder}/${fileName}`, expiresInSeconds: 900 }),
+    verifyUpload: async () => false,
+    createAccess: () => ({ accessUrl: 'https://download.example.test/signed', expiresInSeconds: 900 }),
+  });
+  const evidence = await Promise.all(['first.jpg', 'second.jpg'].map((fileName) => service.reserveReturnEvidence('bor-1', {
+    equipment_id: 'eq-1', file_name: fileName, content_type: 'image/jpeg', file_size_bytes: 100,
+  }, 'teacher-1')));
+
+  await assert.rejects(
+    () => service.returnBorrowing('bor-1', {
+      item_conditions: [{ equipment_id: 'eq-1', kondisi_kembali: 'bagus', evidence_ids: evidence.map((item) => item.evidence_id) }],
+    }, 'teacher-1', 'Alat sudah kembali'),
+    (error: unknown) => error instanceof BorrowingMutationsServiceError && error.errorCode === 'RETURN_EVIDENCE_UPLOAD_INCOMPLETE',
+  );
+  assert.equal(state.borrowings[0]?.raw_status, 'borrowed');
 });
