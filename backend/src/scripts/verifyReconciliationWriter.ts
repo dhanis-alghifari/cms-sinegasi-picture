@@ -7,7 +7,7 @@ import { validateSnapshot } from './productionReconciliation.js';
 import { runReconciliationWriter, type WriterAuthorization } from './reconciliationWriterCore.js';
 import { readWriterCatalog, writerCatalogHash, verifyWriterTarget, type WriterSession } from './reconciliationWriterCatalog.js';
 import { createWriterPackage, WriterError } from './reconciliationWriterPolicy.js';
-import { writerFixtureAuthorization, WRITER_CHECKS } from './reconciliationWriterFixtures.js';
+import { writerFixtureAuthorization, writerMacOnlyFixture, WRITER_CHECKS } from './reconciliationWriterFixtures.js';
 
 let stage = 'INITIALIZATION';
 const connection = (): pg.Client => {
@@ -33,6 +33,7 @@ async function main(): Promise<void> {
     // This reset is confined to the labelled disposable fixture cluster; not exported as a production option.
     assert.equal((await db.query("SELECT current_setting('sinegasi.schema_rehearsal',true) AS marker")).rows[0].marker, 'on');
     await db.query('DROP SCHEMA IF EXISTS sinegasi_ops CASCADE; DROP SCHEMA public CASCADE; CREATE SCHEMA public');
+    await db.query('DELETE FROM auth.users; DELETE FROM storage.objects');
     await db.query('CREATE EXTENSION pg_trgm WITH SCHEMA public; CREATE EXTENSION pgcrypto WITH SCHEMA public; CREATE EXTENSION "uuid-ossp" WITH SCHEMA public');
     for (const e of snapshot.enums) {
       const labels = e.name === 'user_role' ? e.labels.slice(0, -1) : e.labels;
@@ -50,6 +51,8 @@ async function main(): Promise<void> {
     const marker = (await db.query("SELECT current_setting('sinegasi.schema_rehearsal',true) AS marker,current_setting('server_version') AS version")).rows[0];
     assert.equal(marker.marker, 'on', 'DISPOSABLE_CLUSTER_MARKER_REQUIRED'); assert.match(marker.version, /^17\./);
     await db.query('CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN; CREATE ROLE service_role NOLOGIN BYPASSRLS');
+    // Minimal managed-data counters only; this is NOT a managed Supabase integration test.
+    await db.query('CREATE SCHEMA auth; CREATE TABLE auth.users(id integer); CREATE SCHEMA storage; CREATE TABLE storage.objects(id integer)');
     let auth = await setup();
     const baseline = writerCatalogHash(await readWriterCatalog(session));
     stage = 'WRONG_IDENTITY';
@@ -130,6 +133,66 @@ async function main(): Promise<void> {
     stage = 'LEGACY_APPLY';
     auth = await setup(); assert.equal((await run(auth)).mode, 'applied');
     await verifyWriterTarget(session, snapshot, bundle.reference); checks.legacyApply = true;
+    stage = 'MAC_ONLY_NONEMPTY_MANAGED';
+    auth = writerMacOnlyFixture(await setup());
+    const macBaseline = writerCatalogHash(await readWriterCatalog(session));
+    for (const table of ['auth.users', 'storage.objects']) {
+      await db.query(`INSERT INTO ${table}(id) VALUES(1)`);
+      await assert.rejects(run(auth), (error: unknown) => {
+        assert.ok(error instanceof WriterError); assert.equal(error.mutation, 'none');
+        assert.equal(error.stage, 'MAC_ONLY_INITIALIZATION_REQUIRES_EMPTY_AUTH_AND_STORAGE'); return true;
+      });
+      assert.equal(writerCatalogHash(await readWriterCatalog(session)), macBaseline);
+      await db.query(`DELETE FROM ${table}`);
+    }
+    const managedContender = connection(); await managedContender.connect();
+    try {
+      for (const table of ['auth.users', 'storage.objects']) {
+        await managedContender.query(`BEGIN; LOCK TABLE ${table} IN ROW EXCLUSIVE MODE`);
+        await failure(auth, 'none'); await managedContender.query('ROLLBACK');
+        assert.equal(writerCatalogHash(await readWriterCatalog(session)), macBaseline);
+      }
+    } finally { await managedContender.end(); }
+    const pendingWrite = connection(); await pendingWrite.connect();
+    try {
+      for (const [table, insertion, lockPrefix] of [
+        ['auth.users', 'INSERT INTO auth.users(id) VALUES(3)', 'LOCK TABLE auth.users'],
+        ['storage.objects', 'INSERT INTO storage.objects(id) VALUES(3)', 'LOCK TABLE auth.users'],
+        ['public.users', "INSERT INTO public.users(username,password_hash,role,nama) VALUES('fixture-only','not-live','teacher','fixture')", 'LOCK TABLE public.'],
+      ] as const) {
+        await pendingWrite.query('BEGIN'); await pendingWrite.query(insertion); let committed = false;
+        fault = async sql => { if (!committed && sql.startsWith(lockPrefix)) {
+          committed = true; await pendingWrite.query('COMMIT');
+        } };
+        // A write committing just as the lock is requested must be visible, not hidden by an older snapshot.
+        await failure(auth, 'none'); fault = undefined; assert.equal(committed, true);
+        assert.equal((await db.query("SELECT to_regnamespace('sinegasi_ops') IS NULL AS absent")).rows[0].absent, true);
+        await db.query(`DELETE FROM ${table}`);
+        assert.equal(writerCatalogHash(await readWriterCatalog(session)), macBaseline);
+      }
+    } finally { fault = undefined; await pendingWrite.end(); }
+    // A user appearing between commits must stop before schema/config writes, not bypass on resume.
+    const afterEnum = connection(); await afterEnum.connect(); let inserted = false;
+    try {
+      fault = async sql => { if (sql === 'BEGIN ISOLATION LEVEL REPEATABLE READ' && !inserted
+        && (await afterEnum.query("SELECT to_regclass('sinegasi_ops.production_reconciliation_runs') IS NOT NULL AS history")).rows[0].history === true) {
+        inserted = true; await afterEnum.query('INSERT INTO auth.users(id) VALUES(2)');
+      } };
+      await failure(auth, 'enums'); fault = undefined;
+      assert.equal((await db.query('SELECT stage FROM sinegasi_ops.production_reconciliation_runs')).rows[0].stage, 'enums');
+      assert.equal((await databaseInventory(db)).tables.length, 17);
+      await failure(auth, 'enums');
+      await db.query('DELETE FROM auth.users');
+      assert.equal((await run(auth)).mode, 'resumed');
+    } finally { fault = undefined; await afterEnum.end(); }
+    checks.macOnlyNonemptyManagedRefused = true;
+    stage = 'MAC_ONLY_INITIALIZATION';
+    auth = writerMacOnlyFixture(await setup());
+    const macResult = await run(auth);
+    assert.equal(macResult.mode, 'applied'); assert.equal(macResult.recoveryMode, 'mac-only-initialization');
+    assert.equal(macResult.independentKeyRecoveryAttested, false); assert.equal(macResult.managedAcceptanceRequired, true);
+    await verifyWriterTarget(session, snapshot, bundle.reference);
+    assert.equal((await run(auth)).mode, 'noop'); checks.macOnlyInitialization = true;
     assert.ok(WRITER_CHECKS.every(check => checks[check] === true));
     console.log(JSON.stringify({ status: 'RECONCILIATION_WRITER_ISOLATED_PASSED', packageSha256: bundle.packageSha256,
       checks, postgresVersion: marker.version, tables: 73, referenceRows: 213,

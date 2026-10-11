@@ -6,7 +6,7 @@ import { sha256 } from './productionReconciliation.js';
 import { validateLegacyInventory } from './productionReconciliationPreflightCore.js';
 import { readWriterCatalog, verifyWriterTarget, writerCatalogHash, type WriterSession } from './reconciliationWriterCatalog.js';
 import { createWriterPackage, object, requireWriterWindow, validateWriterApproval, validateWriterEvidence, validateWriterRecovery,
-  WriterError, type WriterPackage } from './reconciliationWriterPolicy.js';
+  writerRecoveryMode, WriterError, type WriterPackage, type WriterRecoveryMode } from './reconciliationWriterPolicy.js';
 
 const HISTORY = 'sinegasi_ops.production_reconciliation_runs';
 const LOCK = "SELECT pg_try_advisory_lock(hashtext('sinegasi:schema-migrations')) AS acquired";
@@ -28,13 +28,17 @@ interface Run {
  */
 export async function runReconciliationWriter(
   db: WriterSession, bundle: WriterPackage, auth: WriterAuthorization, now: () => number = Date.now,
-): Promise<{ mode: 'applied' | 'resumed' | 'noop'; packageSha256: string; mutation: 'complete' | 'none'; managedAcceptanceRequired: true }> {
+): Promise<{ mode: 'applied' | 'resumed' | 'noop'; packageSha256: string; mutation: 'complete' | 'none';
+  recoveryMode: WriterRecoveryMode; independentKeyRecoveryAttested: boolean; managedAcceptanceRequired: true }> {
   // Validate everything before even sending a query (including trusted generated SQL).
   const generated = createWriterPackage(bundle.snapshot);
   if (JSON.stringify(generated) !== JSON.stringify(bundle)) throw new WriterError('WRITER_PACKAGE_TAMPERED');
   const approvalSha256 = sha256(auth.approvalRaw);
   if (approvalSha256 !== auth.confirmedApprovalSha256) throw new WriterError('APPROVAL_CHECKSUM_MISMATCH');
   const approval = validateWriterApproval(JSON.parse(auth.approvalRaw) as unknown, bundle, auth.releaseSha, sha256(auth.evidenceRaw), now());
+  const recoveryMode = writerRecoveryMode(approval);
+  const verified = { packageSha256: bundle.packageSha256, recoveryMode,
+    independentKeyRecoveryAttested: recoveryMode === 'independent-key', managedAcceptanceRequired: true as const };
   validateWriterEvidence(JSON.parse(auth.evidenceRaw) as unknown, bundle);
   if (sha256(auth.recoveryRaw) !== approval.recoveryEvidenceSha256) throw new WriterError('RECOVERY_EVIDENCE_CHECKSUM_MISMATCH');
   validateWriterRecovery(JSON.parse(auth.recoveryRaw) as unknown, approval, now());
@@ -56,12 +60,27 @@ export async function runReconciliationWriter(
     requireWriterWindow(approval, now());
     await db.query('BEGIN ISOLATION LEVEL REPEATABLE READ'); transaction = true;
     await db.query("SET LOCAL lock_timeout='3s'; SET LOCAL statement_timeout='25s'; SET LOCAL idle_in_transaction_session_timeout='30s'; SET LOCAL search_path=pg_catalog,public,extensions");
+    if (recoveryMode === 'mac-only-initialization') {
+      // Repeatable-read freezes at the first SELECT: acquire locks BEFORE identity/advisory reads.
+      // The validated backup supplies all initial public table names; no discovery SELECT is needed.
+      await db.query('LOCK TABLE auth.users, storage.objects IN SHARE MODE');
+      const names = auth.backupInventory.tables.map(table => table.name).sort();
+      await db.query(`LOCK TABLE ${names.map(name => 'public.' + quoteIdentifier(name)).join(',')} IN ACCESS EXCLUSIVE MODE`);
+    }
     await identity();
   };
   const commit = async () => {
     requireWriterWindow(approval, now());
     committing = true;
     await db.query('COMMIT'); transaction = false; committing = false;
+  };
+  const requireEmptyManagedData = async () => {
+    if (recoveryMode !== 'mac-only-initialization') return;
+    // Tables were locked before the snapshot; repeat this check after the enum commit.
+    // Read only: never change managed Supabase schemas or their contents.
+    const counts = (await db.query(`SELECT (SELECT count(*)::text FROM auth.users) AS "authAccounts",
+      (SELECT count(*)::text FROM storage.objects) AS "storageObjects"`)).rows[0];
+    if (counts?.authAccounts !== '0' || counts.storageObjects !== '0') throw new WriterError('MAC_ONLY_INITIALIZATION_REQUIRES_EMPTY_AUTH_AND_STORAGE');
   };
   const execute = async (sql: string) => {
     for (const statement of splitSqlStatements(transactionalSql(sql))) await db.query(statement);
@@ -102,11 +121,12 @@ export async function runReconciliationWriter(
     await lockPublic();
     const prior = await readRun();
     if (prior?.stage === 'enums') mutation = 'enums';
+    await requireEmptyManagedData();
     if (prior?.stage === 'complete') {
       const target = await verifyWriterTarget(db, bundle.snapshot, bundle.reference);
       if (writerCatalogHash(target) !== prior.target_catalog_sha256) throw new WriterError('COMPLETED_CATALOG_DRIFT_REFUSED');
       await db.query('ROLLBACK'); transaction = false;
-      return { mode: 'noop', packageSha256: bundle.packageSha256, mutation: 'none', managedAcceptanceRequired: true };
+      return { mode: 'noop', ...verified, mutation: 'none' };
     }
     const baseline = await readWriterCatalog(db);
     validateLegacyInventory(baseline.inventory, bundle.snapshot);
@@ -136,6 +156,7 @@ export async function runReconciliationWriter(
     await begin();
     await lockPublic();
     const run = await readRun();
+    await requireEmptyManagedData();
     if (run?.stage !== 'enums' || writerCatalogHash(await readWriterCatalog(db)) !== run.enums_catalog_sha256) throw new WriterError('ENUM_CHECKPOINT_CHANGED');
     await execute(bundle.sql[1]);
     await insertReferenceRows(db, bundle.reference);
@@ -143,7 +164,7 @@ export async function runReconciliationWriter(
     await db.query(`UPDATE ${HISTORY} SET stage='complete',target_catalog_sha256=$2 WHERE package_sha256=$1 AND stage='enums'`, [bundle.packageSha256, writerCatalogHash(target)]);
     await commit(); mutation = 'complete';
     // Reconnect/retry never silently guesses what a failed COMMIT did.
-    return { mode: prior ? 'resumed' : 'applied', packageSha256: bundle.packageSha256, mutation, managedAcceptanceRequired: true };
+    return { mode: prior ? 'resumed' : 'applied', ...verified, mutation };
   } catch (error: unknown) {
     if (committing) mutation = 'unknown';
     if (transaction) {

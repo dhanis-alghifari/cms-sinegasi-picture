@@ -8,7 +8,8 @@ import type { WriterPackage } from './reconciliationWriterPolicy.js';
 
 export const WRITER_CHECKS = ['legacyApply', 'fullCatalogVerified', 'referenceRows213', 'schemaAndReferenceRollback', 'enumRollback',
   'resumeAfterEnumCommit', 'repeatVerifiedNoop', 'driftRefused', 'nonemptyRefused', 'concurrentRefused',
-  'commitUncertaintyReported', 'browserAndPrivateHistoryDenied', 'wrongIdentityRefused', 'unexpectedRelationRefused'] as const;
+  'commitUncertaintyReported', 'browserAndPrivateHistoryDenied', 'wrongIdentityRefused', 'unexpectedRelationRefused',
+  'macOnlyInitialization', 'macOnlyNonemptyManagedRefused'] as const;
 export function writerFixtureAuthorization(bundle: WriterPackage, inventory: DatabaseInventory, catalogHash: string, now: number): WriterAuthorization {
   const id = new Date(now - 60_000).toISOString().replace(/[:.]/g, '-');
   const archive = { sha256: 'a'.repeat(64), bytes: 1024 }, metadata = { sha256: 'b'.repeat(64), bytes: 1024 };
@@ -33,4 +34,18 @@ export function writerFixtureAuthorization(bundle: WriterPackage, inventory: Dat
     qualityChecksPassed: true, qualityRunId: 1, maintenanceWindowConfirmed: true, enumCommitIsNotAtomicWithSchemaAcknowledged: true,
     managedAcceptanceStillRequired: true, sharedVpsRecoveryRiskAcknowledged: true });
   return { releaseSha, approvalRaw, confirmedApprovalSha256: sha256(approvalRaw), evidenceRaw, recoveryRaw, backupInventory: inventory };
+}
+
+/** Synthetic Mac-only risk acceptance; still never a live operator approval. */
+export function writerMacOnlyFixture(auth: WriterAuthorization): WriterAuthorization {
+  const recovery: unknown = JSON.parse(auth.recoveryRaw);
+  const approval: unknown = JSON.parse(auth.approvalRaw);
+  if (!recovery || typeof recovery !== 'object' || Array.isArray(recovery)
+    || !approval || typeof approval !== 'object' || Array.isArray(approval)) throw new Error('INVALID_TEST_AUTHORIZATION');
+  const recoveryRaw = JSON.stringify({ ...recovery, independentKeyRecovery: {
+    verified: false, sameDeviceAsMac: true, sameHostAsApplication: false, medium: 'macOS login Keychain only',
+  } });
+  const approvalRaw = JSON.stringify({ ...approval, recoveryMode: 'mac-only-initialization',
+    macOnlyRecoveryRiskAcknowledged: true, initialEmptyProductionOnly: true, recoveryEvidenceSha256: sha256(recoveryRaw) });
+  return { ...auth, recoveryRaw, approvalRaw, confirmedApprovalSha256: sha256(approvalRaw) };
 }

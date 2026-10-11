@@ -93,7 +93,9 @@ export async function mainWriter(args = process.argv.slice(2)): Promise<void> {
       packageSha256: bundle.packageSha256, runnerSourceSha256: sourceSha256, candidateSha256: bundle.candidateSha256,
       referenceChecksum: bundle.reference.checksum, referenceRows: 213, billingAmount: 5000,
       priorEvidenceSha256: plan.evidenceSha256, productionApproved: false, databaseAccessed: false,
-      productionChanged: false, next: ['isolated writer tests', 'review and commit release', 'fresh backup/restore/copy and independent key recovery',
+      productionChanged: false, recoveryModes: ['independent-key', 'mac-only-initialization'],
+      macOnlyInitializationRequires: ['explicit risk acceptance', 'empty public baseline, Auth accounts and Storage objects', 'Mac Keychain available'],
+      readyForPublicLaunch: false, next: ['isolated writer tests', 'review and commit release', 'fresh backup/restore/copy and reviewed recovery custody',
         'read-only inspect', 'operator approval bound to current main and migration window', 'managed acceptance after migration'] }));
     return;
   }

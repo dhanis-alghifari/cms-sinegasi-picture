@@ -5,7 +5,7 @@ import { resolve } from 'node:path';
 import { loadSnapshot, compileReconciliation, sha256 } from './productionReconciliation.js';
 import { createWriterPackage, parseWriterOptions, requireWriterQualityRun, validateWriterApproval, validateWriterEvidence, validateWriterRecovery, backupTime } from './reconciliationWriterPolicy.js';
 import { runReconciliationWriter } from './reconciliationWriterCore.js';
-import { writerFixtureAuthorization } from './reconciliationWriterFixtures.js';
+import { writerFixtureAuthorization, writerMacOnlyFixture } from './reconciliationWriterFixtures.js';
 import type { WriterSession } from './reconciliationWriterCatalog.js';
 import type { DatabaseInventory } from './productionBackupCore.js';
 
@@ -85,6 +85,61 @@ test('checksum and package tampering cause zero DB queries', async () => {
   await assert.rejects(runReconciliationWriter(db, { ...bundle, sql: [bundle.sql[0] + 'SELECT 1', bundle.sql[1]] }, auth, () => now), /WRITER_PACKAGE_TAMPERED/);
   await assert.rejects(runReconciliationWriter(db, bundle, { ...auth, recoveryRaw: auth.recoveryRaw + ' ' }, () => now), /RECOVERY_EVIDENCE_CHECKSUM_MISMATCH/);
   assert.equal(queries, 0);
+});
+test('Mac-only initialization needs explicit bounded risk acceptance and honest key custody', async () => {
+  const { bundle, auth: independent } = await fixture(), auth = writerMacOnlyFixture(independent);
+  const rawApproval = JSON.parse(auth.approvalRaw) as Record<string, unknown>;
+  const approval = validateWriterApproval(rawApproval, bundle, auth.releaseSha, sha256(auth.evidenceRaw), now);
+  const recovery = JSON.parse(auth.recoveryRaw) as Record<string, unknown>;
+  validateWriterRecovery(recovery, approval, now);
+  for (const change of [{ recoveryMode: 'force' }, { recoveryMode: null }, { recoveryMode: 'independent-key' },
+    { macOnlyRecoveryRiskAcknowledged: false }, { initialEmptyProductionOnly: false },
+    { macOnlyRecoveryRiskAcknowledged: undefined }, { initialEmptyProductionOnly: undefined }]) {
+    assert.throws(() => validateWriterApproval({ ...rawApproval, ...change }, bundle, auth.releaseSha, sha256(auth.evidenceRaw), now));
+  }
+  for (const change of [{ verified: true }, { sameDeviceAsMac: false }, { sameHostAsApplication: true }, { medium: 'VPS private key' }]) {
+    assert.throws(() => validateWriterRecovery({ ...recovery,
+      independentKeyRecovery: { ...(recovery.independentKeyRecovery as Record<string, unknown>), ...change } }, approval, now));
+  }
+  const defaultApproval = validateWriterApproval(JSON.parse(independent.approvalRaw) as unknown, bundle,
+    independent.releaseSha, sha256(independent.evidenceRaw), now);
+  assert.throws(() => validateWriterRecovery(recovery, defaultApproval, now));
+  for (const key of ['receipt', 'restore', 'copy']) assert.throws(() => validateWriterRecovery({ ...recovery, [key]: {} }, approval, now));
+});
+test('Mac-only mode cannot bypass fresh backups, writer evidence or nonempty public backup checks', async () => {
+  const { bundle, auth: independent } = await fixture(), auth = writerMacOnlyFixture(independent);
+  const approval = JSON.parse(auth.approvalRaw) as Record<string, unknown>;
+  assert.throws(() => validateWriterApproval({ ...approval, backupId: '2026-10-11T06-00-00-000Z' }, bundle, auth.releaseSha, sha256(auth.evidenceRaw), now));
+  const evidence = JSON.parse(auth.evidenceRaw) as Record<string, unknown>;
+  assert.throws(() => validateWriterEvidence({ ...evidence, checks: { ...(evidence.checks as Record<string, unknown>), macOnlyInitialization: false } }, bundle));
+  let queries = 0;
+  const db: WriterSession = { query: async () => { queries++; throw new Error('never called'); }, inventory: async () => auth.backupInventory };
+  const backupInventory = structuredClone(auth.backupInventory); backupInventory.tables[0].rows = '1';
+  await assert.rejects(runReconciliationWriter(db, bundle, { ...auth, backupInventory }, () => now));
+  assert.equal(queries, 0);
+});
+test('Mac-only mode rejects missing or nonempty managed-data counters before any DDL', async () => {
+  const { bundle, auth: independent } = await fixture(), auth = writerMacOnlyFixture(independent);
+  for (const counts of [undefined, { authAccounts: '1', storageObjects: '0' }, { authAccounts: '0', storageObjects: '1' },
+    { authAccounts: '0' }, { authAccounts: 0, storageObjects: 0 }]) {
+    const queries: string[] = [];
+    const db: WriterSession = { query: async sql => {
+      queries.push(sql);
+      if (sql.includes('pg_backend_pid()')) return { rows: [{ database: 'postgres', actor: 'postgres', pid: 1, version: '170011', readOnly: 'off' }] };
+      if (sql.includes('pg_try_advisory_lock')) return { rows: [{ acquired: true }] };
+      if (sql.includes('pg_advisory_unlock')) return { rows: [{ released: true }] };
+      if (sql.includes("to_regnamespace('sinegasi_ops')")) return { rows: [{ schema: false, history: false }] };
+      if (sql.includes('AS "authAccounts"')) return { rows: counts ? [counts] : [] };
+      return { rows: [] };
+    }, inventory: async () => auth.backupInventory };
+    await assert.rejects(runReconciliationWriter(db, bundle, auth, () => now), /MAC_ONLY_INITIALIZATION_REQUIRES_EMPTY_AUTH_AND_STORAGE/);
+    assert.ok(queries.includes('LOCK TABLE auth.users, storage.objects IN SHARE MODE'));
+    const firstSelect = queries.findIndex(sql => sql.trim().startsWith('SELECT'));
+    assert.ok(queries.indexOf('LOCK TABLE auth.users, storage.objects IN SHARE MODE') < firstSelect);
+    assert.ok(queries.findIndex(sql => sql.startsWith('LOCK TABLE public.')) < firstSelect);
+    assert.ok(queries.includes('ROLLBACK'));
+    assert.ok(queries.every(sql => !/^(CREATE|ALTER|INSERT|UPDATE|DELETE|DROP|GRANT|REVOKE)\b/i.test(sql)));
+  }
 });
 test('failure diagnostics are generic and rollback failures become unknown, never false safety', async () => {
   const { bundle, auth } = await fixture();

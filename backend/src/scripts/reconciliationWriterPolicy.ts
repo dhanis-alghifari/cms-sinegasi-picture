@@ -25,6 +25,8 @@ export function createWriterPackage(snapshot: SchemaSnapshot): WriterPackage {
   return { snapshot, sql, reference, candidateSha256, packageSha256 };
 }
 
+export type WriterRecoveryMode = 'independent-key' | 'mac-only-initialization';
+
 export interface WriterApproval {
   format: 1;
   project: typeof BACKUP_PROJECT;
@@ -47,6 +49,9 @@ export interface WriterApproval {
   enumCommitIsNotAtomicWithSchemaAcknowledged: true;
   managedAcceptanceStillRequired: true;
   sharedVpsRecoveryRiskAcknowledged: true;
+  recoveryMode?: WriterRecoveryMode;
+  macOnlyRecoveryRiskAcknowledged?: true;
+  initialEmptyProductionOnly?: true;
 }
 
 export function object(value: unknown): Record<string, unknown> {
@@ -54,6 +59,18 @@ export function object(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 const digest = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
+export function writerRecoveryMode(approval: WriterApproval): WriterRecoveryMode {
+  const mode = approval.recoveryMode === undefined ? 'independent-key' : approval.recoveryMode;
+  if (mode === 'mac-only-initialization') {
+    if (approval.macOnlyRecoveryRiskAcknowledged !== true || approval.initialEmptyProductionOnly !== true) {
+      throw new WriterError('MAC_ONLY_INITIALIZATION_RISK_ACKNOWLEDGEMENT_REQUIRED');
+    }
+  } else if (mode !== 'independent-key' || approval.macOnlyRecoveryRiskAcknowledged !== undefined
+    || approval.initialEmptyProductionOnly !== undefined) {
+    throw new WriterError('INVALID_WRITER_RECOVERY_MODE');
+  }
+  return mode;
+}
 export function backupTime(id: unknown): number {
   if (typeof id !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z$/.test(id)) throw new WriterError('INVALID_BACKUP_ID');
   const time = Date.parse(id.replace(/T(\d{2})-(\d{2})-(\d{2})-(\d{3})Z$/, 'T$1:$2:$3.$4Z'));
@@ -86,6 +103,7 @@ export function validateWriterApproval(
     || typeof a.windowStart !== 'string' || typeof a.windowEnd !== 'string') throw new WriterError('REVIEWED_WRITER_APPROVAL_REQUIRED');
   // Every property above is checked, and backup/window are checked below.
   const approval = a as unknown as WriterApproval;
+  writerRecoveryMode(approval);
   requireWriterWindow(approval, now);
   return approval;
 }
@@ -106,7 +124,8 @@ export function validateWriterEvidence(value: unknown, bundle: WriterPackage): v
     || r.managedSupabaseIntegrationTested !== false || r.productionApproved !== false
     || !['legacyApply', 'fullCatalogVerified', 'referenceRows213', 'schemaAndReferenceRollback', 'enumRollback',
       'resumeAfterEnumCommit', 'repeatVerifiedNoop', 'driftRefused', 'nonemptyRefused', 'concurrentRefused',
-      'commitUncertaintyReported', 'browserAndPrivateHistoryDenied', 'wrongIdentityRefused', 'unexpectedRelationRefused'].every(key => checks[key] === true)) {
+      'commitUncertaintyReported', 'browserAndPrivateHistoryDenied', 'wrongIdentityRefused', 'unexpectedRelationRefused',
+      'macOnlyInitialization', 'macOnlyNonemptyManagedRefused'].every(key => checks[key] === true)) {
     throw new WriterError('WRITER_REHEARSAL_EVIDENCE_REQUIRED');
   }
 }
@@ -116,6 +135,7 @@ export function validateWriterRecovery(value: unknown, approval: WriterApproval,
   const proof = object(value), receipt = object(proof.receipt), restore = object(proof.restore), copy = object(proof.copy);
   const archive = object(receipt.archive), metadata = object(receipt.metadata), checks = object(restore.checks);
   const key = object(proof.independentKeyRecovery);
+  const mode = writerRecoveryMode(approval);
   if (receipt.project !== BACKUP_PROJECT || receipt.id !== approval.backupId || receipt.encrypted !== true
     || receipt.productionChanged !== false || archive.sha256 !== approval.archiveSha256 || metadata.sha256 !== approval.metadataSha256
     || restore.project !== BACKUP_PROJECT || restore.id !== approval.backupId || restore.status !== 'PUBLIC_APPLICATION_RESTORE_VERIFIED'
@@ -126,11 +146,18 @@ export function validateWriterRecovery(value: unknown, approval: WriterApproval,
     || copy.directoryMode !== '0700' || copy.fileMode !== '0600' || copy.owner !== 'root'
     || copy.offDeviceBackupCopyVerified !== true || copy.decryptionKeyTransferred !== false || copy.databaseCredentialsTransferred !== false
     || copy.productionChanged !== false || copy.devCaddyUnchanged !== true
-    || key.verified !== true || key.sameHostAsApplication !== false || key.sameDeviceAsMac !== false
+    || typeof copy.verifiedAt !== 'string' || Date.parse(copy.verifiedAt) < backupTime(approval.backupId) || Date.parse(copy.verifiedAt) > now) {
+    throw new WriterError('VERIFIED_BACKUP_RESTORE_AND_VPS_COPY_REQUIRED');
+  }
+  if (mode === 'mac-only-initialization') {
+    // Explicitly record the unavailable independent key; never manufacture a recovery attestation.
+    // Current Mac-key availability is checked by decrypting backup metadata in the CLI.
+    if (key.verified !== false || key.sameDeviceAsMac !== true || key.sameHostAsApplication !== false
+      || key.medium !== 'macOS login Keychain only') throw new WriterError('HONEST_MAC_ONLY_KEY_CUSTODY_REQUIRED');
+  } else if (key.verified !== true || key.sameHostAsApplication !== false || key.sameDeviceAsMac !== false
     || typeof key.medium !== 'string' || !key.medium.trim() || key.medium.length > 200
     || typeof key.verifiedBy !== 'string' || !key.verifiedBy.trim()
-    || typeof key.verifiedAt !== 'string' || !Number.isFinite(Date.parse(key.verifiedAt)) || Date.parse(key.verifiedAt) > now
-    || typeof copy.verifiedAt !== 'string' || Date.parse(copy.verifiedAt) < backupTime(approval.backupId) || Date.parse(copy.verifiedAt) > now) {
+    || typeof key.verifiedAt !== 'string' || !Number.isFinite(Date.parse(key.verifiedAt)) || Date.parse(key.verifiedAt) > now) {
     throw new WriterError('VERIFIED_BACKUP_AND_INDEPENDENT_KEY_RECOVERY_REQUIRED');
   }
   if (!Number.isFinite(Date.parse(String(copy.verifiedAt))) || !Number.isSafeInteger(archive.bytes) || Number(archive.bytes) < 100

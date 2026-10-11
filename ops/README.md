@@ -343,9 +343,12 @@ inventory hash** for `baselineCatalogSha256`.
 ### Gates before any production write
 
 1. Review the new code and isolated report; commit/push to `develop`, check CI.
-   **Do not merge to `main` yet if Pages production builds are not held.** Main
-   promotion, Pages build controls and the migration window need a coordinated
-   review so the frontend cannot go live before its database/API.
+   If an application-production Pages project tracks `main`, hold its automatic
+   production builds before promotion so the frontend cannot go live before its
+   database/API. Do not disable or retarget the existing DEV Pages project that
+   tracks `develop`. If no application-production Pages project exists, there
+   is no such production build to hold; verify that condition rather than
+   treating the DEV project's primary deployment label as application production.
 2. Bind a reviewed, clean `main` checkout to the actual remote `main` SHA.
    `apply` checks this with Git, then fetches the named GitHub **Code Quality**
    push run and requires successful backend/frontend jobs for that exact SHA.
@@ -354,10 +357,13 @@ inventory hash** for `baselineCatalogSha256`.
    copy/verify ciphertext on the VPS using the existing automation. Its ID must
    be at most **2 hours old at every phase/commit**. The historical backup from
    10 October is not a live-apply authorization.
-4. Keep an independently recoverable decryption-key copy **outside both the Mac
-   and application VPS**, and test recovery there. An encrypted dump on the VPS
-   without its independent recovery key is not sufficient. The key itself must
-   not be put into JSON, chat, Git, application environment or the VPS.
+4. Default recovery mode: keep an independently recoverable decryption-key copy
+   **outside both the Mac and application VPS**, and test recovery there.
+   For the explicitly accepted, **initial empty production migration only**, the
+   operator may instead select `mac-only-initialization` as documented below.
+   Ciphertext on the VPS is not independently recoverable if the only key is
+   lost with the Mac. The key itself must not be put into JSON, chat, Git,
+   application environment or the VPS; this exception does not authorize launch.
 5. Use `inspect` to bind a fresh full public catalog/ACL hash. The writer decrypts
    only backup metadata in memory and requires its entire public inventory to
    match the current empty baseline. Local ciphertext/receipts are rehashed and
@@ -388,6 +394,59 @@ of that backup's existing `receipt.json`, `public-restore-verification.json`,
 `verifiedBy`, `verifiedAt`. This last section is a **human recovery-test
 attestation**, not a programmatic inspection of an offline key. Never set it
 true merely to bypass a gate.
+
+### Budget-constrained initial migration: Mac-only key
+
+The operator elected to keep the key in Mac login Keychain for now. This is an
+explicit recovery-risk exception, **not** a verified independent key copy and
+not a `--force` option. It adds these fields to the otherwise fully reviewed
+`approval.json`:
+
+```json
+{
+  "recoveryMode": "mac-only-initialization",
+  "macOnlyRecoveryRiskAcknowledged": true,
+  "initialEmptyProductionOnly": true
+}
+```
+
+These are **additional fields**, not a complete approval. Keep all release,
+CI, backup, evidence, checksum, reviewer and window bindings listed above.
+The matching `recovery.json` retains the actual backup/restore/VPS-copy receipts
+and records the unavailable independent copy honestly:
+
+```json
+{
+  "independentKeyRecovery": {
+    "verified": false,
+    "sameDeviceAsMac": true,
+    "sameHostAsApplication": false,
+    "medium": "macOS login Keychain only"
+  }
+}
+```
+
+The runner still requires a fresh encrypted backup (at most two hours old),
+successful public restore, hash-verified root-only VPS ciphertext, working Mac
+Keychain decryption, exact clean remote `main` and its successful quality run,
+source-matching isolated evidence, and a human-reviewed approval/window. It
+requires the exact empty legacy public baseline and additionally **reads/locks**
+`auth.users` and `storage.objects` in each transaction, refusing any accounts or
+stored objects, including ones that appear between enum/schema commits. Managed
+tables and initial public tables are locked before the first SELECT so that
+repeatable-read does not hide a concurrent write committed before lock acquisition;
+see [PostgreSQL LOCK](https://www.postgresql.org/docs/17/sql-lock.html).
+It does
+not delete accounts/files or modify managed Supabase schemas. If managed-table
+permissions or checks fail, it stops; do not remove the check.
+
+Loss of the Mac/Keychain means the VPS encrypted backup cannot be decrypted.
+The exception is only for initializing this reviewed empty project; it must
+not be reused for migrations of a populated system. Successful output keeps
+`independentKeyRecoveryAttested:false` and `readyForPublicLaunch:false`.
+An independent recovery route and managed acceptance remain pre-launch work.
+
+### Approved apply
 
 Only after those checks and explicit approval, the Mac command is:
 
