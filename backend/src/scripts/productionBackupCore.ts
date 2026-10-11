@@ -15,6 +15,11 @@ export const AGE = '/opt/homebrew/bin/age';
 export const AGE_KEYGEN = '/opt/homebrew/bin/age-keygen';
 export const PG_DUMP = '/opt/homebrew/opt/libpq@17/bin/pg_dump';
 export const SAFE_ENV = { PATH: '/usr/bin:/bin', LANG: 'C' };
+const GITHUB_QUALITY_ENV = {
+  ...SAFE_ENV, HOME: '/Users/memberid', GH_CONFIG_DIR: '/Users/memberid/.config/gh',
+  XDG_STATE_HOME: '/Users/memberid/.local/state', GH_HOST: 'github.com',
+  GH_PROMPT_DISABLED: '1', GH_NO_UPDATE_NOTIFIER: '1', GH_TELEMETRY: '0',
+};
 const MAX_OUTPUT = 256 * 1024 * 1024;
 
 export class BackupError extends Error {
@@ -79,8 +84,13 @@ export async function privateDirectory(path: string): Promise<void> {
 
 // No shell, inherited application environment, TTY, secret arguments or raw diagnostics.
 export async function privateCommandBytes(command: string, args: string[], input: string | Buffer = '', timeout = 30_000, maxBytes = 1024 * 1024): Promise<Buffer> {
+  return runPrivateCommandBytes(command, args, input, timeout, maxBytes, SAFE_ENV);
+}
+
+async function runPrivateCommandBytes(command: string, args: string[], input: string | Buffer,
+  timeout: number, maxBytes: number, environment: NodeJS.ProcessEnv): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { detached: true, env: SAFE_ENV, stdio: ['pipe', 'pipe', 'pipe'] });
+    const child = spawn(command, args, { detached: true, env: environment, stdio: ['pipe', 'pipe', 'pipe'] });
     const chunks: Buffer[] = [];
     let bytes = 0;
     let settled = false;
@@ -108,6 +118,24 @@ export async function privateCommandBytes(command: string, args: string[], input
 
 export async function privateCommand(command: string, args: string[], input = '', timeout = 30_000): Promise<string> {
   return (await privateCommandBytes(command, args, input, timeout)).toString('utf8');
+}
+
+// Only this fixed, read-only CI lookup can access the operator's existing gh
+// login. Generic backup/Keychain commands cannot inherit HOME or gh overrides.
+export async function readGithubQualityMetadata(runId: number): Promise<{ run: unknown; jobs: unknown }> {
+  if (!Number.isSafeInteger(runId) || runId <= 0) throw new BackupError('INVALID_GITHUB_QUALITY_RUN_ID');
+  const endpoint = `repos/dhanis-alghifari/cms-sinegasi-picture/actions/runs/${runId}`;
+  const read = async (path: string): Promise<unknown> => JSON.parse((await runPrivateCommandBytes(
+    '/opt/homebrew/bin/gh', ['api', '--hostname', 'github.com', '--method', 'GET', path],
+    '', 30_000, 1024 * 1024, GITHUB_QUALITY_ENV,
+  )).toString('utf8')) as unknown;
+  try {
+    const run = await read(endpoint);
+    const jobs = await read(endpoint + '/jobs?per_page=100');
+    return { run, jobs };
+  } catch {
+    throw new BackupError('GITHUB_QUALITY_METADATA_UNAVAILABLE');
+  }
 }
 
 export async function readKeychain(service: string, account: string): Promise<string> {

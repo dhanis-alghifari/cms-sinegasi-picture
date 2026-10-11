@@ -2,7 +2,7 @@ import { lstat, readFile } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
 import pg from 'pg';
 import { AGE, BACKUP_HOST, BACKUP_KEY_SERVICE, BACKUP_PROJECT, BACKUP_ROOT, databaseInventory, privateCommand,
-  privateCommandBytes, readKeychain, validateBackupCa, validateBackupTarget } from './productionBackupCore.js';
+  privateCommandBytes, readGithubQualityMetadata, readKeychain, validateBackupCa, validateBackupTarget } from './productionBackupCore.js';
 import { COPY_FILES, readCopyArtifact, validateCopyArtifacts } from './copyEncryptedBackupToVps.js';
 import { loadPreflightPlan } from './productionReconciliationPreflightCore.js';
 import { sha256 } from './productionReconciliation.js';
@@ -115,9 +115,7 @@ export async function mainWriter(args = process.argv.slice(2)): Promise<void> {
       throw new WriterError('WRITER_SOURCE_OR_REHEARSAL_EVIDENCE_CHANGED');
     }
     const approval = validateWriterApproval(JSON.parse(approvalRaw) as unknown, bundle, sha, sha256(evidenceRaw));
-    const api = `repos/dhanis-alghifari/cms-sinegasi-picture/actions/runs/${approval.qualityRunId}`;
-    const run = JSON.parse(await privateCommand('/opt/homebrew/bin/gh', ['api', api])) as unknown;
-    const jobs = JSON.parse(await privateCommand('/opt/homebrew/bin/gh', ['api', api + '/jobs?per_page=100'])) as unknown;
+    const { run, jobs } = await readGithubQualityMetadata(approval.qualityRunId);
     requireWriterQualityRun(run, jobs, sha);
     const recoveryRaw = await privateJson(PRIVATE_ROOT + '/recovery.json');
     if (sha256(recoveryRaw) !== approval.recoveryEvidenceSha256) throw new WriterError('RECOVERY_EVIDENCE_CHECKSUM_MISMATCH');

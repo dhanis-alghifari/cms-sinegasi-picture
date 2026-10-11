@@ -353,6 +353,14 @@ inventory hash** for `baselineCatalogSha256`.
    `apply` checks this with Git, then fetches the named GitHub **Code Quality**
    push run and requires successful backend/frontend jobs for that exact SHA.
    A DEV run, PR run, old SHA or checkbox alone does not pass this gate.
+   The GitHub lookup uses `/opt/homebrew/bin/gh` with only fixed `github.com`
+   **GET** endpoints for the numeric run ID and its jobs in this repository.
+   Only this helper receives the trusted Mac home/config/state paths to find
+   the operator's existing GitHub login; backup/Keychain subprocesses retain
+   their original `PATH`/`LANG` environment. Parent tokens, debug flags, proxy
+   settings and config overrides are not inherited. Each lookup is capped at
+   30 seconds/1 MiB; failures or malformed JSON stop before database access,
+   with no raw CLI diagnostics. Do not add tokens to `.env` or Git as a fix.
 3. Create a **new** encrypted production backup, rehearse public restore, and
    copy/verify ciphertext on the VPS using the existing automation. Its ID must
    be at most **2 hours old at every phase/commit**. The historical backup from
@@ -495,16 +503,16 @@ authorization belongs to Fastify, not direct browser database roles.
 ### Evidence and limits
 
 Latest passing report:
-[11 October 2026, 15:31 WIB](production-reconciliation.writer-rehearsal.2026-10-11T08-31-57-655Z.json).
-All 14 isolated PostgreSQL checks passed and cleanup was verified. Its source
-digest was rechecked against the final runner code. Backend quality: 453 tests,
-452 passed, 1 local-PostgreSQL test skipped, 0 failed; typecheck/build and OpenAPI
+[11 October 2026, 17:35 WIB](production-reconciliation.writer-rehearsal.2026-10-11T10-35-27-537Z.json).
+All 16 isolated PostgreSQL checks passed and cleanup was verified. Its source
+digest was rechecked against the GitHub-auth fix. Backend quality: 459 tests,
+458 passed, 1 local-PostgreSQL test skipped, 0 failed; typecheck/build and OpenAPI
 parity for 159 operations passed. These are local/rehearsal results, not a new
 successful GitHub run or permission to apply. Earlier timestamped reports are
 historical; only the report matching the reviewed source may be selected.
 
 The timestamped writer rehearsal report proves the actual writer on a
-**synthetic legacy baseline** in disposable PostgreSQL, including 14 positive/
+**synthetic legacy baseline** in disposable PostgreSQL, including 16 positive/
 negative checks, table-lock timeout, both commit-response-loss cases, real DDL/
 reference rollback, resume and no-op. The earlier separate reconciliation report
 proves snapshot reconciliation against the restored historical public backup.
@@ -532,4 +540,6 @@ multi-party authorization or protection against a compromised administrator.
 
 References: [PostgreSQL enum transaction rule](https://www.postgresql.org/docs/17/sql-altertype.html),
 [session advisory locks](https://www.postgresql.org/docs/17/explicit-locking.html#ADVISORY-LOCKS),
-[Supabase migration deployment](https://supabase.com/docs/guides/deployment/database-migrations).
+[Supabase migration deployment](https://supabase.com/docs/guides/deployment/database-migrations),
+[GitHub CLI environment/configuration](https://cli.github.com/manual/gh_help_environment),
+[explicit API host/method](https://cli.github.com/manual/gh_api).
