@@ -1,8 +1,8 @@
 import { lstat, readFile } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
 import pg from 'pg';
-import { AGE, BACKUP_HOST, BACKUP_KEY_SERVICE, BACKUP_PROJECT, BACKUP_ROOT, databaseInventory, privateCommand,
-  privateCommandBytes, readGithubQualityMetadata, readKeychain, validateBackupCa, validateBackupTarget } from './productionBackupCore.js';
+import { AGE, BACKUP_HOST, BACKUP_KEY_SERVICE, BACKUP_PROJECT, BACKUP_ROOT, GITHUB_REPOSITORY_URL, databaseInventory, privateCommand,
+  privateCommandBytes, readGithubMainSha, readGithubQualityMetadata, readKeychain, validateBackupCa, validateBackupTarget } from './productionBackupCore.js';
 import { COPY_FILES, readCopyArtifact, validateCopyArtifacts } from './copyEncryptedBackupToVps.js';
 import { loadPreflightPlan } from './productionReconciliationPreflightCore.js';
 import { sha256 } from './productionReconciliation.js';
@@ -39,13 +39,19 @@ async function privateJson(path: string): Promise<string> {
   if (bytes.length > 1024 * 1024) throw new WriterError('REVIEW_DOCUMENT_TOO_LARGE');
   return bytes.toString('utf8');
 }
-async function releaseSha(repository: string, apply: boolean): Promise<string> {
+export async function requireWriterReleaseSha(repository: string, apply: boolean): Promise<string> {
   const git = (args: string[]) => privateCommand('/usr/bin/git', ['-C', repository, ...args]);
   const sha = (await git(['rev-parse', 'HEAD'])).trim();
   if (!/^[a-f0-9]{40}$/.test(sha)) throw new WriterError('INVALID_RELEASE_SHA');
-  if (apply && ((await git(['status', '--porcelain'])).trim() || (await git(['symbolic-ref', '--short', 'HEAD'])).trim() !== 'main'
-    || (await git(['ls-remote', 'origin', 'refs/heads/main'])).trim().split(/\s/)[0] !== sha)) {
-    throw new WriterError('CLEAN_REVIEWED_CURRENT_MAIN_RELEASE_REQUIRED');
+  if (apply) {
+    if ((await git(['status', '--porcelain'])).trim() || (await git(['symbolic-ref', '--short', 'HEAD'])).trim() !== 'main'
+      || (await git(['remote', 'get-url', 'origin'])).trim() !== GITHUB_REPOSITORY_URL) {
+      throw new WriterError('CLEAN_REVIEWED_CURRENT_MAIN_RELEASE_REQUIRED');
+    }
+    let remoteSha: string;
+    try { remoteSha = await readGithubMainSha(); }
+    catch { throw new WriterError('GITHUB_MAIN_METADATA_UNAVAILABLE'); }
+    if (remoteSha !== sha) throw new WriterError('CLEAN_REVIEWED_CURRENT_MAIN_RELEASE_REQUIRED');
   }
   return sha;
 }
@@ -87,7 +93,7 @@ export async function mainWriter(args = process.argv.slice(2)): Promise<void> {
   const repository = resolve(__dirname, '../../..');
   const { snapshot, plan } = await loadPreflightPlan(repository);
   const bundle = createWriterPackage(snapshot), sourceSha256 = await writerSourceHash(repository);
-  const sha = await releaseSha(repository, options.mode === 'apply');
+  const sha = await requireWriterReleaseSha(repository, options.mode === 'apply');
   if (options.mode === 'plan' && !inspect) {
     console.log(JSON.stringify({ status: 'WRITER_REVIEW_PLAN_ONLY', project: BACKUP_PROJECT, releaseSha: sha,
       packageSha256: bundle.packageSha256, runnerSourceSha256: sourceSha256, candidateSha256: bundle.candidateSha256,

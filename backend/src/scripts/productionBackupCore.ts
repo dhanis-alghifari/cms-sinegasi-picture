@@ -15,6 +15,7 @@ export const AGE = '/opt/homebrew/bin/age';
 export const AGE_KEYGEN = '/opt/homebrew/bin/age-keygen';
 export const PG_DUMP = '/opt/homebrew/opt/libpq@17/bin/pg_dump';
 export const SAFE_ENV = { PATH: '/usr/bin:/bin', LANG: 'C' };
+export const GITHUB_REPOSITORY_URL = 'https://github.com/dhanis-alghifari/cms-sinegasi-picture.git';
 const GITHUB_QUALITY_ENV = {
   ...SAFE_ENV, HOME: '/Users/memberid', GH_CONFIG_DIR: '/Users/memberid/.config/gh',
   XDG_STATE_HOME: '/Users/memberid/.local/state', GH_HOST: 'github.com',
@@ -135,6 +136,27 @@ export async function readGithubQualityMetadata(runId: number): Promise<{ run: u
     return { run, jobs };
   } catch {
     throw new BackupError('GITHUB_QUALITY_METADATA_UNAVAILABLE');
+  }
+}
+
+// Fixed read-only target, not a generic authenticated Git command. Ignore Git
+// config outside this invocation and use the existing gh login without tokens
+// in arguments, inherited overrides, credential persistence or interactive Git.
+export async function readGithubMainSha(): Promise<string> {
+  try {
+    const output = (await runPrivateCommandBytes('/usr/bin/git', [
+      '-C', '/', '-c', 'credential.helper=',
+      '-c', 'credential.helper=/opt/homebrew/bin/gh auth git-credential', '-c', 'core.askPass=',
+      '-c', 'http.sslVerify=true', '-c', 'http.followRedirects=false',
+      'ls-remote', '--exit-code', '--refs', GITHUB_REPOSITORY_URL, 'refs/heads/main',
+    ], '', 30_000, 1024, {
+      ...GITHUB_QUALITY_ENV, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null', GIT_TERMINAL_PROMPT: '0',
+    })).toString('utf8');
+    const match = /^([a-f0-9]{40})\trefs\/heads\/main\n?$/.exec(output);
+    if (!match) throw new Error();
+    return match[1];
+  } catch {
+    throw new BackupError('GITHUB_MAIN_METADATA_UNAVAILABLE');
   }
 }
 
