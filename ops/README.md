@@ -17,24 +17,9 @@ for `/api/health`. Compose orphan notices are suppressed with
 `COMPOSE_IGNORE_ORPHANS=1`; the script still verifies `caddy-proxy` directly and
 never uses `--remove-orphans`.
 
-Development and production workflows share one VPS checkout, so GitHub Actions
-serializes deployments. Each workflow checks out its target branch immediately
-before deploying; the deploy scripts also share a VPS lock for manual runs.
-
-Production uses the same contract from the `main` branch:
-
-```bash
-cd /opt/sinegasi
-git fetch origin main
-git checkout main
-git pull --ff-only origin main
-./ops/deploy-prod.sh
-```
-
-The migration runner records each filename and SHA-256 checksum in
-`public.schema_migrations`, uses a PostgreSQL advisory lock, and is safe to run
-on every push. Existing databases are baselined through migration `074` on the
-first run; new migrations such as `075_*.sql` are then applied automatically.
+The existing **development** deployment remains in `/opt/sinegasi`. Its legacy
+automatic migration behavior is not the production database procedure; do not
+assume a `074` baseline proves that an existing schema is complete.
 
 If Caddy is stopped or missing, the deploy fails closed. Restore it separately
 without orphan cleanup:
@@ -42,3 +27,249 @@ without orphan cleanup:
 ```bash
 docker compose -f docker-compose.caddy.yml up -d caddy
 ```
+
+## Isolated production releases — gated, not yet live
+
+`main` is the reviewed production release source. `develop` is a development
+branch, **not** a production backup. Production rollback uses the previous
+approved image **digest and deployment package**, with independently tested
+database compatibility/backups.
+
+Production must never switch the shared dev checkout to `main`, build on the
+VPS, run SQL as part of container startup, or restart Caddy. The new production
+workflow is manual (`workflow_dispatch`) and requires the `production`
+environment plus `PRODUCTION_DEPLOYMENT_READY=true`. Configure required
+reviewers and main-only deployment restrictions where supported by your GitHub
+plan; a variable alone is not evidence that readiness checks passed.
+
+The approved operator must provision this layout separately, owned by `ubuntu`
+with directory mode `0700` and sensitive file mode `0600`:
+
+```text
+/opt/sinegasi-prod/
+├── incoming/                         # checksummed CI deployment package
+├── releases/<full-commit-sha>/        # new directory; never overwrite
+│   ├── docker-compose.prod.yml
+│   └── ops/                          # wrapper, release helper, preflight
+├── config/
+│   ├── backend.env                   # production secrets, not dev credentials
+│   └── approvals/<full-sha>.txt       # reviewed non-secret release evidence
+└── state/current-release.txt         # atomic SHA/digest/manifest metadata
+```
+
+The workflow builds/tests on GitHub's runner, publishes an amd64 GHCR image,
+then displays its immutable `ghcr.io/...@sha256:...` digest. Before approving
+the deployment job, the operator must independently review that digest, the
+applied migration manifest, backup/restore and staging evidence; install this
+private approval file through the verified admin path:
+
+```text
+release_sha=<40-lowercase-hex-main-commit>
+api_image=ghcr.io/<owner>/<repository>/api@sha256:<64-lowercase-hex>
+migration_manifest_sha256=<64-lowercase-hex-approved-canonical-manifest-fingerprint>
+project_ref=pvbdiftvzoeelibxlxzb
+trust_proxy_hops=<0-through-4-from-verified-proxy-topology>
+database_rollback_compatible=true
+backup_reference=<private-evidence-reference-without-secrets>
+rehearsal_reference=<private-evidence-reference-without-secrets>
+approved_by=<approved-operator-identifier>
+```
+
+These references attest to separately reviewed evidence; the release script
+cannot prove that a backup restored successfully or that the production schema
+matches the manifest. Do not insert fictitious references or set the readiness
+variable to bypass those gates. No approval file is generated automatically.
+The manifest fingerprint uses SHA256 of `JSON.stringify(JSON.parse(file))`,
+matching the production migration runner, not a raw file-byte checksum. The
+workflow validates a separately approved manifest from the non-secret repository
+variable `PRODUCTION_MIGRATION_MANIFEST`, exact release SHA, inventory and SQL
+checksums offline before publishing. Create that approval artifact only after
+the release commit exists; committing a manifest that embeds its own commit
+SHA would create a circular hash dependency. Keep its private evidence outside
+the variable; use references, never secrets or database credentials.
+`ops/production-migrations.manifest.json` is only the draft source inventory,
+not an approval artifact. Its current blocked SQL must first be reconciled and
+rehearsed; changing the status/decision fields cannot make it executable.
+
+Required before remote execution:
+
+- Verified private SSH/rescue access with pinned ED25519 host key, production
+  environment reviewers and scoped credentials; do not close the working admin
+  path or change firewall rules in this workflow.
+- Private GHCR pull authentication on the VPS (read-packages only), Docker
+  Compose, `curl`, `flock`, GNU core utilities (`timeout` included), existing `caddy_net`, and running
+  dev/Caddy containers. Never put the registry token into the release package.
+- Separate runtime secrets for production Supabase/R2/JWT. Keep migration admin
+  credentials out of runtime config. Do not print/source the runtime env file
+  or dump `docker compose config`; validation uses `config --quiet`.
+- Actual Docker/Compose image and rollback rehearsal on an isolated host before
+  launch. Local mocked tests do not substitute for this environment check.
+- The shared `/tmp/sinegasi-vps-deploy.lock` must already be a regular,
+  non-symlink file owned by `ubuntu` with mode `0600`; provision/verify it through
+  the approved admin path while no deployment is running. Production opens it
+  read-only and never truncates it. Keep dev/manual deploys on this same inode.
+
+After the approved package is installed, the host-specific entry point accepts
+only an immutable release directory on `ubuntu@VM-11-154-ubuntu`:
+
+```bash
+cd /opt/sinegasi-prod/releases/<approved-full-commit-sha>
+bash ./ops/deploy-prod.sh <approved-full-commit-sha> <approved-ghcr-digest> <approved-manifest-sha256>
+```
+
+The script checks ownership/permissions and approval binding, takes the same
+VPS lock as dev, pre-pulls the previous/new digests, checks OCI revision labels,
+and imports only the image's runtime config in a one-off container (no DB calls
+or workers). Both image preflights must pass before it recreates **only**
+`api-prod` on `127.0.0.1:3002`, with workers/NTFY/dev-auth disabled, exact production
+Supabase URL/CORS origin, and explicitly approved proxy hops. The existing dev
+and Caddy container IDs/running state must remain unchanged.
+
+Health is bounded to at most 30 checks (each Docker health inspection and HTTP
+check ≤3 seconds, with ≤2
+seconds between attempts). A failed start/health check restores the previous
+approved package/digest and checks it again; release metadata is not advanced.
+If this is the first deployment, there is no previous release: only the failed
+production API is stopped. Reconcile that stopped untracked container manually
+before retrying; it is not removed automatically. A failed rollback reports a
+private rescue requirement without printing runtime logs/secrets.
+
+This is a single-container cutover, **not zero-downtime**, and does not restore
+database changes. The `/api/health` response and Docker health status prove only
+process health; auth, database/RPC grants, uploads and product flows still need
+the runbook's independent smoke/pilot checks. Keep background jobs disabled
+until billing/overdue idempotency and singleton behavior are separately tested.
+
+Finally configure the reviewed Cloudflare Tunnel API route and Pages custom
+domain; this package creates no DNS records, Tunnel, public Caddy label, Pages
+deployment or firewall rules. Frontend production must use
+`https://api.sinegasi.pictures/api`, not DuckDNS or a Supabase project URL.
+
+Local safety checks (no VPS/database credentials or real containers required):
+
+```bash
+bash -n ops/deploy-prod.sh ops/production-release.sh
+node --test ops/production-release.test.mjs
+node scripts/verify-guardrails.mjs
+```
+
+## Migration and initial Guru checkpoint
+
+The new schema-only reconciliation candidate and exact Mac operator commands
+are documented in [production reconciliation](production-reconciliation.md).
+It is rehearsal-only and does not approve/unblock the historical manifest.
+
+The budget path uses disposable PostgreSQL/PostgREST/API containers on the
+existing VPS, not a third Supabase project. The 21-flow
+[API receipt](production-api.rehearsal.json) passed and cleanup was verified;
+it is not full managed-Supabase/UI acceptance. A new **read-only**, exact-target
+preflight is available on the Mac; it has no apply/reset mode:
+
+```bash
+npm --prefix backend run db:reconciliation:preflight:plan
+npm --prefix backend run db:reconciliation:preflight
+```
+
+The second command may request Keychain Allow; it never prints credentials or
+loads `.env`. A successful report does not authorize production writes. See
+[current checkpoint and remaining gates](production-reconciliation.md#checkpoint-berikut--preflight-production-baca-saja).
+
+Read [production preparation and migration review](production-migration-review.md)
+before using the production runners. The current 90-file manifest is draft and
+cannot be applied safely to either a fresh database or the observed legacy
+production schema. Production has no approved bootstrap/migration package yet.
+
+Safe offline commands (no runtime env loading or database writes):
+
+```bash
+npm --prefix backend run db:production:plan
+npm --prefix backend run db:bootstrap:teacher -- --project-ref pvbdiftvzoeelibxlxzb --username admin --name Admin
+```
+
+Real runner mechanics were tested with `ops/rehearse-migration-runner-vps.sh`
+in an isolated, resource-limited disposable PostgreSQL 17.11 on the existing
+VPS. It accepts only that exact host/user and a newly provisioned private
+compiled-script bundle. It creates no app DB/service, publishes no port, reads
+no application environment file, preserves dev/Caddy, and removes only its own
+labelled containers. This is a synthetic runner check, not an approved SQL
+package rehearsal or backup/restore drill; do not generalize its result.
+
+## Encrypted production backup (Mac operator only)
+
+The backup command never loads application env files. It reads the approved
+admin URL from the local login Keychain, validates the exact production session
+pooler, pins the supplied Supabase Root 2021 CA, and uses a read-only exported
+snapshot. PostgreSQL 17.11 `pg_dump` streams a custom archive directly into
+`age` 1.3.2 encryption. The password is delivered to the detached client's
+password prompt over stdin, not a URL/argument, environment variable or file.
+No unencrypted archive is written on the Mac.
+
+The separate age identity is stored as a generic password in login Keychain:
+service `sinegasi-prod-backup-age-identity`, account `pvbdiftvzoeelibxlxzb`.
+Its trust list is empty: choose **Allow** when required, not unrestricted app
+access. It is never printed or written as a plaintext key file. Backup output
+is outside Git at `~/Library/Application Support/Sinegasi/Backups/<backup-id>`;
+owned directories are `0700`, files `0600`, and existing files are not replaced.
+An incomplete run without a receipt is not a verified backup.
+
+Run from the Mac with the reviewed CA at
+`/Users/memberid/Downloads/prod-ca-2021.crt`, client tools already installed,
+and the Keychain item `sinegasi-prod-postgres-admin-url` (account `postgres`):
+
+```bash
+npm --prefix backend run db:production:backup -- create
+cd backend
+npx tsc
+npm run db:rehearse:backup -- <exact-backup-id>
+```
+
+The restore drill checks encrypted hashes and authenticated decryption, then
+restores **only `public` application objects/data/ACLs** on an isolated cached
+PostgreSQL 17.11 container on the approved VPS. Managed-role names are fixtures
+with NOLOGIN, never live credentials; needed bundled extensions are prepared
+separately. The container has no network, ports or persistent data volumes;
+data/archive live in tmpfs with cgroup swap disabled. A fresh verification
+client uses image contents only, not dev environment/mounts. Catalog/data/RLS
+checks compare against metadata from the same source snapshot. Cleanup removes
+only labelled disposable containers and the exact temporary verification
+bundle; dev/Caddy IDs and running state must remain unchanged.
+
+The full logical archive is retained encrypted. This drill is **not** a restore
+of all Supabase-managed Auth/Storage/Vault schemas, platform secrets/settings,
+cluster role passwords, R2/storage file bytes, or a rehearsal of the SQL
+migration package. It does not prove API authorization or future rollback
+compatibility. Keep those gates separate. Off-device backup and independent
+recovery-key custody/retention must be chosen and verified before go-live;
+a single Mac plus its login Keychain is not disaster recovery.
+
+### Private encrypted copy on the application VPS
+
+After a verified public restore drill, the Mac operator may copy **only**
+`database.dump.age`, `metadata.json.age`, and the two non-secret backup/restore
+receipts to the approved VPS. No database connection or Keychain access is used.
+
+```bash
+npm --prefix backend run db:backup:copy-vps -- <exact-backup-id>
+```
+
+The receiver validates the pinned SSH target, root-owned parents, exact ID and
+file allowlist. It creates `/opt/sinegasi-backups/production/<backup-id>` with
+`0700` directories and exclusive `0600` files owned by root, fsyncs each upload,
+then checks file size, SHA256 read-back and unchanged dev/Caddy container IDs,
+start times and restart counts. A separate `vps-copy-verification.json` is
+saved privately on both machines; initial receipts are not rewritten. The
+command never overwrites or deletes an existing backup.
+
+If initialization was interrupted, inspect the exact destination first.
+`--resume-empty` is allowed only for a verified **entirely empty** private
+destination; it refuses any existing file. A partial transfer without the final
+verification record is not a verified copy and needs scoped investigation.
+
+This is an off-Mac ciphertext copy, **not** a new running PostgreSQL database,
+scheduled backup, full managed-Supabase restore proof, or approval to migrate.
+The age private key and admin URL remain in Mac Keychain. Export independent
+recovery-key custody through an approved private channel before launch; losing
+the Mac/Keychain otherwise makes the ciphertext unusable. The same VPS also
+hosts the application: root/Docker-level compromise or host loss can damage
+this copy. Keep a further independent recovery copy, establish RPO/RTO and
+retention, and rehearse recovery; root-only permissions are not immutability.

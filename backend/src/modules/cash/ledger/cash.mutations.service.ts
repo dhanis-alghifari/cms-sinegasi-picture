@@ -12,10 +12,15 @@ export class CashMutationsServiceError extends Error {
 
 function mapRepositoryError(error: CashRepositoryError, fallback: string): never {
   if (isMissingCashSchemaError(error)) throw new CashMutationsServiceError(503, 'CASH_SCHEMA_UNAVAILABLE', CASH_SCHEMA_MIGRATION_MESSAGE);
+  const insufficientBalanceMessage = 'Saldo kas tidak mencukupi untuk pengeluaran ini.';
+  // The deployed RPC raises this exact business exception with SQLSTATE P0001.
+  // Do not expose arbitrary database messages or classify every P0001 as a client error.
+  const insufficientBalance = error?.code === 'INSUFFICIENT_BALANCE'
+    || (error?.code === 'P0001' && error.message === insufficientBalanceMessage);
+  if (insufficientBalance) throw new CashMutationsServiceError(400, 'INSUFFICIENT_BALANCE', insufficientBalanceMessage);
   const code = error?.code || 'CASH_MUTATION_FAILED';
   let statusCode = 500;
   if (['INVALID_PAYMENT_METHOD', 'STUDENT_NOT_FOUND', 'FUTURE_DEBT'].includes(code)) statusCode = 422;
-  else if (code === 'INSUFFICIENT_BALANCE') statusCode = 400;
   else if (code === '23505' || code === 'DUPLICATE') statusCode = 409;
   throw new CashMutationsServiceError(statusCode, code, statusCode >= 500 ? fallback : error?.message || fallback);
 }

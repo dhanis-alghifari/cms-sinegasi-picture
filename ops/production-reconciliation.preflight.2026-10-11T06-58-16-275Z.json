@@ -1,0 +1,40 @@
+{
+  "status": "PRODUCTION_LEGACY_READONLY_PREFLIGHT_PASSED",
+  "project": "pvbdiftvzoeelibxlxzb",
+  "schemaPackageSha256": "69d75b389107afa6281a5187e70d2f8299c6c5fa22e38a23a939693bb5925e75",
+  "snapshotSha256": "3a5cab9d94af6ad8e7c66971327f65b27f0f98217405b055ced456b394ad9fba",
+  "referenceChecksum": "996e9e727cd1062ceb2b1f22e80e930250c26b264c7469e65654cdcbbc21d079",
+  "referenceRows": 213,
+  "historicalBackupId": "2026-10-10T23-15-02-437Z",
+  "billingAmount": 5000,
+  "targetTables": 73,
+  "expectedLegacyTables": 17,
+  "apiChecks": 21,
+  "evidenceSha256": {
+    "production-reconciliation.fresh-rehearsal.json": "14b1e985a5f1bf5629d629a7f6764f7c7b338a697984b9daa26d48d607f5b117",
+    "production-reconciliation.rehearsal.json": "7da8b40428296c03202500acce4f544793bfc60da404cbe5efbf33462d3f11fa",
+    "production-reference-data.rehearsal.json": "4660fb9b3512240982eb0f8d415607627dc56a689497475a1453fe63ad9b161e",
+    "production-api.rehearsal.json": "657fb8b6fe896f2d945f23102a15653a04ac6ac4334375b5629afd4d1e965731"
+  },
+  "applyAvailable": false,
+  "productionApproved": false,
+  "productionChanged": false,
+  "pending": [
+    "REVIEW_AND_TEST_PRODUCTION_WRITE_RUNNER",
+    "BIND_REVIEWED_RELEASE_AND_CURRENT_CATALOG",
+    "FRESH_BACKUP_RESTORE_AND_RECOVERY_COPY",
+    "APPROVED_MIGRATION_WINDOW",
+    "MANAGED_POST_MIGRATION_ACCEPTANCE"
+  ],
+  "verifiedAt": "2026-10-11T06:58:16.275Z",
+  "catalogSha256": "acdd476060ea314b4fc898ca3904fb292d013b4061afda47e1b16cb4b5059196",
+  "tables": 17,
+  "totalPublicRows": 0,
+  "sourceVersion": "17.6",
+  "readOnly": true,
+  "legacyTableAndColumnBaselineMatched": true,
+  "fullLegacyCatalogComparedToBackup": false,
+  "fullManagedSchemasVerified": false,
+  "readyToApply": false,
+  "observationOnly": true
+}

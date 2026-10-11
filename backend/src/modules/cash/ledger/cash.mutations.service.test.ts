@@ -3,6 +3,7 @@ import test from 'node:test';
 import { CashMutationsService, CashMutationsServiceError } from './cash.mutations.service.js';
 import { createCashMutationsRepository } from './cash.mutations.repository.js';
 import type { CashMutationMemoryState } from './cash.mutations.types.js';
+import type { CashMutationsRepository } from './cash.mutations.repository.js';
 
 function state(): CashMutationMemoryState {
   const now = new Date().toISOString();
@@ -42,6 +43,28 @@ test('cash mutation service rejects an expense larger than the current balance',
     service.recordOut({ nominal: 1000, keterangan: 'Beli perlengkapan' }, 'user-1', 'cash-out-1'),
     (error: unknown) => error instanceof CashMutationsServiceError && error.statusCode === 400 && error.errorCode === 'INSUFFICIENT_BALANCE',
   );
+});
+
+test('cash mutation service maps the exact PostgreSQL insufficient-balance exception to a safe 400', async () => {
+  const repository: CashMutationsRepository = {
+    isConfigured: () => true,
+    async recordCashIn() { throw new Error('Unexpected income operation'); },
+    async recordCashOut() { return { data: null, error: { code: 'P0001', message: 'Saldo kas tidak mencukupi untuk pengeluaran ini.' } }; },
+  };
+  await assert.rejects(new CashMutationsService(repository).recordOut({ nominal: 9000, keterangan: 'Fixture expense' }, 'fixture'),
+    (error: unknown) => error instanceof CashMutationsServiceError && error.statusCode === 400
+      && error.errorCode === 'INSUFFICIENT_BALANCE' && error.message === 'Saldo kas tidak mencukupi untuk pengeluaran ini.');
+});
+
+test('cash mutation service keeps unknown SQL exceptions generic and server-side', async () => {
+  const repository: CashMutationsRepository = {
+    isConfigured: () => true,
+    async recordCashIn() { throw new Error('Unexpected income operation'); },
+    async recordCashOut() { return { data: null, error: { code: 'P0001', message: 'Private row values or provider diagnostics' } }; },
+  };
+  await assert.rejects(new CashMutationsService(repository).recordOut({ nominal: 9000, keterangan: 'Fixture expense' }, 'fixture'),
+    (error: unknown) => error instanceof CashMutationsServiceError && error.statusCode === 500
+      && error.errorCode === 'P0001' && error.message === 'Gagal mencatat pengeluaran kas.');
 });
 
 test('cash mutation service validates payment method and calendar date before persistence', async () => {

@@ -4,6 +4,7 @@ import jwt from '@fastify/jwt';
 import { runtimeConfig } from '../config/env.js';
 import { startOverdueWorker } from '../workers/overdueWorker.js';
 import { startWeeklyBillingWorker } from '../workers/weeklyBillingWorker.js';
+import { createBackgroundJobs } from '../workers/backgroundJobs.js';
 import { createAppDependencies } from './app.dependencies.js';
 import { registerAppHooks } from './app.hooks.js';
 import { registerAppRoutes } from './app.routes.js';
@@ -37,8 +38,16 @@ export async function createApplication(): Promise<ApplicationRuntime> {
     trustProxy,
   });
   const dependencies = createAppDependencies(app);
-  let overdueWorkerTimer: NodeJS.Timeout | undefined;
-  let weeklyBillingWorkerStop: (() => void) | undefined;
+  const workers = createBackgroundJobs(runtimeConfig.backgroundJobsEnabled, () => {
+    const overdueWorkerTimer = startOverdueWorker(app, dependencies.overdueService);
+    try {
+      const billingWorker = startWeeklyBillingWorker(app, dependencies.billingService);
+      return () => { clearInterval(overdueWorkerTimer); billingWorker.stop(); };
+    } catch (error) {
+      clearInterval(overdueWorkerTimer);
+      throw error;
+    }
+  });
 
   await app.register(cors, {
     origin: runtimeConfig.corsOrigins,
@@ -54,15 +63,11 @@ export async function createApplication(): Promise<ApplicationRuntime> {
   await registerAppRoutes(app, dependencies);
 
   app.addHook('onClose', async () => {
-    if (overdueWorkerTimer) clearInterval(overdueWorkerTimer);
-    weeklyBillingWorkerStop?.();
+    workers.stop();
   });
 
   return {
     app,
-    startWorkers: () => {
-      overdueWorkerTimer = startOverdueWorker(app, dependencies.overdueService);
-      weeklyBillingWorkerStop = startWeeklyBillingWorker(app, dependencies.billingService).stop;
-    },
+    startWorkers: workers.start,
   };
 }

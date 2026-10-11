@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { Client } from 'pg';
 import { runtimeConfig } from '../config/env.js';
+import { assertLegacyMigrationTarget } from './migrationSafety.js';
 
 async function main(): Promise<void> {
   const databaseUrl = runtimeConfig.databaseUrl;
@@ -26,6 +27,7 @@ async function main(): Promise<void> {
   });
 
   try {
+    assertLegacyMigrationTarget(databaseUrl, runtimeConfig.environment === 'production');
     await client.connect();
     await client.query('BEGIN');
     for (const migrationPath of migrationPaths) await client.query(await readFile(migrationPath, 'utf8'));

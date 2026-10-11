@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { backgroundJobsEnabled } from '../workers/backgroundJobs.js';
 
 export type RuntimeEnvironment = "development" | "test" | "production";
 
@@ -21,6 +22,7 @@ export interface RuntimeConfig {
   r2AccessKeyId: string;
   r2SecretAccessKey: string;
   ntfyEnabled: boolean;
+  backgroundJobsEnabled: boolean;
   ntfyServerUrl: string;
   ntfyTopic: string;
   ntfyCashReviewTopic: string;
@@ -29,6 +31,7 @@ export interface RuntimeConfig {
 }
 
 function loadEnvFile(): void {
+  if (process.env.ENV_FILE_LOADING === 'disabled') return;
   const candidates = [
     path.resolve(process.cwd(), ".env"),
     path.resolve(process.cwd(), "backend/.env"),
@@ -198,6 +201,7 @@ export const runtimeConfig: RuntimeConfig = {
   // Push delivery is opt-in so local/test runs never leak workflow metadata to
   // a shared topic unless the operator explicitly enables it.
   ntfyEnabled: parseBoolean(process.env.NTFY_ENABLED, false),
+  backgroundJobsEnabled: backgroundJobsEnabled(process.env.BACKGROUND_JOBS_ENABLED, environment === 'production'),
   ntfyServerUrl: (process.env.NTFY_SERVER_URL || "https://ntfy.sh").replace(/\/$/, ""),
   ntfyTopic: (process.env.NTFY_TOPIC || "sinegasi-dev-notif").trim(),
   ntfyCashReviewTopic: (process.env.NTFY_CASH_REVIEW_TOPIC || "").trim(),

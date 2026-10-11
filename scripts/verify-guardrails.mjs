@@ -35,8 +35,11 @@ console.log('🛡️  Running Deployment & Infrastructure Guardrail Checks...\n'
 // ============================================================================
 const devWorkflow = readFile('.github/workflows/deploy-dev.yml');
 const prodWorkflow = readFile('.github/workflows/deploy-prod.yml');
+assert(prodWorkflow.includes('db:production -- verify') && prodWorkflow.includes('--release-sha'),
+  '[GUARDRAIL VIOLATION] Production image publishing must reject unapproved/draft/checksum-mismatched migration packages offline.');
 const devDeployScript = readFile('ops/deploy-dev.sh');
 const prodDeployScript = readFile('ops/deploy-prod.sh');
+const prodReleaseScript = readFile('ops/production-release.sh');
 
 // Rule 1.1: Never use --remove-orphans in deploy workflows (kills Caddy/other compose services)
 assert(
@@ -55,7 +58,7 @@ assert(
 );
 assert(
   prodWorkflow.includes('./ops/deploy-prod.sh'),
-  '[GUARDRAIL VIOLATION] .github/workflows/deploy-prod.yml must deploy through ./ops/deploy-prod.sh so migrations and Caddy protection are enforced.'
+  '[GUARDRAIL VIOLATION] Production must deploy through the isolated reviewed release entry point.'
 );
 assert(
   devWorkflow.includes('./ops/deploy-dev.sh'),
@@ -63,7 +66,7 @@ assert(
 );
 assert(
   devWorkflow.includes('group: sinegasi-vps-deployment') && prodWorkflow.includes('group: sinegasi-vps-deployment'),
-  '[GUARDRAIL VIOLATION] Development and production workflows must serialize shared VPS checkout/deploy operations.'
+  '[GUARDRAIL VIOLATION] Development and production workflows must serialize shared VPS deployment operations.'
 );
 assert(
   devDeployScript.includes('dist/scripts/applyMigrations.js'),
@@ -82,12 +85,24 @@ assert(
   '[GUARDRAIL VIOLATION] ops/deploy-dev.sh must verify the existing Caddy container before and after deployment.'
 );
 assert(
-  prodDeployScript.includes('CADDY_CONTAINER') && prodDeployScript.includes('is_caddy_running'),
-  '[GUARDRAIL VIOLATION] ops/deploy-prod.sh must verify the existing Caddy container before and after deployment.'
+  prodReleaseScript.includes('caddy-proxy') && prodReleaseScript.includes('sinegasi-api-dev') && prodReleaseScript.includes('preserved_containers_unchanged'),
+  '[GUARDRAIL VIOLATION] Production must preserve and verify existing dev/Caddy containers.'
 );
 assert(
-  prodDeployScript.includes('docker compose -f "$CADDY_COMPOSE_FILE" up -d caddy'),
-  '[GUARDRAIL VIOLATION] ops/deploy-prod.sh must ensure the managed Caddy service is running before production deployment.'
+  !prodDeployScript.includes('applyMigrations') && !prodReleaseScript.includes('applyMigrations') && !prodReleaseScript.includes('up -d caddy'),
+  '[GUARDRAIL VIOLATION] Production rollout must not execute SQL or restart Caddy.'
+);
+assert(
+  prodWorkflow.includes('workflow_dispatch:') && !/^\s+push:/m.test(prodWorkflow) && prodWorkflow.includes('environment: production') && prodWorkflow.includes('PRODUCTION_DEPLOYMENT_READY'),
+  '[GUARDRAIL VIOLATION] Production must require manual dispatch and a protected readiness gate.'
+);
+assert(
+  prodDeployScript.includes('PRODUCTION_ROOT=/opt/sinegasi-prod') && !prodWorkflow.includes('git pull') && !prodDeployScript.includes('git pull') && !prodReleaseScript.includes(' compose build'),
+  '[GUARDRAIL VIOLATION] Production must use an isolated immutable release, never the shared dev checkout/build.'
+);
+assert(
+  prodReleaseScript.includes('@sha256:') && prodReleaseScript.includes('restore_previous_release') && prodReleaseScript.includes('read_approval') && !prodReleaseScript.includes(':latest'),
+  '[GUARDRAIL VIOLATION] Production requires immutable images, release approval, and exact-digest rollback.'
 );
 
 // Rule 1.3: Must use --force-recreate so containers actually update
@@ -96,15 +111,15 @@ assert(
   '[GUARDRAIL VIOLATION] ops/deploy-dev.sh must use "--force-recreate" to ensure container code updates are applied.'
 );
 assert(
-  prodDeployScript.includes('--force-recreate'),
+  prodReleaseScript.includes('--force-recreate'),
   '[GUARDRAIL VIOLATION] ops/deploy-prod.sh must use "--force-recreate" to ensure container code updates are applied.'
 );
 assert(
-  devDeployScript.includes('sinegasi-vps-deploy.lock') && prodDeployScript.includes('sinegasi-vps-deploy.lock'),
+  devDeployScript.includes('sinegasi-vps-deploy.lock') && prodReleaseScript.includes('sinegasi-vps-deploy.lock'),
   '[GUARDRAIL VIOLATION] Development and production deploy scripts must share one VPS deploy lock.'
 );
 assert(
-  devDeployScript.includes('COMPOSE_IGNORE_ORPHANS') && prodDeployScript.includes('COMPOSE_IGNORE_ORPHANS'),
+  devDeployScript.includes('COMPOSE_IGNORE_ORPHANS') && prodReleaseScript.includes('COMPOSE_IGNORE_ORPHANS'),
   '[GUARDRAIL VIOLATION] Deploy scripts must suppress harmless orphan warnings without using orphan removal.'
 );
 
@@ -133,6 +148,14 @@ assert(
 assert(
   prodCompose.includes('caddy_net') && prodCompose.includes('external: true'),
   '[GUARDRAIL VIOLATION] docker-compose.prod.yml must join external network "caddy_net".'
+);
+assert(
+  !/^\s+build:/m.test(prodCompose) && prodCompose.includes('image: ${API_IMAGE:?') && prodCompose.includes('PRODUCTION_ENV_FILE:?') && prodCompose.includes('BACKGROUND_JOBS_ENABLED=false') && prodCompose.includes('PRODUCTION_TRUST_PROXY:?'),
+  '[GUARDRAIL VIOLATION] Production Compose must use approved digest/private config with workers disabled and explicit proxy topology.'
+);
+assert(
+  !/^\s+caddy:/m.test(prodCompose) && !prodCompose.includes('api.sinegasi.com'),
+  '[GUARDRAIL VIOLATION] Production must not expose an unreviewed public Caddy hostname.'
 );
 assert(
   caddyCompose.includes('container_name: caddy-proxy') && caddyCompose.includes('ports:') && caddyCompose.includes('"443:443"'),

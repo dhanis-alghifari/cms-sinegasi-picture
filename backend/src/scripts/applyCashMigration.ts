@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { Client } from 'pg';
 import { runtimeConfig } from '../config/env.js';
+import { assertLegacyMigrationTarget } from './migrationSafety.js';
 
 const migrationNames = [
   '011_cash_management_hardening.sql',
@@ -290,6 +291,7 @@ async function main(): Promise<void> {
   }
 
   try {
+    assertLegacyMigrationTarget(databaseUrl, runtimeConfig.environment === 'production');
     await runCashMigrations(databaseUrl);
   } catch (error) {
     console.error(error instanceof Error ? error.message : error);

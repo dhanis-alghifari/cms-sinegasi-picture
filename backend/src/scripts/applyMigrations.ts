@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { Client } from 'pg';
 import { runtimeConfig } from '../config/env.js';
+import { assertLegacyMigrationTarget } from './migrationSafety.js';
 
 const migrationFilePattern = /^(\d+)_.*\.sql$/;
 const migrationHistoryTable = 'public.schema_migrations';
@@ -216,6 +217,7 @@ async function main(): Promise<void> {
   }
 
   try {
+    assertLegacyMigrationTarget(databaseUrl, runtimeConfig.environment === 'production');
     await runMigrations(databaseUrl);
   } catch (error) {
     console.error('Schema migrations gagal diterapkan.');

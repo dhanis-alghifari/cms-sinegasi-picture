@@ -1,0 +1,31 @@
+{
+  "status": "RECONCILIATION_FRESH_REHEARSAL_PASSED",
+  "packageSha256": "69d75b389107afa6281a5187e70d2f8299c6c5fa22e38a23a939693bb5925e75",
+  "tables": 73,
+  "functions": 111,
+  "constraints": 479,
+  "indexes": 172,
+  "triggers": 37,
+  "checks": {
+    "freshDatabase": true,
+    "restoredLegacyBackup": false,
+    "emptyBusinessTables": true,
+    "rlsAllTables": true,
+    "columnsConstraintsIndexesEnumsViewsTriggersPoliciesMatch": true,
+    "functionBodiesAndDefinerSemanticsPreserved": true,
+    "browserTableAndRpcDenied": true,
+    "serviceRoleAccess": true,
+    "ddlAndHistoryRollback": true,
+    "repeatIsNoop": true,
+    "checksumDriftRefused": true,
+    "nonemptyDatabaseRefused": true,
+    "concurrentRunnerRefused": true
+  },
+  "productionChanged": false,
+  "devDatabaseChanged": false,
+  "productionApproved": false,
+  "applicationFlowTestsPassed": false,
+  "managedSupabaseIntegrationTested": false,
+  "verifiedAt": "2026-10-11T01:57:42.656Z",
+  "cleanupVerified": true
+}
