@@ -623,6 +623,83 @@ recovery acceptance still need separate verification. Successful writer output
 always has `readyForPublicLaunch:false`, and does not create the first `admin`
 teacher account or enable background jobs.
 
+### Managed production read-only integration (Mac)
+
+The initial schema/configuration migration and its final catalog checks are
+separate from application integration. Run this test only while production has
+the initial 213 canonical configuration rows and no business/account data. It
+refuses count/configuration drift; it never resets a populated project.
+
+1. Open [production API Keys](https://supabase.com/dashboard/project/pvbdiftvzoeelibxlxzb/settings/api-keys).
+   Use an **existing** backend secret key (`sb_secret_...`) or legacy
+   `service_role` key. Do not rotate/generate signing keys, disable Data API,
+   paste credentials in chat, or edit DEV `.env`.
+2. In **Keychain Access → login**, create generic password items with the
+   exact names below. Set **Account** to `pvbdiftvzoeelibxlxzb` for both:
+   - `sinegasi-prod-supabase-service-role-key`: the backend secret/service-role key.
+   - `sinegasi-prod-supabase-publishable-key`: the existing publishable/anon key.
+   These are API keys, not the PostgreSQL admin URL or age backup identity.
+   Do not use the separate Passwords app as a substitute for these CLI items.
+3. In **Terminal Mac Lokal**, run these actual commands:
+
+   ```bash
+   cd /Users/memberid/Documents/cms-sinegasi-picture/backend
+   npm run typecheck
+   ENV_FILE_LOADING=disabled node --import tsx --test src/scripts/productionManagedIntegration.test.ts
+   ENV_FILE_LOADING=disabled npm run db:production:integration:plan
+   ENV_FILE_LOADING=disabled npm run db:production:integration -- check --confirm-project pvbdiftvzoeelibxlxzb
+   ```
+
+   Choose **Allow** for the requested API-key Keychain dialogs. No secrets enter
+   process arguments, repository files, or test output. A missing/denied item
+   stops the test with a sanitized stage; fix that item rather than retrying SQL.
+4. Require `MANAGED_SUPABASE_READ_ONLY_INTEGRATION_PASSED`, not simply exit 0.
+   The receipt names the tested release and runner digest and explicitly reports
+   a dirty local tree. A local runner result is not CI/release promotion.
+
+Enforced transport allows only bounded GET/HEAD requests to the exact production
+Data API, reviewed relations, and three read-only GET RPCs. Redirects, other
+projects/schemas, Auth/Storage, write methods and all other RPCs are blocked
+before network access. TLS verification remains enabled; no server port or
+workers are started. Checks cover reads/counts of 68 application tables and two
+views, exact canonical rows, three GET RPC contracts, anonymous relation/RPC
+permission errors, unchanged application row counts, actual Fastify
+liveness/security headers and two real application read adapters. The five
+private migration journals (`schema_migrations` and the agenda/borrowing/cash/
+contest migration histories) must return HTTP 401/403 with SQLSTATE `42501` for
+both service and anonymous keys. A readable journal, invalid key, missing
+relation or gateway failure does not pass this check. No database grants or
+migration artifacts are changed to satisfy the test. It creates no account,
+JWT impersonation, transaction or test data.
+
+**Important:** even ordinary application GET requests persist rate-limit
+counters through `consume_api_rate_limit_atomic`. Therefore this read-only
+runner does not call authenticated API routes or login, replace the shared
+rate limiter with a mock, or claim full managed acceptance. Login/password
+rotation/revocation, per-role API authorization, mutating RPCs, uploads/media,
+authenticated Supabase HTTP role, UI and deployment remain separate gates.
+Those tests need scoped account/data/counter-write approval and recovery review.
+
+Actual read-only run: [11 October 2026, 23:13 WIB](production-managed-integration.read-only.2026-10-11T16-13-51-803Z.json).
+All nine checks passed with 232 GET/HEAD requests and no blocked mutation attempt.
+The receipt binds runner source SHA256
+`f463e7949a4f1b3037f0b54d1d2879179a08743cfcc14e77e59643b512114640`
+and honestly records a dirty local checkout: this is not evidence of a pushed
+release, authenticated acceptance or readiness for public launch. Local backend
+quality also passed: 479 tests passed, one explicit disposable-PostgreSQL test
+skipped, TypeScript/build passed and OpenAPI parity covered 159 operations.
+
+Dependency review (11 October 2026): backend `npm audit --json` reported zero
+findings. Frontend audit reported seven high findings in the existing
+`shadcn → fast-glob/micromatch → braces` toolchain, including
+[GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm).
+Repository usage of `shadcn` is its static `tailwind.css` import, not its Node
+CLI/glob API; no exposed application path to the vulnerable parser was found
+in this scoped review. This is not a clean frontend audit or a complete
+exploitability assessment. Dependency changes are deferred to a separate
+review by 18 October 2026, before public launch; do not run `npm audit fix
+--force` or downgrade the CLI automatically to satisfy the audit.
+
 The old production deployment workflow still requires an approved historical
 manifest, which remains draft/blocked. This writer does **not** mark it approved
 or open that deployment gate. Account bootstrap and release/deployment gate

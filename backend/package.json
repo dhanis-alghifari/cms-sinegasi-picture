@@ -29,6 +29,8 @@
     "db:production:prepare": "npm run typecheck && node --import tsx --test --test-concurrency=1 src/scripts/productionReferenceData.test.ts src/scripts/rehearseFreshProductionSchema.test.ts src/scripts/productionReconciliation.test.ts src/scripts/bootstrapTeacher.test.ts src/scripts/migrationSafety.test.ts && npm run db:production:reference:plan -- --billing-amount 5000",
     "db:production:reference:rehearse": "tsc && node --import tsx src/scripts/rehearseFreshProductionSchema.ts rehearse-reference",
     "db:production:api:rehearse": "tsc && node --import tsx src/scripts/rehearseProductionApi.ts rehearse-api",
+    "db:production:integration:plan": "node --import tsx src/scripts/productionManagedIntegration.ts plan",
+    "db:production:integration": "node --import tsx src/scripts/productionManagedIntegration.ts",
     "db:reconciliation:preflight:plan": "node --import tsx src/scripts/productionReconciliationPreflight.ts plan",
     "db:reconciliation:preflight": "node --import tsx src/scripts/productionReconciliationPreflight.ts preflight",
     "db:reconciliation:writer:plan": "node --import tsx src/scripts/reconciliationWriter.ts plan",
