@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { BACKUP_HOST, BACKUP_PROJECT, BackupError, privateCommandBytes, privateDirectory, quoteIdentifier, validateBackupCa, validateBackupTarget } from './productionBackupCore.js';
+import childProcess, { type SpawnOptions } from 'node:child_process';
+import { BACKUP_HOST, BACKUP_PROJECT, BackupError, privateCommandBytes, privateDirectory, quoteIdentifier, readGithubQualityMetadata, validateBackupCa, validateBackupTarget } from './productionBackupCore.js';
 
 const uri = `postgresql://postgres.${BACKUP_PROJECT}:test-secret@${BACKUP_HOST}:5432/postgres`;
 
@@ -68,4 +69,74 @@ test('refuse repository, traversal and arbitrary backup directories before acces
   for (const path of ['/tmp/backup', process.cwd(), '/Users/memberid/Library/Application Support/Sinegasi/Backups/../Recovery']) {
     await assert.rejects(privateDirectory(path), /UNSAFE_BACKUP_PATH/);
   }
+});
+
+test('GitHub quality lookup uses only fixed GET endpoints and trusted Mac config, without inherited overrides', async (t) => {
+  const keys = ['GH_TOKEN', 'GITHUB_TOKEN', 'GH_DEBUG', 'HOME', 'GH_CONFIG_DIR', 'XDG_CONFIG_HOME',
+    'XDG_STATE_HOME', 'GH_HOST', 'HTTPS_PROXY', 'NODE_OPTIONS', 'SINEGASI_SYNTHETIC_SECRET'] as const;
+  const previous = keys.map(key => [key, process.env[key]] as const);
+  for (const key of keys) process.env[key] = 'synthetic-untrusted-override';
+  t.after(() => {
+    for (const [key, value] of previous) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+  const calls: { command: string; args: string[]; options: SpawnOptions }[] = [];
+  const spawn = childProcess.spawn;
+  const stub = t.mock.method(childProcess, 'spawn', (command: string, args: string[], options: SpawnOptions) => {
+    calls.push({ command, args, options });
+    return spawn(process.execPath, ['-e', 'process.stdout.write(JSON.stringify({env:process.env}))'], options);
+  });
+  const metadata = await readGithubQualityMetadata(38129894832);
+  assert.equal(calls.length, 2);
+  for (const [index, call] of calls.entries()) {
+    assert.equal(call.command, '/opt/homebrew/bin/gh');
+    assert.deepEqual(call.args, ['api', '--hostname', 'github.com', '--method', 'GET',
+      'repos/dhanis-alghifari/cms-sinegasi-picture/actions/runs/38129894832' + (index === 1 ? '/jobs?per_page=100' : '')]);
+    assert.equal(call.options.detached, true);
+    assert.deepEqual(call.options.stdio, ['pipe', 'pipe', 'pipe']);
+  }
+  for (const result of [metadata.run, metadata.jobs]) {
+    const environment = (result as { env: Record<string, string> }).env;
+    delete environment.__CF_USER_TEXT_ENCODING;
+    assert.deepEqual(environment, {
+      PATH: '/usr/bin:/bin', LANG: 'C', HOME: '/Users/memberid',
+      GH_CONFIG_DIR: '/Users/memberid/.config/gh', XDG_STATE_HOME: '/Users/memberid/.local/state',
+      GH_HOST: 'github.com', GH_PROMPT_DISABLED: '1', GH_NO_UPDATE_NOTIFIER: '1', GH_TELEMETRY: '0',
+    });
+  }
+  stub.mock.restore();
+  const generic = JSON.parse((await privateCommandBytes(process.execPath,
+    ['-e', 'process.stdout.write(JSON.stringify(process.env))'])).toString('utf8')) as Record<string, string>;
+  delete generic.__CF_USER_TEXT_ENCODING;
+  assert.deepEqual(generic, { PATH: '/usr/bin:/bin', LANG: 'C' });
+});
+
+test('invalid GitHub run IDs are rejected before spawning a process', async (t) => {
+  const spawn = t.mock.method(childProcess, 'spawn', () => { throw new Error('must not spawn'); });
+  for (const id of [0, -1, 1.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1]) {
+    await assert.rejects(readGithubQualityMetadata(id), /INVALID_GITHUB_QUALITY_RUN_ID/);
+  }
+  assert.equal(spawn.mock.callCount(), 0);
+});
+
+test('GitHub lookup sanitizes failed commands and malformed JSON, never accepting partial metadata', async (t) => {
+  const spawn = childProcess.spawn;
+  for (const script of ['process.stderr.write("synthetic-secret");process.exit(1)',
+    'process.stdout.write("not-json synthetic-secret")']) {
+    const stub = t.mock.method(childProcess, 'spawn', (_command: string, _args: string[], options: SpawnOptions) =>
+      spawn(process.execPath, ['-e', script], options));
+    await assert.rejects(readGithubQualityMetadata(38129894832), (error: unknown) =>
+      error instanceof BackupError && error.message === 'GITHUB_QUALITY_METADATA_UNAVAILABLE');
+    assert.equal(stub.mock.callCount(), 1);
+    stub.mock.restore();
+  }
+  let calls = 0;
+  t.mock.method(childProcess, 'spawn', (_command: string, _args: string[], options: SpawnOptions) => {
+    calls++;
+    return spawn(process.execPath, ['-e', calls === 1 ? 'process.stdout.write("{}")' : 'process.exit(1)'], options);
+  });
+  await assert.rejects(readGithubQualityMetadata(38129894832), /GITHUB_QUALITY_METADATA_UNAVAILABLE/);
+  assert.equal(calls, 2);
 });
