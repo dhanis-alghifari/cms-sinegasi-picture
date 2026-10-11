@@ -27,6 +27,14 @@ export function createWriterPackage(snapshot: SchemaSnapshot): WriterPackage {
 
 export type WriterRecoveryMode = 'independent-key' | 'mac-only-initialization';
 
+export interface WriterResumeFrom {
+  approvalFile: string;
+  approvalSha256: string;
+  releaseSha: string;
+  backupInventorySha256: string;
+  enumsCatalogSha256: string;
+}
+
 export interface WriterApproval {
   format: 1;
   project: typeof BACKUP_PROJECT;
@@ -52,6 +60,8 @@ export interface WriterApproval {
   recoveryMode?: WriterRecoveryMode;
   macOnlyRecoveryRiskAcknowledged?: true;
   initialEmptyProductionOnly?: true;
+  managedExtensionSha256?: string;
+  resumeFrom?: WriterResumeFrom;
 }
 
 export function object(value: unknown): Record<string, unknown> {
@@ -103,6 +113,14 @@ export function validateWriterApproval(
     || typeof a.windowStart !== 'string' || typeof a.windowEnd !== 'string') throw new WriterError('REVIEWED_WRITER_APPROVAL_REQUIRED');
   // Every property above is checked, and backup/window are checked below.
   const approval = a as unknown as WriterApproval;
+  if (a.managedExtensionSha256 !== undefined && !digest(a.managedExtensionSha256)) throw new WriterError('INVALID_MANAGED_EXTENSION_REVIEW');
+  if (a.resumeFrom !== undefined) {
+    const r = object(a.resumeFrom);
+    if (typeof r.approvalFile !== 'string' || !/^approval(?:\.[0-9TZ-]+)?\.json$/.test(r.approvalFile)
+      || !digest(r.approvalSha256) || !digest(r.backupInventorySha256) || !digest(r.enumsCatalogSha256)
+      || typeof r.releaseSha !== 'string' || !/^[a-f0-9]{40}$/.test(r.releaseSha)
+      || r.enumsCatalogSha256 !== a.baselineCatalogSha256) throw new WriterError('INVALID_REVIEWED_RESUME_BINDING');
+  }
   writerRecoveryMode(approval);
   requireWriterWindow(approval, now);
   return approval;
@@ -125,9 +143,26 @@ export function validateWriterEvidence(value: unknown, bundle: WriterPackage): v
     || !['legacyApply', 'fullCatalogVerified', 'referenceRows213', 'schemaAndReferenceRollback', 'enumRollback',
       'resumeAfterEnumCommit', 'repeatVerifiedNoop', 'driftRefused', 'nonemptyRefused', 'concurrentRefused',
       'commitUncertaintyReported', 'browserAndPrivateHistoryDenied', 'wrongIdentityRefused', 'unexpectedRelationRefused',
-      'macOnlyInitialization', 'macOnlyNonemptyManagedRefused'].every(key => checks[key] === true)) {
+      'macOnlyInitialization', 'macOnlyNonemptyManagedRefused', 'managedOwnershipReproduced',
+      'managedExtensionResume', 'resumeOriginalBindingsPreserved', 'resumeNewApprovalRequired',
+      'resumeFreshBackupParity', 'managedExtensionDriftRefused', 'applicationRpcExposureRefused',
+      'extensionMemberSpoofRefused', 'resumeRollback', 'resumeRepeatNoop', 'resumeCommitUncertainty'].every(key => checks[key] === true)) {
     throw new WriterError('WRITER_REHEARSAL_EVIDENCE_REQUIRED');
   }
+}
+
+/** Historical approval is immutable evidence, not permission to reuse its expired window. */
+export function validateResumeApproval(originalRaw: string | undefined, approval: WriterApproval, bundle: WriterPackage): WriterApproval | undefined {
+  if (!approval.resumeFrom) {
+    if (originalRaw !== undefined) throw new WriterError('EXPLICIT_REVIEWED_RESUME_REQUIRED');
+    return undefined;
+  }
+  if (originalRaw === undefined || sha256(originalRaw) !== approval.resumeFrom.approvalSha256) throw new WriterError('ORIGINAL_APPROVAL_CHECKSUM_MISMATCH');
+  const value = object(JSON.parse(originalRaw) as unknown);
+  const original = validateWriterApproval(value, bundle, approval.resumeFrom.releaseSha, String(value.evidenceSha256), Date.parse(String(value.windowStart)));
+  if (original.resumeFrom !== undefined || original.backupId === approval.backupId
+    || writerRecoveryMode(original) !== writerRecoveryMode(approval)) throw new WriterError('RESUME_REQUIRES_NEW_BACKUP_AND_SAME_RECOVERY_SCOPE');
+  return original;
 }
 
 /** Evidence remains local/private. No decrypted backup or secret is in this document. */
@@ -169,12 +204,12 @@ export function validateWriterRecovery(value: unknown, approval: WriterApproval,
   })) throw new WriterError('BACKUP_COPY_CHECKSUM_MISMATCH');
 }
 
-export type WriterOptions = { mode: 'plan' } | { mode: 'apply'; approval: string; confirmedSha256: string };
+export type WriterOptions = { mode: 'plan' } | { mode: 'apply' | 'resume'; approval: string; confirmedSha256: string };
 export function parseWriterOptions(args: readonly string[]): WriterOptions {
   if (args.length === 1 && args[0] === 'plan') return { mode: 'plan' };
-  if (args.length === 5 && args[0] === 'apply' && args[1] === '--approval' && args[3] === '--confirm-approval'
+  if (args.length === 5 && (args[0] === 'apply' || args[0] === 'resume') && args[1] === '--approval' && args[3] === '--confirm-approval'
     && args[2].startsWith('/') && !args[2].includes('\0') && digest(args[4])) {
-    return { mode: 'apply', approval: args[2], confirmedSha256: args[4] };
+    return { mode: args[0], approval: args[2], confirmedSha256: args[4] };
   }
   throw new WriterError('USE_PLAN_OR_EXPLICIT_APPROVAL_ONLY');
 }

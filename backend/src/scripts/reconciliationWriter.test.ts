@@ -4,9 +4,10 @@ import childProcess, { type SpawnOptions } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { loadSnapshot, compileReconciliation, sha256 } from './productionReconciliation.js';
-import { createWriterPackage, parseWriterOptions, requireWriterQualityRun, validateWriterApproval, validateWriterEvidence, validateWriterRecovery, backupTime } from './reconciliationWriterPolicy.js';
+import { createWriterPackage, parseWriterOptions, requireWriterQualityRun, validateWriterApproval, validateWriterEvidence, validateWriterRecovery, validateResumeApproval, backupTime } from './reconciliationWriterPolicy.js';
 import { runReconciliationWriter } from './reconciliationWriterCore.js';
-import { writerFixtureAuthorization, writerMacOnlyFixture } from './reconciliationWriterFixtures.js';
+import { writerFixtureAuthorization, writerMacOnlyFixture, writerResumeFixture } from './reconciliationWriterFixtures.js';
+import { validateManagedTrigram } from './reconciliationWriterExtensions.js';
 import type { WriterSession } from './reconciliationWriterCatalog.js';
 import type { DatabaseInventory } from './productionBackupCore.js';
 import { requireWriterReleaseSha } from './reconciliationWriter.js';
@@ -68,6 +69,7 @@ test('production compiler is deterministic and does not change rehearsal SQL or 
 test('unsafe CLI targets, env URLs, force/reset and implicit apply are refused', () => {
   assert.deepEqual(parseWriterOptions(['plan']), { mode: 'plan' });
   assert.equal(parseWriterOptions(['apply', '--approval', '/private/approval.json', '--confirm-approval', 'a'.repeat(64)]).mode, 'apply');
+  assert.equal(parseWriterOptions(['resume', '--approval', '/private/approval.json', '--confirm-approval', 'a'.repeat(64)]).mode, 'resume');
   for (const args of [[], ['apply'], ['reset'], ['apply', '--force'], ['plan', '--db-url', 'postgres://x'], ['apply', '--approval', 'relative', '--confirm-approval', 'a'.repeat(64)]]) assert.throws(() => parseWriterOptions(args));
 });
 test('approval requires exact target, release, package, human review, risk and window bindings', async () => {
@@ -211,5 +213,38 @@ test('CLI has no runtime env imports, arbitrary endpoint or TLS bypass, and rele
   assert.doesNotMatch(source, /from ['"][^'"]*(?:dotenv|config\/env)|rejectUnauthorized: false|process\.env|--force|allowLocal/);
   assert.match(source, /CLEAN_REVIEWED_CURRENT_MAIN_RELEASE_REQUIRED/);
   assert.match(source, /WRITER_SOURCE_OR_REHEARSAL_EVIDENCE_CHANGED/);
-  assert.ok(source.indexOf('await releaseSha(repository') < source.indexOf("readKeychain('sinegasi-prod-postgres-admin-url'"));
+  const releaseGate = source.indexOf('await requireWriterReleaseSha(repository');
+  const adminAccess = source.indexOf("readKeychain('sinegasi-prod-postgres-admin-url'");
+  assert.ok(releaseGate >= 0 && adminAccess > releaseGate);
+});
+
+test('resume binds the original document, exact enum checkpoint, new release and new backup before DB access', async () => {
+  const { bundle, auth } = await fixture();
+  const resumed = writerResumeFixture(bundle, auth, auth.backupInventory, 'd'.repeat(64), sha256('[]'), now + 60_000);
+  const approval = validateWriterApproval(JSON.parse(resumed.approvalRaw) as unknown, bundle, resumed.releaseSha, sha256(resumed.evidenceRaw), now + 60_000);
+  assert.equal(validateResumeApproval(auth.approvalRaw, approval, bundle)?.releaseSha, auth.releaseSha);
+  assert.throws(() => validateResumeApproval(undefined, approval, bundle), /ORIGINAL_APPROVAL_CHECKSUM_MISMATCH/);
+  assert.throws(() => validateResumeApproval(auth.approvalRaw + ' ', approval, bundle));
+  for (const change of [{ approvalFile: '../approval.json' }, { approvalSha256: '0'.repeat(64) },
+    { releaseSha: 'x' }, { enumsCatalogSha256: '0'.repeat(64) }, { backupInventorySha256: 'invalid' }]) {
+    const changed = { ...approval, resumeFrom: { ...approval.resumeFrom, ...change } };
+    assert.throws(() => { const parsed = validateWriterApproval(changed, bundle, resumed.releaseSha, sha256(resumed.evidenceRaw), now + 60_000);
+      validateResumeApproval(auth.approvalRaw, parsed, bundle); });
+  }
+  const noResume = { ...approval, resumeFrom: undefined };
+  assert.throws(() => validateResumeApproval(auth.approvalRaw, noResume, bundle), /EXPLICIT_REVIEWED_RESUME_REQUIRED/);
+  let queries = 0;
+  const db: WriterSession = { query: async () => { queries++; throw new Error('must not query'); }, inventory: async () => auth.backupInventory };
+  await assert.rejects(runReconciliationWriter(db, bundle, { ...resumed, originalApprovalRaw: undefined }, () => now + 60_000));
+  await assert.rejects(runReconciliationWriter(db, bundle, resumed, () => now + 31 * 60_000), /APPROVED_MIGRATION_WINDOW_REQUIRED/);
+  assert.equal(queries, 0);
+});
+
+test('unknown/native-spoofed extension members fail closed, never a broad extension bypass', () => {
+  assert.deepEqual(validateManagedTrigram([]).signatures, []);
+  for (const row of [{ signature: 'dangerous_rpc()', extension: 'pg_trgm', definer: true },
+    { signature: 'similarity(text,text)', extension: 'pg_trgm', language: 'plpgsql' },
+    { signature: 'similarity(text,text)', extension: 'unknown', language: 'c' }]) {
+    assert.throws(() => validateManagedTrigram([row]), /UNREVIEWED_MANAGED_EXTENSION_REFUSED/);
+  }
 });

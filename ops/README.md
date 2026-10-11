@@ -340,7 +340,95 @@ credentials or catalog bodies. This new hash includes public ACL/options,
 default privileges and memberships; **do not substitute the older preflight
 inventory hash** for `baselineCatalogSha256`.
 
-### Gates before any production write
+### Recovering the committed enum checkpoint (runner repair, not yet authorized)
+
+The 11 October production attempt stopped at `TARGET_BROWSER_ACCESS_EXPOSED`:
+the enum/private journal transaction committed, but schema/reference data rolled
+back. Do **not** reset production, replay DEV data, change the old approval, or
+reuse its checksum to authorize repaired code. The SQL package is unchanged;
+the runner source and its rehearsal evidence changed and need fresh release CI.
+
+The repaired verifier permits only the 31 native, SECURITY INVOKER functions of
+`public.pg_trgm` 1.6 owned by `supabase_admin`, which `postgres` cannot revoke.
+Their exact signatures, native entry points, execution attributes, owner and ACL
+are reviewed through `managedExtensionSha256` and must remain unchanged. This
+is **not** a blanket extension-member exclusion. Unknown members, SECURITY
+DEFINER/SQL replacements and browser-accessible application RPCs still fail.
+Existing browser EXECUTE on these native functions is preserved, not granted;
+the `extension_in_public` advisory remains a documented platform risk. Application
+tables/views/RPCs stay inaccessible to `anon` and `authenticated`.
+
+The migration skill's checkpoint/backup gates are enforced by a distinct
+`resume` command. Use **Terminal Mac Lokal**, not Supabase SQL Editor, Cloudflare,
+or SSH into the VPS. Safe diagnostic commands now available:
+
+```bash
+cd /Users/memberid/Documents/cms-sinegasi-picture/backend
+ENV_FILE_LOADING=disabled npm run db:reconciliation:writer:plan
+ENV_FILE_LOADING=disabled npm run db:reconciliation:writer:inspect
+```
+
+`inspect` is READ ONLY and additionally prints the exact journal bindings,
+`managedExtensionSha256` and the native extension function count. It does not
+grant approval, alter extension ACLs, create accounts or run migrations.
+
+Before resuming, in this exact order:
+
+1. Review/commit/promote the repaired source to clean current `main` and require
+   successful backend/frontend Code Quality **push** jobs for that exact SHA.
+   An old passing CI run and old writer receipt cannot authorize the repair.
+2. Create a **new backup of the current enum checkpoint**, verify public restore,
+   copy/check ciphertext on the VPS, and review new `recovery.json`. Do not
+   overwrite historical approvals/recovery evidence or transfer the Keychain key.
+3. Run READ ONLY `inspect`; require one journal row at `enums`, 17 empty public
+   application tables, and matching checkpoint/full backup inventory. Mac-only
+   recovery also requires empty Auth/Storage under pre-snapshot table locks.
+4. Review a new private timestamped approval, a new <=1-hour window and a new
+   explicitly confirmed raw-file checksum. Keep all normal `WriterApproval`
+   fields and `managedExtensionSha256`. Add `resumeFrom` with:
+   `approvalFile`, `approvalSha256`, `releaseSha`, `backupInventorySha256`,
+   `enumsCatalogSha256` from the **original** enum journal. The old approval file
+   must exist unchanged in the same 0700 Mac review directory, mode 0600.
+5. The new `baselineCatalogSha256` must equal that original enum checkpoint;
+   current backup inventory must match it, while the original backup inventory
+   binding remains immutable. Package/schema/reference-data checksum changes,
+   missing journal, drift, changed old document, or reused backup ID refuse resume.
+6. Only after the operator approves the new checksum, run
+   `npm run db:reconciliation:writer -- resume --approval <absolute-new-file> --confirm-approval <new-sha256>`.
+   These placeholders are **not executable instructions**; the operator is given
+   an exact concrete command when the newly reviewed files exist.
+
+Resume does not rerun enum SQL. Schema plus the 213 canonical configuration rows
+and completion receipt commit together. The original journal's package, approval,
+release, backup inventory, enum hash and `applied_at` stay unchanged; a separate
+`completion_authorization` JSONB column records the new approval/release/backup
+bindings. Rollback retains the original enum row and does not leave the new
+column behind. A repeated exact completion authorization verifies a no-op;
+lost COMMIT response is `unknown`, requiring inspection before any retry.
+
+This procedure does not authorize production writes now. Managed Supabase
+acceptance, independent key recovery, scheduled backups and go-live remain
+separate gates. Isolated PostgreSQL role/ACL simulation is not full managed
+Supabase integration or a zero-bug guarantee.
+
+Actual repaired-runner evidence:
+`production-reconciliation.writer-rehearsal.2026-10-11T13-10-15-346Z.json`:
+**27 checks passed**, PostgreSQL 17.11, isolated 73 tables/213 configuration rows,
+cleanup verified and DEV/Caddy unchanged. Source SHA256:
+`e7a2867a780a18fa3ba9254635594ad8efa6abd071e4f612daa565132a62b08a`.
+The evidence now binds the runtime, fixture, PostgreSQL verifier and disposable
+test harness source, not just runtime files. The SQL package remains
+`919dd3aa2a1ea18726216cbad5986d2e9d9e6ffca09d97821338c8d3212b5b65`.
+Do not reinterpret this receipt as production approval or managed integration.
+
+ACL comparison expands PostgreSQL's NULL default ACL via `acldefault` and
+`aclexplode`, binding every grantor/grantee/privilege/grant option. A no-op REVOKE
+can materialize an equivalent explicit ACL; this representation change is not
+an effective permission change. Function attributes and effective grants remain
+reviewed and invariant. See [PostgreSQL REVOKE](https://www.postgresql.org/docs/17/sql-revoke.html)
+and [extension membership dependencies](https://www.postgresql.org/docs/17/catalog-pg-depend.html).
+
+### Original apply gates (still enforced for resume)
 
 1. Review the new code and isolated report; commit/push to `develop`, check CI.
    If an application-production Pages project tracks `main`, hold its automatic

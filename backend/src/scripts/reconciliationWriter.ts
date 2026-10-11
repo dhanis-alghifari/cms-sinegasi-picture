@@ -8,15 +8,19 @@ import { loadPreflightPlan } from './productionReconciliationPreflightCore.js';
 import { sha256 } from './productionReconciliation.js';
 import { runReconciliationWriter } from './reconciliationWriterCore.js';
 import { readWriterCatalog, writerCatalogHash, type WriterSession } from './reconciliationWriterCatalog.js';
-import { createWriterPackage, object, parseWriterOptions, requireWriterQualityRun, validateWriterApproval, validateWriterEvidence, validateWriterRecovery, WriterError } from './reconciliationWriterPolicy.js';
+import { readManagedTrigram } from './reconciliationWriterExtensions.js';
+import { createWriterPackage, object, parseWriterOptions, requireWriterQualityRun, validateWriterApproval, validateWriterEvidence, validateWriterRecovery, validateResumeApproval, WriterError } from './reconciliationWriterPolicy.js';
 import type { DatabaseInventory } from './productionBackupCore.js';
 
 export const WRITER_SOURCE_FILES = [
   'backend/src/scripts/reconciliationWriter.ts', 'backend/src/scripts/reconciliationWriterPolicy.ts',
   'backend/src/scripts/reconciliationWriterCore.ts', 'backend/src/scripts/reconciliationWriterCatalog.ts',
+  'backend/src/scripts/reconciliationWriterExtensions.ts',
   'backend/src/scripts/productionReconciliation.ts', 'backend/src/scripts/productionReferenceData.ts',
   'backend/src/scripts/productionBackupCore.ts', 'backend/src/scripts/migrationSafety.ts',
   'backend/src/scripts/productionReconciliationPreflightCore.ts', 'backend/src/middleware/capabilities.ts',
+  'backend/src/scripts/reconciliationWriterFixtures.ts', 'backend/src/scripts/verifyReconciliationWriter.ts',
+  'backend/src/scripts/rehearseReconciliationWriter.ts', 'ops/rehearse-schema-reconciliation-vps.sh',
 ] as const;
 export async function writerSourceHash(repository: string): Promise<string> {
   return sha256(JSON.stringify(await Promise.all(WRITER_SOURCE_FILES.map(async file => [file, sha256(await readFile(resolve(repository, file)))]))));
@@ -93,7 +97,7 @@ export async function mainWriter(args = process.argv.slice(2)): Promise<void> {
   const repository = resolve(__dirname, '../../..');
   const { snapshot, plan } = await loadPreflightPlan(repository);
   const bundle = createWriterPackage(snapshot), sourceSha256 = await writerSourceHash(repository);
-  const sha = await requireWriterReleaseSha(repository, options.mode === 'apply');
+  const sha = await requireWriterReleaseSha(repository, options.mode !== 'plan');
   if (options.mode === 'plan' && !inspect) {
     console.log(JSON.stringify({ status: 'WRITER_REVIEW_PLAN_ONLY', project: BACKUP_PROJECT, releaseSha: sha,
       packageSha256: bundle.packageSha256, runnerSourceSha256: sourceSha256, candidateSha256: bundle.candidateSha256,
@@ -108,7 +112,7 @@ export async function mainWriter(args = process.argv.slice(2)): Promise<void> {
   if (process.platform !== 'darwin') throw new WriterError('WRITER_REQUIRES_MAC_KEYCHAIN');
   process.umask(0o077);
   let authorization: Parameters<typeof runReconciliationWriter>[2] | undefined;
-  if (options.mode === 'apply') {
+  if (options.mode !== 'plan') {
     const approvalRaw = await privateJson(options.approval);
     if (object(JSON.parse(approvalRaw) as unknown).isolatedFixture !== undefined) throw new WriterError('TEST_APPROVAL_REFUSED_ON_PRODUCTION');
     if (sha256(approvalRaw) !== options.confirmedSha256) throw new WriterError('APPROVAL_CHECKSUM_MISMATCH');
@@ -121,13 +125,17 @@ export async function mainWriter(args = process.argv.slice(2)): Promise<void> {
       throw new WriterError('WRITER_SOURCE_OR_REHEARSAL_EVIDENCE_CHANGED');
     }
     const approval = validateWriterApproval(JSON.parse(approvalRaw) as unknown, bundle, sha, sha256(evidenceRaw));
+    if ((options.mode === 'resume') !== (approval.resumeFrom !== undefined)) throw new WriterError('USE_EXPLICIT_RESUME_FOR_CHECKPOINT');
+    const originalApprovalRaw = approval.resumeFrom ? await privateJson(PRIVATE_ROOT + '/' + approval.resumeFrom.approvalFile) : undefined;
+    if (originalApprovalRaw !== undefined && object(JSON.parse(originalApprovalRaw) as unknown).isolatedFixture !== undefined) throw new WriterError('TEST_APPROVAL_REFUSED_ON_PRODUCTION');
+    validateResumeApproval(originalApprovalRaw, approval, bundle);
     const { run, jobs } = await readGithubQualityMetadata(approval.qualityRunId);
     requireWriterQualityRun(run, jobs, sha);
     const recoveryRaw = await privateJson(PRIVATE_ROOT + '/recovery.json');
     if (sha256(recoveryRaw) !== approval.recoveryEvidenceSha256) throw new WriterError('RECOVERY_EVIDENCE_CHECKSUM_MISMATCH');
     validateWriterRecovery(JSON.parse(recoveryRaw) as unknown, approval);
     authorization = { releaseSha: sha, approvalRaw, confirmedApprovalSha256: options.confirmedSha256, evidenceRaw, recoveryRaw,
-      backupInventory: await backupInventory(approval.backupId, recoveryRaw) };
+      backupInventory: await backupInventory(approval.backupId, recoveryRaw), originalApprovalRaw };
   }
   const ca = await readFile(CA_PATH, 'utf8'); validateBackupCa(ca);
   console.log(JSON.stringify({ stage: 'KEYCHAIN_ADMIN_READ_REQUIRED', readOnly: inspect, productionChanged: false }));
@@ -145,10 +153,16 @@ export async function mainWriter(args = process.argv.slice(2)): Promise<void> {
       await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
       await client.query("SET LOCAL search_path=pg_catalog,public,extensions; SET LOCAL statement_timeout='8s'");
       const catalog = await readWriterCatalog(db);
+      const managed = await readManagedTrigram(db);
+      const journal = (await client.query("SELECT to_regclass('sinegasi_ops.production_reconciliation_runs') IS NOT NULL AS present")).rows[0];
+      const checkpoint = journal?.present === true ? (await client.query(`SELECT package_sha256,approval_sha256,release_sha,
+        backup_inventory_sha256,stage,enums_catalog_sha256,target_catalog_sha256,
+        to_jsonb(r)->'completion_authorization' AS completion_authorization FROM sinegasi_ops.production_reconciliation_runs r`)).rows : [];
       await client.query('ROLLBACK');
       console.log(JSON.stringify({ status: 'WRITER_CATALOG_OBSERVATION_ONLY', observedAt: new Date().toISOString(),
         baselineCatalogSha256: writerCatalogHash(catalog), inventorySha256: sha256(JSON.stringify(catalog.inventory)),
         tables: catalog.inventory.tables.length, publicRows: catalog.inventory.tables.reduce((sum, t) => sum + Number(t.rows), 0),
+        managedExtensionSha256: managed.sha256, managedExtensionFunctions: managed.signatures.length, checkpoint,
         productionChanged: false, productionApproved: false }));
     } else if (authorization) {
       const result = await runReconciliationWriter(db, bundle, authorization);

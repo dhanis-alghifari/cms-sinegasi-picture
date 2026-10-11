@@ -3,22 +3,26 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import pg from 'pg';
 import { databaseInventory, quoteIdentifier } from './productionBackupCore.js';
-import { validateSnapshot } from './productionReconciliation.js';
+import { sha256, validateSnapshot } from './productionReconciliation.js';
 import { runReconciliationWriter, type WriterAuthorization } from './reconciliationWriterCore.js';
 import { readWriterCatalog, writerCatalogHash, verifyWriterTarget, type WriterSession } from './reconciliationWriterCatalog.js';
 import { createWriterPackage, WriterError } from './reconciliationWriterPolicy.js';
-import { writerFixtureAuthorization, writerMacOnlyFixture, WRITER_CHECKS } from './reconciliationWriterFixtures.js';
+import { readManagedTrigram } from './reconciliationWriterExtensions.js';
+import { writerFixtureAuthorization, writerMacOnlyFixture, writerResumeFixture, WRITER_CHECKS } from './reconciliationWriterFixtures.js';
 
 let stage = 'INITIALIZATION';
-const connection = (): pg.Client => {
-  const db = new pg.Client({ host: '127.0.0.1', port: 5432, database: 'postgres', user: 'postgres', connectionTimeoutMillis: 3000, query_timeout: 30000 });
+let writerFailureStage: string | undefined;
+let writerMutation: string | undefined;
+const connection = (user = 'postgres'): pg.Client => {
+  const db = new pg.Client({ host: '127.0.0.1', port: 5432, database: 'postgres', user, connectionTimeoutMillis: 3000, query_timeout: 30000 });
   db.on('error', () => {}); return db;
 };
 async function main(): Promise<void> {
   if (process.argv.length !== 3 || process.argv[2] !== 'isolated-writer') throw new Error('ISOLATED_WRITER_MODE_REQUIRED');
   const snapshot: unknown = JSON.parse(await readFile(resolve(__dirname, '../production-schema.snapshot.json'), 'utf8'));
   validateSnapshot(snapshot);
-  const bundle = createWriterPackage(snapshot), db = connection(); await db.connect();
+  const bundle = createWriterPackage(snapshot);
+  let db = connection(); await db.connect();
   const session: WriterSession = { query: (sql, values) => db.query(sql, values ? [...values] : undefined), inventory: () => databaseInventory(db) };
   const clock = Date.now(), checks: Partial<Record<typeof WRITER_CHECKS[number], boolean>> = {};
   let fault: ((sql: string) => Promise<void>) | undefined;
@@ -26,7 +30,9 @@ async function main(): Promise<void> {
   const run = (auth: WriterAuthorization, chosen = intercepted) => runReconciliationWriter(chosen, bundle, auth, () => clock);
   const failure = async (auth: WriterAuthorization, mutation: string, chosen = intercepted) => {
     await assert.rejects(run(auth, chosen), (error: unknown) => {
-      assert.ok(error instanceof WriterError); assert.equal(error.mutation, mutation); return true;
+      assert.ok(error instanceof WriterError);
+      writerFailureStage = error.stage; writerMutation = error.mutation;
+      assert.equal(error.mutation, mutation); return true;
     });
   };
   const setup = async (): Promise<WriterAuthorization> => {
@@ -193,6 +199,137 @@ async function main(): Promise<void> {
     assert.equal(macResult.independentKeyRecoveryAttested, false); assert.equal(macResult.managedAcceptanceRequired, true);
     await verifyWriterTarget(session, snapshot, bundle.reference);
     assert.equal((await run(auth)).mode, 'noop'); checks.macOnlyInitialization = true;
+
+    stage = 'MANAGED_FIXTURE_RESET';
+    await setup();
+    stage = 'MANAGED_ROLE_SETUP';
+    await db.query('CREATE ROLE supabase_admin LOGIN SUPERUSER');
+    const admin = connection('supabase_admin'); await admin.connect();
+    try {
+      // Real restricted postgres versus admin-owned pg_trgm, not a mocked ACL result.
+      stage = 'MANAGED_EXTENSION_RESET';
+      await admin.query('DROP EXTENSION pg_trgm; CREATE EXTENSION pg_trgm WITH SCHEMA public');
+      stage = 'MANAGED_RESTRICTED_ACTOR_SETUP';
+      // PostgreSQL forbids removing SUPERUSER from its bootstrap OID. Rename
+      // that test-only role and reconnect as a NEW restricted postgres instead.
+      await admin.query(`ALTER ROLE postgres RENAME TO sinegasi_fixture_bootstrap;
+        CREATE ROLE postgres LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE BYPASSRLS;
+        ALTER DATABASE postgres OWNER TO postgres; ALTER SCHEMA public OWNER TO postgres;
+        ALTER SCHEMA auth OWNER TO postgres; ALTER TABLE auth.users OWNER TO postgres;
+        ALTER SCHEMA storage OWNER TO postgres; ALTER TABLE storage.objects OWNER TO postgres;
+        CREATE SCHEMA extensions; GRANT USAGE ON SCHEMA extensions TO PUBLIC;
+        ALTER EXTENSION pgcrypto SET SCHEMA extensions; ALTER EXTENSION "uuid-ossp" SET SCHEMA extensions`);
+      for (const e of snapshot.enums) await admin.query(`ALTER TYPE public.${quoteIdentifier(e.name)} OWNER TO postgres`);
+      for (const t of snapshot.legacyTables) await admin.query(`ALTER TABLE public.${quoteIdentifier(t.relname)} OWNER TO postgres`);
+      await db.end(); db = connection(); await db.connect();
+      stage = 'MANAGED_POLICY_OBSERVATION';
+      const actor = (await db.query("SELECT rolsuper FROM pg_roles WHERE rolname=current_user")).rows[0];
+      assert.equal(actor.rolsuper, false);
+      const managed = await readManagedTrigram(session);
+      assert.equal(managed.signatures.length, 31);
+      const legacy = await readWriterCatalog(session);
+      const originalBase = writerMacOnlyFixture(writerFixtureAuthorization(bundle, legacy.inventory, writerCatalogHash(legacy), clock));
+      const originalRaw = JSON.stringify({ ...JSON.parse(originalBase.approvalRaw) as Record<string, unknown>, managedExtensionSha256: managed.sha256 });
+      const original = { ...originalBase, approvalRaw: originalRaw, confirmedApprovalSha256: sha256(originalRaw) };
+      fault = async sql => {
+        if (sql.includes('INSERT INTO public."cash_settings"')) {
+          const old = (await db.query(`SELECT EXISTS(SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+            WHERE n.nspname='public' AND p.prokind='f' AND has_function_privilege('anon',p.oid,'EXECUTE')) AS exposed`)).rows[0];
+          assert.equal(old.exposed, true, 'OLD_VERIFIER_FAILURE_NOT_REPRODUCED');
+          throw new WriterError('TARGET_BROWSER_ACCESS_EXPOSED');
+        }
+      };
+      await failure(original, 'enums'); fault = undefined;
+      checks.managedOwnershipReproduced = true;
+      const checkpointCatalog = await readWriterCatalog(session);
+      const checkpointHash = writerCatalogHash(checkpointCatalog);
+      const oldRun = (await db.query('SELECT * FROM sinegasi_ops.production_reconciliation_runs')).rows[0];
+      const resumeClock = clock + 60_000;
+      const resume = writerResumeFixture(bundle, original, checkpointCatalog.inventory, checkpointHash, managed.sha256, resumeClock);
+      const resumeRun = (chosen = intercepted, authorization = resume) => runReconciliationWriter(chosen, bundle, authorization, () => resumeClock);
+      const resumeFailure = async (expected: string, authorization = resume) => {
+        await assert.rejects(resumeRun(intercepted, authorization), (error: unknown) => {
+          assert.ok(error instanceof WriterError);
+          writerFailureStage = error.stage; writerMutation = error.mutation;
+          assert.equal(error.stage, expected); return true;
+        });
+        assert.equal(writerCatalogHash(await readWriterCatalog(session)), checkpointHash);
+      };
+      stage = 'RESUME_APPROVAL_REVIEW';
+      await resumeFailure('ORIGINAL_APPROVAL_CHECKSUM_MISMATCH', { ...resume, originalApprovalRaw: undefined });
+      await resumeFailure('ORIGINAL_APPROVAL_CHECKSUM_MISMATCH', { ...resume, originalApprovalRaw: originalRaw + ' ' });
+      const unreviewed = JSON.parse(resume.approvalRaw) as Record<string, unknown>;
+      delete unreviewed.managedExtensionSha256;
+      const unreviewedRaw = JSON.stringify(unreviewed);
+      await resumeFailure('MANAGED_EXTENSION_REVIEW_OR_PARITY_REQUIRED', { ...resume,
+        approvalRaw: unreviewedRaw, confirmedApprovalSha256: sha256(unreviewedRaw) });
+      for (const key of ['approvalSha256', 'releaseSha', 'backupInventorySha256']) {
+        const changed = JSON.parse(resume.approvalRaw) as Record<string, unknown>;
+        (changed.resumeFrom as Record<string, unknown>)[key] = '0'.repeat(key === 'releaseSha' ? 40 : 64);
+        const approvalRaw = JSON.stringify(changed);
+        await assert.rejects(resumeRun(intercepted, { ...resume, approvalRaw, confirmedApprovalSha256: sha256(approvalRaw) }));
+        assert.equal(writerCatalogHash(await readWriterCatalog(session)), checkpointHash);
+      }
+      checks.resumeNewApprovalRequired = true;
+      const differentBackup = structuredClone(resume.backupInventory); differentBackup.roles = [];
+      await resumeFailure('RESUME_FRESH_BACKUP_PARITY_REQUIRED', { ...resume, backupInventory: differentBackup });
+      checks.resumeFreshBackupParity = true;
+      stage = 'RESUME_ROLLBACK';
+      fault = async sql => { if (sql.includes('INSERT INTO public."cash_settings"')) await db.query('SELECT 1/0'); };
+      await resumeFailure('WRITER_FAILED_INSPECT_CHECKPOINT'); fault = undefined;
+      assert.deepEqual((await db.query('SELECT * FROM sinegasi_ops.production_reconciliation_runs')).rows[0], oldRun);
+      checks.resumeRollback = true;
+      stage = 'APPLICATION_RPC_ACCESS';
+      // Pick an actual reviewed signature rather than hard-coding the application RPC overload.
+      fault = async sql => { if (sql.includes('INSERT INTO public."cash_settings"')) await db.query('GRANT EXECUTE ON FUNCTION ' + bundle.snapshot.functions[0].signature + ' TO anon'); };
+      await resumeFailure('TARGET_BROWSER_ACCESS_EXPOSED'); fault = undefined;
+      checks.applicationRpcExposureRefused = true;
+      stage = 'MANAGED_EXTENSION_DRIFT';
+      // DDL on a function already used by this transaction waits for its object
+      // lock. Introduce real drift BEFORE the writer instead of creating an
+      // artificial cross-session wait/idle timeout in the test harness.
+      await admin.query('ALTER FUNCTION public.similarity(text,text) SECURITY DEFINER');
+      await resumeFailure('UNREVIEWED_MANAGED_EXTENSION_REFUSED');
+      await admin.query('ALTER FUNCTION public.similarity(text,text) SECURITY INVOKER');
+      assert.equal((await readManagedTrigram(session)).sha256, managed.sha256);
+      checks.managedExtensionDriftRefused = true;
+      stage = 'EXTENSION_MEMBER_SPOOF';
+      await admin.query(`CREATE FUNCTION public.extension_spoof() RETURNS integer LANGUAGE sql SECURITY DEFINER AS 'SELECT 1';
+        ALTER EXTENSION pg_trgm ADD FUNCTION public.extension_spoof()`);
+      await assert.rejects(resumeRun(), (error: unknown) => error instanceof WriterError && error.stage === 'UNREVIEWED_MANAGED_EXTENSION_REFUSED');
+      await admin.query('ALTER EXTENSION pg_trgm DROP FUNCTION public.extension_spoof(); DROP FUNCTION public.extension_spoof()');
+      assert.equal(writerCatalogHash(await readWriterCatalog(session)), checkpointHash);
+      checks.extensionMemberSpoofRefused = true;
+      stage = 'MANAGED_RESUME_COMMIT_UNCERTAINTY';
+      const uncertain: WriterSession = { ...session, query: async (sql, values) => {
+        const result = await session.query(sql, values);
+        if (sql === 'COMMIT') throw new Error('SIMULATED_RESUME_COMMIT_RESPONSE_LOSS');
+        return result;
+      } };
+      await assert.rejects(resumeRun(uncertain), (error: unknown) => error instanceof WriterError
+        && error.stage === 'COMMIT_UNCERTAIN_INSPECT_HISTORY_BEFORE_RETRY' && error.mutation === 'unknown');
+      checks.resumeCommitUncertainty = true;
+      const completedRun = (await db.query('SELECT * FROM sinegasi_ops.production_reconciliation_runs')).rows[0];
+      for (const key of ['package_sha256', 'approval_sha256', 'release_sha', 'backup_inventory_sha256', 'enums_catalog_sha256', 'applied_at']) {
+        assert.deepEqual(completedRun[key], oldRun[key]);
+      }
+      assert.equal(completedRun.stage, 'complete');
+      assert.equal(completedRun.completion_authorization.approvalSha256, resume.confirmedApprovalSha256);
+      assert.equal(completedRun.completion_authorization.releaseSha, resume.releaseSha);
+      checks.resumeOriginalBindingsPreserved = true;
+      await verifyWriterTarget(session, snapshot, bundle.reference, managed.sha256);
+      assert.equal((await readManagedTrigram(session)).sha256, managed.sha256);
+      checks.managedExtensionResume = true;
+      fault = async sql => { assert.doesNotMatch(sql.trim(), /^(CREATE|ALTER|INSERT|UPDATE|DELETE|DROP|GRANT|REVOKE)\b/i); };
+      assert.equal((await resumeRun()).mode, 'noop'); fault = undefined;
+      checks.resumeRepeatNoop = true;
+      await assert.rejects(run(original), (error: unknown) => error instanceof WriterError && error.stage === 'RESUME_COMPLETION_BINDING_MISMATCH');
+      for (const role of ['anon', 'authenticated', 'service_role']) {
+        const access = (await db.query(`SELECT has_schema_privilege($1,'sinegasi_ops','USAGE') AS usage,
+          has_table_privilege($1,'sinegasi_ops.production_reconciliation_runs','SELECT') AS read`, [role])).rows[0];
+        assert.equal(access.usage, false); assert.equal(access.read, false);
+      }
+    } finally { fault = undefined; await admin.end(); }
     assert.ok(WRITER_CHECKS.every(check => checks[check] === true));
     console.log(JSON.stringify({ status: 'RECONCILIATION_WRITER_ISOLATED_PASSED', packageSha256: bundle.packageSha256,
       checks, postgresVersion: marker.version, tables: 73, referenceRows: 213,
@@ -201,7 +338,9 @@ async function main(): Promise<void> {
 }
 if (require.main === module) void main().catch((error: unknown) => {
   console.log(JSON.stringify({ status: 'WRITER_ISOLATED_TEST_FAILED', stage,
+    writerFailureStage, writerMutation,
     check: error instanceof WriterError ? error.stage : error instanceof assert.AssertionError ? 'ASSERTION_FAILED' : 'TEST_FAILED',
     code: typeof error === 'object' && error !== null && 'code' in error && /^[A-Z0-9_]+$/.test(String(error.code)) ? String(error.code) : undefined,
+    routine: typeof error === 'object' && error !== null && 'routine' in error && /^[a-zA-Z_]+$/.test(String(error.routine)) ? String(error.routine) : undefined,
     productionChanged: false }));
 });

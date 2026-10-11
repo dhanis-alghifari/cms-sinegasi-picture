@@ -11,6 +11,7 @@ const SSH_ARGS = ['-4', '-F', '/dev/null', '-i', '/Users/memberid/.ssh/id_ed2551
   '-o', 'PreferredAuthentications=publickey', '-o', 'StrictHostKeyChecking=yes', '-o', 'UpdateHostKeys=no',
   '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10', 'ubuntu@43.157.242.8'];
 const WRITER_FILES = ['reconciliationWriterCore.js', 'reconciliationWriterCatalog.js', 'reconciliationWriterPolicy.js',
+  'reconciliationWriterExtensions.js',
   'reconciliationWriterFixtures.js', 'verifyReconciliationWriter.js', 'productionReferenceData.js', 'productionReconciliation.js',
   'productionBackupCore.js', 'productionReconciliationPreflightCore.js', 'productionApiRehearsalCore.js', 'migrationSafety.js'];
 const ssh = async (command: string, input: Buffer | string = '', timeout = 30000): Promise<string> =>
@@ -53,7 +54,9 @@ async function main(): Promise<void> {
     if (receipt.status !== 'RECONCILIATION_WRITER_ISOLATED_PASSED') {
       console.error(JSON.stringify({ status: 'ISOLATED_TEST_FAILURE',
         stage: typeof receipt.stage === 'string' && /^[A-Z_]+$/.test(receipt.stage) ? receipt.stage : 'UNKNOWN',
-        check: typeof receipt.check === 'string' && /^[A-Z_]+$/.test(receipt.check) ? receipt.check : 'UNKNOWN', code: receipt.code }));
+        check: typeof receipt.check === 'string' && /^[A-Z_]+$/.test(receipt.check) ? receipt.check : 'UNKNOWN', code: receipt.code,
+        routine: receipt.routine, writerFailureStage: receipt.writerFailureStage, writerMutation: receipt.writerMutation }));
+      throw new WriterError('ISOLATED_WRITER_TESTS_NOT_PASSED');
     }
     validateWriterEvidence(receipt, bundle);
   } finally {

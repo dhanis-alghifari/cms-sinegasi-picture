@@ -9,7 +9,10 @@ import type { WriterPackage } from './reconciliationWriterPolicy.js';
 export const WRITER_CHECKS = ['legacyApply', 'fullCatalogVerified', 'referenceRows213', 'schemaAndReferenceRollback', 'enumRollback',
   'resumeAfterEnumCommit', 'repeatVerifiedNoop', 'driftRefused', 'nonemptyRefused', 'concurrentRefused',
   'commitUncertaintyReported', 'browserAndPrivateHistoryDenied', 'wrongIdentityRefused', 'unexpectedRelationRefused',
-  'macOnlyInitialization', 'macOnlyNonemptyManagedRefused'] as const;
+  'macOnlyInitialization', 'macOnlyNonemptyManagedRefused', 'managedOwnershipReproduced',
+  'managedExtensionResume', 'resumeOriginalBindingsPreserved', 'resumeNewApprovalRequired',
+  'resumeFreshBackupParity', 'managedExtensionDriftRefused', 'applicationRpcExposureRefused',
+  'extensionMemberSpoofRefused', 'resumeRollback', 'resumeRepeatNoop', 'resumeCommitUncertainty'] as const;
 export function writerFixtureAuthorization(bundle: WriterPackage, inventory: DatabaseInventory, catalogHash: string, now: number): WriterAuthorization {
   const id = new Date(now - 60_000).toISOString().replace(/[:.]/g, '-');
   const archive = { sha256: 'a'.repeat(64), bytes: 1024 }, metadata = { sha256: 'b'.repeat(64), bytes: 1024 };
@@ -48,4 +51,18 @@ export function writerMacOnlyFixture(auth: WriterAuthorization): WriterAuthoriza
   const approvalRaw = JSON.stringify({ ...approval, recoveryMode: 'mac-only-initialization',
     macOnlyRecoveryRiskAcknowledged: true, initialEmptyProductionOnly: true, recoveryEvidenceSha256: sha256(recoveryRaw) });
   return { ...auth, recoveryRaw, approvalRaw, confirmedApprovalSha256: sha256(approvalRaw) };
+}
+
+/** New synthetic authorization that links an immutable previous enum run. */
+export function writerResumeFixture(bundle: WriterPackage, original: WriterAuthorization, inventory: DatabaseInventory,
+  catalogHash: string, managedExtensionSha256: string, now: number): WriterAuthorization {
+  const oldApproval = JSON.parse(original.approvalRaw) as Record<string, unknown>;
+  const initial = writerFixtureAuthorization(bundle, inventory, catalogHash, now);
+  const fresh = oldApproval.recoveryMode === 'mac-only-initialization' ? writerMacOnlyFixture(initial) : initial;
+  const approvalRaw = JSON.stringify({ ...JSON.parse(fresh.approvalRaw) as Record<string, unknown>, releaseSha: '2'.repeat(40),
+    managedExtensionSha256, resumeFrom: { approvalFile: 'approval.2026-10-11T09-00-00-000Z.json',
+      approvalSha256: sha256(original.approvalRaw), releaseSha: original.releaseSha,
+      backupInventorySha256: sha256(JSON.stringify(original.backupInventory)), enumsCatalogSha256: catalogHash },
+    recoveryMode: oldApproval.recoveryMode });
+  return { ...fresh, releaseSha: '2'.repeat(40), approvalRaw, confirmedApprovalSha256: sha256(approvalRaw), originalApprovalRaw: original.approvalRaw };
 }

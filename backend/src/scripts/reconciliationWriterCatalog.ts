@@ -2,6 +2,7 @@ import type { DatabaseInventory } from './productionBackupCore.js';
 import { canonicalConstraintDefinition, sha256, type SchemaSnapshot } from './productionReconciliation.js';
 import { verifyReferenceRows, type ReferenceDatabase, type ReferenceDataPlan } from './productionReferenceData.js';
 import { WriterError } from './reconciliationWriterPolicy.js';
+import { readManagedTrigram } from './reconciliationWriterExtensions.js';
 
 export interface WriterSession extends ReferenceDatabase {
   inventory(): Promise<DatabaseInventory>;
@@ -33,7 +34,10 @@ const requireEqual = (actual: readonly unknown[], expected: readonly unknown[], 
 };
 
 /** Exact postcondition, including bodies/constraints/permissions; not just table counts. */
-export async function verifyWriterTarget(db: WriterSession, snapshot: SchemaSnapshot, reference: ReferenceDataPlan): Promise<WriterCatalog> {
+export async function verifyWriterTarget(db: WriterSession, snapshot: SchemaSnapshot, reference: ReferenceDataPlan,
+  managedExtensionSha256?: string): Promise<WriterCatalog> {
+  const managed = await readManagedTrigram(db);
+  if (managed.signatures.length && managed.sha256 !== managedExtensionSha256) throw new WriterError('MANAGED_EXTENSION_REVIEW_OR_PARITY_REQUIRED');
   const catalog = await readWriterCatalog(db), inventory = catalog.inventory;
   if (catalog.security.some(item => item.kind === 'relation' && !['r', 'v', 'i'].includes(String((JSON.parse(String(item.metadata)) as Record<string, unknown>).kind)))) {
     throw new WriterError('TARGET_UNEXPECTED_RELATION_KIND');
@@ -90,8 +94,8 @@ export async function verifyWriterTarget(db: WriterSession, snapshot: SchemaSnap
       EXISTS(SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind IN ('r','v')
         AND (has_table_privilege($1,c.oid,'SELECT') OR has_table_privilege($1,c.oid,'INSERT') OR has_table_privilege($1,c.oid,'UPDATE') OR has_table_privilege($1,c.oid,'DELETE'))) AS tables,
       EXISTS(SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' AND p.prokind='f'
-        AND has_function_privilege($1,p.oid,'EXECUTE')) AS functions,
-      has_schema_privilege($1,'public','CREATE') AS create`, [role])).rows[0];
+        AND has_function_privilege($1,p.oid,'EXECUTE') AND NOT (p.oid::regprocedure::text = ANY($2::text[]))) AS functions,
+      has_schema_privilege($1,'public','CREATE') AS create`, [role, managed.signatures])).rows[0];
     if (result?.tables !== false || result.functions !== false || result.create !== false) throw new WriterError('TARGET_BROWSER_ACCESS_EXPOSED');
   }
   for (const t of snapshot.tables) {

@@ -128,6 +128,7 @@ case "$action" in
       /app/rehearsal/scripts/verifyProductionReferenceData.js isolated-reference --billing-amount "$billing_amount"
     ;;
   writer)
+    [[ -f "$bundle/scripts/reconciliationWriterExtensions.js" && ! -L "$bundle/scripts/reconciliationWriterExtensions.js" && "$(stat -c '%U' "$bundle/scripts/reconciliationWriterExtensions.js")" == ubuntu ]] || fail
     for file in scripts/reconciliationWriterCore.js scripts/reconciliationWriterCatalog.js scripts/reconciliationWriterPolicy.js scripts/reconciliationWriterFixtures.js scripts/verifyReconciliationWriter.js scripts/productionReferenceData.js scripts/productionReconciliation.js scripts/productionBackupCore.js scripts/productionReconciliationPreflightCore.js scripts/productionApiRehearsalCore.js scripts/migrationSafety.js middleware/capabilities.js; do
       [[ -f "$bundle/$file" && ! -L "$bundle/$file" && "$(stat -c '%U' "$bundle/$file")" == ubuntu ]] || fail
     done
@@ -156,6 +157,8 @@ case "$action" in
       rm -- "$bundle/$file"
     done
     if [[ -f "$bundle/scripts/verifyReconciliationWriter.js" ]]; then
+      [[ -f "$bundle/scripts/reconciliationWriterExtensions.js" && ! -L "$bundle/scripts/reconciliationWriterExtensions.js" && "$(stat -c '%U' "$bundle/scripts/reconciliationWriterExtensions.js")" == ubuntu ]] || fail
+      rm -- "$bundle/scripts/reconciliationWriterExtensions.js"
       for file in scripts/reconciliationWriterCore.js scripts/reconciliationWriterCatalog.js scripts/reconciliationWriterPolicy.js scripts/reconciliationWriterFixtures.js scripts/verifyReconciliationWriter.js scripts/productionReferenceData.js scripts/productionReconciliation.js scripts/productionBackupCore.js scripts/productionReconciliationPreflightCore.js scripts/productionApiRehearsalCore.js scripts/migrationSafety.js middleware/capabilities.js; do
         [[ -f "$bundle/$file" && ! -L "$bundle/$file" && "$(stat -c '%U' "$bundle/$file")" == ubuntu ]] || fail
         rm -- "$bundle/$file"
