@@ -67,16 +67,32 @@ const guard = `DO $guard$ BEGIN
   END IF;
 END $guard$;`;
 export function compileReconciliation(s: SchemaSnapshot): [string, string] {
+  return compileSchema(s, guard, '-- REHEARSAL-ONLY CANDIDATE. No dev data, accounts or historical migration receipts.\n');
+}
+
+/** Separate production artifact: never remove/replace guards in rehearsal files.
+ * The CLI supplies the stronger project, release, backup and approval boundary.
+ */
+export function compileProductionReconciliation(s: SchemaSnapshot): [string, string] {
+  const productionGuard = `DO $guard$ BEGIN
+  IF current_database() <> 'postgres' OR current_user <> 'postgres'
+    OR current_setting('server_version_num')::int NOT BETWEEN 170000 AND 179999 THEN
+    RAISE EXCEPTION 'PRODUCTION_DATABASE_IDENTITY_REQUIRED';
+  END IF;
+END $guard$;`;
+  return compileSchema(s, productionGuard, '-- REVIEWED-RUNNER ONLY. Never paste into SQL Editor or use db push.\n');
+}
+
+function compileSchema(s: SchemaSnapshot, databaseGuard: string, header: string): [string, string] {
   validateSnapshot(s);
-  const header = '-- REHEARSAL-ONLY CANDIDATE. No dev data, accounts or historical migration receipts.\n';
-  const enums = [header, guard, 'SET LOCAL search_path = pg_catalog, public, extensions;', ...s.enums.map(e => {
+  const enums = [header, databaseGuard, 'SET LOCAL search_path = pg_catalog, public, extensions;', ...s.enums.map(e => {
     const name = tableName(e.name);
     return `DO $enum$ BEGIN IF to_regtype(${literal(name)}) IS NULL THEN
       CREATE TYPE ${name} AS ENUM (${e.labels.map(literal).join(', ')});
       END IF; END $enum$;\n` + e.labels.map(label => `ALTER TYPE ${name} ADD VALUE IF NOT EXISTS ${literal(label)};`).join('\n');
   })].join('\n') + '\n';
   const names = s.tables.map(t => literal(t.relname)).join(',');
-  const schema = [header, guard, `SET LOCAL search_path = pg_catalog, public, extensions;
+  const schema = [header, databaseGuard, `SET LOCAL search_path = pg_catalog, public, extensions;
 SET LOCAL check_function_bodies = off;
 DO $empty$ DECLARE t record; occupied boolean; BEGIN
   IF EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace

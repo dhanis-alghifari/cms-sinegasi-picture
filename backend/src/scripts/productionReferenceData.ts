@@ -94,7 +94,7 @@ export function createReferenceDataPlan(
   return { ...content, checksum: sha256(JSON.stringify(content)) };
 }
 
-async function verifyReferenceRows(db: ReferenceDatabase, plan: ReferenceDataPlan): Promise<void> {
+export async function verifyReferenceRows(db: ReferenceDatabase, plan: ReferenceDataPlan): Promise<void> {
   for (const table of plan.tables) {
     const result = await db.query(`SELECT ${table.columns.map(quoteIdentifier).join(', ')} FROM public.${quoteIdentifier(table.name)}`);
     const rows = result.rows.map(row => table.columns.map(column =>
@@ -103,6 +103,15 @@ async function verifyReferenceRows(db: ReferenceDatabase, plan: ReferenceDataPla
       throw new ReferenceDataError('REFERENCE_DATA_DRIFT');
     }
   }
+}
+
+/** Caller must own the transaction, locks and target/approval checks. */
+export async function insertReferenceRows(db: ReferenceDatabase, plan: ReferenceDataPlan): Promise<void> {
+  for (const table of plan.tables) for (const row of table.rows) {
+    await db.query(`INSERT INTO public.${quoteIdentifier(table.name)} (${table.columns.map(quoteIdentifier).join(', ')})
+      VALUES (${row.map((_, index) => `$${index + 1}`).join(', ')})`, row);
+  }
+  await verifyReferenceRows(db, plan);
 }
 
 /** Rehearsal runner only. Supabase databases named postgres are ALWAYS refused.
@@ -151,13 +160,7 @@ export async function rehearseReferenceData(
         REVOKE ALL ON SCHEMA sinegasi_ops FROM PUBLIC,anon,authenticated,service_role;
         CREATE TABLE IF NOT EXISTS ${HISTORY}(name text PRIMARY KEY, checksum text NOT NULL CHECK(checksum ~ '^[a-f0-9]{64}$'), applied_at timestamptz NOT NULL DEFAULT now());
         REVOKE ALL ON ${HISTORY} FROM PUBLIC,anon,authenticated,service_role`);
-      for (const table of plan.tables) {
-        for (const row of table.rows) {
-          await db.query(`INSERT INTO public.${quoteIdentifier(table.name)} (${table.columns.map(quoteIdentifier).join(', ')})
-            VALUES (${row.map((_, index) => `$${index + 1}`).join(', ')})`, row);
-        }
-      }
-      await verifyReferenceRows(db, plan);
+      await insertReferenceRows(db, plan);
       await db.query(`INSERT INTO ${HISTORY}(name,checksum) VALUES($1,$2)`, [RECEIPT, plan.checksum]);
     }
     committing = true;

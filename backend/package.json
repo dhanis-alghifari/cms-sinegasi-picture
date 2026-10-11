@@ -31,6 +31,10 @@
     "db:production:api:rehearse": "tsc && node --import tsx src/scripts/rehearseProductionApi.ts rehearse-api",
     "db:reconciliation:preflight:plan": "node --import tsx src/scripts/productionReconciliationPreflight.ts plan",
     "db:reconciliation:preflight": "node --import tsx src/scripts/productionReconciliationPreflight.ts preflight",
+    "db:reconciliation:writer:plan": "node --import tsx src/scripts/reconciliationWriter.ts plan",
+    "db:reconciliation:writer:inspect": "node --import tsx src/scripts/reconciliationWriter.ts inspect",
+    "db:reconciliation:writer": "node --import tsx src/scripts/reconciliationWriter.ts",
+    "db:reconciliation:writer:rehearse": "tsc && node --import tsx src/scripts/rehearseReconciliationWriter.ts rehearse-writer",
     "db:backup:copy-vps": "tsx src/scripts/copyEncryptedBackupToVps.ts",
     "db:bootstrap:teacher": "tsx src/scripts/bootstrapTeacher.ts"
   },

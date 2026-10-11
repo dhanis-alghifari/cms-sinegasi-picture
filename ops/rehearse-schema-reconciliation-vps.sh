@@ -42,7 +42,7 @@ case "$action" in
       --tmpfs "/var/run/postgresql:rw,noexec,nosuid,nodev,size=8m,uid=$pg_uid,gid=$pg_gid,mode=0700" \
       --tmpfs "/tmp:rw,noexec,nosuid,nodev,size=32m,uid=$pg_uid,gid=$pg_gid,mode=0700" \
       --log-driver none -e POSTGRES_DB=sinegasi_backup_restore -e POSTGRES_HOST_AUTH_METHOD=trust \
-      "$pg_image" postgres -c listen_addresses=127.0.0.1 -c max_connections=10 -c shared_buffers=16MB >/dev/null
+      "$pg_image" postgres -c listen_addresses=127.0.0.1 -c max_connections=10 -c shared_buffers=16MB -c sinegasi.schema_rehearsal=on >/dev/null
     pg_id=$(owned_id "$pg_name")
     docker start "$pg_id" >/dev/null
     ready=false
@@ -127,6 +127,21 @@ case "$action" in
       -e ENV_FILE_LOADING=disabled --entrypoint node "$client_image" \
       /app/rehearsal/scripts/verifyProductionReferenceData.js isolated-reference --billing-amount "$billing_amount"
     ;;
+  writer)
+    for file in scripts/reconciliationWriterCore.js scripts/reconciliationWriterCatalog.js scripts/reconciliationWriterPolicy.js scripts/reconciliationWriterFixtures.js scripts/verifyReconciliationWriter.js scripts/productionReferenceData.js scripts/productionReconciliation.js scripts/productionBackupCore.js scripts/productionReconciliationPreflightCore.js scripts/productionApiRehearsalCore.js scripts/migrationSafety.js middleware/capabilities.js; do
+      [[ -f "$bundle/$file" && ! -L "$bundle/$file" && "$(stat -c '%U' "$bundle/$file")" == ubuntu ]] || fail
+    done
+    pg_id=$(owned_id "$pg_name")
+    client_image=$(timeout 5 docker inspect -f '{{.Image}}' sinegasi-api-dev)
+    [[ "$client_image" =~ ^sha256:[a-f0-9]{64}$ ]] || fail
+    timeout 240 docker run --rm --name "$client_name" --label "sinegasi.schema-rehearsal=$run_id" \
+      --network "container:$pg_id" --restart no --memory 192m --memory-swap 192m --cpus 0.5 --pids-limit 64 \
+      --read-only --user "$(id -u):$(id -g)" --cap-drop ALL --security-opt no-new-privileges \
+      --tmpfs /tmp:rw,noexec,nosuid,nodev,size=8m --log-driver none \
+      --mount "type=bind,src=$bundle,dst=/app/rehearsal,readonly" --workdir /app \
+      -e ENV_FILE_LOADING=disabled --entrypoint node "$client_image" \
+      /app/rehearsal/scripts/verifyReconciliationWriter.js isolated-writer
+    ;;
   cleanup)
     pg_id=$(owned_id "$pg_name")
     if docker container inspect "$client_name" >/dev/null 2>&1; then
@@ -140,7 +155,13 @@ case "$action" in
       [[ -f "$bundle/$file" && ! -L "$bundle/$file" && "$(stat -c '%U' "$bundle/$file")" == ubuntu ]] || fail
       rm -- "$bundle/$file"
     done
-    if [[ -d "$bundle/scripts" ]]; then
+    if [[ -f "$bundle/scripts/verifyReconciliationWriter.js" ]]; then
+      for file in scripts/reconciliationWriterCore.js scripts/reconciliationWriterCatalog.js scripts/reconciliationWriterPolicy.js scripts/reconciliationWriterFixtures.js scripts/verifyReconciliationWriter.js scripts/productionReferenceData.js scripts/productionReconciliation.js scripts/productionBackupCore.js scripts/productionReconciliationPreflightCore.js scripts/productionApiRehearsalCore.js scripts/migrationSafety.js middleware/capabilities.js; do
+        [[ -f "$bundle/$file" && ! -L "$bundle/$file" && "$(stat -c '%U' "$bundle/$file")" == ubuntu ]] || fail
+        rm -- "$bundle/$file"
+      done
+      rmdir -- "$bundle/scripts" "$bundle/middleware"
+    elif [[ -d "$bundle/scripts" ]]; then
       for file in scripts/productionReferenceData.js scripts/verifyProductionReferenceData.js scripts/productionBackupCore.js scripts/productionReconciliation.js scripts/bootstrapTeacherCore.js middleware/capabilities.js services/passwordService.js; do
         [[ -f "$bundle/$file" && ! -L "$bundle/$file" && "$(stat -c '%U' "$bundle/$file")" == ubuntu ]] || fail
         rm -- "$bundle/$file"
