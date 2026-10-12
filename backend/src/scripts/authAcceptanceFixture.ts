@@ -120,8 +120,11 @@ export async function createAuthAcceptanceFixture(): Promise<AuthAcceptanceFixtu
       user.is_first_login = false;
       user.auth_version += 1;
       passwordChanges += 1;
-      return json({ id: user.id, nama: user.nama, is_active: user.is_active,
-        is_first_login: user.is_first_login, auth_version: user.auth_version });
+      const changed = { id: user.id, nama: user.nama, is_active: user.is_active,
+        is_first_login: user.is_first_login, auth_version: user.auth_version };
+      // RETURNS TABLE is a list on the wire; maybeSingle unwraps it inside the SDK.
+      return request.headers.get('accept')?.includes('application/vnd.pgrst.object+json')
+        ? json(changed) : json([changed]);
     }
     if (limiterUnavailable) return json({ code: 'FIXTURE_OUTAGE', message: 'Isolated limiter unavailable' }, 503);
     const key = textField(args.p_rate_key);

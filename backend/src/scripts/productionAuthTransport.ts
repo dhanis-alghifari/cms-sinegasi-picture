@@ -135,7 +135,13 @@ function createAuthTransport(scope: AuthTransportScope, upstream: typeof fetch):
       } finally { void reader.cancel().catch(() => {}); }
       const body = Buffer.concat(chunks);
       if (passwordRpc) {
-        const data = authRecord(JSON.parse(body.toString('utf8')) as unknown);
+        let acknowledgement: unknown = JSON.parse(body.toString('utf8'));
+        if (Array.isArray(acknowledgement)) {
+          authRequire(acknowledgement.length === 1, 'AUTH_ROTATION_ACK_INVALID_INSPECT_REQUIRED');
+          acknowledgement = acknowledgement[0];
+        }
+        // Validate one row without rewriting the wire body that the SDK must parse.
+        const data = authRecord(acknowledgement);
         authRequire(data.id === scope.userId && data.is_first_login === false && data.is_active === true && data.auth_version === 2,
           'AUTH_ROTATION_ACK_INVALID_INSPECT_REQUIRED');
         observations.rotationOutcome = 'acknowledged';
