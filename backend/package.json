@@ -41,7 +41,12 @@
     "db:bootstrap:teacher": "tsx src/scripts/bootstrapTeacher.ts",
     "db:production:bootstrap:plan": "node --import tsx src/scripts/productionBootstrapTeacher.ts plan",
     "db:production:bootstrap": "node --import tsx src/scripts/productionBootstrapTeacher.ts",
-    "db:production:bootstrap:rehearse": "tsc && node --import tsx src/scripts/rehearseReconciliationWriter.ts rehearse-bootstrap"
+    "db:production:bootstrap:rehearse": "tsc && node --import tsx src/scripts/rehearseReconciliationWriter.ts rehearse-bootstrap",
+    "db:production:auth:plan": "node --import tsx src/scripts/productionAuthAcceptance.ts plan",
+    "db:production:auth:rehearse": "node --import tsx src/scripts/productionAuthAcceptance.ts rehearse",
+    "db:production:auth:executor:plan": "node --import tsx src/scripts/productionAuthExecutor.ts plan",
+    "db:production:auth:executor:rehearse": "node --import tsx src/scripts/productionAuthExecutor.ts rehearse",
+    "db:production:auth:executor": "node --import tsx src/scripts/productionAuthExecutor.ts"
   },
   "dependencies": {
     "@fastify/cors": "^10.0.1",
