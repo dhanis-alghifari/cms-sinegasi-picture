@@ -825,8 +825,12 @@ in disposable fixture rebuilding (foreign-key/append-only audit retention and
 native-extension ownership); no production database was accessed, and no audit
 or extension protection was relaxed. Final backend quality: 493 passed,
 one explicitly skipped local PostgreSQL test, typecheck/build passed, OpenAPI
-parity 159 operations passed. This patch is still uncommitted/unpushed and is
-not a new successful main-CI run or authorization to create a production user.
+parity 159 operations passed. At that local-test checkpoint the patch was still
+uncommitted/unpushed; these results are not a successful push/main CI run or
+authorization to create a production user. Code promotion is tracked by
+[PR #5](https://github.com/dhanis-alghifari/cms-sinegasi-picture/pull/5); require
+its merge and successful quality CI on the exact resulting main SHA before
+preparing any first-account approval.
 
 Threat boundaries: reviewed Git source/artifacts and private operator evidence
 → TLS-protected admin connection → privileged DDL/config/journal. Controls bind
