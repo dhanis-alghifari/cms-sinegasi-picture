@@ -793,10 +793,31 @@ no production password change and no deployment. A dirty-tree receipt is
 diagnostic only; it cannot authorize a future managed run. The fixture emulates
 REST/database state; it does not prove PostgreSQL atomicity, production audit
 behavior, provider availability, browser flow or cross-worker revocation.
-Twenty-three additional tests cover approval/window/evidence gates, scoped
+Twenty-five executor tests cover approval/window/evidence gates, scoped
 transport, exclusive private custody, redacted audit contracts and ambiguous
-outcomes. Backend quality: 530 passed, one explicitly skipped disposable-PG
+outcomes. Local backend quality after the RPC-response fix: 532 passed, one explicitly skipped disposable-PG
 test, zero failures; OpenAPI parity: 159 operations.
+
+`change_password_atomic` returns a table. Its default PostgREST wire response
+is an array; the Supabase SDK's `.maybeSingle()` unwraps that array **after**
+the guarded fetch completes. The transport validates either one object or an
+array containing exactly one valid row, then passes the original response
+bytes to the SDK. Empty/multiple/nested rows, wrong identity/version/flags,
+invalid JSON and lost responses remain terminal unknown outcomes, with no
+retry or rearming. The fixture now models the array by default and honors
+singular-object content negotiation; regressions use both `.maybeSingle()`
+and `.single()` through the actual SDK.
+
+This local correction is **not** authorization to rerun a production attempt.
+If the inspector already reports `PRODUCTION_AUTH_ROTATION_OBSERVED`, the
+account is at version 2: preserve the one-shot custody file and temporary
+credential file, never reset/replay `apply`, and prepare a separately reviewed
+post-rotation verification procedure instead. That procedure is not implemented
+by this parser patch. Changing source invalidates the previous approval binding;
+old checksums/windows cannot be reused. No Keychain, production credential
+file, login, password reset, push or deployment was accessed/performed to test
+this correction. See [PostgREST table-valued response shapes](https://docs.postgrest.org/en/stable/references/api/functions.html#scalar-functions)
+and [Supabase maybeSingle](https://supabase.com/docs/reference/javascript/using-modifiers-maybesingle).
 
 Custody tests resolve the OS temporary directory with `realpath(tmpdir())`
 before creating an isolated 0700 directory, instead of assuming a Mac-only

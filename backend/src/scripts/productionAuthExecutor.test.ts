@@ -4,6 +4,8 @@ import { chmod, link, lstat, mkdtemp, readFile, realpath, rm, symlink } from 'no
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import test from 'node:test';
+import { createClient } from '@supabase/supabase-js';
+import { AUTH_FIXTURE_KEY, AUTH_FIXTURE_ORIGIN, AUTH_FIXTURE_USER_ID, createAuthAcceptanceFixture } from './authAcceptanceFixture.js';
 import { AUTH_ACCOUNT, AUTH_PRIVATE_ROOT, AUTH_EXECUTOR_GUARD_CHECKS, MANAGED_AUTH_CHECKS, parseAuthExecutorCommand,
   validateAuthApproval, validateAuthEvidence, validateAuthSupportingEvidence } from './productionAuthExecutorCore.js';
 import { syntheticAuthReview } from './productionAuthExecutorRehearsal.js';
@@ -142,15 +144,62 @@ test('password RPC is unarmed by default and refuses actor/version/password subs
     assert.equal(t.observations.rotationAttempts, 0);
   }
 });
-test('one acknowledged password RPC can never be replayed or rearmed', async () => {
-  let sent = 0;
-  const t = transport(async () => { sent++; return Response.json({ id: scope.userId, is_first_login: false, is_active: true, auth_version: 2 }); });
-  t.armRotation(); const request = await passwordRequest(); await t.fetch(request.clone());
-  assert.equal(t.observations.rotationOutcome, 'acknowledged'); assert.throws(() => t.armRotation());
-  await assert.rejects(t.fetch(request.clone())); assert.equal(sent, 1);
+test('object and one-row array acknowledgements preserve wire bytes and cannot be replayed or rearmed', async () => {
+  const row = { id: scope.userId, is_first_login: false, is_active: true, auth_version: 2 };
+  const request = await passwordRequest();
+  for (const payload of [row, [row]]) {
+    let sent = 0; const raw = ' \n' + JSON.stringify(payload) + '\n';
+    const t = transport(async () => { sent++; return new Response(raw, { headers: { 'content-type': 'application/json' } }); });
+    t.armRotation(); const response = await t.fetch(request.clone());
+    assert.equal(await response.text(), raw); assert.equal(response.headers.get('content-type'), 'application/json');
+    assert.equal(t.observations.rotationOutcome, 'acknowledged'); assert.throws(() => t.armRotation());
+    await assert.rejects(t.fetch(request.clone())); assert.equal(sent, 1); assert.equal(t.observations.rotationAttempts, 1);
+  }
+});
+test('real Supabase SDK handles table-valued password RPC array and singular-object contracts through guarded transport', async () => {
+  for (const singular of [false, true]) {
+    const fixture = await createAuthAcceptanceFixture();
+    let wirePayload: unknown;
+    const t = createIsolatedAuthTransport({ origin: AUTH_FIXTURE_ORIGIN, key: AUTH_FIXTURE_KEY,
+      userId: AUTH_FIXTURE_USER_ID, username: 'fixture_guru', newPassword: fixture.newPassword,
+      deadline: Date.now() + 60_000, beforeRequest() {} }, async (input, init) => {
+      const response = await fixture.fetch(input, init); wirePayload = await response.clone().json(); return response;
+    });
+    const client = createClient(AUTH_FIXTURE_ORIGIN, AUTH_FIXTURE_KEY, { global: { fetch: t.fetch },
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
+    t.armRotation();
+    const query = client.rpc('change_password_atomic', { p_user_id: AUTH_FIXTURE_USER_ID, p_updated_by: AUTH_FIXTURE_USER_ID,
+      p_expected_auth_version: 1, p_change_reason: 'Pengguna mengganti password akun',
+      p_password_hash: await hashPassword(fixture.newPassword) });
+    const result = singular ? await query.single() : await query.maybeSingle();
+    const expected = { id: AUTH_FIXTURE_USER_ID, nama: 'Guru Terisolasi', is_active: true, is_first_login: false, auth_version: 2 };
+    assert.deepEqual(wirePayload, singular ? expected : [expected]);
+    assert.equal(result.error, null); assert.deepEqual(result.data, expected);
+    assert.equal(t.observations.rotationOutcome, 'acknowledged'); assert.equal(t.observations.rotationAttempts, 1);
+    assert.equal(t.observations.blocked, 0); assert.equal(fixture.snapshot().passwordChanges, 1);
+    assert.equal(fixture.snapshot().passwordRpcCalls, 1); assert.throws(() => t.armRotation());
+  }
+});
+test('ambiguous acknowledgement cardinality, nesting and invalid account state halt every subsequent request', async () => {
+  const row = { id: scope.userId, is_first_login: false, is_active: true, auth_version: 2 };
+  const invalidRows = [{}, { ...row, id: 'wrong' }, { ...row, id: undefined }, { ...row, is_first_login: true },
+    { ...row, is_first_login: 'false' }, { ...row, is_first_login: undefined }, { ...row, is_active: false },
+    { ...row, is_active: 1 }, { ...row, is_active: undefined }, { ...row, auth_version: 1 },
+    { ...row, auth_version: 3 }, { ...row, auth_version: '2' }, { ...row, auth_version: undefined }];
+  const payloads: unknown[] = [[], [row, row], [row, { ...row, id: 'other' }], [row, null], [[row]],
+    null, true, 1, 'acknowledged', [null], [true], [1], ['acknowledged'], { data: [row] },
+    ...invalidRows, ...invalidRows.map(value => [value])];
+  const request = await passwordRequest();
+  for (const payload of payloads) {
+    let sent = 0; const t = transport(async () => { sent++; return Response.json(payload); }); t.armRotation();
+    await assert.rejects(t.fetch(request.clone())); assert.throws(() => t.assertHealthy()); assert.throws(() => t.armRotation());
+    await assert.rejects(t.fetch(request.clone())); await assert.rejects(t.fetch(readRequest()));
+    assert.equal(sent, 1); assert.equal(t.observations.rotationAttempts, 1); assert.equal(t.observations.rotationOutcome, 'unknown');
+  }
 });
 test('lost/malformed password acknowledgements report unknown and never retry', async () => {
   for (const upstream of [async () => { throw new Error('synthetic lost response'); }, async () => Response.json({ id: 'wrong' }),
+    async () => new Response('not-json'), async () => new Response(null, { status: 204 }),
     async () => new Response('{}', { status: 503 })]) {
     let sent = 0; const t = transport(async () => { sent++; return upstream(); }); t.armRotation(); const req = await passwordRequest();
     await assert.rejects(t.fetch(req.clone())); await assert.rejects(t.fetch(req.clone()));
