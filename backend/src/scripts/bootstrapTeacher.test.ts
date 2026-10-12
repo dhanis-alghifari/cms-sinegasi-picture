@@ -164,6 +164,35 @@ test('ambiguous COMMIT keeps the sole credential copy and never retries creation
   assert.equal(context.database.queries.filter((query) => query.sql.includes('INSERT INTO public.users')).length, 1);
 });
 
+test('authorization runs under the account lock before credentials and refuses atomically', async () => {
+  const context = fixture();
+  await assert.rejects(bootstrapFirstTeacher(applyOptions, { ...context.dependencies, async beforeCreate() {
+    assert(context.database.queries.at(-1)?.sql.includes('LOCK TABLE public.users'));
+    throw new BootstrapTeacherError('BOOTSTRAP_REVIEW_REFUSED');
+  } }), { code: 'BOOTSTRAP_REVIEW_REFUSED' });
+  assert.equal(context.credentials.length, 0);
+  assert.equal(context.database.queries.at(-1)?.sql, 'ROLLBACK');
+});
+
+test('final authorization can refuse COMMIT and remove only uncommitted credentials', async () => {
+  const context = fixture();
+  await assert.rejects(bootstrapFirstTeacher(applyOptions, { ...context.dependencies, async beforeCommit() {
+    throw new BootstrapTeacherError('BOOTSTRAP_APPROVED_WINDOW_REQUIRED');
+  } }), { code: 'BOOTSTRAP_APPROVED_WINDOW_REQUIRED' });
+  assert.equal(context.removed, true);
+  assert(!context.database.queries.some(q => q.sql === 'COMMIT'));
+});
+
+test('lost ROLLBACK acknowledgement keeps credentials and reports uncertainty', async () => {
+  const context = fixture();
+  context.database.failOn = 'ROLLBACK';
+  await assert.rejects(bootstrapFirstTeacher(applyOptions, { ...context.dependencies, async beforeCommit() {
+    throw new Error('synthetic confidential failure');
+  } }), { code: 'BOOTSTRAP_ROLLBACK_UNCERTAIN_INSPECT_BEFORE_RETRY' });
+  assert.equal(context.removed, false);
+  assert(!context.database.queries.some(q => q.sql === 'COMMIT'));
+});
+
 test('CLI never accepts passwords/database URLs as arguments or echoes invalid argument values', () => {
   const command = parseBootstrapTeacherCommand(['--project-ref', PROJECT_REF, '--username', 'bootstrap.test', '--name', 'Guru Fixture']);
   assert.equal(command.options.apply, false);

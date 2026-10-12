@@ -12,7 +12,8 @@ const USAGE = `Bootstrap first Guru (teacher); no Supabase Auth account is creat
 Default: offline dry-run, no connection, account or credential file.
 
 node dist/scripts/bootstrapTeacher.js --project-ref <ref> --username <username> --name <official-name>
-Apply additionally requires:
+Remote apply is disabled here. Use productionBootstrapTeacher.ts with reviewed approval.
+Isolated loopback apply additionally requires --local and:
   --apply --confirm-project <same-ref> --credential-file <absolute-private-path.json>
   BOOTSTRAP_DATABASE_URL supplied through a private environment, never CLI arguments.
 Use --local only for isolated loopback rehearsal; it rejects remote connections.
@@ -62,6 +63,8 @@ export async function mainBootstrapTeacher(args = process.argv.slice(2)): Promis
     console.log(JSON.stringify({ mode: 'dry-run', role: 'teacher', isFirstLogin: true, databaseChecked: false }));
     return;
   }
+  // No environment switch/checksum-less legacy route may bypass the production gate.
+  if (!command.local) throw new BootstrapTeacherError('USE_REVIEWED_PRODUCTION_BOOTSTRAP_RUNNER');
   const databaseUrl = process.env.BOOTSTRAP_DATABASE_URL;
   if (!databaseUrl) throw new BootstrapTeacherError('BOOTSTRAP_DATABASE_URL_REQUIRED');
   const client = new Client(buildMigrationConnectionConfig(databaseUrl, command.options.projectRef, command.local));

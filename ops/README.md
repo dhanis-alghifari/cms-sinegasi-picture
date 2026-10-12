@@ -702,9 +702,131 @@ review by 18 October 2026, before public launch; do not run `npm audit fix
 
 The old production deployment workflow still requires an approved historical
 manifest, which remains draft/blocked. This writer does **not** mark it approved
-or open that deployment gate. Account bootstrap and release/deployment gate
-integration must be reviewed next; do not run the old apply/bootstrap pipeline
-as a shortcut.
+or open that deployment gate. Use the separate guarded account preparation
+below; release/deployment gate integration remains a later review. Do not run
+the old apply/bootstrap pipeline as a shortcut.
+
+### Guarded first-Guru preparation (Mac; no deployment)
+
+The schema migration is already complete; **do not repeat SQL migration or
+copy DEV accounts/data**. The next operation is preparing ONE official first
+Guru (`teacher`) in `public.users`, not creating a Supabase Auth account.
+No production account is created by installing/testing this runner.
+
+In **Terminal Mac Lokal** (not an SSH shell, Supabase SQL Editor or Cloudflare):
+
+```bash
+cd /Users/memberid/Documents/cms-sinegasi-picture/backend
+ENV_FILE_LOADING=disabled npm run db:production:bootstrap:plan
+```
+
+Require `PRODUCTION_BOOTSTRAP_OFFLINE_PLAN`, with `databaseAccessed:false`,
+`productionChanged:false`, `accountCreated:false`. This command uses no
+Keychain/network and does not grant approval. Its release SHA is the current
+HEAD; on a dirty checkout its source digest describes uncommitted code, not a
+promoted release.
+
+Proceed in this order, stopping on any failed stage:
+
+1. Review the patch and its isolated rehearsal receipt, then promote the exact
+   code to `main` through CI. Quality must be a successful **push/main** run on
+   that SHA, with both `backend-quality` and `frontend-quality` jobs passing.
+   [GitHub Actions](https://github.com/dhanis-alghifari/cms-sinegasi-picture/actions)
+   is the browser page for this step. No new push/merge is authorized merely by
+   running `plan`. A push to `develop` can deploy DEV backend; any branch push
+   can create a Cloudflare DEV preview. Review those effects before pushing.
+2. Run a **NEW managed read-only integration on that exact clean main SHA**,
+   after announcing the two API-key Keychain prompts. Its receipt must match
+   the integration runner, schema fingerprint and canonical reference checksum,
+   be less than 24 hours old, and precede the new backup. Preserve the historical
+   dirty-tree receipt unchanged; it cannot authorize an account. Store the new
+   original receipt (same filename and bytes) privately in
+   `/Users/memberid/Library/Application Support/Sinegasi/Reconciliation`
+   (directory 0700, file 0600), outside Git: move only this new, untracked
+   generated receipt out of `ops/`, without replacing any historical receipt.
+   Leaving it untracked makes the checkout dirty; committing it changes the
+   release SHA it attests. The bootstrap runner reads it from the private path.
+3. Create a **new post-migration backup** in Terminal Mac Lokal:
+
+   ```bash
+   ENV_FILE_LOADING=disabled npm run db:production:backup -- create
+   ```
+
+   Announce beforehand: this requests PostgreSQL admin and age-key Keychain
+   access. Copy the exact new `id` from successful output into the documented
+   restore/copy commands—never paste `ID_BACKUP_BARU` literally. Require
+   `PUBLIC_APPLICATION_RESTORE_VERIFIED` and `ENCRYPTED_VPS_COPY_VERIFIED`.
+   The runner requires backup age <=2 hours and exact live inventory parity;
+   the earlier 17-table pre-migration backup cannot authorize a 73-table
+   first-account operation. Ciphertext on the VPS is not independent key
+   recovery; Mac-only custody and same-application-host risks need fresh,
+   explicit acknowledgement in the account approval.
+4. After readiness to see **one admin-URL** Keychain prompt, inspect only:
+
+   ```bash
+   ENV_FILE_LOADING=disabled npm run db:production:bootstrap -- inspect --keychain-ready
+   ```
+
+   Require `BOOTSTRAP_COMPLETED_MIGRATION_OBSERVED`, `productionApproved:false`
+   and no account creation. This verifies the private `complete` checkpoint,
+   exact schema/functions/RLS/grants and 213 canonical configuration rows.
+   It is not authorization to apply. A populated/drifted project stops;
+   do not empty/reset it to make the check pass.
+5. Review a **new first-account approval document**, outside Git in the private
+   `Sinegasi/Reconciliation` directory. The operator/assistant prepares it from
+   actual CI, inspect, rehearsal, integration and recovery outputs, not
+   placeholder or synthetic fixture JSON. It binds `operation:
+   bootstrap_first_teacher`, the official `username`/`nama`, exclusive private
+   credential-file path, current main SHA, runner digest, package/checkpoint/
+   migration-completion checksums, managed-extension digest, three evidence
+   checksums, backup ID/ciphertext digests, reviewer and a <=1-hour window.
+   Confirm its exact SHA256 separately before applying. Previous migration
+   checksums authorize neither an account nor deployment. No apply command is
+   issued here before that new review/confirmation.
+6. Approved apply rechecks current main/CI, local ciphertext/restore/copy
+   artifacts, current remote checksum and Mac decryption-key availability.
+   It then reads the admin URL (these prompts must be announced first).
+   The transaction shares the migration advisory lock, locks all reviewed
+   public tables and managed data counters, verifies the `complete` checkpoint
+   plus backup/catalog parity, and refuses existing Auth/Storage data or users.
+   Exactly one first-login-required active teacher and one redacted audit row
+   are committed; no SQL package, permissions, workers or deployment change.
+7. Preserve the only credential copy outside Git (directory 0700, file 0600,
+   exclusive/no symlink/no overwrite). It is never printed. Lost COMMIT or
+   ROLLBACK acknowledgement means **STOP and inspect**, not automatic retry,
+   deletion of credentials, manual INSERT, or resetting the database. Success
+   still has `readyForPublicLaunch:false`. Login/password rotation/revocation
+   and real API mutations require separate scoped write approval; deployment
+   still remains blocked by its old manifest gate.
+
+The old `bootstrapTeacher.ts --apply` now permits **isolated loopback only**
+(`--local` still rejects remote URLs); it cannot bypass this production review.
+Unit tests exercise approval/checksum/clock/evidence/CLI refusal. The command
+below runs real PostgreSQL in the already approved labelled disposable VPS
+container, network-none/limited resources/no published port, using synthetic
+test authorization only; it does not read production credentials or backups:
+
+```bash
+ENV_FILE_LOADING=disabled npm run db:production:bootstrap:rehearse
+```
+
+Require `BOOTSTRAP_GUARD_ISOLATED_PASSED` **and** verified container/bundle
+cleanup with DEV/Caddy unchanged. It also runs the writer's existing migration/
+resume regression checks before account-guard tests. Synthetic evidence is
+test input, not managed acceptance or operator approval. A local administrator
+can manufacture JSON or alter code; checksum gates are operator review
+controls, not independent cryptographic authorization. Tests reduce risk;
+they do not guarantee zero bugs or full Supabase-provider restore.
+
+Actual isolated run: [12 October 2026, 00:20 WIB](production-bootstrap.rehearsal.2026-10-11T17-20-22-256Z.json),
+PostgreSQL 17.11, all 10 account guards passed after the writer regression suite.
+Container/bundle cleanup verified; DEV/Caddy unchanged. Earlier failures were
+in disposable fixture rebuilding (foreign-key/append-only audit retention and
+native-extension ownership); no production database was accessed, and no audit
+or extension protection was relaxed. Final backend quality: 493 passed,
+one explicitly skipped local PostgreSQL test, typecheck/build passed, OpenAPI
+parity 159 operations passed. This patch is still uncommitted/unpushed and is
+not a new successful main-CI run or authorization to create a production user.
 
 Threat boundaries: reviewed Git source/artifacts and private operator evidence
 → TLS-protected admin connection → privileged DDL/config/journal. Controls bind
