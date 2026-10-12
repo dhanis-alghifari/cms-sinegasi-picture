@@ -795,13 +795,22 @@ REST/database state; it does not prove PostgreSQL atomicity, production audit
 behavior, provider availability, browser flow or cross-worker revocation.
 Twenty-three additional tests cover approval/window/evidence gates, scoped
 transport, exclusive private custody, redacted audit contracts and ambiguous
-outcomes. Backend quality: 527 passed, one explicitly skipped disposable-PG
+outcomes. Backend quality: 530 passed, one explicitly skipped disposable-PG
 test, zero failures; OpenAPI parity: 159 operations.
 
 Custody tests resolve the OS temporary directory with `realpath(tmpdir())`
 before creating an isolated 0700 directory, instead of assuming a Mac-only
 `/private/tmp` path. The actual custody writer's canonical-path, ownership,
 0700/0600 mode and exclusive-create checks remain unchanged.
+
+The first Linux/Node 22 PR run exposed an empty-stdin subprocess race in the
+shared private-command helper (shell quoting and offline Git metadata tests).
+Commands without input now use an ignored stdin descriptor, rather than writing
+an empty value to a pipe that may already be closed. Three regression tests
+cover fast exits with empty strings/buffers, byte-preserving nonempty input and
+sanitized rejection of a broken nonempty-input pipe. Timeout/output limits,
+minimal environments and private diagnostic handling remain enforced; no
+Keychain, database or production command was used to verify this correction.
 
 Future managed sequence (requires separate permission, not run during preparation):
 

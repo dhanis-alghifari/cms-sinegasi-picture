@@ -91,7 +91,12 @@ export async function privateCommandBytes(command: string, args: string[], input
 async function runPrivateCommandBytes(command: string, args: string[], input: string | Buffer,
   timeout: number, maxBytes: number, environment: NodeJS.ProcessEnv): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { detached: true, env: environment, stdio: ['pipe', 'pipe', 'pipe'] });
+    // A fast child may close stdin before even an empty write on Linux.
+    // Only create a pipe when there is data to deliver; real input errors still fail closed.
+    const options = { detached: true, env: environment };
+    const child = input.length > 0
+      ? spawn(command, args, { ...options, stdio: ['pipe', 'pipe', 'pipe'] })
+      : spawn(command, args, { ...options, stdio: ['ignore', 'pipe', 'pipe'] });
     const chunks: Buffer[] = [];
     let bytes = 0;
     let settled = false;
@@ -100,7 +105,7 @@ async function runPrivateCommandBytes(command: string, args: string[], input: st
       if (!settled) { settled = true; clearTimeout(timer); reject(new BackupError('PRIVATE_COMMAND_FAILED')); }
     };
     child.on('error', fail);
-    child.stdin.on('error', fail);
+    child.stdin?.on('error', fail);
     child.stdout.on('data', (chunk: Buffer) => {
       bytes += chunk.length;
       if (bytes > maxBytes) { child.kill('SIGKILL'); fail(); }
@@ -113,7 +118,7 @@ async function runPrivateCommandBytes(command: string, args: string[], input: st
       if (code !== 0) { fail(); return; }
       if (!settled) { settled = true; resolve(Buffer.concat(chunks)); }
     });
-    child.stdin.end(input);
+    child.stdin?.end(input);
   });
 }
 
