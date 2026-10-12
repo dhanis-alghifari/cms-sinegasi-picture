@@ -38,7 +38,10 @@
     "db:reconciliation:writer": "node --import tsx src/scripts/reconciliationWriter.ts",
     "db:reconciliation:writer:rehearse": "tsc && node --import tsx src/scripts/rehearseReconciliationWriter.ts rehearse-writer",
     "db:backup:copy-vps": "tsx src/scripts/copyEncryptedBackupToVps.ts",
-    "db:bootstrap:teacher": "tsx src/scripts/bootstrapTeacher.ts"
+    "db:bootstrap:teacher": "tsx src/scripts/bootstrapTeacher.ts",
+    "db:production:bootstrap:plan": "node --import tsx src/scripts/productionBootstrapTeacher.ts plan",
+    "db:production:bootstrap": "node --import tsx src/scripts/productionBootstrapTeacher.ts",
+    "db:production:bootstrap:rehearse": "tsc && node --import tsx src/scripts/rehearseReconciliationWriter.ts rehearse-bootstrap"
   },
   "dependencies": {
     "@fastify/cors": "^10.0.1",

@@ -9,7 +9,7 @@ import { sha256 } from './productionReconciliation.js';
 import { runReconciliationWriter } from './reconciliationWriterCore.js';
 import { readWriterCatalog, writerCatalogHash, type WriterSession } from './reconciliationWriterCatalog.js';
 import { readManagedTrigram } from './reconciliationWriterExtensions.js';
-import { createWriterPackage, object, parseWriterOptions, requireWriterQualityRun, validateWriterApproval, validateWriterEvidence, validateWriterRecovery, validateResumeApproval, WriterError } from './reconciliationWriterPolicy.js';
+import { backupTime, createWriterPackage, object, parseWriterOptions, requireWriterQualityRun, validateWriterApproval, validateWriterEvidence, validateWriterRecovery, validateResumeApproval, WriterError } from './reconciliationWriterPolicy.js';
 import type { DatabaseInventory } from './productionBackupCore.js';
 
 export const WRITER_SOURCE_FILES = [
@@ -31,7 +31,7 @@ const SSH_ARGS = ['-4', '-F', '/dev/null', '-i', '/Users/memberid/.ssh/id_ed2551
   '-o', 'PreferredAuthentications=publickey', '-o', 'StrictHostKeyChecking=yes', '-o', 'UpdateHostKeys=no',
   '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10', 'ubuntu@43.157.242.8'];
 
-async function privateJson(path: string): Promise<string> {
+export async function privateJson(path: string): Promise<string> {
   if (dirname(path) !== PRIVATE_ROOT) throw new WriterError('APPROVAL_AND_RECOVERY_MUST_BE_IN_PRIVATE_MAC_DIRECTORY');
   for (const directory of ['/Users/memberid/Library/Application Support/Sinegasi', PRIVATE_ROOT]) {
     const parent = await lstat(directory);
@@ -59,7 +59,8 @@ export async function requireWriterReleaseSha(repository: string, apply: boolean
   }
   return sha;
 }
-async function backupInventory(id: string, recoveryRaw: string): Promise<DatabaseInventory> {
+export async function verifiedBackupInventory(id: string, recoveryRaw: string): Promise<DatabaseInventory> {
+  backupTime(id); // Never interpolate an unchecked identifier into paths/SSH commands.
   const directory = `${BACKUP_ROOT}/${id}`;
   const recovery = object(JSON.parse(recoveryRaw) as unknown);
   const files = Object.fromEntries(await Promise.all(COPY_FILES.map(async file => [file, await readCopyArtifact(`${directory}/${file}`)]))) as Record<typeof COPY_FILES[number], Buffer>;
@@ -135,7 +136,7 @@ export async function mainWriter(args = process.argv.slice(2)): Promise<void> {
     if (sha256(recoveryRaw) !== approval.recoveryEvidenceSha256) throw new WriterError('RECOVERY_EVIDENCE_CHECKSUM_MISMATCH');
     validateWriterRecovery(JSON.parse(recoveryRaw) as unknown, approval);
     authorization = { releaseSha: sha, approvalRaw, confirmedApprovalSha256: options.confirmedSha256, evidenceRaw, recoveryRaw,
-      backupInventory: await backupInventory(approval.backupId, recoveryRaw), originalApprovalRaw };
+      backupInventory: await verifiedBackupInventory(approval.backupId, recoveryRaw), originalApprovalRaw };
   }
   const ca = await readFile(CA_PATH, 'utf8'); validateBackupCa(ca);
   console.log(JSON.stringify({ stage: 'KEYCHAIN_ADMIN_READ_REQUIRED', readOnly: inspect, productionChanged: false }));

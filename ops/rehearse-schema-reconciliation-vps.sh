@@ -127,7 +127,7 @@ case "$action" in
       -e ENV_FILE_LOADING=disabled --entrypoint node "$client_image" \
       /app/rehearsal/scripts/verifyProductionReferenceData.js isolated-reference --billing-amount "$billing_amount"
     ;;
-  writer)
+  writer|bootstrap)
     [[ -f "$bundle/scripts/reconciliationWriterExtensions.js" && ! -L "$bundle/scripts/reconciliationWriterExtensions.js" && "$(stat -c '%U' "$bundle/scripts/reconciliationWriterExtensions.js")" == ubuntu ]] || fail
     for file in scripts/reconciliationWriterCore.js scripts/reconciliationWriterCatalog.js scripts/reconciliationWriterPolicy.js scripts/reconciliationWriterFixtures.js scripts/verifyReconciliationWriter.js scripts/productionReferenceData.js scripts/productionReconciliation.js scripts/productionBackupCore.js scripts/productionReconciliationPreflightCore.js scripts/productionApiRehearsalCore.js scripts/migrationSafety.js middleware/capabilities.js; do
       [[ -f "$bundle/$file" && ! -L "$bundle/$file" && "$(stat -c '%U' "$bundle/$file")" == ubuntu ]] || fail
@@ -135,13 +135,15 @@ case "$action" in
     pg_id=$(owned_id "$pg_name")
     client_image=$(timeout 5 docker inspect -f '{{.Image}}' sinegasi-api-dev)
     [[ "$client_image" =~ ^sha256:[a-f0-9]{64}$ ]] || fail
+    fixture_mode=isolated-writer
+    [[ "$action" != bootstrap ]] || fixture_mode=isolated-bootstrap
     timeout 240 docker run --rm --name "$client_name" --label "sinegasi.schema-rehearsal=$run_id" \
       --network "container:$pg_id" --restart no --memory 192m --memory-swap 192m --cpus 0.5 --pids-limit 64 \
       --read-only --user "$(id -u):$(id -g)" --cap-drop ALL --security-opt no-new-privileges \
       --tmpfs /tmp:rw,noexec,nosuid,nodev,size=8m --log-driver none \
       --mount "type=bind,src=$bundle,dst=/app/rehearsal,readonly" --workdir /app \
       -e ENV_FILE_LOADING=disabled --entrypoint node "$client_image" \
-      /app/rehearsal/scripts/verifyReconciliationWriter.js isolated-writer
+      /app/rehearsal/scripts/verifyReconciliationWriter.js "$fixture_mode"
     ;;
   cleanup)
     pg_id=$(owned_id "$pg_name")
@@ -159,11 +161,11 @@ case "$action" in
     if [[ -f "$bundle/scripts/verifyReconciliationWriter.js" ]]; then
       [[ -f "$bundle/scripts/reconciliationWriterExtensions.js" && ! -L "$bundle/scripts/reconciliationWriterExtensions.js" && "$(stat -c '%U' "$bundle/scripts/reconciliationWriterExtensions.js")" == ubuntu ]] || fail
       rm -- "$bundle/scripts/reconciliationWriterExtensions.js"
-      for file in scripts/reconciliationWriterCore.js scripts/reconciliationWriterCatalog.js scripts/reconciliationWriterPolicy.js scripts/reconciliationWriterFixtures.js scripts/verifyReconciliationWriter.js scripts/productionReferenceData.js scripts/productionReconciliation.js scripts/productionBackupCore.js scripts/productionReconciliationPreflightCore.js scripts/productionApiRehearsalCore.js scripts/migrationSafety.js middleware/capabilities.js; do
+      for file in scripts/reconciliationWriterCore.js scripts/reconciliationWriterCatalog.js scripts/reconciliationWriterPolicy.js scripts/reconciliationWriterFixtures.js scripts/verifyReconciliationWriter.js scripts/productionReferenceData.js scripts/productionReconciliation.js scripts/productionBackupCore.js scripts/productionReconciliationPreflightCore.js scripts/productionApiRehearsalCore.js scripts/migrationSafety.js middleware/capabilities.js scripts/productionBootstrapTeacherCore.js scripts/productionBootstrapTeacherFixtures.js scripts/verifyProductionBootstrapTeacher.js scripts/bootstrapTeacherCore.js scripts/bootstrapTeacherCredentials.js services/passwordService.js; do
         [[ -f "$bundle/$file" && ! -L "$bundle/$file" && "$(stat -c '%U' "$bundle/$file")" == ubuntu ]] || fail
         rm -- "$bundle/$file"
       done
-      rmdir -- "$bundle/scripts" "$bundle/middleware"
+      rmdir -- "$bundle/scripts" "$bundle/middleware" "$bundle/services"
     elif [[ -d "$bundle/scripts" ]]; then
       for file in scripts/productionReferenceData.js scripts/verifyProductionReferenceData.js scripts/productionBackupCore.js scripts/productionReconciliation.js scripts/bootstrapTeacherCore.js middleware/capabilities.js services/passwordService.js; do
         [[ -f "$bundle/$file" && ! -L "$bundle/$file" && "$(stat -c '%U' "$bundle/$file")" == ubuntu ]] || fail

@@ -69,7 +69,7 @@ export function object(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 const digest = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
-export function writerRecoveryMode(approval: WriterApproval): WriterRecoveryMode {
+export function writerRecoveryMode(approval: Pick<WriterApproval, 'recoveryMode' | 'macOnlyRecoveryRiskAcknowledged' | 'initialEmptyProductionOnly'>): WriterRecoveryMode {
   const mode = approval.recoveryMode === undefined ? 'independent-key' : approval.recoveryMode;
   if (mode === 'mac-only-initialization') {
     if (approval.macOnlyRecoveryRiskAcknowledged !== true || approval.initialEmptyProductionOnly !== true) {
@@ -166,7 +166,9 @@ export function validateResumeApproval(originalRaw: string | undefined, approval
 }
 
 /** Evidence remains local/private. No decrypted backup or secret is in this document. */
-export function validateWriterRecovery(value: unknown, approval: WriterApproval, now = Date.now()): void {
+export type RecoveryBinding = Pick<WriterApproval, 'backupId' | 'archiveSha256' | 'metadataSha256'
+  | 'recoveryMode' | 'macOnlyRecoveryRiskAcknowledged' | 'initialEmptyProductionOnly'>;
+export function validateWriterRecovery(value: unknown, approval: RecoveryBinding, now = Date.now()): void {
   const proof = object(value), receipt = object(proof.receipt), restore = object(proof.restore), copy = object(proof.copy);
   const archive = object(receipt.archive), metadata = object(receipt.metadata), checks = object(restore.checks);
   const key = object(proof.independentKeyRecovery);

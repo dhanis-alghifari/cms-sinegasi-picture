@@ -9,6 +9,7 @@ import { readWriterCatalog, writerCatalogHash, verifyWriterTarget, type WriterSe
 import { createWriterPackage, WriterError } from './reconciliationWriterPolicy.js';
 import { readManagedTrigram } from './reconciliationWriterExtensions.js';
 import { writerFixtureAuthorization, writerMacOnlyFixture, writerResumeFixture, WRITER_CHECKS } from './reconciliationWriterFixtures.js';
+import { verifyProductionBootstrapFixture } from './verifyProductionBootstrapTeacher.js';
 
 let stage = 'INITIALIZATION';
 let writerFailureStage: string | undefined;
@@ -18,7 +19,7 @@ const connection = (user = 'postgres'): pg.Client => {
   db.on('error', () => {}); return db;
 };
 async function main(): Promise<void> {
-  if (process.argv.length !== 3 || process.argv[2] !== 'isolated-writer') throw new Error('ISOLATED_WRITER_MODE_REQUIRED');
+  if (process.argv.length !== 3 || !['isolated-writer', 'isolated-bootstrap'].includes(process.argv[2])) throw new Error('ISOLATED_WRITER_MODE_REQUIRED');
   const snapshot: unknown = JSON.parse(await readFile(resolve(__dirname, '../production-schema.snapshot.json'), 'utf8'));
   validateSnapshot(snapshot);
   const bundle = createWriterPackage(snapshot);
@@ -40,7 +41,7 @@ async function main(): Promise<void> {
     assert.equal((await db.query("SELECT current_setting('sinegasi.schema_rehearsal',true) AS marker")).rows[0].marker, 'on');
     await db.query('DROP SCHEMA IF EXISTS sinegasi_ops CASCADE; DROP SCHEMA public CASCADE; CREATE SCHEMA public');
     await db.query('DELETE FROM auth.users; DELETE FROM storage.objects');
-    await db.query('CREATE EXTENSION pg_trgm WITH SCHEMA public; CREATE EXTENSION pgcrypto WITH SCHEMA public; CREATE EXTENSION "uuid-ossp" WITH SCHEMA public');
+    await db.query('CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA public; CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA public; CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA public');
     for (const e of snapshot.enums) {
       const labels = e.name === 'user_role' ? e.labels.slice(0, -1) : e.labels;
       await db.query(`CREATE TYPE public.${quoteIdentifier(e.name)} AS ENUM (${labels.map(label => "'" + label.replaceAll("'", "''") + "'").join(',')})`);
@@ -331,6 +332,27 @@ async function main(): Promise<void> {
       }
     } finally { fault = undefined; await admin.end(); }
     assert.ok(WRITER_CHECKS.every(check => checks[check] === true));
+    if (process.argv[2] === 'isolated-bootstrap') {
+      stage = 'BOOTSTRAP_GUARD';
+      console.log(JSON.stringify({ ...await verifyProductionBootstrapFixture(session, bundle, clock, async () => {
+        stage = 'BOOTSTRAP_FIXTURE_RESET';
+        await setup();
+        // Keep the same restricted postgres/admin-owned native-extension
+        // boundary after rebuilding the disposable schema. Installing a trusted
+        // extension as restricted postgres assigns its C functions differently.
+        const fixtureAdmin = connection('supabase_admin');
+        await fixtureAdmin.connect();
+        try { await fixtureAdmin.query('DROP EXTENSION pg_trgm; CREATE EXTENSION pg_trgm WITH SCHEMA public'); }
+        finally { await fixtureAdmin.end(); }
+        const freshCatalog = await readWriterCatalog(session);
+        const fresh = writerMacOnlyFixture(writerFixtureAuthorization(bundle, freshCatalog.inventory, writerCatalogHash(freshCatalog), clock));
+        const approvalRaw = JSON.stringify({ ...JSON.parse(fresh.approvalRaw) as Record<string, unknown>,
+          managedExtensionSha256: (await readManagedTrigram(session)).sha256 });
+        await run({ ...fresh, approvalRaw, confirmedApprovalSha256: sha256(approvalRaw) });
+        stage = 'BOOTSTRAP_GUARD';
+      }), postgresVersion: marker.version }));
+      return;
+    }
     console.log(JSON.stringify({ status: 'RECONCILIATION_WRITER_ISOLATED_PASSED', packageSha256: bundle.packageSha256,
       checks, postgresVersion: marker.version, tables: 73, referenceRows: 213,
       productionChanged: false, devDatabaseChanged: false, productionApproved: false, managedSupabaseIntegrationTested: false }));
