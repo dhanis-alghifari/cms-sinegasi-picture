@@ -922,6 +922,193 @@ to force success. The runner blocks repeat attempts even with a new approval.
 No production login, Keychain access, credential read, push or deployment was
 performed while building/testing this executor.
 
+### Post-rotation auth verification (offline only; no password mutation)
+
+Use this preparation path when read-only inspection has already observed the
+official account at `auth_version=2`, `is_first_login=false`. Do not repeat the
+first-rotation executor, reset the password, or delete/overwrite either original
+credential/custody file. This verifier does not read those files or Keychain.
+
+In **Terminal Mac Lokal**:
+
+```bash
+cd /Users/memberid/Documents/cms-sinegasi-picture/backend
+ENV_FILE_LOADING=disabled npm run db:production:auth:verify:plan
+ENV_FILE_LOADING=disabled npm run db:production:auth:verify:rehearse
+```
+
+Expect `POST_ROTATION_AUTH_VERIFICATION_OFFLINE_PLAN`, then
+`ISOLATED_POST_ROTATION_AUTH_VERIFICATION_PASSED`. The plan identifies the
+intended official account; rehearsal uses a different, synthetic teacher and
+starts directly at version 2 with a scrypt hash, not by rotating a password.
+Nine flow checks cover credential preflight, health/security headers, anonymous
+denial, current-password login/session, business access, previous-password
+denial, the existing logout contract, and an unchanged account fingerprint.
+One additional **isolated-only** check signs a synthetic version-1 JWT and
+checks denial. The previous real production token was not retained; this is
+not proof that that live token was exercised or that production login passed.
+
+The positive rehearsal forwards 32 in-memory REST requests, including 20
+counter-write attempts, with zero password RPCs, password changes, rotation
+attempts or blocked requests. Login verification is **not read-only** in a
+future production run: login failure/clear and API rate counters can change.
+The new verification transport has no arming method, permits only reserved
+HTTPS `.invalid` origins, and rejects password/reset/audit/table mutations
+before forwarding. Existing scoped-read, counter-principal/quota, deadline,
+request/body-budget and terminal-failure guards remain in place. An uncertain
+counter outcome stops forwarding; the SDK cannot forward a retry after that
+failure, even for an otherwise retryable GET.
+
+Seventeen new tests cover the offline-only CLI, zero-mutation flow, fail-stop
+transport, one-shot in-memory attempt, preflight/custody mismatch, identity
+drift, forbidden legacy-password rehash, unchanged postcondition, cached
+runtime refusal and SDK retry behavior. The combined existing acceptance,
+first-rotation executor and new verifier suite passes 53 tests. Backend local
+quality: 549 passed, one disposable-PostgreSQL test explicitly skipped, zero
+failures; OpenAPI parity: 159 operations; typecheck/build pass. No frontend
+dependency, SQL, production credential, Keychain, Git remote, VPS or deployment
+was changed while implementing/testing this verifier.
+
+The offline entry point deliberately has **no managed `apply`/`inspect` mode**
+and uses an in-memory attempt latch. The separate approval-gated executor below
+adds those capabilities but has not been run against production. PostgreSQL atomicity,
+managed Supabase integration, actual production password match/login and
+browser flow are not proven by the emulated store. Logout still acknowledges
+without server-side token revocation. Public launch remains unapproved.
+
+Before any future production verification, review/test the **separate
+approval-gated verifier executor**, then promote its exact code through main
+CI with explicit push/preview permission, obtain a fresh post-rotation backup
+with restore/encrypted-copy evidence, inspect the account/audit baseline, and
+verify the existing private password custody against the version-2 scrypt hash
+before any login/counter request. Obtain a new checksum/window specifically
+authorizing bounded counter writes and a durable no-retry attempt latch; old
+migration/bootstrap/first-rotation approvals cannot be reused. Announce the
+exact Keychain items and obtain readiness before showing any access dialog.
+Never generate a replacement password or reset/replay rotation to finish
+acceptance. See [Supabase SDK retry behavior](https://supabase.com/docs/guides/api/automatic-retries-in-supabase-js);
+the installed SDK and guarded-transport tests determine this runner's behavior.
+
+### Approval-gated post-rotation verification executor (implemented; not executed)
+
+On 13 October 2026, the separate executor was implemented and tested locally.
+It cannot rotate/reset passwords, generate replacements, change users/audits or
+apply migrations. It reads the existing version-2 password custody and original
+temporary-password document only in explicitly ready managed modes; neither file
+is overwritten/deleted. Do not rerun the original first-rotation executor.
+
+Only these **offline** commands are needed for current preparation:
+
+```bash
+cd /Users/memberid/Documents/cms-sinegasi-picture/backend
+ENV_FILE_LOADING=disabled npm run db:production:auth:verify:executor:plan
+ENV_FILE_LOADING=disabled npm run db:production:auth:verify:executor:rehearse
+```
+
+Expect `PRODUCTION_AUTH_VERIFICATION_EXECUTOR_OFFLINE_PLAN` and
+`ISOLATED_AUTH_VERIFICATION_EXECUTOR_PASSED`: nine actual-route checks and
+eight guard categories, version 2/first-login false throughout, unchanged
+account fingerprint, zero password RPCs/changes/rotation attempts. The positive
+executor flow has 30 in-memory REST requests and 18 counter-write attempts;
+the standalone verifier's two additional synthetic stale-token requests are
+not part of the managed flow. Neither receipt proves live production login,
+database atomicity, browser/deployed-backend behavior or prior real-token
+revocation. Logout still acknowledges without server-side revocation.
+
+Twenty-one new executor tests cover operation/source/window/evidence gates,
+existing-credential hash match, no-mutation transport, exclusive 0600 durable
+attempts, concurrency/unsafe files, original custody preservation, redacted
+failures and postconditions. Latest local backend quality: 570 passed, one
+explicit disposable-PostgreSQL skip, zero failures; typecheck/build pass;
+OpenAPI parity: 159 operations. Backend dependency audit: zero findings.
+Frontend audit still has seven high findings in the unchanged shadcn tooling
+chain; this is not a clean frontend audit or public-launch approval.
+
+Run each verifier command in a fresh dedicated process. The installed SDK
+resolves global fetch lazily, including on retries: cleanup immediately seals
+the verification transport and leaves its closed no-network fetch installed
+until process exit, never restoring native fetch after constructing the SDK
+runtime. Two regressions cover delayed SDK retries and already queued requests.
+Rehearsal PASS is emitted only after cleanup; approval evidence requires
+`cleanupVerified:true`.
+
+The shared recovery artifact validator checks ciphertext/restore/copy parity
+without claiming the now-populated database is empty. Initial migration
+Mac-only/empty-project restrictions remain enforced in the writer; the
+verification approval independently requires honest Mac-only-key/shared-VPS
+risk acknowledgements. No SQL snapshot, grants, policy, dependency or runtime
+auth endpoint was changed.
+
+Future managed steps require **separate explicit permissions**:
+
+1. Review/promote the exact code using a feature branch into `main`; both
+   main backend/frontend push CI jobs must pass. Verify preview effects and
+   obtain permission for DEV Pages previews before push/merge; do not push
+   `develop` or dispatch a production deployment. Repeat the exact executor
+   rehearsal on clean main and preserve the redacted receipt privately as
+   `production-auth.verification-executor-rehearsal.<timestamp>.json` (0600).
+2. Obtain a **new post-rotation** backup, isolated restore and encrypted-copy
+   evidence. The backup must postdate the observed version-2 checkpoint and
+   be at most two hours old at execution. Announce backup/admin Keychain items
+   before access and obtain readiness; previous backup/checksum/window cannot
+   be reused. Keep real key-custody/shared-VPS limitations explicit.
+3. Announce `sinegasi-prod-postgres-admin-url` and the two existing private
+   password files, obtain Keychain/password-custody readiness, then the future
+   read-only inspection command is:
+
+   ```bash
+   ENV_FILE_LOADING=disabled npm run db:production:auth:verify:executor -- inspect \
+     --keychain-ready --password-custody-ready
+   ```
+
+   It requires the exact active teacher at version 2, the completed schema
+   checkpoint, unchanged canonical configuration, three redacted original
+   audits and only reviewed counter principals. It verifies current-password
+   scrypt match/previous-password denial without login, checks original custody
+   provenance and records their file digests in a non-secret private baseline.
+   Any existing/partial verification attempt is observation only, never retry
+   authorization; a dirty-tree baseline cannot authorize apply.
+4. Prepare/review a new `approval.auth-verification.<timestamp>.json` matching
+   `VerificationApproval` in `productionAuthVerificationCore.ts`. Its distinct
+   operation is `post_rotation_teacher_auth_verification`; bind exact release/
+   source/package/CI, fresh recovery/baseline/rehearsal digests, original custody
+   file digests, fixed account/version and a new window (maximum one hour).
+   Explicitly approve only bounded counter writes, no password mutation, no
+   retry/reset, maintenance without other writers, durable separate attempt,
+   both recovery risks and no deployment. No approval is automatically issued.
+5. Obtain **new checksum authorization**, announce the three Keychain items
+   (backup age identity, admin URL, production backend service key) and obtain
+   readiness before any dialog. Only then is the future apply form:
+
+   ```bash
+   ENV_FILE_LOADING=disabled npm run db:production:auth:verify:executor -- apply \
+     --approval '/Users/memberid/Library/Application Support/Sinegasi/Reconciliation/approval.auth-verification.<timestamp>.json' \
+     --confirm-approval <NEW_VERIFICATION_APPROVAL_SHA256> \
+     --keychain-ready --password-custody-ready
+   ```
+
+These placeholders are **not executable approval**. Apply requires current
+clean main/exact successful main CI, actual backup parity and a read-only
+PostgreSQL snapshot. It verifies existing credentials and unchanged baseline
+before any API request, fsyncs the separate account-wide
+`first-teacher.admin.auth-verification-attempt.json` (0600; no passwords inside),
+then uses Fastify injection on the Mac against guarded production REST.
+There is no listener, worker or VPS/backend/website deployment.
+
+Only scoped reads and four reviewed rate RPCs are allowed. Password/reset/
+audit/table mutations are denied before forwarding; unknown target/schema/key/
+principal, expired deadlines, quota violations, redirects or failed responses
+halt all forwarding, including SDK retries. Full user/audit/schema/extension
+and both original credential-file digests must match after the flow; only
+approved counters may change. Maintenance locking does not block unrelated
+writers, hence the explicit no-other-writer acknowledgement remains necessary.
+
+Any failure leaves the new attempt intact, even if partial or the counter
+outcome is unknown. Stop for read-only reconciliation: no automatic retry,
+file removal, password reset, counter cleanup or migration replay. A successful
+managed receipt would attest Mac-injected routes, not the deployed backend/UI;
+public launch still requires separate acceptance and permission.
+
 ### Guarded first-Guru preparation (Mac; no deployment)
 
 The schema migration is already complete; **do not repeat SQL migration or
