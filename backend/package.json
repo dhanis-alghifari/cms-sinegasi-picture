@@ -19,6 +19,7 @@
     "db:migrate": "npm run build && node dist/scripts/applyMigrations.js",
     "db:production:plan": "tsx src/scripts/productionMigrations.ts plan",
     "db:production": "tsx src/scripts/productionMigrations.ts",
+    "deployment:verify": "node --import tsx src/scripts/productionDeploymentGateCli.ts verify",
     "db:rehearse:runner": "tsx src/scripts/rehearseMigrationRunner.ts",
     "db:production:backup": "tsx src/scripts/productionBackup.ts",
     "db:rehearse:backup": "tsx src/scripts/rehearseProductionBackup.ts",

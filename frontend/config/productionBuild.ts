@@ -1,0 +1,41 @@
+import type { Plugin } from 'vite';
+
+const PRODUCTION_API = 'https://api.sinegasi.pictures';
+const DEVELOPMENT_MEDIA = 'https://pub-bacbd163ce50498d82672aab73389f38.r2.dev';
+
+function httpsUrl(value: string | undefined): URL {
+  if (!value || value.trim() !== value) throw new Error('PRODUCTION_EXPLICIT_HTTPS_CONFIGURATION_REQUIRED');
+  let url: URL;
+  try { url = new URL(value); } catch { throw new Error('PRODUCTION_EXPLICIT_HTTPS_CONFIGURATION_REQUIRED'); }
+  if (url.protocol !== 'https:' || url.username || url.password || url.port || url.search || url.hash
+    || !/^[a-z0-9][a-z0-9.-]*\.[a-z][a-z0-9-]*$/.test(url.hostname)
+    || /\.(localhost|local|internal)$/.test(url.hostname)) {
+    throw new Error('PRODUCTION_EXPLICIT_HTTPS_CONFIGURATION_REQUIRED');
+  }
+  return url;
+}
+
+/** Explicit launch mode only: Vite's ordinary production mode is also used by DEV Pages. */
+export function validateProductionBuild(environment: Readonly<Record<string, string | undefined>>): void {
+  const api = environment.VITE_API_URL;
+  const url = httpsUrl(api);
+  if (url.origin !== PRODUCTION_API || !['/', '/api', '/api/'].includes(url.pathname)
+    || environment.VITE_API_BASE_URL !== undefined && environment.VITE_API_BASE_URL !== api) {
+    throw new Error('PRODUCTION_API_TARGET_MISMATCH');
+  }
+  const media = httpsUrl(environment.VITE_R2_PUBLIC_DOMAIN);
+  if (media.origin === DEVELOPMENT_MEDIA || media.pathname !== '/') {
+    throw new Error('PRODUCTION_MEDIA_TARGET_REQUIRED');
+  }
+}
+
+export function productionBuildGate(): Plugin {
+  return {
+    name: 'sinegasi-production-build-gate',
+    configResolved(config) {
+      if (config.command === 'build' && config.mode === 'production-launch') {
+        validateProductionBuild(config.env);
+      }
+    },
+  };
+}

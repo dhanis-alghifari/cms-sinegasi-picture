@@ -35,11 +35,16 @@ console.log('🛡️  Running Deployment & Infrastructure Guardrail Checks...\n'
 // ============================================================================
 const devWorkflow = readFile('.github/workflows/deploy-dev.yml');
 const prodWorkflow = readFile('.github/workflows/deploy-prod.yml');
-assert(prodWorkflow.includes('db:production -- verify') && prodWorkflow.includes('--release-sha'),
-  '[GUARDRAIL VIOLATION] Production image publishing must reject unapproved/draft/checksum-mismatched migration packages offline.');
+assert(prodWorkflow.includes('deployment:verify') && prodWorkflow.includes('--confirm-evidence') && prodWorkflow.includes('--release-sha')
+  && !prodWorkflow.includes('db:production --') && !prodWorkflow.includes('PRODUCTION_MIGRATION_MANIFEST'),
+  '[GUARDRAIL VIOLATION] Production publishing requires exact reconciled-no-sql evidence; never replay/promote legacy SQL.');
 const devDeployScript = readFile('ops/deploy-dev.sh');
 const prodDeployScript = readFile('ops/deploy-prod.sh');
 const prodReleaseScript = readFile('ops/production-release.sh');
+assert(prodWorkflow.includes('requireProductionEnvironment') && prodWorkflow.includes('requireDeploymentQuality')
+  && prodReleaseScript.includes('verify_candidate_schema') && prodReleaseScript.includes('schema_evidence_sha256')
+  && prodReleaseScript.includes('release_package_sha256') && prodReleaseScript.includes('schema-gate.json'),
+  '[GUARDRAIL VIOLATION] Both CI jobs need actual production protections and runtime read-only schema verification.');
 
 // Rule 1.1: Never use --remove-orphans in deploy workflows (kills Caddy/other compose services)
 assert(
@@ -181,7 +186,6 @@ assert(
 // ============================================================================
 const passwordService = readFile('backend/src/services/passwordService.ts');
 const envConfig = readFile('backend/src/config/env.ts');
-const envExample = readFile('backend/.env.example');
 
 // Rule 3.1: Password assertion and temporary password policy
 assert(
@@ -193,12 +197,8 @@ assert(
   '[GUARDRAIL VIOLATION] backend/src/services/passwordService.ts must sanitize and ensure temporary passwords satisfy assertPasswordPolicy.'
 );
 
-// Rule 3.2: .env.example must have valid student default password with digits
-const studentDefaultMatch = envExample.match(/^STUDENT_DEFAULT_PASSWORD=(.+)$/m);
-assert(
-  studentDefaultMatch && /\d/.test(studentDefaultMatch[1]) && /[A-Za-z]/.test(studentDefaultMatch[1]),
-  '[GUARDRAIL VIOLATION] backend/.env.example must contain STUDENT_DEFAULT_PASSWORD with both letters and digits.'
-);
+// Environment files are not read by this source-only guardrail. Runtime password
+// configuration is validated by env.ts/password-service tests and image preflight.
 
 // Rule 3.3: CORS must disallow wildcard '*'
 assert(

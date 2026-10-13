@@ -19,6 +19,10 @@ try {
     || !proxyMatches
     || config.port !== 5001
     || config.host !== '0.0.0.0'
+    || !config.r2AccountId || !config.r2BucketName || !config.r2AccessKeyId || !config.r2SecretAccessKey
+    || !/^https:\/\/[a-z0-9][a-z0-9.-]*[a-z0-9]$/.test(process.env.PRODUCTION_MEDIA_PUBLIC_DOMAIN || '')
+    || config.r2PublicDomain !== process.env.PRODUCTION_MEDIA_PUBLIC_DOMAIN
+    || config.r2PublicDomain === 'https://pub-bacbd163ce50498d82672aab73389f38.r2.dev'
   ) {
     throw new Error('Unsafe production configuration');
   }

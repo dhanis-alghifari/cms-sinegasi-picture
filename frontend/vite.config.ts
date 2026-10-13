@@ -2,11 +2,14 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { resolveAssetBase } from './config/assetBase.ts';
+import { productionBuildGate } from './config/productionBuild.ts';
 
 // https://vite.dev/config/
 export default defineConfig(({ command }) => ({
+  envDir: process.env.ENV_FILE_LOADING === 'disabled' ? false : undefined,
   base: resolveAssetBase(command, process.env),
   plugins: [
+    productionBuildGate(),
     react(),
     tailwindcss(),
   ],
