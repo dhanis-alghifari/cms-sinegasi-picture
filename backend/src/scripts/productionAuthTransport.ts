@@ -15,6 +15,9 @@ export interface AuthTransport {
     rotationOutcome: 'not-attempted' | 'unknown' | 'acknowledged' };
   counterKeys: { login: readonly string[]; api: readonly string[] };
 }
+export interface AuthVerificationTransport extends Pick<AuthTransport, 'fetch' | 'assertHealthy' | 'observations' | 'counterKeys'> {
+  close(): void;
+}
 const projections: Record<string, readonly string[]> = {
   users: ['id', 'username', 'nama', 'role', 'is_first_login', 'is_active', 'auth_version', 'password_hash'],
   students: ['id', 'is_active'], access_role_permissions: ['role_key', 'permission_key'],
@@ -34,6 +37,30 @@ export function createManagedAuthTransport(key: string, newPassword: string, dea
 export function createIsolatedAuthTransport(scope: AuthTransportScope, upstream: typeof fetch): AuthTransport {
   authRequire(new URL(scope.origin).hostname.endsWith('.invalid'), 'AUTH_TEST_ORIGIN_MUST_BE_RESERVED');
   return createAuthTransport(scope, upstream);
+}
+
+/** Offline verification has no live constructor, arming method, or password mutation capability. */
+export function createIsolatedAuthVerificationTransport(scope: Omit<AuthTransportScope, 'newPassword'>,
+  upstream: typeof fetch): AuthVerificationTransport {
+  const origin = new URL(scope.origin);
+  authRequire(origin.protocol === 'https:' && origin.hostname.endsWith('.invalid') && origin.origin === scope.origin,
+    'AUTH_TEST_ORIGIN_MUST_BE_RESERVED');
+  return createVerificationTransport(scope, upstream);
+}
+
+/** Live verification is fixed to the reviewed project/account and can never arm a rotation. */
+export function createManagedAuthVerificationTransport(key: string, deadline: number, beforeRequest: () => void,
+  upstream: typeof fetch): AuthVerificationTransport {
+  return createVerificationTransport({ origin: INTEGRATION_ORIGIN, key, ...AUTH_ACCOUNT, deadline, beforeRequest }, upstream);
+}
+
+function createVerificationTransport(scope: Omit<AuthTransportScope, 'newPassword'>, upstream: typeof fetch): AuthVerificationTransport {
+  let closed = false;
+  function requireOpen(): void { authRequire(!closed, 'AUTH_VERIFICATION_TRANSPORT_CLOSED_NO_NETWORK'); }
+  const transport = createAuthTransport({ ...scope, newPassword: '', beforeRequest() { requireOpen(); scope.beforeRequest(); } }, upstream, false);
+  return { async fetch(input, init) { requireOpen(); return transport.fetch(input, init); },
+    assertHealthy() { requireOpen(); transport.assertHealthy(); }, observations: transport.observations, counterKeys: transport.counterKeys,
+    close() { closed = true; } };
 }
 
 function exactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
@@ -58,7 +85,7 @@ function allowRead(url: URL, scope: AuthTransportScope): boolean {
     && (!query.has('order') || /^(?:role_key|permission_key)\.(?:asc|desc)(?:,(?:role_key|permission_key)\.(?:asc|desc))*$/.test(query.get('order') ?? ''));
 }
 
-function createAuthTransport(scope: AuthTransportScope, upstream: typeof fetch): AuthTransport {
+function createAuthTransport(scope: AuthTransportScope, upstream: typeof fetch, rotationAllowed = true): AuthTransport {
   const observations: AuthTransport['observations'] = { sent: 0, blocked: 0, writesAttempted: 0,
     rotationAttempts: 0, rotationOutcome: 'not-attempted' };
   const rpcCounts = new Map<string, number>();
@@ -93,6 +120,7 @@ function createAuthTransport(scope: AuthTransportScope, upstream: typeof fetch):
         const args = authRecord(JSON.parse(raw) as unknown), rpc = url.pathname.slice('/rest/v1/rpc/'.length);
         const count = rpcCounts.get(rpc) ?? 0;
         if (rpc === 'change_password_atomic') {
+          authRequire(rotationAllowed, 'AUTH_VERIFICATION_PASSWORD_MUTATION_FORBIDDEN');
           authRequire(armed && observations.rotationAttempts === 0 && exactKeys(args,
             ['p_user_id', 'p_updated_by', 'p_password_hash', 'p_expected_auth_version', 'p_change_reason'])
             && args.p_user_id === scope.userId && args.p_updated_by === scope.userId && args.p_expected_auth_version === 1
@@ -164,7 +192,10 @@ function createAuthTransport(scope: AuthTransportScope, upstream: typeof fetch):
     return next.finally(() => { pending--; });
   };
   return { fetch: guarded, observations, counterKeys, assertHealthy: healthy,
-    armRotation() { healthy(); authRequire(!armed && observations.rotationAttempts === 0, 'AUTH_ROTATION_ALREADY_ARMED_OR_ATTEMPTED'); armed = true; } };
+    armRotation() {
+      healthy(); authRequire(rotationAllowed, 'AUTH_VERIFICATION_PASSWORD_MUTATION_FORBIDDEN');
+      authRequire(!armed && observations.rotationAttempts === 0, 'AUTH_ROTATION_ALREADY_ARMED_OR_ATTEMPTED'); armed = true;
+    } };
 }
 
 async function abortable<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {

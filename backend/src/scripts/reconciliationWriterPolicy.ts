@@ -168,11 +168,12 @@ export function validateResumeApproval(originalRaw: string | undefined, approval
 /** Evidence remains local/private. No decrypted backup or secret is in this document. */
 export type RecoveryBinding = Pick<WriterApproval, 'backupId' | 'archiveSha256' | 'metadataSha256'
   | 'recoveryMode' | 'macOnlyRecoveryRiskAcknowledged' | 'initialEmptyProductionOnly'>;
-export function validateWriterRecovery(value: unknown, approval: RecoveryBinding, now = Date.now()): void {
+/** Ciphertext/restore/copy integrity is shared; the caller must supply its honest key-custody policy. */
+export function validateRecoveryArtifacts(value: unknown, approval: Pick<RecoveryBinding, 'backupId' | 'archiveSha256' | 'metadataSha256'>,
+  now: number, requireKeyCustody: (key: Record<string, unknown>) => void): void {
   const proof = object(value), receipt = object(proof.receipt), restore = object(proof.restore), copy = object(proof.copy);
   const archive = object(receipt.archive), metadata = object(receipt.metadata), checks = object(restore.checks);
   const key = object(proof.independentKeyRecovery);
-  const mode = writerRecoveryMode(approval);
   if (receipt.project !== BACKUP_PROJECT || receipt.id !== approval.backupId || receipt.encrypted !== true
     || receipt.productionChanged !== false || archive.sha256 !== approval.archiveSha256 || metadata.sha256 !== approval.metadataSha256
     || restore.project !== BACKUP_PROJECT || restore.id !== approval.backupId || restore.status !== 'PUBLIC_APPLICATION_RESTORE_VERIFIED'
@@ -186,17 +187,7 @@ export function validateWriterRecovery(value: unknown, approval: RecoveryBinding
     || typeof copy.verifiedAt !== 'string' || Date.parse(copy.verifiedAt) < backupTime(approval.backupId) || Date.parse(copy.verifiedAt) > now) {
     throw new WriterError('VERIFIED_BACKUP_RESTORE_AND_VPS_COPY_REQUIRED');
   }
-  if (mode === 'mac-only-initialization') {
-    // Explicitly record the unavailable independent key; never manufacture a recovery attestation.
-    // Current Mac-key availability is checked by decrypting backup metadata in the CLI.
-    if (key.verified !== false || key.sameDeviceAsMac !== true || key.sameHostAsApplication !== false
-      || key.medium !== 'macOS login Keychain only') throw new WriterError('HONEST_MAC_ONLY_KEY_CUSTODY_REQUIRED');
-  } else if (key.verified !== true || key.sameHostAsApplication !== false || key.sameDeviceAsMac !== false
-    || typeof key.medium !== 'string' || !key.medium.trim() || key.medium.length > 200
-    || typeof key.verifiedBy !== 'string' || !key.verifiedBy.trim()
-    || typeof key.verifiedAt !== 'string' || !Number.isFinite(Date.parse(key.verifiedAt)) || Date.parse(key.verifiedAt) > now) {
-    throw new WriterError('VERIFIED_BACKUP_AND_INDEPENDENT_KEY_RECOVERY_REQUIRED');
-  }
+  requireKeyCustody(key);
   if (!Number.isFinite(Date.parse(String(copy.verifiedAt))) || !Number.isSafeInteger(archive.bytes) || Number(archive.bytes) < 100
     || !Number.isSafeInteger(metadata.bytes) || Number(metadata.bytes) < 100) throw new WriterError('BACKUP_COPY_CHECKSUM_MISMATCH');
   const files = copy.files;
@@ -204,6 +195,21 @@ export function validateWriterRecovery(value: unknown, approval: RecoveryBinding
     const e = object(expected);
     return files.some((file: unknown) => { const f = object(file); return f.name === name && f.sha256 === e.sha256 && f.bytes === e.bytes; });
   })) throw new WriterError('BACKUP_COPY_CHECKSUM_MISMATCH');
+}
+
+export function validateWriterRecovery(value: unknown, approval: RecoveryBinding, now = Date.now()): void {
+  const mode = writerRecoveryMode(approval);
+  validateRecoveryArtifacts(value, approval, now, key => {
+    if (mode === 'mac-only-initialization') {
+      if (key.verified !== false || key.sameDeviceAsMac !== true || key.sameHostAsApplication !== false
+        || key.medium !== 'macOS login Keychain only') throw new WriterError('HONEST_MAC_ONLY_KEY_CUSTODY_REQUIRED');
+    } else if (key.verified !== true || key.sameHostAsApplication !== false || key.sameDeviceAsMac !== false
+      || typeof key.medium !== 'string' || !key.medium.trim() || key.medium.length > 200
+      || typeof key.verifiedBy !== 'string' || !key.verifiedBy.trim()
+      || typeof key.verifiedAt !== 'string' || !Number.isFinite(Date.parse(key.verifiedAt)) || Date.parse(key.verifiedAt) > now) {
+      throw new WriterError('VERIFIED_BACKUP_AND_INDEPENDENT_KEY_RECOVERY_REQUIRED');
+    }
+  });
 }
 
 export type WriterOptions = { mode: 'plan' } | { mode: 'apply' | 'resume'; approval: string; confirmedSha256: string };

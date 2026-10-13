@@ -46,7 +46,12 @@
     "db:production:auth:rehearse": "node --import tsx src/scripts/productionAuthAcceptance.ts rehearse",
     "db:production:auth:executor:plan": "node --import tsx src/scripts/productionAuthExecutor.ts plan",
     "db:production:auth:executor:rehearse": "node --import tsx src/scripts/productionAuthExecutor.ts rehearse",
-    "db:production:auth:executor": "node --import tsx src/scripts/productionAuthExecutor.ts"
+    "db:production:auth:executor": "node --import tsx src/scripts/productionAuthExecutor.ts",
+    "db:production:auth:verify:plan": "node --import tsx src/scripts/productionAuthVerification.ts plan",
+    "db:production:auth:verify:rehearse": "node --import tsx src/scripts/productionAuthVerification.ts rehearse",
+    "db:production:auth:verify:executor:plan": "node --import tsx src/scripts/productionAuthVerificationExecutor.ts plan",
+    "db:production:auth:verify:executor:rehearse": "node --import tsx src/scripts/productionAuthVerificationExecutor.ts rehearse",
+    "db:production:auth:verify:executor": "node --import tsx src/scripts/productionAuthVerificationExecutor.ts"
   },
   "dependencies": {
     "@fastify/cors": "^10.0.1",

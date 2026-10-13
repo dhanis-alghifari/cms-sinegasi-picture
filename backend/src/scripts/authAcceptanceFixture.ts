@@ -1,6 +1,6 @@
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { ROLE_CAPABILITIES } from '../middleware/capabilities.js';
-import { hashPassword } from '../services/passwordService.js';
+import { hashPassword, verifyPassword } from '../services/passwordService.js';
 
 // Reserved domain, synthetic key, no socket or forwarding transport.
 export const AUTH_FIXTURE_ORIGIN = 'https://auth-acceptance.invalid';
@@ -57,15 +57,19 @@ export interface AuthAcceptanceFixture {
   failNextPasswordChange(): void;
   setIdentityUnavailable(unavailable: boolean): void;
   setLimiterUnavailable(unavailable: boolean): void;
+  accountFingerprint(): string;
+  verifyRotatedCredentials(currentPassword?: string, previousPassword?: string): Promise<void>;
 }
 
 /** Models only the reviewed REST contract in memory; NOT proof of SQL/RLS/trigger atomicity. */
-export async function createAuthAcceptanceFixture(): Promise<AuthAcceptanceFixture> {
+export async function createAuthAcceptanceFixture(initialState: 'first-login' | 'rotated' = 'first-login'): Promise<AuthAcceptanceFixture> {
+  if (initialState !== 'first-login' && initialState !== 'rotated') throw new AuthAcceptanceError('FIXTURE_INITIAL_STATE_INVALID');
   const temporaryPassword = `Fixture-${randomBytes(24).toString('base64url')}-1`;
   const newPassword = `Changed-${randomBytes(24).toString('base64url')}-2`;
   const user: FixtureUser = {
     id: AUTH_FIXTURE_USER_ID, username: 'fixture_guru', nama: 'Guru Terisolasi', role: 'teacher',
-    password_hash: await hashPassword(temporaryPassword), is_first_login: true, is_active: true, auth_version: 1,
+    password_hash: await hashPassword(initialState === 'rotated' ? newPassword : temporaryPassword),
+    is_first_login: initialState !== 'rotated', is_active: true, auth_version: initialState === 'rotated' ? 2 : 1,
   };
   const loginCounters = new Map<string, { count: number; expiresAt: number }>();
   const apiCounters = new Map<string, { count: number; resetAt: number }>();
@@ -184,5 +188,13 @@ export async function createAuthAcceptanceFixture(): Promise<AuthAcceptanceFixtu
     failNextPasswordChange: () => { passwordConflict = true; },
     setIdentityUnavailable: unavailable => { identityUnavailable = unavailable; },
     setLimiterUnavailable: unavailable => { limiterUnavailable = unavailable; },
+    accountFingerprint: () => createHash('sha256').update(JSON.stringify(user)).digest('hex'),
+    async verifyRotatedCredentials(currentPassword = newPassword, previousPassword = temporaryPassword) {
+      const current = await verifyPassword(currentPassword, user.password_hash);
+      const previous = await verifyPassword(previousPassword, user.password_hash);
+      if (user.auth_version !== 2 || user.is_first_login || !user.is_active || !current.valid || current.needsRehash || previous.valid) {
+        throw new AuthAcceptanceError('FIXTURE_ROTATED_CREDENTIALS_REQUIRED');
+      }
+    },
   };
 }
