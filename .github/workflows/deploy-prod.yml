@@ -35,7 +35,7 @@ on:
         description: Deploy only - approved release archive SHA256
         type: string
       deployment_approval_sha256:
-        description: Deploy only - exact bytes of NEW private VPS approval format 2
+        description: Deploy only - exact bytes of NEW private VPS approval format 3 including proxy IPs
         type: string
 
 jobs:

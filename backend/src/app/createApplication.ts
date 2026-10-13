@@ -2,6 +2,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
 import { runtimeConfig } from '../config/env.js';
+import { createProxyTrust } from '../config/proxyTrust.js';
 import { startOverdueWorker } from '../workers/overdueWorker.js';
 import { startWeeklyBillingWorker } from '../workers/weeklyBillingWorker.js';
 import { createBackgroundJobs } from '../workers/backgroundJobs.js';
@@ -19,12 +20,6 @@ export interface ApplicationRuntime {
  * lifecycle only; feature behavior remains inside its module seam.
  */
 export async function createApplication(): Promise<ApplicationRuntime> {
-  const configuredTrustProxy = runtimeConfig.trustProxy;
-  // Fastify's runtime supports hop counts, but its current TypeScript options
-  // accept a trust function instead. Preserve the exact hop-count policy.
-  const trustProxy = typeof configuredTrustProxy === 'number'
-    ? (_address: string, hop: number) => hop < configuredTrustProxy
-    : configuredTrustProxy;
   const app = Fastify({
     logger: {
       redact: {
@@ -35,7 +30,7 @@ export async function createApplication(): Promise<ApplicationRuntime> {
     bodyLimit: 2 * 1024 * 1024,
     requestTimeout: 30_000,
     connectionTimeout: 10_000,
-    trustProxy,
+    trustProxy: createProxyTrust(runtimeConfig),
   });
   const dependencies = createAppDependencies(app);
   const workers = createBackgroundJobs(runtimeConfig.backgroundJobsEnabled, () => {

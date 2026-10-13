@@ -80,10 +80,13 @@ screenshot atau menyalin byte; login tidak dapat mencegah itu.
    `api.sinegasi.pictures` → `sinegasi.pictures`; setup memerlukan izin terpisah.
 
 **Belum boleh launch:** [gate production](../../ops/production-gate/README.md)
-sudah disesuaikan lokal menjadi account/bucket privat dan mode reviewer/solo
+sudah disesuaikan menjadi account/bucket privat dan mode reviewer/solo
 eksplisit, tanpa public-domain approval. Build/deploy memakai dua dispatch berbeda
-dengan checksum approval baru. Patch belum dipromosikan dan provider belum
-dikonfigurasi/diverifikasi; independent recovery dan acceptance nyata masih wajib.
+dengan checksum approval baru. Patch sudah dipromosikan melalui PR #10 ke main
+`6abb0ae5c49f2d673795d01e0d0e146a2d66a1bf` dengan CI PR/main Node 22 lulus.
+Inspeksi pengaturan provider bukan acceptance media nyata; independent recovery,
+credential scope, konfigurasi production dan acceptance nyata masih wajib.
+Lihat [panduan kesiapan konfigurasi](production-configuration-readiness.md).
 Jangan mengaktifkan bucket publik untuk mempertahankan URL lama.
 
 ## Verifikasi lokal

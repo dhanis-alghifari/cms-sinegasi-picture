@@ -55,6 +55,14 @@ assert(prodReleaseScript.includes('approval_format') && prodReleaseScript.includ
   && prodReleaseScript.includes('r2_account_id') && prodReleaseScript.includes('r2_bucket')
   && !prodReleaseScript.includes('media_public_domain'),
   '[GUARDRAIL VIOLATION] Production approval must bind private media account/bucket, not a public domain.');
+const applicationSource = readFile('backend/src/app/createApplication.ts');
+const proxyTrustSource = readFile('backend/src/config/proxyTrust.ts');
+const runtimePreflight = readFile('ops/production-runtime-preflight.cjs');
+assert(applicationSource.includes('trustProxy: createProxyTrust(runtimeConfig)')
+  && proxyTrustSource.includes('peers.has(normalizeAddress(address))') && proxyTrustSource.includes('hop >= hops')
+  && runtimePreflight.includes('PRODUCTION_TRUST_PROXY_ADDRESSES') && runtimePreflight.includes('trustedProxyAddresses')
+  && prodReleaseScript.includes('trust_proxy_addresses') && prodReleaseScript.includes('PREVIOUS_PROXY_ADDRESSES'),
+  '[GUARDRAIL VIOLATION] Proxy trust needs exact peer addresses and bounded hops, bound to approval/preflight/rollback.');
 
 // Rule 1.1: Never use --remove-orphans in deploy workflows (kills Caddy/other compose services)
 assert(
@@ -155,17 +163,19 @@ assert(
   '[GUARDRAIL VIOLATION] docker-compose.prod.yml must bind to "127.0.0.1:3002:5001" to prevent public port exposure.'
 );
 
-// Rule 2.2: Must join caddy_net external network
+// Rule 2.2: Only DEV joins Caddy; production has a dedicated bridge.
 assert(
   devCompose.includes('caddy_net') && devCompose.includes('external: true'),
   '[GUARDRAIL VIOLATION] docker-compose.dev.yml must join external network "caddy_net".'
 );
 assert(
-  prodCompose.includes('caddy_net') && prodCompose.includes('external: true'),
-  '[GUARDRAIL VIOLATION] docker-compose.prod.yml must join external network "caddy_net".'
+  prodCompose.includes('name: sinegasi_prod_api_net') && prodCompose.includes('driver: bridge')
+    && !prodCompose.includes('caddy_net') && !/^\s+external:\s*true/m.test(prodCompose)
+    && !/^\s+network_mode:/m.test(prodCompose) && !/^\s+internal:\s*true/m.test(prodCompose),
+  '[GUARDRAIL VIOLATION] Production needs an isolated, outbound-capable bridge, never DEV/Caddy/host networking.'
 );
 assert(
-  !/^\s+build:/m.test(prodCompose) && prodCompose.includes('image: ${API_IMAGE:?') && prodCompose.includes('PRODUCTION_ENV_FILE:?') && prodCompose.includes('BACKGROUND_JOBS_ENABLED=false') && prodCompose.includes('PRODUCTION_TRUST_PROXY:?'),
+  !/^\s+build:/m.test(prodCompose) && prodCompose.includes('image: ${API_IMAGE:?') && prodCompose.includes('PRODUCTION_ENV_FILE:?') && prodCompose.includes('BACKGROUND_JOBS_ENABLED=false') && prodCompose.includes('PRODUCTION_TRUST_PROXY:?') && prodCompose.includes('PRODUCTION_TRUST_PROXY_ADDRESSES:?'),
   '[GUARDRAIL VIOLATION] Production Compose must use approved digest/private config with workers disabled and explicit proxy topology.'
 );
 assert(

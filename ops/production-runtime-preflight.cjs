@@ -3,9 +3,14 @@
 try {
   const { runtimeConfig: config } = require('./dist/config/env.js');
   const requiredProxy = process.env.PRODUCTION_TRUST_PROXY;
+  const requiredAddresses = process.env.PRODUCTION_TRUST_PROXY_ADDRESSES;
   const proxyMatches = requiredProxy === '0'
     ? config.trustProxy === false
     : Number(requiredProxy) === config.trustProxy;
+  const addressesMatch = Array.isArray(config.trustedProxyAddresses) && (requiredProxy === '0'
+    ? requiredAddresses === 'none' && config.trustedProxyAddresses.length === 0
+    : requiredAddresses && config.trustedProxyAddresses.length > 0
+      && config.trustedProxyAddresses.join(',') === requiredAddresses);
   if (
     config.environment !== 'production'
     || !config.publicDeployment
@@ -17,6 +22,7 @@ try {
     || config.corsOrigins[0] !== 'https://sinegasi.pictures'
     || !/^[0-4]$/.test(requiredProxy || '')
     || !proxyMatches
+    || !addressesMatch
     || config.port !== 5001
     || config.host !== '0.0.0.0'
     || !config.r2AccountId || !config.r2BucketName || !config.r2AccessKeyId || !config.r2SecretAccessKey
