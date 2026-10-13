@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { AlertCircle, CheckCircle2, Clock3, UserRound } from 'lucide-react';
 import { Button } from '@/shared/ui/primitives/button';
 import { ImagePreviewDialog } from '@/shared/ui/ImagePreviewDialog';
+import { PrivateImage } from '@/shared/ui/PrivateImage';
 import {
   Sheet,
   SheetClose,
@@ -168,7 +169,7 @@ export function AuditDetailSheet({ log, onOpenChange }: AuditDetailSheetProps) {
                             className="group block w-full cursor-pointer text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface-1"
                             aria-label={`Buka foto kondisi pengembalian ${index + 1}`}
                           >
-                            <img
+                            <PrivateImage
                               src={photo.access_url}
                               alt={`Foto kondisi pengembalian ${index + 1}`}
                               loading="lazy"

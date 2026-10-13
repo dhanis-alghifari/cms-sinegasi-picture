@@ -8,6 +8,25 @@ servers:
 security:
   - bearerAuth: []
 paths:
+  /api/private-media/{kind}/{parentId}/{id}:
+    get:
+      summary: Read an authorized attached image through the private R2 proxy
+      description: Revalidates capability, parent linkage and report ownership on each request. No signed GET, redirect, public URL, arbitrary storage key or caller-selected upstream URL is returned. Access references expire with authorization, not a bearer URL TTL; expires_in_seconds is zero. Legacy public images are unavailable until explicitly imported into private storage.
+      parameters:
+        - { in: path, name: kind, required: true, schema: { type: string, enum: [agenda, contest, return, return-report, charge, publication, insight] } }
+        - { in: path, name: parentId, required: true, schema: { type: string, pattern: '^[A-Za-z0-9_-]{1,64}$' } }
+        - { in: path, name: id, required: true, schema: { type: string, pattern: '^[A-Za-z0-9_-]{1,64}$' } }
+      responses:
+        '200':
+          description: Verified JPEG, PNG or WebP bytes, at most 5 MiB; Cache-Control private, no-store and no redirect
+          content:
+            image/jpeg: { schema: { type: string, format: binary } }
+            image/png: { schema: { type: string, format: binary } }
+            image/webp: { schema: { type: string, format: binary } }
+        '401': { description: Missing, expired or revoked session }
+        '403': { description: Capability, first-login or report ownership denied }
+        '404': { description: Missing, pending, legacy-public or mismatched attachment }
+        '503': { description: Identity, database or private storage unavailable }
   /api/health:
     get:
       security: []
@@ -2386,7 +2405,7 @@ paths:
         '201': { description: Updated charge settlement }
   /api/equipment/charges/{id}/evidence:
     get:
-      summary: List signed URLs for attached charge evidence
+      summary: List authenticated API references for attached charge evidence
       parameters:
         - { name: id, in: path, required: true, schema: { type: string } }
       responses:

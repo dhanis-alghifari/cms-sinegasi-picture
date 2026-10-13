@@ -131,7 +131,6 @@ export interface ContestEntryMutationContext {
 export interface ContestEvidenceStorage {
   createUpload(fileName: string, folder: string, contentType: string): { uploadUrl: string; key: string; expiresInSeconds: number };
   verifyUpload(objectKey: string, contentType: string, fileSizeBytes: number): Promise<boolean>;
-  createAccess(objectKey: string): { accessUrl: string; expiresInSeconds: number };
 }
 
 export interface ContestEntriesMemoryState {

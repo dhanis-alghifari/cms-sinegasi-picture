@@ -4,22 +4,45 @@ Promosi patch dan kelulusan CI **bukan izin dispatch/deploy**. Manifest bernomor
 runner migrasi lama tetap diblokir sebagaimana sebelumnya. Izin login/password
 atau checksum migrasi/bootstrap lama tidak berlaku untuk deployment.
 
+**Kontrak versi baru lokal:** [media privat](../../docs/security/private-media.md)
+memakai authenticated API proxy, bukan public/signed GET media domain. Evidence
+format 2 dan approval format 2 mengikat account/bucket R2 privat dan kebijakan
+review eksplisit; format/public-domain lama ditolak. Patch belum dipromosikan
+ke main/CI/provider dan tidak menerbitkan izin setup atau launch.
+
 ## Dua tahap approval
 
 1. Setelah exact patch dipromosikan ke `main` dan CI backend/frontend sukses,
    publisher yang ditinjau menyiapkan bukti schema/recovery/rehearsal baru.
    Workflow manual memeriksa actual environment protection, exact current main,
    CI push sukses, dan bukti `reconciled-no-sql` **sebelum publish image**.
-2. Setelah digest image dan SHA256 archive diketahui, siapkan approval deployment
-   baru yang mengikat keduanya. Job deploy memerlukan approval environment lagi.
+2. Dispatch `phase=build` **hanya** publish image dan archive, tanpa SSH/deploy.
+   Setelah digest image, SHA256 archive dan build run ID diketahui, siapkan
+   approval deployment baru yang mengikat semuanya. Dispatch `phase=deploy`
+   terpisah harus membawa `deployment_approval_sha256` byte exact approval VPS,
+   `build_run_id`, `image_digest`, dan `release_package_sha256`. Tidak ada job
+   deploy yang otomatis mengikuti build. Artifact metadata, run/job build sukses,
+   repo/path/event/head SHA, exact main dan CI diperiksa ulang sebelum SSH.
    VPS memeriksa konfigurasi candidate image dan metadata DB dalam transaksi
    `REPEATABLE READ READ ONLY`, sebelum mengganti satu container API production.
 
-Kedua job memakai environment `production`; variable environment tersedia pada
-job build, bukan diambil dari environment yang belum ada. Required reviewer
-terpisah (`prevent_self_review=true`) dan tepat satu branch policy `main`
-diverifikasi melalui GET GitHub. Jika API/fitur/proteksi tidak tersedia, STOP;
-jangan mengubah visibilitas repository, paket langganan, atau membuang gate.
+Kedua fase memakai environment `production` dengan tepat satu branch policy
+`main`, verified melalui GET GitHub. Dispatch hanya pelaksana `dhanis-alghifari`
+di repository exact ini, main SHA exact dan run attempt pertama; rerun ditolak.
+`PRODUCTION_REVIEW_MODE` harus eksplisit dan sama dengan evidence:
+
+- `independent-review`: required reviewer terpisah (`prevent_self_review=true`),
+  `soloRiskAccepted=false`; ini tetap default ketat validator environment.
+- `solo-owner`: hanya owner tersebut, `soloRiskAccepted=true`, approval text
+  `approved_by=dhanis-alghifari`. Ini **bukan** reviewer independen; dua dispatch
+  manual/checksum tidak melindungi dari owner/account compromise atau keputusan
+  owner yang keliru. Memilih mode/risiko nyata masih perlu izin deployment baru.
+
+Jika environment API/fitur branch policy/secrets tidak tersedia, STOP; mode solo
+tidak fallback ke repository secrets atau menghapus environment. Jangan mengubah
+visibilitas repository/paket langganan. [Dokumentasi GitHub](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments)
+menguraikan keterbatasan fitur private repository menurut paket; paket akun ini
+belum diketahui. Jangan mengarang reviewer kedua.
 Pengaturan admin bypass tetap harus ditinjau manual: response API yang tidak
 memuat field bypass bukan bukti bypass telah dinonaktifkan.
 
@@ -40,6 +63,16 @@ duplicate keys, field tambahan top-level, atau placeholder. SHA256 mengikat
   Mac-only yang dulu diterima untuk initialization tidak otomatis berlaku untuk
   public deployment; jangan mengklaim key tersedia sebelum benar-benar diverifikasi.
 - Rehearsal rollback/runtime pada exact release/paket, tanpa perubahan DB prod/DEV.
+- `reviewPolicy`: tepat `mode`, `owner=dhanis-alghifari`, `soloRiskAccepted` sesuai
+  mode di atas; tidak mewarisi approval migration/login atau variable READY.
+- `media`: tepat `mode=authenticated-proxy`, `verification=owner-attested`,
+  `accountId` hexadecimal 32 karakter, `bucket`, `developmentBucket` berbeda,
+  `r2DevEnabled=false`, `enabledCustomDomains=0`, `publicWorkerRoutes=false`,
+  `credentialsBucketScoped=true`, `verifiedAt`, `verifiedBy=dhanis-alghifari`.
+  Receipt harus berdasarkan inspeksi provider/credential aktual, maksimal 30
+  menit dan tidak lebih baru dari `observedAt`. Validator **tidak** mengakses
+  Cloudflare untuk membuktikan boolean; checksum bukan bukti provider privat.
+  Runtime/evidence/approval account dan bucket wajib cocok sebelum cutover.
 
 Inspeksi mengabaikan variasi **jumlah** row bisnis/counter saat membandingkan
 schema, tetapi memeriksa reference rows sebenarnya, ACL/RLS, body fungsi,
@@ -61,7 +94,7 @@ symlink. Gate tidak membuat atau menyalin credential.
 | `config/backend.env` | Runtime backend production terpisah; jangan salin `.env` DEV. |
 | `config/schema-gate.json` | 0600, JSON tepat `postgresUrl` dan `ca`; URL session pooler production dan CA Supabase pinned/verified. Dibaca hanya one-off inspeksi. |
 | `config/approvals/<FULL_SHA>.schema.json` | 0600; byte identik dengan `PRODUCTION_SCHEMA_EVIDENCE` yang ditinjau. Tidak berisi password/token. |
-| `config/approvals/<FULL_SHA>.txt` | 0600; tepat 12 field approval deployment di bawah, tanpa field lama. |
+| `config/approvals/<FULL_SHA>.txt` | 0600; tepat 17 field approval format 2 di bawah; byte SHA256 dikonfirmasi saat dispatch. |
 
 `schema-gate.json` membawa kredensial inspeksi privileged (`postgres`) karena
 checkpoint privat tidak tersedia untuk service_role. **Ini keputusan custody
@@ -70,35 +103,49 @@ export/transfer item Keychain admin sebagai langkah otomatis. Session diadapter
 diset read-only, target/CA dipin, bounded timeout, mount read-only, tanpa server,
 worker atau port; ini bukan credential dengan privilege SQL intrinsik read-only.
 
-12 field text approval: `release_sha`, `api_image`, `schema_evidence_sha256`,
+17 field text approval: `approval_format=2`, `release_sha`, `api_image`, `schema_evidence_sha256`,
 `release_package_sha256`, `project_ref`, `trust_proxy_hops`,
 `database_rollback_compatible`, `no_other_writers`, `approved_by`, `window_start`,
-`window_end`, `media_public_domain`. Window ISO UTC millisecond, start inklusif/end
+`window_end`, `review_mode`, `solo_risk_accepted`, `media_access_mode=authenticated-proxy`,
+`r2_account_id`, `r2_bucket`. Window ISO UTC millisecond, start inklusif/end
 eksklusif, maksimal 45 menit; fingerprint/digest harus exact output CI, proxy 0–4
-sesuai topologi nyata, media HTTPS production sesuai bucket yang ditinjau.
+sesuai topologi nyata, account/bucket sesuai receipt privat yang ditinjau.
+`independent-review` memerlukan approver berbeda dari owner dan risiko solo false.
 Tidak ada approval valid/example checksum diterbitkan oleh patch ini.
 
 Rollback hanya image/config sebelumnya yang sudah tercatat dan disiapkan sebelum
 cutover; tidak menjalankan ulang inspeksi candidate dengan window lama dan tidak
 memulihkan DB. First release gagal hanya menghentikan API prod. DEV/Caddy/shared
-lock/loopback tetap dilindungi. Metadata release baru menyimpan empat binding
-SHA/image/evidence/archive; format manifest lama ditolak, bukan dimigrasikan diam-diam.
+lock/loopback tetap dilindungi. Metadata release menyimpan lima binding
+SHA/image/evidence/archive/approval; checksum approval lama juga wajib sama saat
+menyiapkan rollback. Format manifest/public-media lama ditolak, bukan dimigrasikan
+diam-diam. Tidak boleh rollback ke image yang membuka media publik; bila ada
+release lama nyata, tinjau baseline/kompatibilitas privatnya terpisah sebelum rollout.
 
 ## Konfigurasi pengguna — lakukan setelah izin setup terpisah
 
 | Lokasi | Pengaturan |
 | --- | --- |
-| GitHub Settings → Environments → `production` | Required reviewer terpisah, main-only, bypass ditinjau, secrets production terpisah; jangan set `PRODUCTION_DEPLOYMENT_READY=true` sekarang. Evidence baru menjadi `PRODUCTION_SCHEMA_EVIDENCE`. |
-| VPS `config/backend.env` | Key Supabase backend, JWT kuat, R2 account/bucket/access/secret/public domain production. Compose menetapkan exact project/CORS, worker-off dan proxy approved. |
-| Pages **production terpisah**, root `frontend`, output `dist` | Build `npm run build:production`; Production variable `VITE_API_URL=https://api.sinegasi.pictures` dan explicit `VITE_R2_PUBLIC_DOMAIN` yang cocok dengan media backend approved. Jangan gunakan domain media fixture di tes. |
+| GitHub Settings → Environments → `production` | Main-only, bypass ditinjau, secrets production terpisah; reviewer sesuai mode, `PRODUCTION_REVIEW_MODE` eksplisit. Jangan set `PRODUCTION_DEPLOYMENT_READY=true` sekarang. Evidence baru menjadi `PRODUCTION_SCHEMA_EVIDENCE`. |
+| Cloudflare → R2 → bucket PROD terpisah → Settings | Public Development URL disabled; tidak ada enabled Custom Domains atau Worker publik yang membuka bucket. Token S3 dibatasi bucket PROD; bukan URL media frontend. [Panduan Cloudflare](https://developers.cloudflare.com/r2/buckets/public-buckets/). |
+| VPS `config/backend.env` | Key Supabase backend, JWT kuat, R2 account/bucket/access/secret production terpisah; kedua alias public domain harus kosong/tidak diatur. Jangan salin `.env` DEV atau secret ke frontend. |
+| Pages **production terpisah**, root `frontend`, output `dist` | Build `npm run build:production`; `VITE_API_URL=https://api.sinegasi.pictures`, `VITE_MEDIA_ACCESS_MODE=authenticated-proxy`, tanpa `VITE_R2_PUBLIC_DOMAIN`. Secret backend tidak boleh masuk build. |
 | Project Pages DEV | Tetap `npm run build` dan target DEV; jangan ubah variable DEV/main preview menjadi production. |
 | DNS/Tunnel/custom domain | Setup/review terpisah untuk `api.sinegasi.pictures` dan `sinegasi.pictures`; port API tidak dibuka langsung. |
 
 `build:production` memakai mode explicit `production-launch`: gagal jika API hilang,
-localhost/DEV/salah, alias URL konflik, atau media hilang/memakai fallback DEV.
+localhost/DEV/salah, alias URL konflik, mode privat hilang, public media domain
+diisi atau secret backend muncul pada variable frontend.
 Build biasa/DEV tidak berubah. Tidak ada secret boleh menjadi `VITE_*`.
-Runtime preflight memerlukan semua field R2 dan domain approved yang sama;
-ini **bukan** uji akses bucket, upload/download atau CORS browser.
+Runtime preflight menolak public-domain alias (termasuk alias lama) dan memeriksa
+account/bucket approved. Mengosongkan env bukan bukti akses publik di provider mati.
+Pengaturan provider, upload/download dan CORS browser belum diuji secara nyata.
+
+Gambar attached R2 lama dengan metadata valid tetap dibaca dari object key sama;
+foto inline valid tetap bisa tampil sesudah login/otorisasi. URL publik-only lama
+diblokir, tidak dihapus, dan perlu import/re-upload privat yang disetujui. DB/bucket
+DEV tidak otomatis disalin ke PROD. Inventaris nyata belum dilakukan; jangan
+menjanjikan semua gambar lama akan tersedia sebelum inspeksi dan uji browser.
 
 ## Pemeriksaan lokal aman
 
@@ -110,18 +157,20 @@ dijalankan tanpa readiness/izin baru. Jangan menjalankan fixture sebagai approva
 
 Hasil lokal 13 Oktober 2026 (Node 24.11.1, bukan CI Node 22 atau VPS):
 
-- Backend quality: 581 pass, 0 fail, 1 skipped (PostgreSQL disposable nyata tidak
-  diberikan); typecheck/build dan parity OpenAPI 159 operasi lulus.
-- Gate baru: 11 tes lokal lulus, termasuk CLI dengan snapshot aktual 73 tabel
+- Backend quality: 597 pass, 0 fail, 1 skipped (PostgreSQL disposable nyata tidak
+  diberikan); typecheck/build dan parity OpenAPI 160 operasi lulus.
+- Gate: 14 tes lokal lulus, termasuk CLI dengan snapshot aktual 73 tabel
   (674094 byte) dan receipt synthetic, zero PG connects.
-- Release fixture: 16 tes lulus; candidate schema gate gagal sebelum cutover,
+- Release fixture: 19 tes lulus; candidate schema gate gagal sebelum cutover,
   exact-digest rollback, first-release failure, approval/custody/lock path checks.
 - Frontend quality lulus, 12 tes build/assets termasuk actual Vite launch build
   offline; 0 hard bundle violation, 22 target warning masih ada.
 - Source guardrails, shell syntax, YAML parse + 11 blok bash tanpa eksekusi,
-  dan `git diff --check` lulus. Belum ada full managed recovery, actual image/PG
+  CJS syntax dan `git diff --check` lulus. Actionlint/ShellCheck/Semgrep tidak
+  tersedia; YAML/bash parse bukan pengganti pemeriksaan tersebut atau CI nyata.
+  Belum ada full managed recovery, actual image/PG
   runtime integration atau acceptance browser/media. Scan secret staged dijalankan
-  sebelum commit; Semgrep tidak tersedia, sehingga ini bukan full SAST.
+  sebelum commit. Ini bukan full SAST.
 
 ## Risiko dependency tooling yang belum diselesaikan
 

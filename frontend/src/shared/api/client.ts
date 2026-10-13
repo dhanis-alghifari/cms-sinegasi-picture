@@ -2,6 +2,8 @@
 // PRD: every mutating request must send x-change-reason header
 
 import { env } from '@/shared/config/env';
+import { mediaSession } from './privateMedia';
+import { requestPrivateImage, type PrivateImageResult } from './privateImageResponse';
 import {
   ApiError,
   ForbiddenError,
@@ -18,10 +20,12 @@ export function getToken(): string | null {
 
 export function setToken(token: string): void {
   localStorage.setItem(TOKEN_KEY, token);
+  mediaSession.invalidate();
 }
 
 export function removeToken(): void {
   localStorage.removeItem(TOKEN_KEY);
+  mediaSession.invalidate();
 }
 
 export interface RequestOptions extends RequestInit {
@@ -111,32 +115,10 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
   }
 }
 
-export type AuthenticatedImageResult =
-  | { kind: 'blob'; blob: Blob }
-  | { kind: 'remote'; url: string }
-  | null;
+export type AuthenticatedImageResult = PrivateImageResult;
 
 async function requestImage(endpoint: string, options: RequestOptions = {}): Promise<AuthenticatedImageResult> {
-  const response = await fetchResponse(endpoint, { method: 'GET', ...options });
-  if (response.status === 204) return null;
-
-  const contentType = response.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase();
-  if (contentType && ['image/jpeg', 'image/png', 'image/webp'].includes(contentType)) {
-    return { kind: 'blob', blob: await response.blob() };
-  }
-
-  const payload: unknown = await response.json().catch(() => null);
-  if (payload && typeof payload === 'object' && 'url' in payload && typeof payload.url === 'string') {
-    try {
-      const url = new URL(payload.url);
-      if (payload.url.length <= 2048 && (url.protocol === 'https:' || url.protocol === 'http:') && !url.username && !url.password) {
-        return { kind: 'remote', url: url.toString() };
-      }
-    } catch {
-      // Report a typed response error below instead of leaking URL parser details.
-    }
-  }
-  throw new ApiError('Respon gambar dari server tidak valid', response.status);
+  return requestPrivateImage(endpoint, fetchResponse, options);
 }
 
 async function requestParsed<T>(

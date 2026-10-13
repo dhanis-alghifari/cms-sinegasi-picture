@@ -80,7 +80,7 @@ test('agenda instructor rejects a nonblank value shorter than two characters', a
   }, 'humas-1', {}), (error: unknown) => error instanceof AgendaServiceError && error.errorCode === 'AGENDA_INSTRUCTOR_INVALID');
 });
 
-test('agenda report strips private object keys and exposes only signed photo fields', async () => {
+test('agenda report strips private object keys and exposes authenticated API references', async () => {
   const original = {
     r2AccountId: runtimeConfig.r2AccountId,
     r2BucketName: runtimeConfig.r2BucketName,
@@ -120,9 +120,8 @@ test('agenda report strips private object keys and exposes only signed photo fie
 
     const report = await service.report({});
     assert.equal(report.data.length, 1);
-    assert.match(report.data[0]?.photo_access_url ?? '', /^https:\/\//);
-    assert.match(report.data[0]?.photo_access_url ?? '', /X-Amz-Signature=[a-f0-9]{64}/);
-    assert.equal(report.data[0]?.photo_access_expires_in_seconds, 900);
+    assert.match(report.data[0]?.photo_access_url ?? '', /^\/api\/private-media\/agenda\//);
+    assert.equal(report.data[0]?.photo_access_expires_in_seconds, 0);
     assert.ok(report.data[0]?.photo);
     assert.equal('object_key' in (report.data[0]?.photo ?? {}), false);
   } finally {

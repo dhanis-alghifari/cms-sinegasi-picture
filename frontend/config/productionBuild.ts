@@ -1,7 +1,6 @@
 import type { Plugin } from 'vite';
 
 const PRODUCTION_API = 'https://api.sinegasi.pictures';
-const DEVELOPMENT_MEDIA = 'https://pub-bacbd163ce50498d82672aab73389f38.r2.dev';
 
 function httpsUrl(value: string | undefined): URL {
   if (!value || value.trim() !== value) throw new Error('PRODUCTION_EXPLICIT_HTTPS_CONFIGURATION_REQUIRED');
@@ -23,9 +22,10 @@ export function validateProductionBuild(environment: Readonly<Record<string, str
     || environment.VITE_API_BASE_URL !== undefined && environment.VITE_API_BASE_URL !== api) {
     throw new Error('PRODUCTION_API_TARGET_MISMATCH');
   }
-  const media = httpsUrl(environment.VITE_R2_PUBLIC_DOMAIN);
-  if (media.origin === DEVELOPMENT_MEDIA || media.pathname !== '/') {
-    throw new Error('PRODUCTION_MEDIA_TARGET_REQUIRED');
+  if (environment.VITE_MEDIA_ACCESS_MODE !== 'authenticated-proxy'
+      || environment.VITE_R2_PUBLIC_DOMAIN?.trim()
+      || Object.entries(environment).some(([key, value]) => /(?:R2.*(?:ACCESS_KEY|SECRET)|SUPABASE.*(?:SERVICE_ROLE|SECRET))/i.test(key) && Boolean(value))) {
+    throw new Error('PRODUCTION_PRIVATE_MEDIA_CONFIGURATION_REQUIRED');
   }
 }
 

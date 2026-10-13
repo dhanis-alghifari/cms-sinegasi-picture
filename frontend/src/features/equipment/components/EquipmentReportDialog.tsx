@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { PrivateImage } from '@/shared/ui/PrivateImage';
 import { Printer, RefreshCcw, X } from 'lucide-react';
 
 import { getErrorMessage } from '@/shared/api/errors';
@@ -154,7 +155,7 @@ function PhotoGallery({ items }: { items: EquipmentReportItem[] }) {
     <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
       {photoItems.map((item) => (
         <figure key={item.id} className="space-y-1.5">
-          <img src={item.photo_urls?.[0]} alt={`Foto ${item.name}`} className="aspect-[4/3] w-full rounded-lg object-cover" loading="eager" />
+          <PrivateImage src={`/api/equipment/${item.id}/photo`} alt={`Foto ${item.name}`} className="aspect-[4/3] w-full rounded-lg object-cover" loading="eager" />
           <figcaption className="text-xs text-ink-subtle">
             <span className="font-mono font-semibold text-ink">{item.equipment_code}</span> · {item.name}
           </figcaption>

@@ -10,7 +10,6 @@ import type { ContestEvidenceStorage } from './contest-entries.types.js';
 const storage: ContestEvidenceStorage = {
   createUpload: (fileName, folder) => ({ uploadUrl: 'https://upload.example.test/signed', key: `${folder}/${fileName}`, expiresInSeconds: 900 }),
   verifyUpload: async () => true,
-  createAccess: () => ({ accessUrl: 'https://download.example.test/signed', expiresInSeconds: 900 }),
 };
 
 test('contest entry routes expose generic work create, list, and transition flow', async (t) => {
@@ -67,7 +66,8 @@ test('contest entry routes expose generic work create, list, and transition flow
     headers: { authorization: `Bearer ${token}` },
   });
   assert.equal(evidenceAccess.statusCode, 200);
-  assert.equal(evidenceAccess.json().data.access_url, 'https://download.example.test/signed');
+  assert.equal(evidenceAccess.json().data.access_url, `/api/private-media/contest/${entryId}/${reservation.json().data.evidence_id}`);
+  assert.equal(evidenceAccess.json().data.expires_in_seconds, 0);
 });
 
 test('member cannot submit contest entries without the contest submit capability', async (t) => {

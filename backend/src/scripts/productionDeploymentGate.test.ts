@@ -4,7 +4,8 @@ import { mkdtemp, writeFile, chmod, symlink, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { deploymentHash, inspectDeploymentSchema, requireDeploymentObservation, requireDeploymentWindow,
-  requireProductionEnvironment, requireDeploymentQuality, validateDeploymentEvidence, type DeploymentEvidence } from './productionDeploymentGate.js';
+  requireProductionEnvironment, requireDeploymentBindings, requireDeploymentQuality, validateDeploymentEvidence, type DeploymentEvidence } from './productionDeploymentGate.js';
+import { deploymentReviewPolicy, requireDeploymentDispatch, validateDeploymentReleaseArtifact, type DeploymentReviewPolicy } from './productionDeploymentReview.js';
 import { readGateDocument, runDeploymentGate } from './productionDeploymentGateCli.js';
 import { createWriterPackage } from './reconciliationWriterPolicy.js';
 import { loadSnapshot } from './productionReconciliation.js';
@@ -15,10 +16,12 @@ import { writerCatalogHash, type WriterSession } from './reconciliationWriterCat
 const now = Date.parse('2026-10-13T09:00:00.000Z'), release = '1'.repeat(40);
 const hash = (character: string) => character.repeat(64);
 const iso = (offset: number) => new Date(now + offset).toISOString();
+const solo: DeploymentReviewPolicy = { mode: 'solo-owner', owner: 'dhanis-alghifari', soloRiskAccepted: true };
+const mediaFlags = ['--r2-account', 'a'.repeat(32), '--r2-bucket', 'fixture-prod', '--review-mode', 'solo-owner'];
 function evidence(): DeploymentEvidence {
   const id = iso(-60_000).replace(/[:.]/g, '-');
   const archive = { sha256: hash('a'), bytes: 1024 }, metadata = { sha256: hash('b'), bytes: 512 };
-  return { format: 1, mode: 'reconciled-no-sql', project: 'pvbdiftvzoeelibxlxzb', releaseSha: release,
+  return { format: 2, mode: 'reconciled-no-sql', project: 'pvbdiftvzoeelibxlxzb', releaseSha: release,
     snapshotSha256: hash('c'), observedAt: iso(-30_000),
     observation: { packageSha256: hash('d'), targetCatalogSha256: hash('e'), schemaSecuritySha256: hash('e'),
       migrationApprovalSha256: hash('f'), managedExtensionSha256: hash('a') },
@@ -33,14 +36,17 @@ function evidence(): DeploymentEvidence {
     independentKeyRecovery: { verified: true, sameDeviceAsMac: false, sameHostAsApplication: false, verifiedAt: iso(-30_000),
       medium: 'SYNTHETIC OFFLINE TEST ONLY', verifiedBy: 'fixture' },
     rehearsal: { status: 'ISOLATED_DEPLOYMENT_REHEARSAL_PASSED', releaseSha: release, packageSha256: hash('d'), verifiedAt: iso(-30_000),
-      rollbackPassed: true, runtimePreflightPassed: true, productionChanged: false, devDatabaseChanged: false } };
+      rollbackPassed: true, runtimePreflightPassed: true, productionChanged: false, devDatabaseChanged: false },
+    reviewPolicy: { ...solo }, media: { mode: 'authenticated-proxy', verification: 'owner-attested', accountId: 'a'.repeat(32),
+      bucket: 'fixture-prod', developmentBucket: 'fixture-dev', r2DevEnabled: false, enabledCustomDomains: 0,
+      publicWorkerRoutes: false, credentialsBucketScoped: true, verifiedAt: iso(-30_000), verifiedBy: 'dhanis-alghifari' } };
 }
 function verify(e: unknown, raw = JSON.stringify(e)) {
   return validateDeploymentEvidence(raw, { releaseSha: release, evidenceSha256: deploymentHash(raw), snapshotSha256: hash('c'), packageSha256: hash('d'), now });
 }
 test('offline evidence binds exact reviewed bytes, project, release and reconciliation package', () => {
   assert.equal(verify(evidence()).mode, 'reconciled-no-sql');
-  for (const change of [{ format: 2 }, { mode: 'apply-sql' }, { project: 'dev' }, { releaseSha: '2'.repeat(40) },
+  for (const change of [{ format: 1 }, { mode: 'apply-sql' }, { project: 'dev' }, { releaseSha: '2'.repeat(40) },
     { snapshotSha256: hash('0') }, { approved: true }, { operation: 'reset' }, { observedAt: iso(1) },
     { observedAt: iso(-30 * 60_000 - 1) }, { observedAt: '2026-02-30T09:00:00.000Z' }]) assert.throws(() => verify({ ...evidence(), ...change }));
   const raw = JSON.stringify(evidence());
@@ -115,14 +121,75 @@ test('offline CLI verifies the real 73-table snapshot with synthetic receipts an
     e.rehearsal.packageSha256 = bundle.packageSha256;
     const raw = JSON.stringify(e), path = join(directory, 'SYNTHETIC-NOT-APPROVAL.json');
     await writeFile(path, raw, { mode: 0o600 });
-    await runDeploymentGate(['verify', '--evidence', path, '--confirm-evidence', deploymentHash(raw), '--snapshot', snapshotPath, '--release-sha', release]);
+    await runDeploymentGate(['verify', '--evidence', path, '--confirm-evidence', deploymentHash(raw), '--snapshot', snapshotPath, '--release-sha', release, ...mediaFlags]);
     assert.match(output[0], /RECONCILED_DEPLOYMENT_EVIDENCE_OFFLINE_VERIFIED/);
     assert.equal(connections, 0);
     await assert.rejects(runDeploymentGate(['inspect', '--evidence', path, '--confirm-evidence', deploymentHash(raw),
-      '--snapshot', snapshotPath, '--release-sha', release, '--connection', '/never-read-credentials.json',
+      '--snapshot', snapshotPath, '--release-sha', release, ...mediaFlags, '--connection', '/never-read-credentials.json',
       '--window-start', iso(-1000), '--window-end', iso(0)]), /APPROVED_DEPLOYMENT_WINDOW_REQUIRED/);
     assert.equal(connections, 0);
   } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
+test('private media attestation is fresh, explicit, isolated from DEV and bound to runtime approval', () => {
+  const e = evidence();
+  requireDeploymentBindings(verify(e), 'a'.repeat(32), 'fixture-prod', 'solo-owner');
+  for (const change of [{ r2DevEnabled: true }, { enabledCustomDomains: 1 }, { publicWorkerRoutes: true },
+    { credentialsBucketScoped: false }, { verification: 'live-verified' }, { bucket: 'fixture-dev' },
+    { accountId: 'account' }, { bucket: 'https://public.invalid' }, { bucket: '-bad' }, { verifiedBy: 'someone' },
+    { verifiedAt: iso(1) }, { verifiedAt: iso(-30 * 60_000 - 1) }, { verifiedAt: iso(-29_000) }, { force: true }]) {
+    assert.throws(() => verify({ ...evidence(), media: { ...evidence().media, ...change } }));
+  }
+  assert.throws(() => requireDeploymentBindings(e, 'b'.repeat(32), 'fixture-prod', 'solo-owner'));
+  assert.throws(() => requireDeploymentBindings(e, 'a'.repeat(32), 'fixture-dev', 'solo-owner'));
+  assert.throws(() => requireDeploymentBindings(e, 'a'.repeat(32), 'fixture-prod', 'independent-review'));
+});
+
+test('solo approval is opt-in and explicit, not an implicit independent-review bypass', () => {
+  for (const change of [{ soloRiskAccepted: false }, { owner: 'other' }, { mode: 'auto' }, { approved: true }]) {
+    assert.throws(() => deploymentReviewPolicy({ ...solo, ...change }));
+    assert.throws(() => verify({ ...evidence(), reviewPolicy: { ...solo, ...change } }));
+  }
+  assert.throws(() => deploymentReviewPolicy({ mode: 'solo-owner' }));
+  const environment = { name: 'production', protection_rules: [], deployment_branch_policy: { protected_branches: false, custom_branch_policies: true } };
+  const branches = { total_count: 1, branch_policies: [{ name: 'main', type: 'branch' }] };
+  requireProductionEnvironment(environment, branches, solo);
+  assert.throws(() => requireProductionEnvironment(environment, branches)); // strict default preserved
+  assert.throws(() => requireProductionEnvironment(environment, { ...branches, total_count: 0 }, solo));
+  assert.throws(() => requireProductionEnvironment({ ...environment, can_admins_bypass: true }, branches, solo));
+  const dispatch = { repository: 'dhanis-alghifari/cms-sinegasi-picture', actor: 'dhanis-alghifari', event: 'workflow_dispatch',
+    ref: 'refs/heads/main', workflowSha: release, releaseSha: release, runId: '123', runAttempt: '1' };
+  requireDeploymentDispatch(dispatch, solo);
+  for (const change of [{ actor: 'other' }, { repository: 'fork/cms-sinegasi-picture' }, { event: 'push' },
+    { ref: 'refs/heads/develop' }, { workflowSha: '2'.repeat(40) }, { runAttempt: '2' }, { runId: '' }]) {
+    assert.throws(() => requireDeploymentDispatch({ ...dispatch, ...change }, solo));
+  }
+});
+
+test('separate deploy dispatch requires exact successful build artifact provenance', () => {
+  const artifact = { format: 1 as const, releaseSha: release, buildRunId: '123',
+    image: `ghcr.io/dhanis-alghifari/cms-sinegasi-picture/api@sha256:${hash('a')}`,
+    packageSha256: hash('b'), evidenceSha256: hash('c') };
+  const run = { id: 123, head_sha: release, head_branch: 'main', path: '.github/workflows/deploy-prod.yml',
+    event: 'workflow_dispatch', status: 'completed', conclusion: 'success', run_attempt: 1,
+    repository: { full_name: 'dhanis-alghifari/cms-sinegasi-picture' } };
+  const jobs = { jobs: [{ name: 'build-release', status: 'completed', conclusion: 'success' }] };
+  const raw = JSON.stringify(artifact);
+  validateDeploymentReleaseArtifact(raw, artifact, run, jobs);
+  for (const change of [{ buildRunId: '456' }, { releaseSha: '2'.repeat(40) }, { packageSha256: hash('d') },
+    { evidenceSha256: hash('e') }, { image: artifact.image + ':latest' }, { approved: true }]) {
+    assert.throws(() => validateDeploymentReleaseArtifact(JSON.stringify({ ...artifact, ...change }), artifact, run, jobs));
+  }
+  for (const change of [{ id: 456 }, { event: 'push' }, { path: '.github/workflows/quality.yml' },
+    { conclusion: 'failure' }, { run_attempt: 2 }, { head_branch: 'develop' }, { head_sha: '2'.repeat(40) },
+    { repository: { full_name: 'fork/cms-sinegasi-picture' } }]) {
+    assert.throws(() => validateDeploymentReleaseArtifact(raw, artifact, { ...run, ...change }, jobs));
+  }
+  for (const value of [{ jobs: [] }, { jobs: [...jobs.jobs, ...jobs.jobs] },
+    { jobs: [{ name: 'build-release', status: 'completed', conclusion: 'skipped' }] }]) {
+    assert.throws(() => validateDeploymentReleaseArtifact(raw, artifact, run, value));
+  }
+  assert.throws(() => validateDeploymentReleaseArtifact(raw + '\n', artifact, run, jobs));
 });
 
 async function schemaFixture() {

@@ -1,5 +1,6 @@
 
 import { useMemo } from 'react';
+import { PrivateImage } from '@/shared/ui/PrivateImage';
 import { X } from 'lucide-react';
 import type { UseFormReturn } from 'react-hook-form';
 
@@ -250,8 +251,9 @@ export function StudentFormFields({
 
             {activePreview ? (
               <div className="flex items-center gap-3 p-2 rounded-lg border border-hairline bg-surface-2">
-                <img
+                <PrivateImage
                   src={activePreview}
+                  allowLocalPreview
                   alt="Preview Foto Profil"
                   className="w-12 h-12 rounded-full object-cover border border-primary/30 shrink-0"
                 />

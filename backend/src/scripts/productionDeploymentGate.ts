@@ -5,14 +5,15 @@ import { readManagedTrigram } from './reconciliationWriterExtensions.js';
 import { requireCompletedBootstrapCheckpoint } from './productionBootstrapTeacherCore.js';
 import type { WriterPackage } from './reconciliationWriterPolicy.js';
 import { requireWriterQualityRun } from './reconciliationWriterPolicy.js';
+import { deploymentReviewPolicy, type DeploymentReviewPolicy } from './productionDeploymentReview.js';
+import { privateMediaEvidence, type PrivateMediaEvidence } from './productionMediaGate.js';
+import { DeploymentGateError } from './productionDeploymentError.js';
+export { DeploymentGateError } from './productionDeploymentError.js';
 
 export const DEPLOYMENT_PROJECT = 'pvbdiftvzoeelibxlxzb';
 const HASH = /^[a-f0-9]{64}$/;
 const RELEASE = /^[a-f0-9]{40}$/;
 export const deploymentHash = (raw: string): string => createHash('sha256').update(raw).digest('hex');
-export class DeploymentGateError extends Error {
-  constructor(public readonly stage: string) { super(stage); }
-}
 const requireGate: (condition: unknown, stage: string) => asserts condition = (condition, stage) => {
   if (!condition) throw new DeploymentGateError(stage);
 };
@@ -50,7 +51,7 @@ function observation(value: unknown): DeploymentObservation {
   return item as unknown as DeploymentObservation;
 }
 export interface DeploymentEvidence {
-  format: 1;
+  format: 2;
   mode: 'reconciled-no-sql';
   project: typeof DEPLOYMENT_PROJECT;
   releaseSha: string;
@@ -62,6 +63,8 @@ export interface DeploymentEvidence {
   copy: Record<string, unknown>;
   independentKeyRecovery: Record<string, unknown>;
   rehearsal: Record<string, unknown>;
+  reviewPolicy: DeploymentReviewPolicy;
+  media: PrivateMediaEvidence;
 }
 export interface DeploymentGateContext {
   releaseSha: string;
@@ -78,11 +81,14 @@ export function validateDeploymentEvidence(raw: string, context: DeploymentGateC
     && HASH.test(context.snapshotSha256) && HASH.test(context.packageSha256) && Number.isFinite(context.now)
     && deploymentHash(raw) === context.evidenceSha256, 'DEPLOYMENT_EVIDENCE_CHECKSUM_OR_CONTEXT_MISMATCH');
   const e = exact(JSON.parse(raw) as unknown, ['format', 'mode', 'project', 'releaseSha', 'snapshotSha256', 'observedAt',
-    'observation', 'backup', 'restore', 'copy', 'independentKeyRecovery', 'rehearsal']);
+    'observation', 'backup', 'restore', 'copy', 'independentKeyRecovery', 'rehearsal', 'reviewPolicy', 'media']);
   requireGate(JSON.stringify(e) === raw, 'CANONICAL_DEPLOYMENT_EVIDENCE_REQUIRED');
-  requireGate(e.format === 1 && e.mode === 'reconciled-no-sql' && e.project === DEPLOYMENT_PROJECT
+  requireGate(e.format === 2 && e.mode === 'reconciled-no-sql' && e.project === DEPLOYMENT_PROJECT
     && e.releaseSha === context.releaseSha && e.snapshotSha256 === context.snapshotSha256, 'DEPLOYMENT_SCOPE_OR_RELEASE_MISMATCH');
   const observed = fresh(e.observedAt, context.now, 30 * 60_000);
+  deploymentReviewPolicy(e.reviewPolicy);
+  const media = privateMediaEvidence(e.media, context.now);
+  requireGate(timestamp(media.verifiedAt) <= observed, 'MEDIA_OBSERVATION_AFTER_DEPLOYMENT_EVIDENCE');
   const baseline = observation(e.observation);
   requireGate(baseline.packageSha256 === context.packageSha256, 'DEPLOYMENT_RECONCILIATION_PACKAGE_MISMATCH');
   const backup = record(e.backup), restore = record(e.restore), copy = record(e.copy);
@@ -136,20 +142,27 @@ export function requireDeploymentObservation(actual: DeploymentObservation, expe
 
 /** Read-only provider metadata, checked in BOTH environment-scoped CI jobs.
  * A variable named READY or an auto-created environment is not protection. */
-export function requireProductionEnvironment(value: unknown, branchesValue: unknown): void {
+export function requireProductionEnvironment(value: unknown, branchesValue: unknown, reviewValue: unknown = {
+  mode: 'independent-review', owner: 'dhanis-alghifari', soloRiskAccepted: false,
+}): void {
+  const review = deploymentReviewPolicy(reviewValue);
   const env = record(value), policy = record(env.deployment_branch_policy), branches = record(branchesValue);
   requireGate(env.name === 'production' && Array.isArray(env.protection_rules)
-    && env.protection_rules.some(value => {
+    && (review.mode === 'solo-owner' || env.protection_rules.some(value => {
       const rule = record(value);
       return rule.type === 'required_reviewers' && rule.prevent_self_review === true
         && Array.isArray(rule.reviewers) && rule.reviewers.length > 0 && rule.reviewers.every(value => {
           const reviewer = record(value), identity = record(reviewer.reviewer);
           return ['User', 'Team'].includes(String(reviewer.type)) && Number.isSafeInteger(identity.id) && Number(identity.id) > 0;
         });
-    }) && env.can_admins_bypass !== true && policy.protected_branches === false && policy.custom_branch_policies === true
+    })) && env.can_admins_bypass !== true && policy.protected_branches === false && policy.custom_branch_policies === true
     && branches.total_count === 1 && Array.isArray(branches.branch_policies) && branches.branch_policies.length === 1
     && record(branches.branch_policies[0]).name === 'main' && record(branches.branch_policies[0]).type === 'branch',
-  'PROTECTED_PRODUCTION_REVIEW_AND_MAIN_BRANCH_REQUIRED');
+  'PRODUCTION_REVIEW_POLICY_AND_MAIN_BRANCH_REQUIRED');
+}
+export function requireDeploymentBindings(evidence: DeploymentEvidence, accountId: string, bucket: string, reviewMode: string): void {
+  requireGate(evidence.media.accountId === accountId && evidence.media.bucket === bucket
+    && evidence.reviewPolicy.mode === reviewMode, 'DEPLOYMENT_MEDIA_OR_REVIEW_BINDING_MISMATCH');
 }
 export function requireDeploymentQuality(run: unknown, jobs: unknown, releaseSha: string, mainValue: unknown): void {
   requireGate(RELEASE.test(releaseSha) && record(mainValue).sha === releaseSha, 'CURRENT_MAIN_DEPLOYMENT_RELEASE_REQUIRED');

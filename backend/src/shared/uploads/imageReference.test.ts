@@ -6,11 +6,15 @@ const pngBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/
 const pngReference = `data:image/png;base64,${pngBase64}`;
 const limits = { maxDecodedBytes: 600 * 1024 };
 
-test('image references accept canonical PNG data and parsed HTTP(S) links without fetching', () => {
+test('private image inputs accept canonical PNG data and refuse publicly hosted replacements without fetching', () => {
   assert.deepEqual(validateImageReference(pngReference, limits), { valid: true, kind: 'inline' });
   for (const reference of ['https://example.test/photo.png', 'http://example.test/photo.jpg', ' https://example.test/photo.webp ']) {
-    assert.deepEqual(validateImageReference(reference, limits), { valid: true, kind: 'remote' });
+    assert.deepEqual(validateImageReference(reference, limits), { valid: false, reason: 'invalid' });
   }
+});
+
+test('external metadata links require explicit opt-in, not a private-image upload bypass', () => {
+  assert.deepEqual(validateImageReference('https://example.test/source', { ...limits, allowRemote: true }), { valid: true, kind: 'remote' });
 });
 
 test('image references reject SVG, HTML, unsupported MIME types and forged raster metadata', () => {

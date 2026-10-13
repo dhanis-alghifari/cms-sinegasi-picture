@@ -1,5 +1,6 @@
 import { createHash, createHmac, randomUUID } from 'node:crypto';
 import { runtimeConfig } from '../config/env.js';
+import type { PrivateMediaObject } from '../shared/uploads/privateMedia.js';
 import { hasSupportedImageSignature } from '../shared/uploads/imageReference.js';
 
 export interface R2UploadOptions {
@@ -29,6 +30,8 @@ const PRESIGNED_URL_TTL_SECONDS = 900;
 const PRIVATE_UPLOAD_TTL_SECONDS = 300;
 const R2_REQUEST_TIMEOUT_MS = 10_000;
 const MAX_VERIFIED_IMAGE_BYTES = 5 * 1024 * 1024;
+const MAX_PRIVATE_IMAGE_READS = 8;
+let activePrivateImageReads = 0;
 // These prefixes start with a letter to satisfy the existing reservation RPCs.
 const STAGING_PREFIX = 'staging-v2/';
 const VALIDATED_PREFIX = 'validated-v2/';
@@ -368,13 +371,17 @@ export async function verifyCloudflareR2ImageUpload(
   return true;
 }
 
-/** Issues a short-lived read URL for an attached private evidence object. */
-export function generateR2PrivateAccessUrl(
-  objectKey: string,
-): { accessUrl: string; expiresInSeconds: number } {
+/** Server-only bounded read. Signed GET credentials never leave this adapter. */
+export async function readR2PrivateImage(object: PrivateMediaObject): Promise<{ contentType: string; body: Buffer }> {
+  const contentType = imageContentType(object.contentType);
+  if (!contentType || !Number.isSafeInteger(object.fileSizeBytes)
+      || object.fileSizeBytes < 1 || object.fileSizeBytes > MAX_VERIFIED_IMAGE_BYTES) throw new Error('R2_INVALID_MEDIA');
   const config = getR2Config();
-  return {
-    accessUrl: presignedUrl(config, accessObjectKey(objectKey), 'GET'),
-    expiresInSeconds: PRESIGNED_URL_TTL_SECONDS,
-  };
+  if (activePrivateImageReads >= MAX_PRIVATE_IMAGE_READS) throw new Error('R2_MEDIA_BUSY');
+  activePrivateImageReads += 1;
+  try {
+    const snapshot = await readImageSnapshot(config, accessObjectKey(object.objectKey), contentType, object.fileSizeBytes);
+    if (snapshot.status !== 'valid') throw new Error('R2_MEDIA_UNAVAILABLE');
+    return { contentType, body: snapshot.bytes };
+  } finally { activePrivateImageReads -= 1; }
 }

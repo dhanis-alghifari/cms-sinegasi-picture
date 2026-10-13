@@ -7,9 +7,8 @@ const pngPhoto = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1
 test('equipment photos accept canonical raster data and retain the three-photo rule', () => {
   assert.equal(validatePhotoUrl(pngPhoto), true);
   assert.equal(validateEquipmentPhotos([pngPhoto, pngPhoto]).photos, undefined);
-  assert.deepEqual(validateEquipmentPhotos([pngPhoto, 'https://example.test/front.jpg', 'http://example.test/back.jpg']).photos, [
-    pngPhoto, 'https://example.test/front.jpg', 'http://example.test/back.jpg',
-  ]);
+  assert.deepEqual(validateEquipmentPhotos([pngPhoto, pngPhoto, pngPhoto]).photos, [pngPhoto, pngPhoto, pngPhoto]);
+  assert.equal(validateEquipmentPhotos([pngPhoto, 'https://example.test/front.jpg', 'http://example.test/back.jpg']).photos, undefined);
 });
 
 test('equipment photos reject unsupported image data, forged signatures and credential-bearing links', () => {

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { privateMediaPathSchema } from '@/shared/api/privateMedia';
 import { decodeDataEnvelope, decodePaginatedResponse } from '@/shared/api/responseValidation';
 import type { PaginatedResponse } from '@/shared/types/common';
 import {
@@ -258,8 +259,8 @@ const achievementDetailSchema: z.ZodType<ContestAchievementDetail> = z.object({
 }).loose() as z.ZodType<ContestAchievementDetail>;
 
 const evidenceAccessResponseSchema: z.ZodType<ContestEvidenceAccessResponse> = z.object({
-  access_url: z.string().url(),
-  expires_in_seconds: z.number().int().positive().nullable(),
+  access_url: privateMediaPathSchema,
+  expires_in_seconds: z.literal(0),
 }).loose();
 
 const recordResultResponseSchema: z.ZodType<RecordContestResultResponse> = z.object({
