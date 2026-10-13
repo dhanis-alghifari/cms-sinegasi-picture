@@ -30,6 +30,26 @@ docker compose -f docker-compose.caddy.yml up -d caddy
 
 ## Isolated production releases — gated, not yet live
 
+**Current gate contract, 13 October 2026:** production publishing/cutover uses the
+[reconciled no-SQL deployment gate](production-gate/README.md), not the old
+numbered migration manifest. Both CI jobs require the protected `production`
+environment; runtime requires fresh reviewed schema evidence, exact image/archive
+bindings, a new deployment window and read-only schema inspection. The frontend
+launch build requires explicit production API/media targets. Promoting this patch
+does not authorize credential provisioning, dispatch, routing or deployment;
+each production setup/execution step requires separate reviewed approval.
+
+The blocked historical manifest remains blocked. Read the new gate contract for
+current configuration locations, custody decisions and local test limits.
+Do not copy DEV secrets or reuse auth/migration approval for deployment.
+
+### Historical manifest-based pipeline — not supported by the current gate
+
+The descriptions/commands/approval format below are retained as history only;
+do **not** follow them to deploy the reconciled database. Old manifest inputs,
+nine-field approvals and three-field release metadata are now rejected. The
+current contract linked above supersedes this historical section.
+
 `main` is the reviewed production release source. `develop` is a development
 branch, **not** a production backup. Production rollback uses the previous
 approved image **digest and deployment package**, with independently tested
