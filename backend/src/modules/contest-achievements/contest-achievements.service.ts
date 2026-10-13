@@ -18,7 +18,7 @@ function optionalUrl(value: unknown): string | undefined {
   const text = value.trim();
   if (!text) return undefined;
   if (!validateImageReference(value, { maxDecodedBytes: 675_000, maxLength: 900_000 }).valid) {
-    throw new ContestAchievementsServiceError(422, 'CONTEST_RESULT_EVIDENCE_INVALID', 'Bukti hasil harus berupa URL http/https atau gambar.');
+    throw new ContestAchievementsServiceError(422, 'CONTEST_RESULT_EVIDENCE_INVALID', 'Bukti hasil harus berupa unggahan gambar privat JPEG, PNG, atau WebP; URL publik tidak diizinkan.');
   }
   return text;
 }

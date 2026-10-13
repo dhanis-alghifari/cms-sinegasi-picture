@@ -6,7 +6,7 @@ import { BACKUP_HOST, databaseInventory, validateBackupCa, validateBackupTarget 
 import { validateSnapshot } from './productionReconciliation.js';
 import { createWriterPackage } from './reconciliationWriterPolicy.js';
 import { DeploymentGateError, deploymentHash, inspectDeploymentSchema, requireDeploymentObservation,
-  requireDeploymentWindow, validateDeploymentEvidence } from './productionDeploymentGate.js';
+  requireDeploymentBindings, requireDeploymentWindow, validateDeploymentEvidence } from './productionDeploymentGate.js';
 
 export async function readGateDocument(path: string, privateFile: boolean): Promise<string> {
   const limit = privateFile ? 256 * 1024 : 2 * 1024 * 1024;
@@ -26,7 +26,7 @@ export async function readGateDocument(path: string, privateFile: boolean): Prom
 /** Explicit, read-only adapter. No dotenv, Keychain, custody, login or server import. */
 export async function runDeploymentGate(args: readonly string[]): Promise<void> {
   const [mode, ...rest] = args;
-  const expected = ['--evidence', '--confirm-evidence', '--snapshot', '--release-sha',
+  const expected = ['--evidence', '--confirm-evidence', '--snapshot', '--release-sha', '--r2-account', '--r2-bucket', '--review-mode',
     ...(mode === 'inspect' ? ['--connection', '--window-start', '--window-end'] : [])];
   if (!['verify', 'inspect'].includes(mode) || rest.length !== expected.length * 2) throw new DeploymentGateError('EXPLICIT_DEPLOYMENT_GATE_MODE_REQUIRED');
   const flags: Record<string, string> = {};
@@ -43,6 +43,7 @@ export async function runDeploymentGate(args: readonly string[]): Promise<void> 
   const raw = await readGateDocument(flags['--evidence'], true);
   const evidence = validateDeploymentEvidence(raw, { releaseSha: flags['--release-sha'], evidenceSha256: flags['--confirm-evidence'],
     snapshotSha256: deploymentHash(snapshotRaw), packageSha256: bundle.packageSha256, now: Date.now() });
+  requireDeploymentBindings(evidence, flags['--r2-account'], flags['--r2-bucket'], flags['--review-mode']);
   if (mode === 'verify') {
     console.log(JSON.stringify({ status: 'RECONCILED_DEPLOYMENT_EVIDENCE_OFFLINE_VERIFIED', mode: evidence.mode,
       releaseSha: evidence.releaseSha, databaseAccessed: false, productionChanged: false, deploymentPerformed: false }));

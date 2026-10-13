@@ -1,6 +1,6 @@
 import { databaseErrorCode } from '../../shared/database/database.types.js';
+import { privateMediaAccess, type PrivateMediaObject } from '../../shared/uploads/privateMedia.js';
 import {
-  generateR2PrivateAccessUrl,
   generateR2PrivateUploadUrl,
   verifyCloudflareR2ImageUpload,
 } from '../../services/cloudflareR2Service.js';
@@ -88,7 +88,6 @@ function getDatabaseErrorCode(code: string | undefined): string {
 const defaultEvidenceStorage: ContestEvidenceStorage = {
   createUpload: generateR2PrivateUploadUrl,
   verifyUpload: verifyCloudflareR2ImageUpload,
-  createAccess: generateR2PrivateAccessUrl,
 };
 
 const ALLOWED_EVIDENCE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
@@ -296,11 +295,11 @@ export class ContestEntriesService {
     return { entry: result.data, results: result.results };
   }
 
-  async getEvidenceAccess(evidenceId: string) {
+  private async attachedEvidence(evidenceId: string) {
     const result = await this.repository.getEvidence(required(evidenceId, 'evidence_id', 64));
     if ('error' in result) mapRepositoryError(result.error, 'Gagal memuat bukti.');
     const evidence = result.data;
-    if (!evidence || evidence.upload_status !== 'attached') {
+    if (!evidence || evidence.id !== evidenceId || evidence.upload_status !== 'attached') {
       throw new ContestEntriesServiceError(404, 'CONTEST_EVIDENCE_NOT_FOUND', 'Bukti tidak ditemukan.');
     }
     const entryResult = await this.repository.get(evidence.entry_id);
@@ -308,15 +307,18 @@ export class ContestEntriesService {
     if (!entryResult.data || entryResult.data.pipeline_status !== 'selesai') {
       throw new ContestEntriesServiceError(404, 'CONTEST_EVIDENCE_NOT_FOUND', 'Bukti tidak ditemukan.');
     }
-    if (evidence.storage_provider === 'legacy_url' && evidence.public_url) {
-      return { access_url: evidence.public_url, expires_in_seconds: null };
-    }
-    if (!evidence.object_key) throw new ContestEntriesServiceError(404, 'CONTEST_EVIDENCE_NOT_FOUND', 'Bukti tidak ditemukan.');
-    try {
-      const access = this.evidenceStorage.createAccess(evidence.object_key);
-      return { access_url: access.accessUrl, expires_in_seconds: access.expiresInSeconds };
-    } catch {
-      throw new ContestEntriesServiceError(503, 'CONTEST_EVIDENCE_STORAGE_UNAVAILABLE', 'Bukti sedang tidak dapat dibuka.');
-    }
+    if (evidence.storage_provider !== 'r2' || !evidence.object_key || !evidence.mime_type || !evidence.file_size_bytes) throw new ContestEntriesServiceError(404, 'CONTEST_EVIDENCE_NOT_FOUND', 'Bukti privat tidak tersedia.');
+    return evidence;
+  }
+
+  async getEvidenceAccess(evidenceId: string) {
+    const evidence = await this.attachedEvidence(evidenceId);
+    return privateMediaAccess('contest', evidence.entry_id, evidence.id);
+  }
+
+  async evidenceMedia(entryId: string, evidenceId: string): Promise<PrivateMediaObject> {
+    const evidence = await this.attachedEvidence(evidenceId);
+    if (evidence.entry_id !== entryId) throw new ContestEntriesServiceError(404, 'CONTEST_EVIDENCE_NOT_FOUND', 'Bukti tidak ditemukan.');
+    return { objectKey: evidence.object_key!, contentType: evidence.mime_type!, fileSizeBytes: evidence.file_size_bytes! };
   }
 }

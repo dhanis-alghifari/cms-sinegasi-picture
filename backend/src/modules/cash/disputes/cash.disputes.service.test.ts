@@ -29,6 +29,7 @@ test('cash dispute service rejects unsupported or forged evidence before creatin
     'data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=',
     'data:image/png;base64,AAAA',
     'https://user:password@example.test/proof.png',
+    'https://example.test/public-proof.png',
     'https://example.test/proof.png\n',
   ]) {
     await assert.rejects(

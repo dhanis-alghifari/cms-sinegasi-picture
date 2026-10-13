@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { privateMediaPathSchema } from '@/shared/api/privateMedia';
 import {
   decodeDataEnvelope,
   decodePaginatedResponse,
@@ -33,8 +34,8 @@ export const socialEvidenceSchema: z.ZodType<SocialEvidence> = z.object({
   file_size_bytes: z.coerce.number().int().positive(),
   original_filename: z.string().min(1),
   created_at: z.string().min(1),
-  access_url: z.string().url().optional(),
-  expires_in_seconds: z.number().int().positive().optional(),
+  access_url: privateMediaPathSchema.optional(),
+  expires_in_seconds: z.literal(0).optional(),
 }).loose();
 
 export const socialPublicationSchema: z.ZodType<SocialPublication> = z.object({
@@ -155,14 +156,14 @@ export const decodeSocialEvidenceReservation = decodeDataEnvelope(z.object({
 
 export const decodeSocialEvidenceCompletion = decodeDataEnvelope(z.object({
   evidence: socialEvidenceSchema,
-  access_url: z.string().url(),
-  expires_in_seconds: z.number().int().positive(),
+  access_url: privateMediaPathSchema,
+  expires_in_seconds: z.literal(0),
 }).loose());
 
 export const decodeSocialEvidenceAccess = decodeDataEnvelope(z.array(z.object({
   id: z.string().min(1),
-  access_url: z.string().url(),
-  expires_in_seconds: z.number().int().positive(),
+  access_url: privateMediaPathSchema,
+  expires_in_seconds: z.literal(0),
 }).loose()));
 
 export const decodeSocialInsightPeriodUpdate = decodeDataEnvelope(socialInsightPeriodSchema);

@@ -1,4 +1,5 @@
 import { parseEquipmentPagination, validateEquipmentPhotos, validatePhotoUrl } from './equipment.helpers.js';
+import { validateImageReference } from '../../shared/uploads/imageReference.js';
 import type {
   EquipmentConditionInput,
   EquipmentCreateInput,
@@ -356,7 +357,8 @@ export class EquipmentService {
     const currency = typeof body.currency === 'string' && /^[A-Z]{3}$/.test(body.currency.trim()) ? body.currency.trim() : 'IDR';
     const effectiveAt = body.effective_at === undefined ? undefined : optionalText(body, 'effective_at', 40);
     const sourceUrl = optionalText(body, 'source_url', 2048);
-    if (sourceUrl && !validatePhotoUrl(sourceUrl)) throw new EquipmentServiceError(422, 'INVALID_SOURCE_URL', 'source_url tidak valid.');
+    // A valuation's external price/source citation is metadata, not a media read.
+    if (sourceUrl && !validateImageReference(sourceUrl, { maxDecodedBytes: 600 * 1024, allowRemote: true }).valid) throw new EquipmentServiceError(422, 'INVALID_SOURCE_URL', 'source_url tidak valid.');
     const notes = optionalText(body, 'notes', 2000);
     const input: EquipmentValuationInput = { equipmentId: normalizedId, replacementValue, currency, effectiveAt, sourceUrl, notes, actorId, changeReason: normalizedReason };
     const result = await this.repository.createValuation(input);
@@ -391,7 +393,7 @@ function reportItem(item: import('./equipment.types.js').EquipmentEntry, include
     serial_number: item.serial_number,
     // A report needs one representative image per item; sending the full upload set
     // would make a filtered export unnecessarily large.
-    ...(includePhotos && item.foto_urls?.[0] ? { photo_urls: [item.foto_urls[0]] } : {}),
+    ...(includePhotos && item.foto_urls?.[0] ? { photo_urls: [`/api/equipment/${encodeURIComponent(item.id)}/photo`] } : {}),
     description: item.deskripsi,
     damage_notes: item.catatan_kerusakan,
     asset_state: assetState,

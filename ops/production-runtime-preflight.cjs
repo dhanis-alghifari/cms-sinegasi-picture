@@ -20,9 +20,13 @@ try {
     || config.port !== 5001
     || config.host !== '0.0.0.0'
     || !config.r2AccountId || !config.r2BucketName || !config.r2AccessKeyId || !config.r2SecretAccessKey
-    || !/^https:\/\/[a-z0-9][a-z0-9.-]*[a-z0-9]$/.test(process.env.PRODUCTION_MEDIA_PUBLIC_DOMAIN || '')
-    || config.r2PublicDomain !== process.env.PRODUCTION_MEDIA_PUBLIC_DOMAIN
-    || config.r2PublicDomain === 'https://pub-bacbd163ce50498d82672aab73389f38.r2.dev'
+    || !/^[a-f0-9]{32}$/.test(process.env.PRODUCTION_R2_ACCOUNT_ID || '')
+    || !/^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/.test(process.env.PRODUCTION_R2_BUCKET || '')
+    || config.r2AccountId !== process.env.PRODUCTION_R2_ACCOUNT_ID
+    || config.r2BucketName !== process.env.PRODUCTION_R2_BUCKET
+    || config.r2PublicDomain !== ''
+    || ['CLOUDFLARE_R2_PUBLIC_DOMAIN', 'R2_PUBLIC_DOMAIN', 'PRODUCTION_MEDIA_PUBLIC_DOMAIN']
+      .some(key => Boolean(process.env[key]?.trim()))
   ) {
     throw new Error('Unsafe production configuration');
   }

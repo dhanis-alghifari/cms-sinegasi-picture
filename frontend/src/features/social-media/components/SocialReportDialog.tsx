@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { DataTableSkeleton } from '@/shared/ui/LoadingSkeletons';
 import { QueryErrorState } from '@/shared/ui/QueryErrorState';
 import { ImagePreviewDialog } from '@/shared/ui/ImagePreviewDialog';
+import { PrivateImage } from '@/shared/ui/PrivateImage';
 import { ReportFormatSelector } from '@/shared/ui/report/ReportFormatSelector';
 import { ReportPreviewDialog } from '@/shared/ui/report/ReportPreviewDialog';
 import type { ReportPrintFormat } from '@/shared/types/report';
@@ -49,7 +50,7 @@ function evidenceFor(evidence: SocialEvidence[], parentId: string, onPreview: (i
   return <div className="flex flex-wrap gap-1.5">
     {evidence.map((item) => item.access_url ? (
       <button key={item.id} type="button" onClick={() => onPreview({ id: `${parentId}:${item.id}`, src: item.access_url as string, alt: item.original_filename, label: 'Bukti laporan' })} className="rounded border border-hairline bg-white p-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" aria-label={`Pratinjau ${item.original_filename}`}>
-        <img src={item.access_url} alt={item.original_filename} className={`${imageClassName} object-contain`} loading="eager" referrerPolicy="no-referrer" onLoad={() => onImageResolved(`${parentId}:${item.id}`, false)} onError={() => onImageResolved(`${parentId}:${item.id}`, true)} />
+        <PrivateImage src={item.access_url} alt={item.original_filename} className={`${imageClassName} object-contain`} loading="eager" onLoad={() => onImageResolved(`${parentId}:${item.id}`, false)} onError={() => onImageResolved(`${parentId}:${item.id}`, true)} onUnavailable={() => onImageResolved(`${parentId}:${item.id}`, true)} />
       </button>
     ) : <span key={item.id} className="rounded border border-semantic-danger/40 px-2 py-1 text-[10px] text-semantic-danger">Bukti tidak memiliki tautan akses</span>)}
   </div>;

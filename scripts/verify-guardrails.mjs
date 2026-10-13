@@ -35,16 +35,26 @@ console.log('🛡️  Running Deployment & Infrastructure Guardrail Checks...\n'
 // ============================================================================
 const devWorkflow = readFile('.github/workflows/deploy-dev.yml');
 const prodWorkflow = readFile('.github/workflows/deploy-prod.yml');
-assert(prodWorkflow.includes('deployment:verify') && prodWorkflow.includes('--confirm-evidence') && prodWorkflow.includes('--release-sha')
+const prodCiPreflight = readFile('ops/production-ci-preflight.cjs');
+assert(prodWorkflow.includes('production-ci-preflight.cjs') && prodCiPreflight.includes('--confirm-evidence') && prodCiPreflight.includes('--release-sha')
   && !prodWorkflow.includes('db:production --') && !prodWorkflow.includes('PRODUCTION_MIGRATION_MANIFEST'),
   '[GUARDRAIL VIOLATION] Production publishing requires exact reconciled-no-sql evidence; never replay/promote legacy SQL.');
 const devDeployScript = readFile('ops/deploy-dev.sh');
 const prodDeployScript = readFile('ops/deploy-prod.sh');
 const prodReleaseScript = readFile('ops/production-release.sh');
-assert(prodWorkflow.includes('requireProductionEnvironment') && prodWorkflow.includes('requireDeploymentQuality')
+assert(prodCiPreflight.includes('requireProductionEnvironment') && prodCiPreflight.includes('requireDeploymentQuality')
   && prodReleaseScript.includes('verify_candidate_schema') && prodReleaseScript.includes('schema_evidence_sha256')
   && prodReleaseScript.includes('release_package_sha256') && prodReleaseScript.includes('schema-gate.json'),
   '[GUARDRAIL VIOLATION] Both CI jobs need actual production protections and runtime read-only schema verification.');
+assert(prodWorkflow.includes("if: inputs.phase == 'build'") && prodWorkflow.includes("if: inputs.phase == 'deploy'")
+  && !prodWorkflow.includes('needs: build-release') && prodWorkflow.includes('deployment_approval_sha256')
+  && prodWorkflow.includes('production-artifact-preflight.cjs') && prodCiPreflight.includes('requireDeploymentDispatch')
+  && prodWorkflow.includes('PRODUCTION_REVIEW_MODE'),
+  '[GUARDRAIL VIOLATION] Production needs separate explicit build/deploy dispatches, exact artifact/checksum and opt-in review policy.');
+assert(prodReleaseScript.includes('approval_format') && prodReleaseScript.includes('authenticated-proxy')
+  && prodReleaseScript.includes('r2_account_id') && prodReleaseScript.includes('r2_bucket')
+  && !prodReleaseScript.includes('media_public_domain'),
+  '[GUARDRAIL VIOLATION] Production approval must bind private media account/bucket, not a public domain.');
 
 // Rule 1.1: Never use --remove-orphans in deploy workflows (kills Caddy/other compose services)
 assert(

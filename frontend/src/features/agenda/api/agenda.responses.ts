@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { privateMediaPathSchema } from '@/shared/api/privateMedia';
 import { decodeDataEnvelope, decodePaginatedResponse, decodeWithSchema } from '@/shared/api/responseValidation';
 import type { AgendaActivity, AgendaPhoto, AgendaReportActivity } from '../types/agenda.types';
 
@@ -43,8 +44,8 @@ const agendaReportActivitySchema: z.ZodType<AgendaReportActivity> = z.object({
   updated_at: z.string().min(1),
   archived_at: z.string().nullable(),
   photo: agendaPhotoSchema.nullable(),
-  photo_access_url: z.string().url().nullable(),
-  photo_access_expires_in_seconds: z.number().int().positive().nullable(),
+  photo_access_url: privateMediaPathSchema.nullable(),
+  photo_access_expires_in_seconds: z.literal(0).nullable(),
 }).loose();
 const agendaReportSchema = z.object({
   success: z.literal(true),
@@ -62,10 +63,10 @@ export const decodeAgendaUploadReservation = decodeDataEnvelope(z.object({
 }).loose());
 export const decodeAgendaPhotoCompletion = decodeDataEnvelope(z.object({
   photo: agendaPhotoSchema,
-  access_url: z.string().url(),
-  expires_in_seconds: z.number().int().positive(),
+  access_url: privateMediaPathSchema,
+  expires_in_seconds: z.literal(0),
 }).loose());
 export const decodeAgendaPhotoAccess = decodeDataEnvelope(z.object({
-  access_url: z.string().url(),
-  expires_in_seconds: z.number().int().positive(),
+  access_url: privateMediaPathSchema,
+  expires_in_seconds: z.literal(0),
 }).loose());

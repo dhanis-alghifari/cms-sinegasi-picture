@@ -82,7 +82,7 @@ test('cash mutation service validates payment method and calendar date before pe
 test('cash mutation service rejects invalid income and expense proof before persistence', async () => {
   const memory = state();
   const service = new CashMutationsService(createCashMutationsRepository(null, memory));
-  for (const foto_bukti_url of ['data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=', 'data:image/png;base64,AAAA', 'https://user:password@example.test/proof.png']) {
+  for (const foto_bukti_url of ['data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=', 'data:image/png;base64,AAAA', 'https://user:password@example.test/proof.png', 'https://example.test/public-proof.png']) {
     await assert.rejects(
       service.recordIn({ nominal: 1000, type: 'pemasukan', metode_pembayaran: 'cash', foto_bukti_url }, 'user-1', 'proof-in-1'),
       (error: unknown) => error instanceof CashMutationsServiceError && error.errorCode === 'INVALID_INPUT',

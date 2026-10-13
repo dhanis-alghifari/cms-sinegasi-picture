@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { PrivateImage } from '@/shared/ui/PrivateImage';
 import { Image as ImageIcon, Plus, X } from 'lucide-react';
 
 import { Button } from '@/shared/ui/primitives/button';
@@ -30,7 +31,7 @@ interface MultiImageUploadFieldProps {
 }
 
 function isSupportedImageUrl(value: string): boolean {
-  return value.startsWith('http://') || value.startsWith('https://') || value.startsWith('data:image/');
+  return /^data:image\/(?:jpeg|png|webp);base64,/i.test(value);
 }
 
 export function MultiImageUploadField({
@@ -88,7 +89,7 @@ export function MultiImageUploadField({
     const nextUrl = urlValue.trim();
     if (!nextUrl) return;
     if (!isSupportedImageUrl(nextUrl)) {
-      setLocalError('URL foto harus berupa http(s) atau data:image yang valid.');
+      setLocalError('Gunakan unggahan foto; URL publik tidak diizinkan.');
       return;
     }
 
@@ -114,7 +115,7 @@ export function MultiImageUploadField({
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
             {values.map((value, index) => (
               <div key={`${value.slice(0, 32)}-${index}`} className="relative aspect-square overflow-hidden rounded border border-hairline bg-surface-1">
-                <img src={value} alt={`${label} ${index + 1}`} className="h-full w-full object-cover" />
+                <PrivateImage src={value} allowLocalPreview alt={`${label} ${index + 1}`} className="h-full w-full object-cover" />
                 <Button
                   type="button"
                   variant="ghost"

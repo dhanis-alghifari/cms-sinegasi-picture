@@ -6,10 +6,10 @@ import { createEquipmentRecoveryRepository } from './equipment.recovery.reposito
 import { EquipmentRecoveryService, EquipmentRecoveryServiceError } from './equipment.recovery.service.js';
 
 const actorId = 'actor-1';
+const pngPhoto = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jD1sAAAAASUVORK5CYII=';
 const evidenceStorage = {
   createUpload: (fileName: string, folder: string) => ({ uploadUrl: 'https://upload.example.test/signed', key: `${folder}/${fileName}`, expiresInSeconds: 900 }),
   verifyUpload: async () => true,
-  createAccess: () => ({ accessUrl: 'https://download.example.test/signed', expiresInSeconds: 900 }),
 };
 const baseEquipment = (id: string, condition: 'rusak' | 'hilang') => ({
   id, kode_alat: `${id}-001`, nama_alat: 'Camera', kategori: 'Kamera' as const, kondisi: condition, status: 'maintenance' as const,
@@ -20,7 +20,7 @@ test('recovery service opens and completes a repair in memory', async () => {
   const equipmentState = createEquipmentMemoryState(); equipmentState.equipment.push(baseEquipment('eq-1', 'rusak'));
   const service = new EquipmentRecoveryService(createEquipmentRecoveryRepository(null, createEquipmentRecoveryMemoryState(), equipmentState));
   const item = await service.createCase({ equipment_id: 'eq-1', recovery_type: 'repair', reported_condition: 'damaged', change_reason: 'Membuka kasus servis' }, actorId);
-  const equipment = await service.completeRepair({ case_id: item.id, inspection_photos: ['https://example.com/a.jpg', 'https://example.com/b.jpg'], inspection_passed: true, change_reason: 'Verifikasi hasil servis' }, actorId);
+  const equipment = await service.completeRepair({ case_id: item.id, inspection_photos: [pngPhoto, pngPhoto], inspection_passed: true, change_reason: 'Verifikasi hasil servis' }, actorId);
   assert.equal(equipment.status, 'tersedia'); assert.equal(equipment.kondisi, 'bagus');
 });
 
@@ -29,7 +29,7 @@ test('recovery service requires the final inspection checklist', async () => {
   const service = new EquipmentRecoveryService(createEquipmentRecoveryRepository(null, createEquipmentRecoveryMemoryState(), equipmentState));
   const item = await service.createCase({ equipment_id: 'eq-3', recovery_type: 'repair', reported_condition: 'damaged', change_reason: 'Membuka kasus servis' }, actorId);
   await assert.rejects(
-    service.completeRepair({ case_id: item.id, inspection_photos: ['https://example.com/a.jpg', 'https://example.com/b.jpg'], inspection_passed: false, change_reason: 'Verifikasi hasil servis' }, actorId),
+    service.completeRepair({ case_id: item.id, inspection_photos: [pngPhoto, pngPhoto], inspection_passed: false, change_reason: 'Verifikasi hasil servis' }, actorId),
     (error: unknown) => error instanceof Error && error.message.includes('Checklist pemeriksaan akhir'),
   );
 });
@@ -95,7 +95,7 @@ test('replacement registration creates a new available unit and retires the old 
   const equipmentState = createEquipmentMemoryState(); equipmentState.equipment.push(baseEquipment('eq-2', 'hilang'));
   const service = new EquipmentRecoveryService(createEquipmentRecoveryRepository(null, createEquipmentRecoveryMemoryState(), equipmentState));
   const item = await service.createCase({ equipment_id: 'eq-2', recovery_type: 'replacement', reported_condition: 'lost', change_reason: 'Membuka kasus penggantian' }, actorId);
-  const replacement = await service.registerReplacement({ case_id: item.id, equipment_code: 'CAM-NEW', name: 'Camera Baru', category: 'camera', photo_urls: ['https://example.com/a.jpg', 'https://example.com/b.jpg', 'https://example.com/c.jpg'], change_reason: 'Mendaftarkan unit pengganti' }, actorId);
+  const replacement = await service.registerReplacement({ case_id: item.id, equipment_code: 'CAM-NEW', name: 'Camera Baru', category: 'camera', photo_urls: [pngPhoto, pngPhoto, pngPhoto], change_reason: 'Mendaftarkan unit pengganti' }, actorId);
   assert.equal(replacement.status, 'tersedia'); assert.equal(equipmentState.equipment.find((equipment) => equipment.id === 'eq-2')?.asset_state, 'lost');
 });
 

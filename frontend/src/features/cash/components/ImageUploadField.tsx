@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { PrivateImage } from '@/shared/ui/PrivateImage';
 import { Image as ImageIcon, X } from 'lucide-react';
 
 import { Button } from '@/shared/ui/primitives/button';
@@ -80,7 +81,7 @@ export function ImageUploadField({
       </Label>
       <div className="flex items-center gap-3 rounded-md border border-dashed border-hairline bg-surface-2 p-3">
         {value ? (
-          <img src={value} alt="Preview bukti" className="h-16 w-16 rounded object-cover border border-hairline" />
+          <PrivateImage src={value} allowLocalPreview alt="Preview bukti" className="h-16 w-16 rounded object-cover border border-hairline" />
         ) : (
           <div className="flex h-16 w-16 items-center justify-center rounded border border-hairline text-ink-tertiary">
             <ImageIcon size={22} />

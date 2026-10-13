@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { privateMediaPathSchema } from '@/shared/api/privateMedia';
 import { decodeDataEnvelope, decodePaginatedResponse, decodeWithSchema } from '@/shared/api/responseValidation';
 import { actorSummarySchema, optionalTextSchema } from '@/shared/api/responseSchemas';
 import {
@@ -145,6 +146,6 @@ const equipmentEvidenceUploadReservationSchema: z.ZodType<EquipmentEvidenceUploa
 export const decodeEquipmentEvidenceUploadReservation = decodeDataEnvelope(equipmentEvidenceUploadReservationSchema);
 const equipmentEvidenceAccessSchema: z.ZodType<EquipmentEvidenceAccessRecord> = z.object({
   evidence_id: z.string().min(1), evidence_type: z.enum(['payment', 'repair', 'replacement']), original_filename: z.string().min(1),
-  mime_type: z.string().min(1), file_size_bytes: z.number().int().nonnegative(), access_url: z.string().url(), expires_in_seconds: z.number().int().positive(), created_at: z.string().min(1),
+  mime_type: z.string().min(1), file_size_bytes: z.number().int().nonnegative(), access_url: privateMediaPathSchema, expires_in_seconds: z.literal(0), created_at: z.string().min(1),
 });
 export const decodeEquipmentEvidenceAccessList = decodeDataEnvelope(z.array(equipmentEvidenceAccessSchema));

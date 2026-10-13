@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { PrivateImage } from '@/shared/ui/PrivateImage';
 import { Eye } from 'lucide-react';
 
 import { ImagePreviewDialog } from '@/shared/ui/ImagePreviewDialog';
@@ -43,7 +44,7 @@ export function AgendaDetailDialog({ activity, open, onOpenChange }: AgendaDetai
           onClick={() => setPhotoPreviewOpen(true)}
           aria-label={`Lihat foto dokumentasi ${activity.activity_name}`}
         >
-          <img
+          <PrivateImage
             src={photo.data}
             alt={`Dokumentasi ${activity.activity_name}`}
             className="max-h-56 w-full rounded-md object-contain"

@@ -125,6 +125,7 @@ export function CashDisputeQueue({ reviewer = false, scope = reviewer ? 'manage'
   };
   const downloadProof = async () => {
     if (!selectedProof) return;
+    if (!/^data:image\/(?:jpeg|png|webp);base64,/i.test(selectedProof)) { setDownloadState('error'); return; }
     setDownloadState('loading');
     try {
       const response = await fetch(selectedProof, { credentials: 'omit' });

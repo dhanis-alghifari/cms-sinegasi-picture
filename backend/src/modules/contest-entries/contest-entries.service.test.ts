@@ -7,7 +7,6 @@ import type { ContestEvidenceStorage } from './contest-entries.types.js';
 const storage: ContestEvidenceStorage = {
   createUpload: (fileName, folder) => ({ uploadUrl: 'https://upload.example.test/signed', key: `${folder}/${fileName}`, expiresInSeconds: 900 }),
   verifyUpload: async () => true,
-  createAccess: () => ({ accessUrl: 'https://download.example.test/signed', expiresInSeconds: 900 }),
 };
 
 const context = { idempotencyKey: 'contest-operation-001' };
