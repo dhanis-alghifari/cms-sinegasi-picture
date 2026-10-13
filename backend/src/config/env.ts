@@ -1,10 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
 import { backgroundJobsEnabled } from '../workers/backgroundJobs.js';
+import { parseProxyTrust, type ProxyTrustConfig } from './proxyTrust.js';
 
 export type RuntimeEnvironment = "development" | "test" | "production";
 
-export interface RuntimeConfig {
+export interface RuntimeConfig extends ProxyTrustConfig {
   environment: RuntimeEnvironment;
   port: number;
   host: string;
@@ -13,7 +14,6 @@ export interface RuntimeConfig {
   supabaseUrl: string;
   supabaseServiceRoleKey: string;
   databaseUrl: string;
-  trustProxy: boolean | number;
   publicDeployment: boolean;
   allowDevelopmentAuth: boolean;
   r2AccountId: string;
@@ -122,16 +122,6 @@ if (publicDeployment && corsOrigins.some((origin) => {
   throw new Error('Frontend deployment publik wajib menggunakan origin HTTPS.');
 }
 
-function parseTrustProxy(value: string | undefined): boolean | number {
-  if (!value || ["false", "0"].includes(value.trim().toLowerCase())) return false;
-  if (/^[1-9][0-9]*$/.test(value.trim())) {
-    const hops = Number(value);
-    if (hops <= 4) return hops;
-  }
-  if (!publicDeployment && parseBoolean(value, false)) return true;
-  throw new Error("TRUST_PROXY harus false atau jumlah hop proxy tepercaya (1–4), bukan true pada deployment publik. Pastikan API tidak dapat diakses melewati proxy tersebut.");
-}
-
 const defaultDevelopmentJwtSecret = "sinegasi-dev-secret-change-in-production";
 const configuredJwtSecret = process.env.JWT_SECRET?.trim();
 const jwtSecret = configuredJwtSecret || defaultDevelopmentJwtSecret;
@@ -174,7 +164,7 @@ export const runtimeConfig: RuntimeConfig = {
   supabaseUrl,
   supabaseServiceRoleKey,
   databaseUrl: process.env.DATABASE_URL || "",
-  trustProxy: parseTrustProxy(process.env.TRUST_PROXY),
+  ...parseProxyTrust(process.env.TRUST_PROXY, process.env.TRUST_PROXY_ADDRESSES),
   publicDeployment,
   // Mock credentials are useful locally, but must never be enabled implicitly
   // in production or accidentally become an authentication bypass.

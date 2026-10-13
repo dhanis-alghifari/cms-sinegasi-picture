@@ -4,11 +4,26 @@ Promosi patch dan kelulusan CI **bukan izin dispatch/deploy**. Manifest bernomor
 runner migrasi lama tetap diblokir sebagaimana sebelumnya. Izin login/password
 atau checksum migrasi/bootstrap lama tidak berlaku untuk deployment.
 
-**Kontrak versi baru lokal:** [media privat](../../docs/security/private-media.md)
+**Kontrak hardening 14 Oktober:** [proxy/network hardening](../../docs/security/proxy-network-hardening.md)
+menambahkan trust exact peer + hop dan bridge production terpisah dari DEV/Caddy.
+Approval deployment sekarang format 3 (18 field, tambahan `trust_proxy_addresses`);
+evidence schema/media tetap format 2. Approval format 2/hop-only ditolak. Promosi
+patch memerlukan CI exact; tidak menerbitkan izin deploy. Pengguna tidak memilih
+upgrade Pro dan berencana membuka repo setelah audit/promosi; visibility tidak
+diubah oleh patch. Gate GitHub existing tetap wajib, tanpa fallback. Alternatif
+gate privat tanpa Pro perlu desain/izin terpisah.
+
+**Kontrak versi baru:** [media privat](../../docs/security/private-media.md)
 memakai authenticated API proxy, bukan public/signed GET media domain. Evidence
-format 2 dan approval format 2 mengikat account/bucket R2 privat dan kebijakan
-review eksplisit; format/public-domain lama ditolak. Patch belum dipromosikan
-ke main/CI/provider dan tidak menerbitkan izin setup atau launch.
+format 2 dan approval format 3 mengikat account/bucket R2 privat dan kebijakan
+review eksplisit; format/public-domain lama ditolak. Baseline media privat
+(sebelum hardening proxy dan approval format 3) dipromosikan melalui
+[PR #10](https://github.com/dhanis-alghifari/cms-sinegasi-picture/pull/10) ke main
+`6abb0ae5c49f2d673795d01e0d0e146a2d66a1bf`; CI Node 22
+[PR](https://github.com/dhanis-alghifari/cms-sinegasi-picture/actions/runs/38385168997)
+dan [main](https://github.com/dhanis-alghifari/cms-sinegasi-picture/actions/runs/38385694349)
+lulus. Ini tidak menerbitkan izin setup atau launch. Inspeksi provider dan
+konfigurasi berikutnya dicatat dalam [panduan kesiapan](../../docs/security/production-configuration-readiness.md).
 
 ## Dua tahap approval
 
@@ -19,7 +34,7 @@ ke main/CI/provider dan tidak menerbitkan izin setup atau launch.
 2. Dispatch `phase=build` **hanya** publish image dan archive, tanpa SSH/deploy.
    Setelah digest image, SHA256 archive dan build run ID diketahui, siapkan
    approval deployment baru yang mengikat semuanya. Dispatch `phase=deploy`
-   terpisah harus membawa `deployment_approval_sha256` byte exact approval VPS,
+   terpisah harus membawa `deployment_approval_sha256` byte exact approval format 3 VPS,
    `build_run_id`, `image_digest`, dan `release_package_sha256`. Tidak ada job
    deploy yang otomatis mengikuti build. Artifact metadata, run/job build sukses,
    repo/path/event/head SHA, exact main dan CI diperiksa ulang sebelum SSH.
@@ -94,7 +109,7 @@ symlink. Gate tidak membuat atau menyalin credential.
 | `config/backend.env` | Runtime backend production terpisah; jangan salin `.env` DEV. |
 | `config/schema-gate.json` | 0600, JSON tepat `postgresUrl` dan `ca`; URL session pooler production dan CA Supabase pinned/verified. Dibaca hanya one-off inspeksi. |
 | `config/approvals/<FULL_SHA>.schema.json` | 0600; byte identik dengan `PRODUCTION_SCHEMA_EVIDENCE` yang ditinjau. Tidak berisi password/token. |
-| `config/approvals/<FULL_SHA>.txt` | 0600; tepat 17 field approval format 2 di bawah; byte SHA256 dikonfirmasi saat dispatch. |
+| `config/approvals/<FULL_SHA>.txt` | 0600; tepat 18 field approval format 3 di bawah; byte SHA256 dikonfirmasi saat dispatch. |
 
 `schema-gate.json` membawa kredensial inspeksi privileged (`postgres`) karena
 checkpoint privat tidak tersedia untuk service_role. **Ini keputusan custody
@@ -103,13 +118,17 @@ export/transfer item Keychain admin sebagai langkah otomatis. Session diadapter
 diset read-only, target/CA dipin, bounded timeout, mount read-only, tanpa server,
 worker atau port; ini bukan credential dengan privilege SQL intrinsik read-only.
 
-17 field text approval: `approval_format=2`, `release_sha`, `api_image`, `schema_evidence_sha256`,
+18 field text approval: `approval_format=3`, `release_sha`, `api_image`, `schema_evidence_sha256`,
 `release_package_sha256`, `project_ref`, `trust_proxy_hops`,
+`trust_proxy_addresses`,
 `database_rollback_compatible`, `no_other_writers`, `approved_by`, `window_start`,
 `window_end`, `review_mode`, `solo_risk_accepted`, `media_access_mode=authenticated-proxy`,
 `r2_account_id`, `r2_bucket`. Window ISO UTC millisecond, start inklusif/end
 eksklusif, maksimal 45 menit; fingerprint/digest harus exact output CI, proxy 0–4
-sesuai topologi nyata, account/bucket sesuai receipt privat yang ditinjau.
+sesuai topologi nyata. `trust_proxy_addresses` adalah IP canonical exact comma-separated
+(bukan CIDR/hostname), atau `none` hanya jika proxy 0. Constructor memvalidasi IP;
+preflight mengikat daftar runtime ke approval, termasuk rollback. Account/bucket
+sesuai receipt privat yang ditinjau.
 `independent-review` memerlukan approver berbeda dari owner dan risiko solo false.
 Tidak ada approval valid/example checksum diterbitkan oleh patch ini.
 

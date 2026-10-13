@@ -3,7 +3,36 @@
 # =============================================
 .env
 .env.*
+*.env
+*.env.*
 !.env.example
+
+# Private credentials, encrypted backups, and one-shot execution custody.
+# Ignore rules prevent new additions; they do not remove tracked files/history.
+*.pem
+*.key
+*.p12
+*.pfx
+*.age
+*.dump
+*.backup
+*.sql.gz
+*.sql.zip
+*.sqlite
+*.sqlite3
+*.db
+first-teacher.*.json
+approval.*.json
+*.custody.json
+*.auth-attempt.json
+*.auth-verification-attempt.json
+.aws/
+.ssh/
+/ops/private/
+
+# Supabase CLI state can contain local connection and project metadata.
+/supabase/.temp/
+/supabase/.branches/
 
 # =============================================
 # Dependencies & build outputs
