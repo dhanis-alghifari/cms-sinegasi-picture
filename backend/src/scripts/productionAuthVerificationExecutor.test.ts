@@ -204,7 +204,9 @@ test('unsafe permissions, symlink and concurrent attempts cannot overwrite or re
   } finally { await rm(directory, { recursive: true, force: true }); }
 });
 test('live verification constructor fixes origin/account and lacks any rotation capability, with a mocked upstream only', async () => {
-  let forwarded = 0; const key = 'sb_secret_synthetic_executor_key_not_live';
+  // The upstream is mocked; do not make fixture values resemble provider credentials.
+  let forwarded = 0;
+  const key = 'synthetic-verification-constructor-key';
   const t = createManagedAuthVerificationTransport(key, Date.now() + 60_000, () => {}, async (input, init) => {
     const request = new Request(input, init); assert.equal(new URL(request.url).origin, INTEGRATION_ORIGIN);
     forwarded++; return new Response('[]');

@@ -7,6 +7,31 @@ Dokumen ini menjadi aturan kerja sederhana agar codebase mudah dicari, dibaca,
 dan dirawat. Refactor struktur dilakukan bertahap supaya setiap langkah dapat
 diverifikasi.
 
+## Setup lokal
+
+Ikuti [quick start root](../README.md) untuk demo loopback tanpa credential.
+Gunakan Node.js major 22 (minimal 22.12) dan instal dependency backend **serta**
+frontend: test frontend memakai loader `tsx` dari dependency backend.
+
+```bash
+npm ci --prefix ../backend
+npm ci
+ENV_FILE_LOADING=disabled CF_PAGES=0 VITE_API_BASE_URL= \
+  VITE_API_URL=http://127.0.0.1:5001 npm run dev -- --host 127.0.0.1
+```
+
+`VITE_API_URL` adalah origin API; service menambahkan path `/api/...` sendiri.
+`VITE_API_BASE_URL` adalah alias legacy; jangan memberi dua nilai berbeda.
+Variabel `VITE_*` masuk ke bundle browser, jadi tidak boleh memuat credential
+backend, Supabase service role, atau key R2. Nilai build-time tidak berubah hanya
+dengan mengedit environment dashboard setelah bundle dibuat.
+
+Build biasa `npm run build` juga dipakai pipeline development. Launch production
+menggunakan `npm run build:production` dengan API production yang eksplisit,
+`VITE_MEDIA_ACCESS_MODE=authenticated-proxy`, dan tanpa `VITE_R2_PUBLIC_DOMAIN`.
+Lihat [gate operasional](../ops/production-gate/README.md); build bukan deployment.
+Jangan gunakan alamat deployment development sebagai demo publik.
+
 ## Struktur yang dituju
 
     src/
@@ -108,14 +133,14 @@ melempar API_RESPONSE_INVALID daripada membiarkan payload rusak masuk ke UI.
 Transformasi nama legacy ke kontrak frontend juga dilakukan di decoder, bukan
 di komponen.
 
-Migrasi dilakukan bertahap per vertical slice. Saat ini guardrail berlaku untuk
-auth, contests, dan dashboard:
+Guardrail memeriksa seluruh file `*.service.ts` dalam `src/features`, bukan hanya
+auth, contests, dan dashboard. Jalankan:
 
     npm run check:api-boundaries
 
-Service feature lain tetap boleh memakai jalur legacy sampai memiliki decoder
-yang sesuai, tetapi tidak boleh mencampur generic cast dengan response yang
-belum divalidasi di service yang sudah dimigrasikan.
+Service baru juga harus memakai decoder response yang sesuai; jangan mencampur
+generic cast dengan payload yang belum divalidasi. Pemeriksaan source ini tidak
+menggantikan test decoder terhadap kontrak backend yang sebenarnya.
 
 ### Storytelling code
 
@@ -299,7 +324,7 @@ Tidak ada perubahan pada kontrak API, state bisnis, atau alur pengguna.
 
 1. Mulai dari pages atau route feature untuk memahami use case.
 2. Letakkan komponen tampilan di components dan data access di api.
-3. Letakkan schema dan type domain di model.
+3. Letakkan schema di schemas dan type domain di types milik feature.
 4. Promosikan komponen ke shared/ui setelah benar-benar reusable.
 5. Jalankan validasi sebelum membuat commit.
 
