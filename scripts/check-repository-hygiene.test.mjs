@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { findPathViolations, findReadmeViolations } from './check-repository-hygiene.mjs';
+import { findPathViolations, findReadmeViolations, findRelativeLinkViolations } from './check-repository-hygiene.mjs';
 
 test('allows source, placeholder template names, migrations and non-secret evidence', () => {
   assert.deepEqual(findPathViolations([
@@ -51,4 +51,22 @@ test('allows loopback, production targets, official docs and non-resolving place
     'https://api.sinegasi.pictures', 'https://docs.github.com/en/actions',
     'https://<hash>.<project>.pages.dev',
   ].join('\n')), []);
+});
+
+test('rejects links to ignored local notes even if the operator has those notes on disk', () => {
+  const source = '[Private note](production-reconciliation.md#checkpoint)';
+  assert.deepEqual(findRelativeLinkViolations('ops/README.md', source, ['ops/README.md']), [
+    'ops/README.md: untracked or missing relative link target production-reconciliation.md',
+  ]);
+});
+
+test('normalizes tracked sibling/root links and ignores external URLs and fragment-only links', () => {
+  const files = ['README.md', 'backend/README.md', 'ops/README.md', 'ops/production-gate/README.md'];
+  const source = [
+    '[Root](../README.md)', '[Backend](../backend/README.md#setup)',
+    '[Gate](production-gate/README.md)', '[Root path](/README.md)',
+    '[Section](#current-entry-points)', '[Docs](https://docs.github.com/en/actions)',
+  ].join('\n');
+  assert.deepEqual(findRelativeLinkViolations('ops/README.md', source, files), []);
+  assert.equal(findRelativeLinkViolations('ops/README.md', '[Outside](../../private.md)', files).length, 1);
 });

@@ -96,7 +96,8 @@ Use the [root README](../../README.md) for reproducible local checks and the
 
 ## Local validation of this patch
 
-- Repository hygiene unit tests: 6 passed; tracked path and all README link/host checks passed.
+- Repository hygiene unit tests: 8 passed, including tracked-link regression cases;
+  tracked path and all README link/host checks passed.
 - Existing deployment/infrastructure guardrails passed.
 - Backend `quality:check`: typecheck, unit/rehearsal tests, OpenAPI parity
   (160 operations), and build passed.
@@ -110,3 +111,8 @@ Both quality commands ran with a minimal environment and `ENV_FILE_LOADING=disab
 No real database integration, browser login/upload, live deployment, or Docker
 cutover was tested. An optional disposable-PostgreSQL test remains skipped unless
 that test database is explicitly provided; this is not managed-integration evidence.
+
+The first PR CI run exposed three historical ops links to ignored private notes
+that existed only on the operator's machine. The links were replaced with plain
+historical references (no private documents published), and the link checker now
+requires targets to be tracked in Git rather than merely present on local disk.

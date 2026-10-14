@@ -2,7 +2,7 @@
 
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { dirname, posix, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -40,6 +40,24 @@ export function findReadmeViolations(file, source) {
     developmentHost.test(line) ? [`${file}:${index + 1}: development/storage hostname in README`] : []);
 }
 
+/** A link must survive a fresh clone, not merely exist as an ignored local note. */
+export function findRelativeLinkViolations(file, source, files) {
+  const trackedPaths = new Set(files);
+  const violations = [];
+  for (const match of source.matchAll(/(?<!!)\[[^\]\n]+\]\(([^\s)]+)\)/g)) {
+    const target = match[1];
+    if (/^[a-z][a-z0-9+.-]*:/i.test(target) || target.startsWith('#')) continue;
+    const path = target.split('#')[0];
+    const resolvedPath = path.startsWith('/')
+      ? posix.normalize(path.slice(1))
+      : posix.normalize(posix.join(posix.dirname(file), path));
+    if (!trackedPaths.has(resolvedPath)) {
+      violations.push(`${file}: untracked or missing relative link target ${path}`);
+    }
+  }
+  return violations;
+}
+
 export function checkRepository(root = repositoryRoot) {
   const gitFiles = (args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' })
     .split('\0').filter(Boolean);
@@ -59,14 +77,7 @@ export function checkRepository(root = repositoryRoot) {
     }
     const source = readFileSync(filename, 'utf8');
     violations.push(...findReadmeViolations(file, source));
-    for (const match of source.matchAll(/(?<!!)\[[^\]\n]+\]\(([^\s)]+)\)/g)) {
-      const target = match[1];
-      if (/^[a-z][a-z0-9+.-]*:/i.test(target) || target.startsWith('#')) continue;
-      const path = target.split('#')[0];
-      if (!existsSync(resolve(dirname(filename), path))) {
-        violations.push(`${file}: missing relative link target ${path}`);
-      }
-    }
+    violations.push(...findRelativeLinkViolations(file, source, files));
   }
   return { filesChecked: files.length, readmesChecked: readmes.size, violations };
 }

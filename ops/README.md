@@ -211,7 +211,7 @@ node scripts/verify-guardrails.mjs
 ## Migration and initial Guru checkpoint
 
 The new schema-only reconciliation candidate and exact Mac operator commands
-are documented in [production reconciliation](production-reconciliation.md).
+were documented in private operator reconciliation notes (not included here).
 It is rehearsal-only and does not approve/unblock the historical manifest.
 
 The budget path uses disposable PostgreSQL/PostgREST/API containers on the
@@ -227,7 +227,7 @@ npm --prefix backend run db:reconciliation:preflight
 
 The second command may request Keychain Allow; it never prints credentials or
 loads `.env`. A successful report does not authorize production writes. See
-[current checkpoint and remaining gates](production-reconciliation.md#checkpoint-berikut--preflight-production-baca-saja).
+private operator checkpoint and remaining-gate notes (not included here).
 
 A separate [reconciliation write runner](#production-reconciliation-writer)
 now has an offline review plan, read-only catalog inspection and an explicitly
@@ -241,7 +241,7 @@ npm --prefix backend run db:reconciliation:writer:plan
 npm --prefix backend run db:reconciliation:writer:rehearse
 ```
 
-Read [production preparation and migration review](production-migration-review.md)
+Read the private operator preparation/migration review notes (not included here)
 before using the production runners. The current 90-file manifest is draft and
 cannot be applied safely to either a fresh database or the observed legacy
 production schema. Production has no approved bootstrap/migration package yet.
