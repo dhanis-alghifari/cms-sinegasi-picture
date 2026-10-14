@@ -1,4 +1,39 @@
-# Guarded development deploy
+# Operations — navigation and safety
+
+This directory contains operator tooling, **not a public demo or quick-start**.
+Application setup belongs in the [root README](../README.md). No command here
+authorizes access to infrastructure, credential custody, SQL, or deployment.
+
+## Current entry points
+
+| Area | Start here |
+| --- | --- |
+| Production rollout | [Current deployment gate](production-gate/README.md) |
+| Runtime configuration | [Configuration readiness](../docs/security/production-configuration-readiness.md) |
+| Proxy/network trust | [Proxy hardening](../docs/security/proxy-network-hardening.md) |
+| Private image delivery | [Private media](../docs/security/private-media.md) |
+| Local repository checks | [Repository review](../docs/security/repository-readiness.md) |
+
+`deploy-dev.sh` owns development rollout; `deploy-prod.sh` is the immutable
+production release entry point. `production-*-preflight.cjs` performs separate
+checks; `production-release.sh` owns approved cutover/rollback.
+The `provision-*-custody-vps.py` receivers are one-shot credential custody tools,
+not server startup scripts. Do not run them to test the UI or replay receipts.
+Checked-in JSON evidence is historical/non-secret context, **not a fresh approval**.
+
+For public-repository operation, `main` requires PR and both quality checks;
+production requires manual owner approval, only branch `main`, and no admin bypass.
+Owner approval is not independent review. Readiness remains disabled until the
+current gate's separate evidence and operational requirements are satisfied.
+
+## Historical operator notes
+
+The sections below preserve earlier procedures and checkpoint context.
+They are not a chronological task list: completed custody/password/reconciliation
+steps must not be replayed. The current gate above supersedes the old
+manifest-based deployment procedure and its commands/approval format.
+
+### Guarded development deploy
 
 Run this on the VPS from the repository root after updating `develop`:
 
@@ -176,7 +211,7 @@ node scripts/verify-guardrails.mjs
 ## Migration and initial Guru checkpoint
 
 The new schema-only reconciliation candidate and exact Mac operator commands
-are documented in [production reconciliation](production-reconciliation.md).
+were documented in private operator reconciliation notes (not included here).
 It is rehearsal-only and does not approve/unblock the historical manifest.
 
 The budget path uses disposable PostgreSQL/PostgREST/API containers on the
@@ -192,7 +227,7 @@ npm --prefix backend run db:reconciliation:preflight
 
 The second command may request Keychain Allow; it never prints credentials or
 loads `.env`. A successful report does not authorize production writes. See
-[current checkpoint and remaining gates](production-reconciliation.md#checkpoint-berikut--preflight-production-baca-saja).
+private operator checkpoint and remaining-gate notes (not included here).
 
 A separate [reconciliation write runner](#production-reconciliation-writer)
 now has an offline review plan, read-only catalog inspection and an explicitly
@@ -206,7 +241,7 @@ npm --prefix backend run db:reconciliation:writer:plan
 npm --prefix backend run db:reconciliation:writer:rehearse
 ```
 
-Read [production preparation and migration review](production-migration-review.md)
+Read the private operator preparation/migration review notes (not included here)
 before using the production runners. The current 90-file manifest is draft and
 cannot be applied safely to either a fresh database or the observed legacy
 production schema. Production has no approved bootstrap/migration package yet.

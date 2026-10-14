@@ -14,7 +14,8 @@ concurrency:
 
 jobs:
   backend-quality:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     permissions:
       contents: read
     steps:
@@ -37,12 +38,16 @@ jobs:
       - name: Verify deployment guardrails
         run: node scripts/verify-guardrails.mjs
 
+      - name: Verify repository hygiene
+        run: node --test scripts/check-repository-hygiene.test.mjs && node scripts/check-repository-hygiene.mjs
+
       - name: Run backend quality checks
         run: npm run quality:check
         working-directory: backend
 
   frontend-quality:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     permissions:
       contents: read
     steps:
