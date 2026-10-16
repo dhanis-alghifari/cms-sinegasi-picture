@@ -3,6 +3,7 @@ import type { JwtPayload } from '../../shared/auth/auth.types.js';
 import { authenticate } from '../../middleware/authMiddleware.js';
 import { changePasswordRouteSchema, loginRouteSchema } from '../../shared/http/schemas/auth.schema.js';
 import { authenticatedRouteSchema } from '../../shared/http/schemas/core.schema.js';
+import { sendPrivateImageReference } from '../../shared/http/sendPrivateImageReference.js';
 import { AuthService, AuthServiceError } from './auth.service.js';
 import { getLoginRateLimitKeys, LOGIN_RATE_LIMIT_WINDOW_SECONDS, type LoginRateLimiter } from './loginRateLimiter.js';
 
@@ -93,6 +94,20 @@ const authRoutes: FastifyPluginAsync<AuthRoutesOptions> = async (fastify, option
     try {
       const data = await authService.getSession(request.user as JwtPayload);
       return reply.send(data);
+    } catch (error) {
+      return sendServiceError(error, reply);
+    }
+  });
+
+  fastify.get('/api/auth/me/photo', {
+    onRequest: async (_request, reply) => {
+      reply.header('Cache-Control', 'private, no-store').header('X-Content-Type-Options', 'nosniff');
+    },
+    preHandler: [authenticate],
+  }, async (request, reply) => {
+    try {
+      const photo = await authService.getOwnPhoto(request.user as JwtPayload);
+      return sendPrivateImageReference(reply, photo, 1_500_000);
     } catch (error) {
       return sendServiceError(error, reply);
     }

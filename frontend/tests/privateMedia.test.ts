@@ -18,6 +18,10 @@ test('only closed resource paths reach authenticated transport; redirects and be
   assert.equal(isPrivateImageEndpoint(endpoint), true);
   assert.equal(isPrivateImageEndpoint('/api/students/student-1/photo'), true);
   assert.equal(isPrivateImageEndpoint('/api/equipment/eq-1/photo'), true);
+  assert.equal(isPrivateImageEndpoint('/api/auth/me/photo'), true);
+  for (const path of ['/api/auth/other/photo', '/api/auth/me/photo?studentId=other', '/api/auth/me/photo/extra']) {
+    assert.equal(isPrivateImageEndpoint(path), false);
+  }
   assert.equal(privateMediaPathSchema.safeParse('https://public.example.test/file').success, false);
   const result = await requestPrivateImage(endpoint, async (path, options) => {
     assert.equal(path, endpoint);
@@ -82,6 +86,35 @@ test('media generations notify logout/token changes without retaining credential
   assert.equal(mediaSession.snapshot(), before + 1);
   unsubscribe(); mediaSession.invalidate();
   assert.equal(notifications, 1);
+});
+
+test('self portrait uses the private transport and discards a late response after an account change', async (t) => {
+  const selfPortrait = '/api/auth/me/photo';
+  const created: string[] = [];
+  const revoked: string[] = [];
+  t.mock.method(URL, 'createObjectURL', () => { const url = `blob:self-${created.length}`; created.push(url); return url; });
+  t.mock.method(URL, 'revokeObjectURL', (url: string) => { revoked.push(url); });
+  const load = (signal: AbortSignal) => requestPrivateImage(selfPortrait, async (path, options) => {
+    assert.equal(path, selfPortrait);
+    assert.equal(options.signal, signal);
+    return new Response(new Uint8Array([137, 80, 78, 71]), { headers: { 'content-type': 'image/png' } });
+  }, { signal });
+  const results: Array<{ url: string | null; failed: boolean }> = [];
+  const firstSession = mediaSession.snapshot();
+  const dispose = leasePrivateImage(load, (result) => results.push(result), () => mediaSession.snapshot() === firstSession);
+  await tick();
+  assert.equal(results[0]?.url, 'blob:self-0');
+  mediaSession.invalidate();
+  dispose();
+  assert.deepEqual(revoked, created);
+  const stale = leasePrivateImage(load, () => assert.fail('old account must not publish'), () => mediaSession.snapshot() === firstSession);
+  await tick();
+  stale();
+  assert.equal(created.length, 1);
+  const noPhoto = leasePrivateImage(async () => null, (result) => results.push(result), () => true);
+  await tick();
+  noPhoto();
+  assert.deepEqual(results.at(-1), { url: null, failed: true });
 });
 
 test('bounded image queue limits concurrency, cancels waiters, rejects overflow and releases failed slots', async () => {
