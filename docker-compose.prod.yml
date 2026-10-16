@@ -30,7 +30,15 @@ services:
       - CORS_ORIGINS=https://sinegasi.pictures
       - TRUST_PROXY=${PRODUCTION_TRUST_PROXY:?Approve the actual proxy topology first}
       - TRUST_PROXY_ADDRESSES=${PRODUCTION_TRUST_PROXY_ADDRESSES:?Approve exact proxy IPs or none with trust disabled}
-      - NTFY_ENABLED=false
+      # Public, non-exclusive topic: fixed generic templates only; no PII/token.
+      # Applied only by a separately approved deployment of this release.
+      - NTFY_ENABLED=true
+      - NTFY_PUBLIC_GENERIC_ENABLED=true
+      - NTFY_SERVER_URL=https://ntfy.sh
+      - NTFY_TOPIC=sinegasi-notif
+      - NTFY_CASH_REVIEW_TOPIC=sinegasi-notif
+      - NTFY_FRONTEND_URL=https://sinegasi.pictures
+      - NTFY_ACCESS_TOKEN=
     networks:
       - production_api
     # No public Caddy label: connect the production hostname separately through

@@ -22,6 +22,7 @@ export interface RuntimeConfig extends ProxyTrustConfig {
   r2AccessKeyId: string;
   r2SecretAccessKey: string;
   ntfyEnabled: boolean;
+  ntfyPublicGenericEnabled: boolean;
   backgroundJobsEnabled: boolean;
   ntfyServerUrl: string;
   ntfyTopic: string;
@@ -191,10 +192,11 @@ export const runtimeConfig: RuntimeConfig = {
   // Push delivery is opt-in so local/test runs never leak workflow metadata to
   // a shared topic unless the operator explicitly enables it.
   ntfyEnabled: parseBoolean(process.env.NTFY_ENABLED, false),
+  ntfyPublicGenericEnabled: parseBoolean(process.env.NTFY_PUBLIC_GENERIC_ENABLED, false),
   backgroundJobsEnabled: backgroundJobsEnabled(process.env.BACKGROUND_JOBS_ENABLED, environment === 'production'),
   ntfyServerUrl: (process.env.NTFY_SERVER_URL || "https://ntfy.sh").replace(/\/$/, ""),
-  ntfyTopic: (process.env.NTFY_TOPIC || "sinegasi-dev-notif").trim(),
+  ntfyTopic: (process.env.NTFY_TOPIC || (environment === 'production' ? '' : "sinegasi-dev-notif")).trim(),
   ntfyCashReviewTopic: (process.env.NTFY_CASH_REVIEW_TOPIC || "").trim(),
   ntfyAccessToken: (process.env.NTFY_ACCESS_TOKEN || "").trim(),
-  ntfyFrontendUrl: (process.env.NTFY_FRONTEND_URL || "https://sinegasi-picture-develop-cms.pages.dev").replace(/\/$/, ""),
+  ntfyFrontendUrl: (process.env.NTFY_FRONTEND_URL || (environment === 'production' ? '' : "https://sinegasi-picture-develop-cms.pages.dev")).replace(/\/$/, ""),
 };

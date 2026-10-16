@@ -108,10 +108,28 @@ export function setCustomHttpSenderForTest(sender: HttpSender | null): void {
 }
 
 export async function sendNtfyMessage(options: NtfyMessageOptions): Promise<boolean> {
+  return sendMessage(options, false);
+}
+
+function isApprovedPublicGenericConfiguration(): boolean {
+  return runtimeConfig.environment === 'production'
+    && runtimeConfig.publicDeployment
+    && runtimeConfig.ntfyServerUrl === 'https://ntfy.sh'
+    && runtimeConfig.ntfyTopic === 'sinegasi-notif'
+    && ['', 'sinegasi-notif'].includes(runtimeConfig.ntfyCashReviewTopic)
+    && runtimeConfig.ntfyFrontendUrl === 'https://sinegasi.pictures'
+    && runtimeConfig.ntfyAccessToken === '';
+}
+
+// Only the fixed workflow templates below may opt into anonymous public delivery.
+// The exported free-form sender never inherits this permission, even with a token.
+async function sendMessage(options: NtfyMessageOptions, fixedWorkflowTemplate: boolean): Promise<boolean> {
   if (!runtimeConfig.ntfyEnabled) return false;
-  // Public deployments must not publish anonymously or send credentials over
-  // HTTP. A token alone does not prove the topic's read ACL is private.
-  if (runtimeConfig.publicDeployment) {
+  if (runtimeConfig.ntfyPublicGenericEnabled) {
+    if (!fixedWorkflowTemplate || !isApprovedPublicGenericConfiguration()) return false;
+  } else if (runtimeConfig.publicDeployment) {
+    // Authenticated delivery remains the default. A token does not establish
+    // topic read privacy; the public-generic exception is explicitly opt-in.
     try {
       const destination = new URL(runtimeConfig.ntfyServerUrl);
       if (!runtimeConfig.ntfyAccessToken || destination.protocol !== 'https:' || destination.username || destination.password) return false;
@@ -178,7 +196,7 @@ export async function notifyNewBorrowingSubmission(
   const directLink = `${runtimeConfig.ntfyFrontendUrl.replace(/\/$/, '')}/notifications`;
   const message = 'Ada pengajuan peminjaman alat baru. Login ke CMS untuk melihat detail dan memprosesnya.';
 
-  return sendNtfyMessage({
+  return sendMessage({
     title: '📋 Pengajuan Peminjaman Alat Baru',
     message,
     priority: 'high',
@@ -186,7 +204,7 @@ export async function notifyNewBorrowingSubmission(
     clickUrl: directLink,
     actionLabel: 'Buka Notifikasi CMS',
     actionUrl: directLink,
-  });
+  }, true);
 }
 
 export async function notifyReturnReportSubmitted(
@@ -194,7 +212,7 @@ export async function notifyReturnReportSubmitted(
 ): Promise<boolean> {
   const directLink = `${runtimeConfig.ntfyFrontendUrl.replace(/\/$/, '')}/borrowing`;
   const message = 'Ada laporan pengembalian alat baru. Login ke CMS untuk melihat bukti dan memverifikasi laporan.';
-  return sendNtfyMessage({
+  return sendMessage({
     title: '🔍 Laporan Pengembalian Alat',
     message,
     priority: 'high',
@@ -202,14 +220,14 @@ export async function notifyReturnReportSubmitted(
     clickUrl: directLink,
     actionLabel: 'Buka Peminjaman',
     actionUrl: directLink,
-  });
+  }, true);
 }
 
 export async function notifyCashDisputeSubmitted(
   _input: CashDisputeNotificationInput,
 ): Promise<boolean> {
   const directLink = `${runtimeConfig.ntfyFrontendUrl.replace(/\/$/, '')}/cash?scope=manage`;
-  return sendNtfyMessage({
+  return sendMessage({
     topic: runtimeConfig.ntfyCashReviewTopic || runtimeConfig.ntfyTopic,
     title: '⚖️ Sanggahan kas perlu ditinjau',
     message: 'Ada sanggahan kas baru. Login ke CMS untuk melihat bukti dan memberi keputusan sebagai guru.',
@@ -218,5 +236,5 @@ export async function notifyCashDisputeSubmitted(
     clickUrl: directLink,
     actionLabel: 'Buka Kas',
     actionUrl: directLink,
-  });
+  }, true);
 }

@@ -189,6 +189,17 @@ assert(
   '[GUARDRAIL VIOLATION] Production Compose must use approved digest/private config with workers disabled and explicit proxy topology.'
 );
 assert(
+  (prodCompose.split('\n').some(line => line.trim() === '- NTFY_ENABLED=false')
+    || ['NTFY_ENABLED=true', 'NTFY_PUBLIC_GENERIC_ENABLED=true', 'NTFY_SERVER_URL=https://ntfy.sh',
+    'NTFY_TOPIC=sinegasi-notif', 'NTFY_CASH_REVIEW_TOPIC=sinegasi-notif',
+    'NTFY_FRONTEND_URL=https://sinegasi.pictures', 'NTFY_ACCESS_TOKEN=']
+    .every(value => prodCompose.split('\n').some(line => line.trim() === `- ${value}`)))
+    && runtimePreflight.includes('config.ntfyPublicGenericEnabled === true')
+    && runtimePreflight.includes("config.ntfyTopic === 'sinegasi-notif'")
+    && runtimePreflight.includes("config.ntfyAccessToken === ''"),
+  '[GUARDRAIL VIOLATION] Production push must use the approved public generic topic without tokens or DEV targets.'
+);
+assert(
   !/^\s+caddy:/m.test(prodCompose) && !prodCompose.includes('api.sinegasi.com'),
   '[GUARDRAIL VIOLATION] Production must not expose an unreviewed public Caddy hostname.'
 );

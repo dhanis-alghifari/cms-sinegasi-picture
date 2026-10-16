@@ -11,12 +11,23 @@ try {
     ? requiredAddresses === 'none' && config.trustedProxyAddresses.length === 0
     : requiredAddresses && config.trustedProxyAddresses.length > 0
       && config.trustedProxyAddresses.join(',') === requiredAddresses);
+  // This release explicitly permits only generic alerts on the operator-chosen
+  // public topic. It grants no topic ownership, privacy, or publisher identity.
+  const ntfyMatches = config.ntfyEnabled === false || (
+    config.ntfyEnabled === true
+    && config.ntfyPublicGenericEnabled === true
+    && config.ntfyServerUrl === 'https://ntfy.sh'
+    && config.ntfyTopic === 'sinegasi-notif'
+    && ['', 'sinegasi-notif'].includes(config.ntfyCashReviewTopic)
+    && config.ntfyFrontendUrl === 'https://sinegasi.pictures'
+    && config.ntfyAccessToken === ''
+  );
   if (
     config.environment !== 'production'
     || !config.publicDeployment
     || config.allowDevelopmentAuth
     || config.backgroundJobsEnabled !== false
-    || config.ntfyEnabled
+    || !ntfyMatches
     || config.supabaseUrl !== 'https://pvbdiftvzoeelibxlxzb.supabase.co'
     || config.corsOrigins.length !== 1
     || config.corsOrigins[0] !== 'https://sinegasi.pictures'

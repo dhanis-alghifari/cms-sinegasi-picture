@@ -41,8 +41,11 @@ outside `backend/src/migrations` so an automatic deployment does not apply it.
   and bounded by memory/CPU/process limits. Scratch writes are limited to `/tmp`.
   Proxy trust is one hop in the supplied Compose deployments, not unconditional.
 - External push bodies omit student names, evidence, transaction IDs and asset
-  details; public-mode sends require HTTPS and a token. Compose defaults disable
-  ntfy until topic privacy is verified. In-app notifications remain unchanged.
+  details. Authenticated delivery still requires HTTPS and a token on public
+  deployments. The candidate production release explicitly opts into the
+  [public generic topic policy](production-ntfy.md); only fixed generic workflow
+  templates can use that anonymous path. It provides neither privacy nor publisher
+  authentication. In-app notifications remain unchanged.
 - Frontend framing/MIME/referrer protections are configured. CSP is deliberately
   **report-only**, not an enforced XSS defense yet. Review browser violations for
   the real API, asset and R2 origins before choosing an enforced policy.
