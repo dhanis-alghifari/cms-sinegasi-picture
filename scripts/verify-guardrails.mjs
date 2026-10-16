@@ -85,16 +85,22 @@ assert(
 );
 assert(
   devWorkflow.includes('./ops/deploy-dev.sh'),
-  '[GUARDRAIL VIOLATION] .github/workflows/deploy-dev.yml must deploy through ./ops/deploy-dev.sh so migrations and Caddy protection are enforced.'
+  '[GUARDRAIL VIOLATION] .github/workflows/deploy-dev.yml must use the guarded DEV entry point.'
 );
 assert(
   devWorkflow.includes('group: sinegasi-vps-deployment') && prodWorkflow.includes('group: sinegasi-vps-deployment'),
   '[GUARDRAIL VIOLATION] Development and production workflows must serialize shared VPS deployment operations.'
 );
 assert(
-  devDeployScript.includes('dist/scripts/applyMigrations.js'),
-  '[GUARDRAIL VIOLATION] ops/deploy-dev.sh must run the universal migration runner so new SQL migrations are applied automatically.'
+  devDeployScript.includes('APPLY_MIGRATIONS="${DEV_APPLY_MIGRATIONS:-false}"')
+    && devDeployScript.includes('if [[ "$APPLY_MIGRATIONS" == "true" ]]')
+    && devWorkflow.includes('DEV_APPLY_MIGRATIONS=false ./ops/deploy-dev.sh'),
+  '[GUARDRAIL VIOLATION] Automatic DEV deployments must skip SQL; migrations require separate explicit opt-in.'
 );
+assert(devDeployScript.includes('resolve_proxy_peer') && devDeployScript.includes('.IPAddress')
+  && devDeployScript.includes('DEV_PROXY_CHANGED_DURING_BUILD') && devDeployScript.includes('DEV_PROXY_CHANGED_DURING_DEPLOY')
+  && devWorkflow.includes('test "$(git rev-parse HEAD)" = "$expected_sha"'),
+  '[GUARDRAIL VIOLATION] DEV must pin the tested SHA and observed exact Caddy peer; changed topology fails closed.');
 assert(
   devWorkflow.includes("VPS_HOST_PUBLIC_KEY") && prodWorkflow.includes("VPS_HOST_PUBLIC_KEY"),
   '[GUARDRAIL VIOLATION] Deploy workflows must pin the VPS SSH host key through the VPS_HOST_PUBLIC_KEY secret.'
@@ -152,6 +158,10 @@ assert(
 const devCompose = readFile('docker-compose.dev.yml');
 const prodCompose = readFile('docker-compose.prod.yml');
 const caddyCompose = readFile('docker-compose.caddy.yml');
+assert(devCompose.includes('TRUST_PROXY_ADDRESSES=${DEV_TRUST_PROXY_ADDRESSES:?'),
+  '[GUARDRAIL VIOLATION] DEV proxy trust requires the observed exact Caddy peer.');
+assert(devCompose.includes('BACKGROUND_JOBS_ENABLED=false'),
+  '[GUARDRAIL VIOLATION] DEV application-only rollouts must not start database-writing workers.');
 
 // Rule 2.1: Loopback port isolation (never expose raw API ports to 0.0.0.0)
 assert(
