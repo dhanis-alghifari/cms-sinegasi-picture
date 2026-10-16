@@ -1,0 +1,85 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { resolve } from 'node:path';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { build } from 'vite';
+import { validateProductionBuild } from '../config/productionBuild.ts';
+import { PRODUCTION_HEADERS } from '../config/productionHeaders.ts';
+
+const good = { VITE_API_URL: 'https://api.sinegasi.pictures', VITE_MEDIA_ACCESS_MODE: 'authenticated-proxy' };
+test('launch build requires exact API and private proxy mode, never a public media origin or backend secret', () => {
+  validateProductionBuild(good);
+  validateProductionBuild({ ...good, VITE_API_URL: good.VITE_API_URL + '/api' });
+  for (const change of [{ VITE_API_URL: undefined }, { VITE_API_URL: 'http://localhost:5001' },
+    { VITE_API_URL: 'https://api.sinegasi.pictures.evil.invalid' }, { VITE_API_URL: good.VITE_API_URL + '/admin' },
+    { VITE_API_URL: good.VITE_API_URL + '?secret=no' }, { VITE_API_BASE_URL: 'https://dev.example.com' },
+    { VITE_MEDIA_ACCESS_MODE: undefined }, { VITE_MEDIA_ACCESS_MODE: 'public' }, { VITE_R2_PUBLIC_DOMAIN: 'https://pub-bacbd163ce50498d82672aab73389f38.r2.dev' },
+    { VITE_R2_PUBLIC_DOMAIN: 'https://localhost' }, { VITE_R2_PUBLIC_DOMAIN: 'https://127.0.0.1' },
+    { VITE_R2_PUBLIC_DOMAIN: 'https://user:secret@media.sinegasi.pictures' }, { VITE_R2_PUBLIC_DOMAIN: 'https://media.sinegasi.pictures/folder' },
+    { VITE_R2_ACCESS_KEY_ID: 'offline-fixture' }, { VITE_SUPABASE_SERVICE_ROLE_KEY: 'offline-fixture' }]) {
+    assert.throws(() => validateProductionBuild({ ...good, ...change }));
+  }
+});
+
+test('real Vite launch configuration fails closed without frontend API variables', async () => {
+  const previous = process.env.VITE_API_URL;
+  delete process.env.VITE_API_URL;
+  try {
+    await assert.rejects(build({ root: resolve(import.meta.dirname, '..'), configFile: resolve(import.meta.dirname, '../vite.config.ts'),
+      mode: 'production-launch', envFile: false, logLevel: 'silent', build: { write: false } }), /PRODUCTION_EXPLICIT_HTTPS_CONFIGURATION_REQUIRED/);
+  } finally {
+    if (previous === undefined) delete process.env.VITE_API_URL;
+    else process.env.VITE_API_URL = previous;
+  }
+});
+
+test('real launch build embeds the production API but no public R2 domain, without changing DEV configuration', async () => {
+  const keys = ['VITE_API_URL', 'VITE_API_BASE_URL', 'VITE_R2_PUBLIC_DOMAIN', 'VITE_MEDIA_ACCESS_MODE'] as const;
+  const previous = Object.fromEntries(keys.map(key => [key, process.env[key]]));
+  Object.assign(process.env, good); delete process.env.VITE_API_BASE_URL; delete process.env.VITE_R2_PUBLIC_DOMAIN;
+  try {
+    const result = await build({ root: resolve(import.meta.dirname, '..'), configFile: resolve(import.meta.dirname, '../vite.config.ts'),
+      mode: 'production-launch', envFile: false, logLevel: 'silent', build: { write: false } });
+    assert.ok('output' in result);
+    const chunks = result.output.filter(asset => asset.type === 'chunk');
+    assert.ok(chunks.some(chunk => chunk.code.includes(good.VITE_API_URL)));
+    assert.ok(chunks.some(chunk => chunk.code.includes('private-media')));
+    assert.ok(chunks.every(chunk => !chunk.code.includes('.r2.dev') && !chunk.code.includes('r2.cloudflarestorage.com')));
+    const headers = result.output.find(asset => asset.fileName === '_headers');
+    assert.ok(headers?.type === 'asset');
+    assert.equal(String(headers.source) === PRODUCTION_HEADERS, true);
+    const origins = [...String(headers.source).matchAll(/https?:\/\/[^\s;]+/g)].map(match => match[0]);
+    assert.ok(origins.length > 0 && origins.every(origin => origin === good.VITE_API_URL), 'Launch headers allow only the verified production API origin');
+  } finally {
+    for (const key of keys) {
+      if (previous[key] === undefined) delete process.env[key];
+      else process.env[key] = previous[key];
+    }
+  }
+});
+
+test('written launch headers replace the public template without modifying DEV/preview policy', async () => {
+  const directory = await mkdtemp(resolve(tmpdir(), 'sinegasi-launch-headers-'));
+  const publicPolicy = resolve(import.meta.dirname, '../public/_headers');
+  const original = await readFile(publicPolicy, 'utf8');
+  const keys = ['VITE_API_URL', 'VITE_API_BASE_URL', 'VITE_R2_PUBLIC_DOMAIN', 'VITE_MEDIA_ACCESS_MODE'] as const;
+  const previous = Object.fromEntries(keys.map(key => [key, process.env[key]]));
+  Object.assign(process.env, good); delete process.env.VITE_API_BASE_URL; delete process.env.VITE_R2_PUBLIC_DOMAIN;
+  try {
+    await build({ root: resolve(import.meta.dirname, '..'), configFile: resolve(import.meta.dirname, '../vite.config.ts'),
+      mode: 'production-launch', envFile: false, logLevel: 'silent', build: { outDir: directory } });
+    assert.equal(await readFile(resolve(directory, '_headers'), 'utf8') === PRODUCTION_HEADERS, true, 'On-disk launch policy must be production-only');
+    assert.equal(await readFile(publicPolicy, 'utf8') === original, true, 'DEV/preview source policy must stay unchanged');
+    const ordinary = await build({ root: resolve(import.meta.dirname, '..'), configFile: resolve(import.meta.dirname, '../vite.config.ts'),
+      mode: 'production', envFile: false, logLevel: 'silent', build: { write: false } });
+    assert.ok('output' in ordinary);
+    assert.equal(ordinary.output.some(asset => asset.fileName === '_headers'), false, 'Ordinary DEV/preview builds keep the existing public template');
+  } finally {
+    for (const key of keys) {
+      if (previous[key] === undefined) delete process.env[key];
+      else process.env[key] = previous[key];
+    }
+    await rm(directory, { recursive: true });
+  }
+});

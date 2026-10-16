@@ -10,9 +10,9 @@ function service() {
 }
 
 const validPhotos = [
-  'https://example.test/equipment/front.jpg',
-  'https://example.test/equipment/back.jpg',
-  'https://example.test/equipment/side.jpg',
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jD1sAAAAASUVORK5CYII=',
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jD1sAAAAASUVORK5CYII=',
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jD1sAAAAASUVORK5CYII=',
 ];
 
 test('equipment service keeps list pagination bounded and summary count-only in memory', async () => {

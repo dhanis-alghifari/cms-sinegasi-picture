@@ -9,6 +9,7 @@ import { createEquipmentRecoveryRepository } from './equipment.recovery.reposito
 import { EquipmentRecoveryService } from './equipment.recovery.service.js';
 import { EquipmentService } from './equipment.service.js';
 import equipmentRoutes from './equipment.routes.js';
+const pngPhoto = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jD1sAAAAASUVORK5CYII=';
 
 async function createApp(state = createEquipmentMemoryState()) {
   const app = Fastify();
@@ -158,7 +159,7 @@ test('equipment mutation routes keep the equipment-team role guard and validate 
     headers: { authorization: `Bearer ${token(app, 'member')}` },
     payload: {
       equipment_code: 'CAM-DENIED', name: 'Kamera Ditolak', category: 'camera', condition: 'good', status: 'available',
-      photo_urls: ['https://example.test/one.jpg', 'https://example.test/two.jpg', 'https://example.test/three.jpg'],
+      photo_urls: [pngPhoto, pngPhoto, pngPhoto],
     },
   });
   assert.equal(denied.statusCode, 403);
@@ -207,7 +208,7 @@ test('recovery routes keep capability guards and require final inspection confir
     method: 'POST',
     url: '/api/equipment/recovery-cases/case-1/complete-repair',
     headers: { authorization: `Bearer ${token(app, 'equipment_team')}` },
-    payload: { inspection_photos: ['https://example.com/a.jpg', 'https://example.com/b.jpg'], change_reason: 'Verifikasi hasil servis' },
+    payload: { inspection_photos: [pngPhoto, pngPhoto], change_reason: 'Verifikasi hasil servis' },
   });
   assert.equal(invalid.statusCode, 400);
 

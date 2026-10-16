@@ -13,7 +13,6 @@ test('borrowing mutation service executes the complete memory workflow atomicall
   const storage = {
     createUpload: (fileName: string, folder: string) => ({ uploadUrl: 'https://upload.example.test/signed', key: `${folder}/${fileName}-${Math.random()}`, expiresInSeconds: 900 }),
     verifyUpload: async () => true,
-    createAccess: () => ({ accessUrl: 'https://download.example.test/signed', expiresInSeconds: 900 }),
   };
   const service = new BorrowingMutationsService(createBorrowingMutationsRepository(null, state), storage);
   const member = { userId: 'member-1', role: 'member' as const };
@@ -39,7 +38,7 @@ test('borrowing mutation service executes the complete memory workflow atomicall
   assert.equal(state.equipment[0].status, 'tersedia');
   const evidence = await service.listReturnEvidence(created.id);
   assert.equal(evidence.length, 2);
-  assert.equal(evidence[0]?.access_url, 'https://download.example.test/signed');
+  assert.equal(evidence[0]?.access_url, `/api/private-media/return/${created.id}/${firstEvidence.evidence_id}`);
 });
 
 test('borrowing mutation service prevents a member from creating for another student', async () => {
@@ -99,7 +98,6 @@ test('borrowing return rejects a physical condition without evidence', async () 
   const service = new BorrowingMutationsService(createBorrowingMutationsRepository(null, state), {
     createUpload: () => ({ uploadUrl: 'https://upload.example.test/signed', key: 'return/evidence.jpg', expiresInSeconds: 900 }),
     verifyUpload: async () => true,
-    createAccess: () => ({ accessUrl: 'https://download.example.test/signed', expiresInSeconds: 900 }),
   });
 
   await assert.rejects(
@@ -121,7 +119,6 @@ test('borrowing return refuses to attach an evidence object with an invalid imag
   const service = new BorrowingMutationsService(createBorrowingMutationsRepository(null, state), {
     createUpload: (fileName: string, folder: string) => ({ uploadUrl: 'https://upload.example.test/signed', key: `${folder}/${fileName}`, expiresInSeconds: 900 }),
     verifyUpload: async () => false,
-    createAccess: () => ({ accessUrl: 'https://download.example.test/signed', expiresInSeconds: 900 }),
   });
   const evidence = await Promise.all(['first.jpg', 'second.jpg'].map((fileName) => service.reserveReturnEvidence('bor-1', {
     equipment_id: 'eq-1', file_name: fileName, content_type: 'image/jpeg', file_size_bytes: 100,

@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Download, RotateCcw, ZoomIn, ZoomOut } from 'lucide-react';
 import { Button } from '@/shared/ui/primitives/button';
+import { usePrivateImage } from '@/shared/hooks/usePrivateImage';
+import { isLocalImagePreview } from '@/shared/api/privateMedia';
 import {
   Dialog,
   DialogClose,
@@ -40,6 +42,9 @@ export function ImagePreviewDialog({
   download,
 }: ImagePreviewDialogProps) {
   const [zoom, setZoom] = useState(1);
+  const privateImage = usePrivateImage(src, open);
+  // Only local user-selected previews may bypass authenticated API fetching.
+  const previewSrc = open && src && isLocalImagePreview(src) ? src : privateImage.src;
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (!nextOpen) setZoom(1);
@@ -55,16 +60,16 @@ export function ImagePreviewDialog({
         </DialogHeader>
 
         <div className="flex h-[min(58dvh,32rem)] min-h-48 items-center justify-center overflow-auto rounded-lg border border-hairline bg-surface-2 p-3">
-          {src && (
+          {previewSrc ? (
             <img
-              src={src}
+              src={previewSrc}
               alt={alt}
               referrerPolicy="no-referrer"
               className="max-h-full max-w-full select-none object-contain transition-transform duration-150"
               style={{ transform: `scale(${zoom})` }}
               draggable={false}
             />
-          )}
+          ) : <p role="status" className="text-sm text-ink-subtle">Foto belum tersedia.</p>}
         </div>
 
         <div className="flex flex-wrap items-center justify-center gap-2" aria-label="Kontrol pratinjau foto">

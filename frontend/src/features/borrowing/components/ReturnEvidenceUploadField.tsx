@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { PrivateImage } from '@/shared/ui/PrivateImage';
 import { ImagePlus, X } from 'lucide-react';
 
 import { getErrorMessage } from '@/shared/api/errors';
@@ -104,7 +105,7 @@ export function ReturnEvidenceUploadField({
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
             {previews.map(({ file, url }, index) => (
               <div key={`${file.name}-${file.lastModified}-${index}`} className="relative aspect-square overflow-hidden rounded border border-hairline bg-surface-1">
-                <img src={url} alt={`${label} ${index + 1}`} className="h-full w-full object-cover" />
+                <PrivateImage src={url} allowLocalPreview alt={`${label} ${index + 1}`} className="h-full w-full object-cover" />
                 <Button
                   type="button"
                   variant="ghost"

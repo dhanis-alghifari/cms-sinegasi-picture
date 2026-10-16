@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { PrivateImage } from '@/shared/ui/PrivateImage';
 import { Image as ImageIcon } from 'lucide-react';
 
 import { DataTableSkeleton } from '@/shared/ui/LoadingSkeletons';
@@ -45,7 +46,7 @@ function PhotoCell({ row, onResolved, onPreview }: { row: AgendaReportActivity; 
       onClick={() => onPreview({ src: photoUrl, alt: `Dokumentasi ${row.activity_name}`, title: 'Foto dokumentasi agenda', description: row.photo?.original_filename })}
       aria-label={`Lihat foto dokumentasi ${row.activity_name}`}
     >
-      <img
+      <PrivateImage
         src={photoUrl}
         alt={`Dokumentasi ${row.activity_name}`}
         className="h-16 w-24 rounded object-cover"
@@ -56,6 +57,7 @@ function PhotoCell({ row, onResolved, onPreview }: { row: AgendaReportActivity; 
           setFailed(true);
           onResolved(row.id);
         }}
+        onUnavailable={() => { setFailed(true); onResolved(row.id); }}
       />
     </button>
   );
@@ -117,7 +119,7 @@ function PresentationPhoto({ row, onResolved, onPreview }: { row: AgendaReportAc
       onClick={() => onPreview({ src: row.photo_access_url as string, alt: `Dokumentasi ${row.activity_name}`, title: 'Foto dokumentasi agenda', description: row.photo?.original_filename })}
       aria-label={`Lihat foto dokumentasi ${row.activity_name}`}
     >
-      <img
+      <PrivateImage
         src={row.photo_access_url}
         alt={`Dokumentasi ${row.activity_name}`}
         className="h-full w-full object-cover"
@@ -128,6 +130,7 @@ function PresentationPhoto({ row, onResolved, onPreview }: { row: AgendaReportAc
           setFailed(true);
           onResolved(row.id);
         }}
+        onUnavailable={() => { setFailed(true); onResolved(row.id); }}
       />
     </button>
   );

@@ -4,6 +4,7 @@ import { registerCatalogRoutes } from './routes/catalog.routes.js';
 import { registerCashRoutes } from '../modules/cash/cash.module.js';
 import { registerBorrowingRoutes } from './routes/borrowing.routes.js';
 import type { AppDependencies } from './app.dependencies.js';
+import { privateMediaRoutes } from '../modules/private-media/private-media.routes.js';
 
 /** Registers route groups after global hooks have been attached. */
 export async function registerAppRoutes(
@@ -14,4 +15,5 @@ export async function registerAppRoutes(
   await registerCatalogRoutes(fastify, dependencies);
   await registerCashRoutes(fastify, dependencies.cash, dependencies.persistAuditLog);
   await registerBorrowingRoutes(fastify, dependencies);
+  await fastify.register(privateMediaRoutes, dependencies);
 }

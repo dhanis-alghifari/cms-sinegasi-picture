@@ -1,9 +1,11 @@
 import { runtimeConfig } from './config/env.js';
 import { createApplication } from './app/createApplication.js';
+import { registerGracefulShutdown } from './app/gracefulShutdown.js';
 
 async function main(): Promise<void> {
   const runtime = await createApplication();
   await runtime.app.listen({ port: runtimeConfig.port, host: runtimeConfig.host });
+  registerGracefulShutdown(runtime.app);
   runtime.startWorkers();
   runtime.app.log.info({
     host: runtimeConfig.host,

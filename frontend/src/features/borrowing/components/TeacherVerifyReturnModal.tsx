@@ -10,6 +10,7 @@ import { Textarea } from '@/shared/ui/primitives/textarea';
 import { getErrorMessage } from '@/shared/api/errors';
 import { cn } from '@/shared/utils/cn';
 import { ImagePreviewDialog } from '@/shared/ui/ImagePreviewDialog';
+import { PrivateImage } from '@/shared/ui/PrivateImage';
 import { useBorrowingReturnReportEvidenceQuery, useBorrowingReturnReportQuery } from '../hooks/useBorrowingQuery';
 import type { BorrowingRecord, BorrowedItem, ReturnReportVerificationMethod } from '../types/borrowing.types';
 import type { ConditionState, ItemErrors, ItemOutcome, TeacherVerifyReturnModalProps } from './TeacherVerifyReturnModal.types';
@@ -276,7 +277,7 @@ export function TeacherVerifyReturnModal({ open, onOpenChange, record, onSubmit,
                               aria-label={`Lihat foto ${item.kode_alat}: ${photo.original_filename}`}
                               className="group relative aspect-square min-h-11 min-w-11 overflow-hidden rounded-md border border-hairline bg-surface-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                             >
-                              <img src={photo.access_url} alt={`Bukti ${item.kode_alat}`} className="h-full w-full object-cover transition group-hover:scale-105" />
+                              <PrivateImage src={photo.access_url} alt={`Bukti ${item.kode_alat}`} className="h-full w-full object-cover transition group-hover:scale-105" />
                               <span aria-hidden="true" className="absolute bottom-1 left-1 rounded bg-black/60 px-1.5 py-0.5 text-[9px] text-white">Lihat</span>
                             </button>
                           ))}

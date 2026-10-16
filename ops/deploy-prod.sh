@@ -4,8 +4,8 @@ set -Eeuo pipefail
 umask 077
 
 # Never check out code, change dev/Caddy, open ports, or execute SQL here.
-[[ $# -eq 3 ]] || {
-  printf '%s\n' 'Usage: bash ./ops/deploy-prod.sh RELEASE_SHA GHCR_IMAGE_DIGEST MIGRATION_MANIFEST_SHA256' >&2
+[[ $# -eq 5 ]] || {
+  printf '%s\n' 'Usage: bash ./ops/deploy-prod.sh RELEASE_SHA GHCR_IMAGE_DIGEST SCHEMA_EVIDENCE_SHA256 RELEASE_PACKAGE_SHA256 DEPLOYMENT_APPROVAL_SHA256' >&2
   exit 1
 }
 [[ "$(id -un)" == ubuntu && "$(hostname)" == VM-11-154-ubuntu ]] || {
@@ -22,4 +22,4 @@ SCRIPT_ROOT="$(cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # shellcheck source=ops/production-release.sh
 source "$SCRIPT_ROOT/ops/production-release.sh"
-deploy_production "$PRODUCTION_ROOT" "$1" "$2" "$3" /tmp/sinegasi-vps-deploy.lock
+deploy_production "$PRODUCTION_ROOT" "$1" "$2" "$3" "$4" "$5" /tmp/sinegasi-vps-deploy.lock

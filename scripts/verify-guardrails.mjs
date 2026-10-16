@@ -35,11 +35,34 @@ console.log('🛡️  Running Deployment & Infrastructure Guardrail Checks...\n'
 // ============================================================================
 const devWorkflow = readFile('.github/workflows/deploy-dev.yml');
 const prodWorkflow = readFile('.github/workflows/deploy-prod.yml');
-assert(prodWorkflow.includes('db:production -- verify') && prodWorkflow.includes('--release-sha'),
-  '[GUARDRAIL VIOLATION] Production image publishing must reject unapproved/draft/checksum-mismatched migration packages offline.');
+const prodCiPreflight = readFile('ops/production-ci-preflight.cjs');
+assert(prodWorkflow.includes('production-ci-preflight.cjs') && prodCiPreflight.includes('--confirm-evidence') && prodCiPreflight.includes('--release-sha')
+  && !prodWorkflow.includes('db:production --') && !prodWorkflow.includes('PRODUCTION_MIGRATION_MANIFEST'),
+  '[GUARDRAIL VIOLATION] Production publishing requires exact reconciled-no-sql evidence; never replay/promote legacy SQL.');
 const devDeployScript = readFile('ops/deploy-dev.sh');
 const prodDeployScript = readFile('ops/deploy-prod.sh');
 const prodReleaseScript = readFile('ops/production-release.sh');
+assert(prodCiPreflight.includes('requireProductionEnvironment') && prodCiPreflight.includes('requireDeploymentQuality')
+  && prodReleaseScript.includes('verify_candidate_schema') && prodReleaseScript.includes('schema_evidence_sha256')
+  && prodReleaseScript.includes('release_package_sha256') && prodReleaseScript.includes('schema-gate.json'),
+  '[GUARDRAIL VIOLATION] Both CI jobs need actual production protections and runtime read-only schema verification.');
+assert(prodWorkflow.includes("if: inputs.phase == 'build'") && prodWorkflow.includes("if: inputs.phase == 'deploy'")
+  && !prodWorkflow.includes('needs: build-release') && prodWorkflow.includes('deployment_approval_sha256')
+  && prodWorkflow.includes('production-artifact-preflight.cjs') && prodCiPreflight.includes('requireDeploymentDispatch')
+  && prodWorkflow.includes('PRODUCTION_REVIEW_MODE'),
+  '[GUARDRAIL VIOLATION] Production needs separate explicit build/deploy dispatches, exact artifact/checksum and opt-in review policy.');
+assert(prodReleaseScript.includes('approval_format') && prodReleaseScript.includes('authenticated-proxy')
+  && prodReleaseScript.includes('r2_account_id') && prodReleaseScript.includes('r2_bucket')
+  && !prodReleaseScript.includes('media_public_domain'),
+  '[GUARDRAIL VIOLATION] Production approval must bind private media account/bucket, not a public domain.');
+const applicationSource = readFile('backend/src/app/createApplication.ts');
+const proxyTrustSource = readFile('backend/src/config/proxyTrust.ts');
+const runtimePreflight = readFile('ops/production-runtime-preflight.cjs');
+assert(applicationSource.includes('trustProxy: createProxyTrust(runtimeConfig)')
+  && proxyTrustSource.includes('peers.has(normalizeAddress(address))') && proxyTrustSource.includes('hop >= hops')
+  && runtimePreflight.includes('PRODUCTION_TRUST_PROXY_ADDRESSES') && runtimePreflight.includes('trustedProxyAddresses')
+  && prodReleaseScript.includes('trust_proxy_addresses') && prodReleaseScript.includes('PREVIOUS_PROXY_ADDRESSES'),
+  '[GUARDRAIL VIOLATION] Proxy trust needs exact peer addresses and bounded hops, bound to approval/preflight/rollback.');
 
 // Rule 1.1: Never use --remove-orphans in deploy workflows (kills Caddy/other compose services)
 assert(
@@ -140,17 +163,19 @@ assert(
   '[GUARDRAIL VIOLATION] docker-compose.prod.yml must bind to "127.0.0.1:3002:5001" to prevent public port exposure.'
 );
 
-// Rule 2.2: Must join caddy_net external network
+// Rule 2.2: Only DEV joins Caddy; production has a dedicated bridge.
 assert(
   devCompose.includes('caddy_net') && devCompose.includes('external: true'),
   '[GUARDRAIL VIOLATION] docker-compose.dev.yml must join external network "caddy_net".'
 );
 assert(
-  prodCompose.includes('caddy_net') && prodCompose.includes('external: true'),
-  '[GUARDRAIL VIOLATION] docker-compose.prod.yml must join external network "caddy_net".'
+  prodCompose.includes('name: sinegasi_prod_api_net') && prodCompose.includes('driver: bridge')
+    && !prodCompose.includes('caddy_net') && !/^\s+external:\s*true/m.test(prodCompose)
+    && !/^\s+network_mode:/m.test(prodCompose) && !/^\s+internal:\s*true/m.test(prodCompose),
+  '[GUARDRAIL VIOLATION] Production needs an isolated, outbound-capable bridge, never DEV/Caddy/host networking.'
 );
 assert(
-  !/^\s+build:/m.test(prodCompose) && prodCompose.includes('image: ${API_IMAGE:?') && prodCompose.includes('PRODUCTION_ENV_FILE:?') && prodCompose.includes('BACKGROUND_JOBS_ENABLED=false') && prodCompose.includes('PRODUCTION_TRUST_PROXY:?'),
+  !/^\s+build:/m.test(prodCompose) && prodCompose.includes('image: ${API_IMAGE:?') && prodCompose.includes('PRODUCTION_ENV_FILE:?') && prodCompose.includes('BACKGROUND_JOBS_ENABLED=false') && prodCompose.includes('PRODUCTION_TRUST_PROXY:?') && prodCompose.includes('PRODUCTION_TRUST_PROXY_ADDRESSES:?'),
   '[GUARDRAIL VIOLATION] Production Compose must use approved digest/private config with workers disabled and explicit proxy topology.'
 );
 assert(
@@ -181,7 +206,6 @@ assert(
 // ============================================================================
 const passwordService = readFile('backend/src/services/passwordService.ts');
 const envConfig = readFile('backend/src/config/env.ts');
-const envExample = readFile('backend/.env.example');
 
 // Rule 3.1: Password assertion and temporary password policy
 assert(
@@ -193,12 +217,8 @@ assert(
   '[GUARDRAIL VIOLATION] backend/src/services/passwordService.ts must sanitize and ensure temporary passwords satisfy assertPasswordPolicy.'
 );
 
-// Rule 3.2: .env.example must have valid student default password with digits
-const studentDefaultMatch = envExample.match(/^STUDENT_DEFAULT_PASSWORD=(.+)$/m);
-assert(
-  studentDefaultMatch && /\d/.test(studentDefaultMatch[1]) && /[A-Za-z]/.test(studentDefaultMatch[1]),
-  '[GUARDRAIL VIOLATION] backend/.env.example must contain STUDENT_DEFAULT_PASSWORD with both letters and digits.'
-);
+// Environment files are not read by this source-only guardrail. Runtime password
+// configuration is validated by env.ts/password-service tests and image preflight.
 
 // Rule 3.3: CORS must disallow wildcard '*'
 assert(

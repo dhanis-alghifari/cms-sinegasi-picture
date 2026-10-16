@@ -1,4 +1,5 @@
-import { generateR2PrivateAccessUrl, generateR2PrivateUploadUrl, generateR2PrivateUploadUrlForKey, verifyCloudflareR2ImageUpload } from '../../services/cloudflareR2Service.js';
+import { generateR2PrivateUploadUrl, generateR2PrivateUploadUrlForKey, verifyCloudflareR2ImageUpload } from '../../services/cloudflareR2Service.js';
+import { privateMediaAccess, type PrivateMediaObject } from '../../shared/uploads/privateMedia.js';
 import { databaseErrorCode, databaseErrorMessage } from '../../shared/database/database.types.js';
 import type {
   CreateSocialInsightInput, SocialAccount, SocialEvidence, SocialInsightPeriod, SocialMediaRepository, SocialMonthlyAudiencePoint,
@@ -312,8 +313,7 @@ export class SocialMediaService {
     if (!found.data || !objectKey) throw new SocialMediaServiceError(404, 'SOCIAL_EVIDENCE_NOT_FOUND', 'Unggahan bukti tidak ditemukan atau sudah kedaluwarsa.');
     const evidence = found.data;
     if (evidence.upload_status === 'attached') {
-      const access = generateR2PrivateAccessUrl(objectKey);
-      return { evidence: mapEvidencePublic(evidence), access_url: access.accessUrl, expires_in_seconds: access.expiresInSeconds, idempotent_replay: true };
+      return { evidence: mapEvidencePublic(evidence), ...privateMediaAccess(kind === 'publication' ? 'publication' : 'insight', parentId, evidence.id), idempotent_replay: true };
     }
     let validImage = false;
     try {
@@ -324,17 +324,28 @@ export class SocialMediaService {
     }
     const result = await this.repository.completeEvidence({ ...context, parentKind: kind, parentId, evidenceId });
     if ('error' in result) failRepository(result.error);
-    const access = generateR2PrivateAccessUrl(result.data.object_key || '');
-    return { evidence: mapEvidencePublic(result.data), access_url: access.accessUrl, expires_in_seconds: access.expiresInSeconds };
+    return { evidence: mapEvidencePublic(result.data), ...privateMediaAccess(kind === 'publication' ? 'publication' : 'insight', parentId, result.data.id), idempotent_replay: false };
   }
 
   async evidenceAccess(kind: 'publication' | 'insight_period', parentId: string) {
     const parent = kind === 'publication' ? await this.repository.getPublication(parentId) : await this.getInsightPeriod(parentId);
     if ('error' in parent) failRepository(parent.error);
-    if (!parent.data) throw new SocialMediaServiceError(404, 'SOCIAL_PARENT_NOT_FOUND', 'Data media sosial tidak ditemukan.');
+    if (!parent.data || parent.data.id !== parentId) throw new SocialMediaServiceError(404, 'SOCIAL_PARENT_NOT_FOUND', 'Data media sosial tidak ditemukan.');
     const evidence = await this.repository.listEvidence(kind, [parentId]);
     if ('error' in evidence) failRepository(evidence.error);
-    return evidence.data.flatMap((item) => item.object_key ? [{ id: item.id, access_url: generateR2PrivateAccessUrl(item.object_key).accessUrl, expires_in_seconds: 900 }] : []);
+    return evidence.data.flatMap((item) => item.object_key && item.upload_status === 'attached' ? [{ id: item.id, ...privateMediaAccess(kind === 'publication' ? 'publication' : 'insight', parentId, item.id) }] : []);
+  }
+
+  async evidenceMedia(kind: 'publication' | 'insight_period', parentId: string, evidenceId: string): Promise<PrivateMediaObject> {
+    const parent = kind === 'publication' ? await this.repository.getPublication(parentId) : await this.repository.getInsightPeriod(parentId);
+    if ('error' in parent) failRepository(parent.error);
+    if (!parent.data || parent.data.id !== parentId) throw new SocialMediaServiceError(404, 'SOCIAL_PARENT_NOT_FOUND', 'Data media sosial tidak ditemukan.');
+    const result = await this.repository.getEvidence(kind, parentId, evidenceId);
+    if ('error' in result) failRepository(result.error);
+    const evidence = result.data;
+    if (!evidence?.object_key || evidence.id !== evidenceId || evidence.upload_status !== 'attached'
+        || (kind === 'publication' ? evidence.publication_id : evidence.insight_period_id) !== parentId) throw new SocialMediaServiceError(404, 'SOCIAL_EVIDENCE_NOT_FOUND', 'Bukti privat tidak tersedia.');
+    return { objectKey: evidence.object_key, contentType: evidence.mime_type, fileSizeBytes: evidence.file_size_bytes };
   }
 
   async createSnapshot(input: { social_account_id: string; as_of_date: string; audience_count: number }, actorId: string, key: unknown, reason: unknown) {
@@ -470,9 +481,9 @@ export class SocialMediaService {
 
   private evidenceWithAccess(items: SocialEvidence[]): SocialEvidence[] {
     return items.map((item) => {
-      if (!item.object_key) return mapEvidencePublic(item) as SocialEvidence;
-      const access = generateR2PrivateAccessUrl(item.object_key);
-      return mapEvidencePublic({ ...item, access_url: access.accessUrl, expires_in_seconds: access.expiresInSeconds }, true) as SocialEvidence;
+      const parentId = item.publication_id || item.insight_period_id;
+      if (!item.object_key || !parentId || item.upload_status !== 'attached') return mapEvidencePublic(item) as SocialEvidence;
+      return mapEvidencePublic({ ...item, ...privateMediaAccess(item.publication_id ? 'publication' : 'insight', parentId, item.id) }, true) as SocialEvidence;
     });
   }
 

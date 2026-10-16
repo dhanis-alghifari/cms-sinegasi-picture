@@ -7,6 +7,7 @@ import { Button } from '@/shared/ui/primitives/button';
 import { FieldError } from '@/shared/ui/FieldError';
 import { Label } from '@/shared/ui/primitives/label';
 import { ImagePreviewDialog } from './ImagePreviewDialog';
+import { PrivateImage } from './PrivateImage';
 import { PhotoSourcePicker } from './PhotoSourcePicker';
 
 const SUPPORTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
@@ -98,7 +99,7 @@ export function ImageFileUploadField({
               onClick={() => setPreviewOpen(true)}
               aria-label="Buka pratinjau foto dokumentasi"
             >
-              <img src={previewUrl} alt="Pratinjau foto dokumentasi" className="h-full w-full object-cover" />
+              <PrivateImage src={previewUrl} allowLocalPreview alt="Pratinjau foto dokumentasi" className="h-full w-full object-cover" />
             </button>
             <div className="min-w-0 flex-1">
               <p className="truncate text-xs font-medium text-ink">{value.name}</p>

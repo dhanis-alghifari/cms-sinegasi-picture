@@ -5,6 +5,8 @@ export type ImageReferenceValidation =
 export interface ImageReferenceLimits {
   maxDecodedBytes: number;
   maxLength?: number;
+  /** Metadata links only; never use this option for uploaded private images. */
+  allowRemote?: boolean;
 }
 
 const pngSignature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a] as const;
@@ -53,7 +55,7 @@ export function validateImageReference(value: string, limits: ImageReferenceLimi
     return { valid: true, kind: 'inline' };
   }
 
-  if (!/^https?:\/\//i.test(normalized) || /[\s\\]/.test(normalized)) return { valid: false, reason: 'invalid' };
+  if (!limits.allowRemote || !/^https?:\/\//i.test(normalized) || /[\s\\]/.test(normalized)) return { valid: false, reason: 'invalid' };
   try {
     const url = new URL(normalized);
     if ((url.protocol !== 'http:' && url.protocol !== 'https:') || !url.hostname || url.username || url.password) {

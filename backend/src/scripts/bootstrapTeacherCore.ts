@@ -31,6 +31,10 @@ export interface BootstrapCredentialStore {
 export interface BootstrapTeacherDependencies {
   database: BootstrapDatabase;
   credentials: BootstrapCredentialStore;
+  /** Production authorization is rechecked under the account lock, before secrets exist. */
+  beforeCreate?: () => Promise<void>;
+  /** Final postcondition/window check inside the same transaction, before COMMIT. */
+  beforeCommit?: () => Promise<void>;
 }
 
 export type BootstrapTeacherResult =
@@ -91,6 +95,7 @@ export async function bootstrapFirstTeacher(
     await database.query("SET LOCAL lock_timeout = '5s'; SET LOCAL statement_timeout = '10s'");
     // The table lock also serializes unrelated account writers, not only this script.
     await database.query('LOCK TABLE public.users IN SHARE ROW EXCLUSIVE MODE');
+    await dependencies.beforeCreate?.();
     const existing = await database.query('SELECT EXISTS (SELECT 1 FROM public.users) AS nonempty');
     if (existing.rows[0]?.nonempty !== false) throw new BootstrapTeacherError('BOOTSTRAP_USERS_NOT_EMPTY');
     const schema = await database.query(SCHEMA_READINESS_SQL);
@@ -132,16 +137,19 @@ export async function bootstrapFirstTeacher(
       WHERE table_name = 'users' AND record_id = $1::uuid`, [userId, sanitizedSnapshot]);
     // Reject unexpected legacy trigger rows or altered/secret-bearing snapshots.
     if (audit.rows[0]?.ready !== true) throw new BootstrapTeacherError('BOOTSTRAP_AUDIT_NOT_CANONICAL');
+    await dependencies.beforeCommit?.();
     committing = true;
     await database.query('COMMIT');
     return { mode: 'applied', role: 'teacher', isFirstLogin: true, userId };
   } catch (error: unknown) {
+    let rollbackUncertain = false;
     if (transactionStarted) {
-      try { await database.query('ROLLBACK'); } catch { /* No sensitive diagnostics. */ }
+      try { await database.query('ROLLBACK'); } catch { rollbackUncertain = true; }
     }
     // A lost COMMIT acknowledgement is ambiguous. Keep the only credential copy
     // for a read-only reconciliation; never retry account creation automatically.
     if (committing) throw new BootstrapTeacherError('BOOTSTRAP_COMMIT_UNCERTAIN_CREDENTIAL_FILE_PRESERVED');
+    if (rollbackUncertain) throw new BootstrapTeacherError('BOOTSTRAP_ROLLBACK_UNCERTAIN_INSPECT_BEFORE_RETRY');
     if (credentialFile) {
       try { await credentialFile.remove(); }
       catch { throw new BootstrapTeacherError('BOOTSTRAP_CREDENTIAL_CLEANUP_FAILED'); }

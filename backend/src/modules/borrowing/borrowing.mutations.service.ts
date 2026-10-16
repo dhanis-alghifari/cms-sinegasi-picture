@@ -3,7 +3,8 @@ import type { JwtPayload } from '../../shared/auth/auth.types.js';
 import { asDatabaseError } from '../../shared/database/database.types.js';
 import { borrowingMutationStatus, getBorrowingErrorMessage, isIsoDate, isMissingBorrowingSchemaError } from './borrowing.helpers.js';
 import type { BorrowingMutationsRepository } from './borrowing.mutations.repository.js';
-import { generateR2PrivateAccessUrl, generateR2PrivateUploadUrl, verifyCloudflareR2ImageUpload } from '../../services/cloudflareR2Service.js';
+import { generateR2PrivateUploadUrl, verifyCloudflareR2ImageUpload } from '../../services/cloudflareR2Service.js';
+import { privateMediaAccess, type PrivateMediaObject } from '../../shared/uploads/privateMedia.js';
 import { notifyNewBorrowingSubmission, notifyReturnReportSubmitted } from '../../services/ntfyService.js';
 import type { BorrowingApprovalInput, BorrowingCreateInput, BorrowingReturnEvidenceAccessRecord, BorrowingReturnEvidenceStorage, BorrowingReturnEvidenceUploadInput, BorrowingReturnInput, BorrowingReturnReportEvidenceUploadInput, BorrowingReturnReportSubmitInput, BorrowingReturnReportVerifyInput } from './borrowing.mutations.types.js';
 
@@ -51,7 +52,6 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3
 const defaultReturnEvidenceStorage: BorrowingReturnEvidenceStorage = {
   createUpload: generateR2PrivateUploadUrl,
   verifyUpload: verifyCloudflareR2ImageUpload,
-  createAccess: generateR2PrivateAccessUrl,
 };
 
 function ensureEvidenceIds(value: unknown): string[] {
@@ -364,9 +364,7 @@ export class BorrowingMutationsService {
       return {
         ...result.data,
         evidence: result.data.evidence.map((item) => {
-          const objectKey = (item.access_url || '').replace(/^https?:\/\/[^/]+\//, '');
-          const access = this.evidenceStorage.createAccess(objectKey);
-          return { ...item, access_url: access.accessUrl, expires_in_seconds: access.expiresInSeconds };
+          return { ...item, ...privateMediaAccess('return-report', id, item.evidence_id) };
         }),
       };
     } catch {
@@ -399,20 +397,33 @@ export class BorrowingMutationsService {
     return evidence;
   }
 
-  async getReturnEvidenceAccess(evidenceId: string) {
+  private async attachedReturnEvidence(evidenceId: string) {
     const id = ensureId(evidenceId, 'evidence_id');
     const result = await this.repository.getReturnEvidence(id);
     if (result.error) repositoryFailure(result.error, 'Gagal memuat foto kondisi.');
     const evidence = result.data;
-    if (!evidence || evidence.upload_status !== 'attached') {
+    if (!evidence || evidence.id !== id || evidence.upload_status !== 'attached' || evidence.storage_provider !== 'r2' || !evidence.object_key) {
       throw new BorrowingMutationsServiceError(404, 'RETURN_EVIDENCE_NOT_FOUND', 'Foto kondisi tidak ditemukan.');
     }
-    try {
-      const access = this.evidenceStorage.createAccess(evidence.object_key);
-      return { access_url: access.accessUrl, expires_in_seconds: access.expiresInSeconds };
-    } catch {
-      throw new BorrowingMutationsServiceError(503, 'RETURN_EVIDENCE_STORAGE_UNAVAILABLE', 'Foto kondisi sedang tidak dapat dibuka.');
+    return evidence;
+  }
+
+  async getReturnEvidenceAccess(evidenceId: string) {
+    const evidence = await this.attachedReturnEvidence(evidenceId);
+    return privateMediaAccess(evidence.source === 'student_report' ? 'return-report' : 'return', evidence.borrowing_id, evidence.id);
+  }
+
+  async returnEvidenceMedia(borrowingId: string, evidenceId: string, reportActor?: { teacher: boolean; id: string | null }): Promise<PrivateMediaObject> {
+    const evidence = await this.attachedReturnEvidence(evidenceId);
+    if (evidence.borrowing_id !== borrowingId) throw new BorrowingMutationsServiceError(404, 'RETURN_EVIDENCE_NOT_FOUND', 'Foto kondisi tidak ditemukan.');
+    if (reportActor !== undefined) {
+      const report = await this.getReturnReport(borrowingId);
+      if (!reportActor.teacher && (!reportActor.id || report.reporter_id !== reportActor.id)) throw new BorrowingMutationsServiceError(403, 'FORBIDDEN', 'Laporan ini bukan milik Anda.');
+      if (report.borrowing_id !== borrowingId || evidence.source !== 'student_report' || evidence.return_report_id !== report.id || !report.evidence.some((item) => item.evidence_id === evidenceId)) throw new BorrowingMutationsServiceError(404, 'RETURN_EVIDENCE_NOT_FOUND', 'Foto laporan tidak ditemukan.');
+    } else if (evidence.source === 'student_report') {
+      throw new BorrowingMutationsServiceError(404, 'RETURN_EVIDENCE_NOT_FOUND', 'Gunakan akses laporan pengembalian.');
     }
+    return { objectKey: evidence.object_key, contentType: evidence.mime_type, fileSizeBytes: evidence.file_size_bytes };
   }
 
   async listReturnEvidence(borrowingId: string): Promise<BorrowingReturnEvidenceAccessRecord[]> {
@@ -422,7 +433,6 @@ export class BorrowingMutationsService {
     const evidence = result.data || [];
     try {
       return evidence.map((item) => {
-        const access = this.evidenceStorage.createAccess(item.object_key);
         return {
           evidence_id: item.id,
           borrowing_id: item.borrowing_id,
@@ -433,8 +443,7 @@ export class BorrowingMutationsService {
           mime_type: item.mime_type,
           file_size_bytes: item.file_size_bytes,
           created_at: item.created_at,
-          access_url: access.accessUrl,
-          expires_in_seconds: access.expiresInSeconds,
+          ...privateMediaAccess(item.source === 'student_report' ? 'return-report' : 'return', item.borrowing_id, item.id),
         };
       });
     } catch {

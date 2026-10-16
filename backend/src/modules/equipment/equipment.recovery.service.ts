@@ -1,5 +1,6 @@
 import { asDatabaseError } from '../../shared/database/database.types.js';
-import { generateR2PrivateAccessUrl, generateR2PrivateUploadUrl, verifyCloudflareR2ImageUpload } from '../../services/cloudflareR2Service.js';
+import { generateR2PrivateUploadUrl, verifyCloudflareR2ImageUpload } from '../../services/cloudflareR2Service.js';
+import { privateMediaAccess, type PrivateMediaObject } from '../../shared/uploads/privateMedia.js';
 import { validatePhotoUrl } from './equipment.helpers.js';
 import type {
   EquipmentEvidenceType,
@@ -33,13 +34,11 @@ const evidenceIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a
 type EquipmentEvidenceStorage = {
   createUpload(fileName: string, folder: string, contentType: string): { uploadUrl: string; key: string; expiresInSeconds: number };
   verifyUpload(objectKey: string, contentType: string, fileSizeBytes: number): Promise<boolean>;
-  createAccess(objectKey: string): { accessUrl: string; expiresInSeconds: number };
 };
 
 const defaultEquipmentEvidenceStorage: EquipmentEvidenceStorage = {
   createUpload: generateR2PrivateUploadUrl,
   verifyUpload: verifyCloudflareR2ImageUpload,
-  createAccess: generateR2PrivateAccessUrl,
 };
 
 function text(value: unknown, field: string, max = 500): string {
@@ -216,14 +215,24 @@ export class EquipmentRecoveryService {
     return result.data;
   }
 
-  async getChargeEvidenceAccess(evidenceId: string) {
+  private async attachedChargeEvidence(evidenceId: string) {
     const normalizedEvidenceId = id(evidenceId, 'evidence_id');
     if (!evidenceIdPattern.test(normalizedEvidenceId)) throw new EquipmentRecoveryServiceError(422, 'CHARGE_EVIDENCE_INVALID', 'Identitas bukti tagihan tidak valid.');
     const result = await this.repository.getChargeEvidence(normalizedEvidenceId);
     if (result.error) repositoryFailure(result.error, 'Gagal memuat bukti pembayaran.');
-    if (!result.data || result.data.upload_status !== 'attached') throw new EquipmentRecoveryServiceError(404, 'CHARGE_EVIDENCE_NOT_FOUND', 'Bukti pembayaran tidak ditemukan.');
-    try { const access = this.evidenceStorage.createAccess(result.data.object_key); return { access_url: access.accessUrl, expires_in_seconds: access.expiresInSeconds }; }
-    catch { throw new EquipmentRecoveryServiceError(503, 'CHARGE_EVIDENCE_STORAGE_UNAVAILABLE', 'Bukti pembayaran sedang tidak dapat dibuka.'); }
+    if (!result.data || result.data.id !== normalizedEvidenceId || result.data.upload_status !== 'attached' || result.data.storage_provider !== 'r2' || !result.data.object_key) throw new EquipmentRecoveryServiceError(404, 'CHARGE_EVIDENCE_NOT_FOUND', 'Bukti pembayaran tidak ditemukan.');
+    return result.data;
+  }
+
+  async getChargeEvidenceAccess(evidenceId: string) {
+    const evidence = await this.attachedChargeEvidence(evidenceId);
+    return privateMediaAccess('charge', evidence.settlement_id, evidence.id);
+  }
+
+  async chargeEvidenceMedia(settlementId: string, evidenceId: string): Promise<PrivateMediaObject> {
+    const evidence = await this.attachedChargeEvidence(evidenceId);
+    if (evidence.settlement_id !== settlementId) throw new EquipmentRecoveryServiceError(404, 'CHARGE_EVIDENCE_NOT_FOUND', 'Bukti pembayaran tidak ditemukan.');
+    return { objectKey: evidence.object_key, contentType: evidence.mime_type, fileSizeBytes: evidence.file_size_bytes };
   }
 
   async listChargeEvidenceAccess(settlementId: string) {
@@ -231,8 +240,7 @@ export class EquipmentRecoveryService {
     if (result.error) repositoryFailure(result.error, 'Gagal memuat bukti tagihan.');
     try {
       return result.data.map((item) => {
-        const access = this.evidenceStorage.createAccess(item.object_key);
-        return { evidence_id: item.id, evidence_type: item.evidence_type, original_filename: item.original_filename, mime_type: item.mime_type, file_size_bytes: item.file_size_bytes, access_url: access.accessUrl, expires_in_seconds: access.expiresInSeconds, created_at: item.created_at };
+        return { evidence_id: item.id, evidence_type: item.evidence_type, original_filename: item.original_filename, mime_type: item.mime_type, file_size_bytes: item.file_size_bytes, ...privateMediaAccess('charge', item.settlement_id, item.id), created_at: item.created_at };
       });
     } catch { throw new EquipmentRecoveryServiceError(503, 'CHARGE_EVIDENCE_STORAGE_UNAVAILABLE', 'Bukti tagihan sedang tidak dapat dibuka.'); }
   }

@@ -84,6 +84,7 @@ test('student photos reject unsupported data MIME, forged bytes and credential-b
     'data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=',
     'data:image/png;base64,AAAA',
     'https://user:password@example.test/student.png',
+    'https://example.test/public-student.png',
     'https://example.test/student.png\n',
   ]) {
     await assert.rejects(

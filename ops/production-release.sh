@@ -4,7 +4,10 @@
 release_error() { printf '[deploy-prod] ERROR: %s\n' "$*" >&2; return 1; }
 valid_image() { [[ "$1" =~ ^ghcr\.io/[a-z0-9][a-z0-9._/-]*@sha256:[a-f0-9]{64}$ ]]; }
 valid_sha() { [[ "$1" =~ ^[a-f0-9]{40}$ ]]; }
-valid_manifest() { [[ "$1" =~ ^[a-f0-9]{64}$ ]]; }
+valid_fingerprint() { [[ "$1" =~ ^[a-f0-9]{64}$ ]]; }
+file_fingerprint() {
+  if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1"; else shasum -a 256 "$1"; fi | cut -d ' ' -f 1
+}
 
 lock_descriptor_matches() {
   # macOS fdescfs reports a synthetic device ID; retain portable local tests.
@@ -25,31 +28,50 @@ private_path() {
 }
 
 read_approval() {
-  local file=$1 expected_sha=$2 expected_image=$3 expected_manifest=$4 key value count=0 seen='|'
+  local file=$1 expected_sha=$2 expected_image=$3 expected_evidence=$4 expected_package=$5 expected_approval=$6 key value count=0 seen='|' approver='' risk=''
   private_path "$file" && [[ -f "$file" ]] || release_error 'Approval file missing, symlinked, or not private.' || return 1
-  APPROVED_PROXY=''
+  valid_fingerprint "$expected_approval" && [[ "$(file_fingerprint "$file")" == "$expected_approval" ]] || release_error 'Approval checksum mismatch.' || return 1
+  APPROVED_PROXY='' APPROVED_PROXY_ADDRESSES='' APPROVED_START='' APPROVED_END='' APPROVED_ACCOUNT='' APPROVED_BUCKET='' APPROVED_REVIEW=''
   while IFS='=' read -r key value || [[ -n "$key$value" ]]; do
-    [[ "$value" =~ ^[-A-Za-z0-9._:/@+]+$ && "${#value}" -le 256 && "$seen" != *"|$key|"* ]] || release_error 'Malformed or duplicate approval field.' || return 1
+    [[ "$value" =~ ^[-A-Za-z0-9._:/@+,]+$ && "${#value}" -le 256 && "$seen" != *"|$key|"* ]] || release_error 'Malformed or duplicate approval field.' || return 1
     seen+="$key|"
     case "$key" in
+      approval_format) [[ "$value" == 3 ]] || return 1 ;;
       release_sha) [[ "$value" == "$expected_sha" ]] || return 1 ;;
       api_image) [[ "$value" == "$expected_image" ]] || return 1 ;;
-      migration_manifest_sha256) [[ "$value" == "$expected_manifest" ]] || return 1 ;;
+      schema_evidence_sha256) [[ "$value" == "$expected_evidence" ]] || return 1 ;;
+      release_package_sha256) [[ "$value" == "$expected_package" ]] || return 1 ;;
       project_ref) [[ "$value" == pvbdiftvzoeelibxlxzb ]] || return 1 ;;
       trust_proxy_hops) [[ "$value" =~ ^[0-4]$ ]] || return 1; APPROVED_PROXY=$value ;;
+      trust_proxy_addresses) [[ "$value" == none || "$value" =~ ^[0-9a-f:.,]+$ ]] || return 1; APPROVED_PROXY_ADDRESSES=$value ;;
       database_rollback_compatible) [[ "$value" == true ]] || return 1 ;;
-      backup_reference|rehearsal_reference|approved_by) : ;;
+      no_other_writers) [[ "$value" == true ]] || return 1 ;;
+      approved_by) [[ "$value" =~ ^[A-Za-z0-9][A-Za-z0-9-]{0,38}$ ]] || return 1; approver=$value ;;
+      review_mode) [[ "$value" == solo-owner || "$value" == independent-review ]] || return 1; APPROVED_REVIEW=$value ;;
+      solo_risk_accepted) [[ "$value" == true || "$value" == false ]] || return 1; risk=$value ;;
+      window_start) [[ "$value" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}Z$ ]] || return 1; APPROVED_START=$value ;;
+      window_end) [[ "$value" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}Z$ ]] || return 1; APPROVED_END=$value ;;
+      media_access_mode) [[ "$value" == authenticated-proxy ]] || return 1 ;;
+      r2_account_id) [[ "$value" =~ ^[a-f0-9]{32}$ ]] || return 1; APPROVED_ACCOUNT=$value ;;
+      r2_bucket) [[ "$value" =~ ^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$ ]] || return 1; APPROVED_BUCKET=$value ;;
       *) release_error 'Unknown approval field.'; return 1 ;;
     esac
     count=$((count + 1))
   done < "$file"
-  [[ "$count" -eq 9 && -n "$APPROVED_PROXY" ]] || release_error 'Approval evidence incomplete.'
+  [[ "$count" -eq 18 && -n "$APPROVED_PROXY" && -n "$APPROVED_PROXY_ADDRESSES" && -n "$APPROVED_START" && -n "$APPROVED_END" && -n "$APPROVED_ACCOUNT" && -n "$APPROVED_BUCKET" ]] \
+    && [[ "$APPROVED_PROXY" == 0 && "$APPROVED_PROXY_ADDRESSES" == none \
+      || "$APPROVED_PROXY" != 0 && "$APPROVED_PROXY_ADDRESSES" != none ]] \
+    && [[ "$APPROVED_REVIEW" == solo-owner && "$risk" == true && "$approver" == dhanis-alghifari \
+      || "$APPROVED_REVIEW" == independent-review && "$risk" == false && -n "$approver" && "$approver" != dhanis-alghifari ]] \
+    || release_error 'Explicit private-media/review approval incomplete.'
+  # Full IP validation happens in the candidate runtime before cutover. Never
+  # accept broad networks/hostnames or silently fall back to hop-only trust.
 }
 
 production_compose() {
   API_IMAGE=$ACTIVE_IMAGE PRODUCTION_ENV_FILE="$PROD_ROOT/config/backend.env" \
-    PRODUCTION_TRUST_PROXY=$ACTIVE_PROXY COMPOSE_IGNORE_ORPHANS=1 \
-    docker compose --env-file /dev/null -p sinegasi-prod -f "$ACTIVE_RELEASE/docker-compose.prod.yml" "$@"
+    PRODUCTION_TRUST_PROXY=$ACTIVE_PROXY PRODUCTION_TRUST_PROXY_ADDRESSES=$ACTIVE_PROXY_ADDRESSES COMPOSE_IGNORE_ORPHANS=1 \
+    timeout "${COMPOSE_TIMEOUT:-120}" docker compose --env-file /dev/null -p sinegasi-prod -f "$ACTIVE_RELEASE/docker-compose.prod.yml" "$@"
 }
 
 preserved_containers_unchanged() {
@@ -76,8 +98,27 @@ prepare_image() {
   [[ "$revision" == "$ACTIVE_SHA" ]] || release_error 'Image revision does not match the approved release SHA.' || return 1
   production_compose config --quiet || return 1
   # One-off config import: no published ports, dependencies, DB calls or workers.
-  production_compose run --rm --no-deps --pull never -T -e "PRODUCTION_TRUST_PROXY=$ACTIVE_PROXY" api-prod node \
+  production_compose run --rm --no-deps --pull never -T -e "PRODUCTION_TRUST_PROXY=$ACTIVE_PROXY" \
+    -e "PRODUCTION_TRUST_PROXY_ADDRESSES=$ACTIVE_PROXY_ADDRESSES" \
+    -e "PRODUCTION_R2_ACCOUNT_ID=$ACTIVE_ACCOUNT" -e "PRODUCTION_R2_BUCKET=$ACTIVE_BUCKET" api-prod node \
     < "$ACTIVE_RELEASE/ops/production-runtime-preflight.cjs" >/dev/null || return 1
+}
+
+verify_candidate_schema() {
+  # Read-only metadata adapter, no ports/workers/SQL migration. Credential file
+  # is separate from backend.env and requires explicitly provisioned custody.
+  COMPOSE_TIMEOUT=150 production_schema_container || return 1
+}
+
+production_schema_container() {
+  production_compose run --rm --no-deps --pull never -T --user "$(id -u):$(id -g)" \
+    -v "$PROD_ROOT/config/schema-gate.json:/run/sinegasi-gate/connection.json:ro" \
+    -v "$PROD_ROOT/config/approvals/$ACTIVE_SHA.schema.json:/run/sinegasi-gate/evidence.json:ro" \
+    -v "$ACTIVE_RELEASE/ops/production-schema.snapshot.json:/run/sinegasi-gate/snapshot.json:ro" \
+    -e "PRODUCTION_SCHEMA_EVIDENCE_SHA256=$REQUESTED_EVIDENCE" -e "PRODUCTION_RELEASE_SHA=$ACTIVE_SHA" \
+    -e "PRODUCTION_R2_ACCOUNT_ID=$ACTIVE_ACCOUNT" -e "PRODUCTION_R2_BUCKET=$ACTIVE_BUCKET" -e "PRODUCTION_REVIEW_MODE=$ACTIVE_REVIEW" \
+    -e "PRODUCTION_WINDOW_START=$APPROVED_START" -e "PRODUCTION_WINDOW_END=$APPROVED_END" api-prod node \
+    < "$ACTIVE_RELEASE/ops/production-schema-preflight.cjs" >/dev/null
 }
 
 restore_previous_release() {
@@ -86,7 +127,7 @@ restore_previous_release() {
     printf '%s\n' '[deploy-prod] First deployment failed; only the failed production API was stopped. Dev/Caddy were not changed.' >&2
     return 0
   fi
-  ACTIVE_SHA=$PREVIOUS_SHA ACTIVE_IMAGE=$PREVIOUS_IMAGE ACTIVE_PROXY=$PREVIOUS_PROXY
+  ACTIVE_SHA=$PREVIOUS_SHA ACTIVE_IMAGE=$PREVIOUS_IMAGE ACTIVE_PROXY=$PREVIOUS_PROXY ACTIVE_PROXY_ADDRESSES=$PREVIOUS_PROXY_ADDRESSES ACTIVE_ACCOUNT=$PREVIOUS_ACCOUNT ACTIVE_BUCKET=$PREVIOUS_BUCKET ACTIVE_REVIEW=$PREVIOUS_REVIEW
   ACTIVE_RELEASE="$PROD_ROOT/releases/$PREVIOUS_SHA"
   production_compose up -d --no-build --pull never --no-deps --force-recreate api-prod >/dev/null || return 1
   wait_for_production_health || return 1
@@ -107,14 +148,14 @@ production_on_exit() {
 }
 
 deploy_production() {
-  PROD_ROOT=$1 ACTIVE_SHA=$2 ACTIVE_IMAGE=$3 REQUESTED_MANIFEST=$4
-  local shared_lock=${5:-/tmp/sinegasi-vps-deploy.lock}
-  local directory state_key state_value state_count=0 state_seen='|' current_image previous_manifest=''
+  PROD_ROOT=$1 ACTIVE_SHA=$2 ACTIVE_IMAGE=$3 REQUESTED_EVIDENCE=$4 REQUESTED_PACKAGE=$5 REQUESTED_APPROVAL=$6
+  local shared_lock=${7:-/tmp/sinegasi-vps-deploy.lock}
+  local directory state_key state_value state_count=0 state_seen='|' current_image previous_evidence='' previous_package='' previous_approval=''
   for command in docker curl flock stat mktemp timeout; do
     command -v "$command" >/dev/null 2>&1 || release_error "Required tool unavailable: $command" || return 1
   done
-  valid_sha "$ACTIVE_SHA" && valid_image "$ACTIVE_IMAGE" && valid_manifest "$REQUESTED_MANIFEST" \
-    || release_error 'Require a full release SHA, immutable GHCR digest, and manifest SHA256.' || return 1
+  valid_sha "$ACTIVE_SHA" && valid_image "$ACTIVE_IMAGE" && valid_fingerprint "$REQUESTED_EVIDENCE" && valid_fingerprint "$REQUESTED_PACKAGE" && valid_fingerprint "$REQUESTED_APPROVAL" \
+    || release_error 'Require full release SHA, immutable GHCR digest, schema evidence and release archive SHA256.' || return 1
   HEALTH_ATTEMPTS=${DEPLOY_HEALTH_ATTEMPTS:-30}
   [[ "$HEALTH_ATTEMPTS" =~ ^([1-9]|[12][0-9]|30)$ ]] || release_error 'Health attempts must be between 1 and 30.' || return 1
   ACTIVE_RELEASE="$PROD_ROOT/releases/$ACTIVE_SHA"
@@ -127,8 +168,13 @@ deploy_production() {
   [[ -f "$ACTIVE_RELEASE/docker-compose.prod.yml" && ! -L "$ACTIVE_RELEASE/docker-compose.prod.yml" \
     && -f "$ACTIVE_RELEASE/ops/production-runtime-preflight.cjs" && ! -L "$ACTIVE_RELEASE/ops" \
     && ! -L "$ACTIVE_RELEASE/ops/production-runtime-preflight.cjs" ]] || return 1
-  read_approval "$PROD_ROOT/config/approvals/$ACTIVE_SHA.txt" "$ACTIVE_SHA" "$ACTIVE_IMAGE" "$REQUESTED_MANIFEST" || return 1
-  ACTIVE_PROXY=$APPROVED_PROXY
+  read_approval "$PROD_ROOT/config/approvals/$ACTIVE_SHA.txt" "$ACTIVE_SHA" "$ACTIVE_IMAGE" "$REQUESTED_EVIDENCE" "$REQUESTED_PACKAGE" "$REQUESTED_APPROVAL" || return 1
+  ACTIVE_PROXY=$APPROVED_PROXY ACTIVE_PROXY_ADDRESSES=$APPROVED_PROXY_ADDRESSES ACTIVE_ACCOUNT=$APPROVED_ACCOUNT ACTIVE_BUCKET=$APPROVED_BUCKET ACTIVE_REVIEW=$APPROVED_REVIEW
+  private_path "$PROD_ROOT/config/schema-gate.json" && [[ -f "$PROD_ROOT/config/schema-gate.json" ]] \
+    && private_path "$PROD_ROOT/config/approvals/$ACTIVE_SHA.schema.json" && [[ -f "$PROD_ROOT/config/approvals/$ACTIVE_SHA.schema.json" ]] \
+    && [[ -f "$ACTIVE_RELEASE/ops/production-schema-preflight.cjs" && ! -L "$ACTIVE_RELEASE/ops/production-schema-preflight.cjs" \
+      && -f "$ACTIVE_RELEASE/ops/production-schema.snapshot.json" && ! -L "$ACTIVE_RELEASE/ops/production-schema.snapshot.json" ]] \
+    || release_error 'Explicit private schema gate custody/evidence and reviewed adapter required.' || return 1
 
   # Provision this shared lock privately first. Read-only open cannot truncate
   # a raced symlink target; inode/ownership checks fail closed before Docker.
@@ -139,7 +185,7 @@ deploy_production() {
   DEV_SNAPSHOT="$(timeout 3 docker inspect -f '{{.Id}}|{{.State.Running}}' sinegasi-api-dev 2>/dev/null)" || return 1
   CADDY_SNAPSHOT="$(timeout 3 docker inspect -f '{{.Id}}|{{.State.Running}}' caddy-proxy 2>/dev/null)" || return 1
   [[ "$DEV_SNAPSHOT" == *'|true' && "$CADDY_SNAPSHOT" == *'|true' ]] || release_error 'Existing dev/Caddy must be running; restore separately.' || return 1
-  PREVIOUS_SHA='' PREVIOUS_IMAGE='' PREVIOUS_PROXY='' RELEASE_SWITCHED=false
+  PREVIOUS_SHA='' PREVIOUS_IMAGE='' PREVIOUS_PROXY='' PREVIOUS_PROXY_ADDRESSES='' PREVIOUS_ACCOUNT='' PREVIOUS_BUCKET='' PREVIOUS_REVIEW='' RELEASE_SWITCHED=false
   trap production_on_exit EXIT
   trap 'exit 130' INT
   trap 'exit 143' TERM
@@ -153,15 +199,17 @@ deploy_production() {
       case "$state_key" in
         release_sha) valid_sha "$state_value" || return 1; PREVIOUS_SHA=$state_value ;;
         api_image) valid_image "$state_value" || return 1; PREVIOUS_IMAGE=$state_value ;;
-        migration_manifest_sha256) valid_manifest "$state_value" || return 1; previous_manifest=$state_value ;;
+        schema_evidence_sha256) valid_fingerprint "$state_value" || return 1; previous_evidence=$state_value ;;
+        release_package_sha256) valid_fingerprint "$state_value" || return 1; previous_package=$state_value ;;
+        deployment_approval_sha256) valid_fingerprint "$state_value" || return 1; previous_approval=$state_value ;;
         *) return 1 ;;
       esac
       state_count=$((state_count + 1))
     done < "$PROD_ROOT/state/current-release.txt"
-    [[ "$state_count" -eq 3 && "$current_image" == "$PREVIOUS_IMAGE" ]] || release_error 'Current production container and release metadata differ; reconcile manually.' || return 1
-    read_approval "$PROD_ROOT/config/approvals/$PREVIOUS_SHA.txt" "$PREVIOUS_SHA" "$PREVIOUS_IMAGE" "$previous_manifest" || return 1
-    PREVIOUS_PROXY=$APPROVED_PROXY
-    ACTIVE_SHA=$PREVIOUS_SHA ACTIVE_IMAGE=$PREVIOUS_IMAGE ACTIVE_PROXY=$PREVIOUS_PROXY
+    [[ "$state_count" -eq 5 && "$current_image" == "$PREVIOUS_IMAGE" ]] || release_error 'Current production container and release metadata differ; reconcile manually.' || return 1
+    read_approval "$PROD_ROOT/config/approvals/$PREVIOUS_SHA.txt" "$PREVIOUS_SHA" "$PREVIOUS_IMAGE" "$previous_evidence" "$previous_package" "$previous_approval" || return 1
+    PREVIOUS_PROXY=$APPROVED_PROXY PREVIOUS_PROXY_ADDRESSES=$APPROVED_PROXY_ADDRESSES PREVIOUS_ACCOUNT=$APPROVED_ACCOUNT PREVIOUS_BUCKET=$APPROVED_BUCKET PREVIOUS_REVIEW=$APPROVED_REVIEW
+    ACTIVE_SHA=$PREVIOUS_SHA ACTIVE_IMAGE=$PREVIOUS_IMAGE ACTIVE_PROXY=$PREVIOUS_PROXY ACTIVE_PROXY_ADDRESSES=$PREVIOUS_PROXY_ADDRESSES ACTIVE_ACCOUNT=$PREVIOUS_ACCOUNT ACTIVE_BUCKET=$PREVIOUS_BUCKET ACTIVE_REVIEW=$PREVIOUS_REVIEW
     ACTIVE_RELEASE="$PROD_ROOT/releases/$ACTIVE_SHA"
     private_path "$ACTIVE_RELEASE" && [[ ! -L "$ACTIVE_RELEASE/ops" \
       && -f "$ACTIVE_RELEASE/docker-compose.prod.yml" && ! -L "$ACTIVE_RELEASE/docker-compose.prod.yml" \
@@ -170,20 +218,22 @@ deploy_production() {
     # human rehearsal evidence; this never restores or modifies the database.
     prepare_image || return 1
     ACTIVE_SHA=$2 ACTIVE_IMAGE=$3 ACTIVE_RELEASE="$PROD_ROOT/releases/$2"
-    read_approval "$PROD_ROOT/config/approvals/$ACTIVE_SHA.txt" "$ACTIVE_SHA" "$ACTIVE_IMAGE" "$REQUESTED_MANIFEST" || return 1
-    ACTIVE_PROXY=$APPROVED_PROXY
+    read_approval "$PROD_ROOT/config/approvals/$ACTIVE_SHA.txt" "$ACTIVE_SHA" "$ACTIVE_IMAGE" "$REQUESTED_EVIDENCE" "$REQUESTED_PACKAGE" "$REQUESTED_APPROVAL" || return 1
+    ACTIVE_PROXY=$APPROVED_PROXY ACTIVE_PROXY_ADDRESSES=$APPROVED_PROXY_ADDRESSES ACTIVE_ACCOUNT=$APPROVED_ACCOUNT ACTIVE_BUCKET=$APPROVED_BUCKET ACTIVE_REVIEW=$APPROVED_REVIEW
   else
     [[ -z "$current_image" ]] || release_error 'Untracked production container exists; never overwrite it automatically.' || return 1
   fi
   prepare_image || return 1
   preserved_containers_unchanged || return 1
+  verify_candidate_schema || return 1
+  read_approval "$PROD_ROOT/config/approvals/$ACTIVE_SHA.txt" "$ACTIVE_SHA" "$ACTIVE_IMAGE" "$REQUESTED_EVIDENCE" "$REQUESTED_PACKAGE" "$REQUESTED_APPROVAL" || return 1
   RELEASE_SWITCHED=true
   production_compose up -d --no-build --pull never --no-deps --force-recreate api-prod >/dev/null || return 1
   wait_for_production_health && preserved_containers_unchanged || release_error 'Production health/preservation verification failed.' || return 1
   local state_temp
   state_temp="$(mktemp "$PROD_ROOT/state/current-release.XXXXXX")" || return 1
-  printf 'release_sha=%s\napi_image=%s\nmigration_manifest_sha256=%s\n' "$ACTIVE_SHA" "$ACTIVE_IMAGE" "$REQUESTED_MANIFEST" > "$state_temp" || return 1
+  printf 'release_sha=%s\napi_image=%s\nschema_evidence_sha256=%s\nrelease_package_sha256=%s\ndeployment_approval_sha256=%s\n' "$ACTIVE_SHA" "$ACTIVE_IMAGE" "$REQUESTED_EVIDENCE" "$REQUESTED_PACKAGE" "$REQUESTED_APPROVAL" > "$state_temp" || return 1
   mv -- "$state_temp" "$PROD_ROOT/state/current-release.txt" || return 1
   RELEASE_SWITCHED=false
-  printf '[deploy-prod] Approved release %s is healthy. Schema/credentials/Tunnel/Pages require their separate gates.\n' "$ACTIVE_SHA"
+  printf '[deploy-prod] Approved release %s is healthy; read-only schema gate passed. Tunnel/Pages/browser/media acceptance remain separate.\n' "$ACTIVE_SHA"
 }

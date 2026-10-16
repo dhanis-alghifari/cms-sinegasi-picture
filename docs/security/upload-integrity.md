@@ -4,7 +4,8 @@
 
 The existing private-upload module keeps its feature interface: reservation returns
 an object key and signed PUT; completion calls `verifyCloudflareR2ImageUpload`; an
-authorized feature later calls `generateR2PrivateAccessUrl`. No Supabase rows,
+authorized feature now returns an authenticated API reference; see
+[private media access](private-media.md). No Supabase rows,
 policies, migrations, bucket settings or deployed services were changed here.
 
 New private uploads use two server-generated object locations:
@@ -25,8 +26,9 @@ New private uploads use two server-generated object locations:
    type, size and signature. Invalid final objects are not replaced.
 4. The database continues storing the reservation's staging key for compatibility.
    The central read module maps that key to its final object. It never issues a
-   browser PUT for a `validated-v2/` key. Read URLs keep the existing 900-second
-   expiry to preserve report and viewer contracts.
+   browser PUT for a `validated-v2/` key. Signed GET URLs are no longer issued to
+   the browser. Reports/viewers use authenticated byte responses with fresh domain
+   checks and `private, no-store`; `expires_in_seconds: 0` denotes an API reference.
 
 An upload completion retry uses the existing valid final object. Reusing a
 still-valid browser PUT can modify only staging, not the displayed final object.
@@ -57,7 +59,8 @@ Signed URLs are bearer credentials and remain reusable until expiry; see
   staging/final separation. Migrating old files requires an owner-approved,
   reversible storage-and-database plan; do not silently rename keys or delete rows.
 - Inline image fields also receive the separate source-level checks below. They
-  do not gain the R2 staging/final separation or private signed-read behavior.
+  do not gain R2 staging/final separation; their bytes remain within authenticated
+  API responses, not public bucket URLs.
 - No automatic cleanup runs. Configure a narrowly scoped lifecycle rule for
   `staging-v2/` only after confirming retention needs and owner approval. Never
   apply that rule to `validated-v2/`. Stored reservations and final objects must
@@ -82,12 +85,11 @@ photos have a decoded 600 KiB limit. Recovery/replacement now enforce that same
 equipment photo byte limit server-side. Optional blank student/cash proof fields
 remain optional; a dispute still requires evidence.
 
-Existing HTTP(S) image references remain compatible. The shared validator parses
-their URLs and rejects credentials, control characters and ambiguous protocols;
-it **does not fetch them**, check their actual content, pin a version, make them
-private or moderate what a remote owner later serves. Restricting domains or
-migrating these fields to owned private storage is a separate design/approval
-decision. Plain HTTP remains accepted for compatibility and lacks TLS protection.
+New private image fields reject HTTP(S) links by default. Previously stored remote
+images are unavailable through the application's viewers; no arbitrary URL fetch
+or JSON redirect fallback is provided. Re-upload/import requires separate approval;
+the code cannot make an already public off-site object private. External metadata
+links require explicit validation opt-in and are not a private-image upload path.
 Certificate/document URLs in `contests.service.ts` remain on their existing
 HTTP(S)-only validation because they are not a photo-only contract. Previously
 stored rows are unchanged and can still contain legacy references; no automatic
@@ -108,11 +110,12 @@ exact-length streamed reads, missing metadata, conditional finalization, races,
 retries, legacy reads and prohibition of final-key browser PUTs. No live R2
 requests or Supabase writes are required by these tests.
 
-Tests/builds were not executed in the current security-review environment because
-the required all-controls OS sandbox was unavailable. Before release, run the
-unit suite and TypeScript checks in an isolated job with no external network,
-safe allowlisted environment, read-only source/toolchain and bounded scratch
-writes/resources. Use dummy credentials; do not load real `.env` files.
+Local verification on 13 October 2026 used `ENV_FILE_LOADING=disabled`, mocked R2
+transport and repository fixtures. Backend quality passed 594 tests with one real
+PostgreSQL rehearsal skipped; typecheck/build and OpenAPI parity (160 operations)
+passed. Frontend quality passed its six private-media and twelve build/asset tests,
+with zero hard bundle violations and 22 target warnings. This is not live provider,
+browser acceptance, full image sanitization, full SAST or production approval.
 
 Before enabling online, obtain separate owner approval for any provider checks.
 Validate the PUT condition and signed headers against a dedicated non-production

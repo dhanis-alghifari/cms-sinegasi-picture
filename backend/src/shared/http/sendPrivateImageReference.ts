@@ -3,7 +3,6 @@ import { validateImageReference } from '../uploads/imageReference.js';
 
 type ImagePayload =
   | { kind: 'inline'; contentType: string; body: Buffer }
-  | { kind: 'remote'; url: string }
   | null;
 
 function imagePayload(reference: string | null, maxDecodedBytes: number): ImagePayload {
@@ -16,8 +15,9 @@ function imagePayload(reference: string | null, maxDecodedBytes: number): ImageP
   if (!validation.valid) return null;
 
   if (validation.kind === 'remote') {
-    if (normalized.length > 2048) return null;
-    return { kind: 'remote', url: new URL(normalized).toString() };
+    // Legacy public URLs cannot satisfy per-request application authorization.
+    // Never fetch caller-controlled destinations or redirect the browser there.
+    return null;
   }
 
   const match = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/]+={0,2})$/i.exec(normalized);
@@ -39,7 +39,6 @@ export function sendPrivateImageReference(
     .header('X-Content-Type-Options', 'nosniff');
   const payload = imagePayload(reference, maxDecodedBytes);
   if (!payload) return headers.status(204).send();
-  if (payload.kind === 'remote') return headers.send({ url: payload.url });
   return headers
     .type(payload.contentType)
     .header('Content-Disposition', 'inline')

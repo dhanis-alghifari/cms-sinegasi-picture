@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { runtimeConfig } from '../config/env.js';
 import {
-  generateR2PrivateAccessUrl,
+  readR2PrivateImage,
   generateR2PrivateUploadUrl,
   generateR2PrivateUploadUrlForKey,
   generateR2PresignedUrl,
@@ -86,15 +86,11 @@ test('private contest evidence URLs do not require or expose a public domain', (
   });
   try {
     const upload = generateR2PrivateUploadUrl('bukti lomba.png', 'contest-evidence/entry-1', 'image/png');
-    const access = generateR2PrivateAccessUrl(upload.key);
     assert.match(upload.uploadUrl, /X-Amz-Signature=[a-f0-9]{64}/);
     assert.match(upload.uploadUrl, /X-Amz-SignedHeaders=content-type%3Bhost/);
-    assert.match(access.accessUrl, /X-Amz-Signature=[a-f0-9]{64}/);
     assert.match(upload.key, /^staging-v2\/contest-evidence\/entry-1\//);
     assert.match(upload.uploadUrl, /\/bucket\/staging-v2\//);
-    assert.match(access.accessUrl, /\/bucket\/validated-v2\//);
     assert.equal(upload.expiresInSeconds, 300);
-    assert.equal(access.expiresInSeconds, 900);
     assert.equal(new URL(upload.uploadUrl).searchParams.get('X-Amz-Expires'), '300');
     assert.doesNotMatch(upload.uploadUrl, /media\.example/);
   } finally {
@@ -192,8 +188,8 @@ test('new private uploads promote the exact validated snapshot and never issue b
       `PUT ${finalPath}`,
       `GET ${finalPath}`,
     ]);
-    const access = generateR2PrivateAccessUrl(stagingKey);
-    assert.equal(new URL(access.accessUrl).pathname, finalPath);
+    assert.deepEqual((await readR2PrivateImage({ objectKey: stagingKey, contentType: 'image/png', fileSizeBytes: PNG_BYTES.length })).body, PNG_BYTES);
+    assert.equal(requests.at(-1), `GET ${finalPath}`);
     assert.throws(() => generateR2PrivateUploadUrlForKey(finalPath.slice('/bucket/'.length), 'image/png'), /R2_VALIDATED_OBJECT_READ_ONLY/);
     assert.match(generateR2PrivateUploadUrlForKey(stagingKey, 'image/png').uploadUrl, /\/staging-v2\//);
   });
@@ -288,9 +284,56 @@ test('invalid caller limits reject before storage requests and missing HEAD leng
 });
 
 test('legacy attached evidence keeps its original read key and pending retry compatibility', async () => {
-  await withPrivateR2(() => {
-    assert.equal(new URL(generateR2PrivateAccessUrl('contest-evidence/entry-1/test.png').accessUrl).pathname, '/bucket/contest-evidence/entry-1/test.png');
+  await withPrivateR2(async () => {
+    globalThis.fetch = async (input, init) => {
+      assert.equal(new URL(String(input)).pathname, '/bucket/contest-evidence/entry-1/test.png');
+      assert.equal(init?.redirect, 'error');
+      return imageResponse();
+    };
+    assert.deepEqual((await readR2PrivateImage({ objectKey: 'contest-evidence/entry-1/test.png', contentType: 'image/png', fileSizeBytes: PNG_BYTES.length })).body, PNG_BYTES);
     assert.equal(new URL(generateR2PrivateUploadUrlForKey('contest-evidence/entry-1/test.png', 'image/png').uploadUrl).pathname, '/bucket/contest-evidence/entry-1/test.png');
     assert.throws(() => generateR2PrivateUploadUrlForKey('staging-v2/../test.png', 'image/png'), /R2_INVALID_KEY/);
+  });
+});
+
+test('private proxy read enforces exact metadata, no redirects, byte cap, signature and timeout without exposing GET credentials', async () => {
+  await withPrivateR2(async () => {
+    const object = { objectKey: 'staging-v2/agenda/one.png', contentType: 'image/png', fileSizeBytes: PNG_BYTES.length };
+    globalThis.fetch = async (input, init) => {
+      assert.equal(new URL(String(input)).pathname, '/bucket/validated-v2/agenda/one.png');
+      assert.equal(init?.method, 'GET'); assert.equal(init.redirect, 'error'); assert.ok(init.signal);
+      return imageResponse();
+    };
+    const result = await readR2PrivateImage(object);
+    assert.deepEqual(Object.keys(result).sort(), ['body', 'contentType']);
+    assert.deepEqual(result.body, PNG_BYTES);
+    for (const response of [
+      new Response(null, { status: 302, headers: { location: 'http://127.0.0.1/secret' } }),
+      new Response(null, { status: 404 }),
+      imageResponse(PNG_BYTES, 'image/svg+xml'),
+      imageResponse(Buffer.from('not an image')),
+      new Response(new Uint8Array(PNG_BYTES), { headers: { 'content-type': 'image/png', 'content-length': String(PNG_BYTES.length + 1) } }),
+    ]) {
+      globalThis.fetch = async () => response;
+      await assert.rejects(() => readR2PrivateImage(object), /R2_MEDIA_UNAVAILABLE/);
+    }
+    globalThis.fetch = async () => { assert.fail('invalid metadata must not reach R2'); };
+    await assert.rejects(() => readR2PrivateImage({ ...object, fileSizeBytes: 5 * 1024 * 1024 + 1 }), /R2_INVALID_MEDIA/);
+    await assert.rejects(() => readR2PrivateImage({ ...object, contentType: 'image/svg+xml' }), /R2_INVALID_MEDIA/);
+  });
+});
+
+test('private proxy bounds simultaneous buffers and releases occupied slots after completion', async () => {
+  await withPrivateR2(async () => {
+    const responses: Array<(value: Response) => void> = [];
+    globalThis.fetch = () => new Promise<Response>((resolve) => { responses.push(resolve); });
+    const object = { objectKey: 'validated-v2/one.png', contentType: 'image/png', fileSizeBytes: PNG_BYTES.length };
+    const reads = Array.from({ length: 8 }, () => readR2PrivateImage(object));
+    await assert.rejects(() => readR2PrivateImage(object), /R2_MEDIA_BUSY/);
+    assert.equal(responses.length, 8);
+    for (const resolve of responses) resolve(imageResponse());
+    await Promise.all(reads);
+    globalThis.fetch = async () => imageResponse();
+    assert.deepEqual((await readR2PrivateImage(object)).body, PNG_BYTES);
   });
 });

@@ -1,4 +1,4 @@
-name: Build and Approve Production Backend
+name: Build or Deploy Approved Production Backend
 
 permissions: {}
 
@@ -11,34 +11,57 @@ concurrency:
 on:
   workflow_dispatch:
     inputs:
+      phase:
+        description: Build never deploys; deploy requires a separate dispatch and new exact approval
+        required: true
+        default: build
+        type: choice
+        options: [build, deploy]
       release_sha:
         description: Full approved main commit SHA
         required: true
         type: string
-      migration_manifest_sha256:
-        description: Canonical fingerprint of the approved and applied migration manifest
+      schema_evidence_sha256:
+        description: SHA256 of fresh reviewed reconciled-no-sql deployment evidence (not a migration manifest)
         required: true
+        type: string
+      build_run_id:
+        description: Deploy only - successful build-phase workflow run ID
+        type: string
+      image_digest:
+        description: Deploy only - approved full immutable GHCR image reference
+        type: string
+      release_package_sha256:
+        description: Deploy only - approved release archive SHA256
+        type: string
+      deployment_approval_sha256:
+        description: Deploy only - exact bytes of NEW private VPS approval format 3 including proxy IPs
         type: string
 
 jobs:
   build-release:
+    if: inputs.phase == 'build'
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    environment: production
     permissions:
       contents: read
+      actions: read
       packages: write
-    outputs:
-      image: ${{ steps.image.outputs.digest_ref }}
-      package_checksum: ${{ steps.package.outputs.checksum }}
     steps:
       - name: Validate manual dispatch
         env:
           RELEASE_SHA: ${{ inputs.release_sha }}
-          MANIFEST_SHA256: ${{ inputs.migration_manifest_sha256 }}
+          EVIDENCE_SHA256: ${{ inputs.schema_evidence_sha256 }}
+          READY: ${{ vars.PRODUCTION_DEPLOYMENT_READY }}
         run: |
           test "$GITHUB_REF" = refs/heads/main
           [[ "$RELEASE_SHA" =~ ^[a-f0-9]{40}$ ]]
-          [[ "$MANIFEST_SHA256" =~ ^[a-f0-9]{64}$ ]]
+          [[ "$EVIDENCE_SHA256" =~ ^[a-f0-9]{64}$ ]]
+          test "$READY" = true
+          test "$GITHUB_ACTOR" = dhanis-alghifari
+          test "$GITHUB_RUN_ATTEMPT" = 1
+          test "$GITHUB_SHA" = "$RELEASE_SHA"
 
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
@@ -75,17 +98,24 @@ jobs:
           npm run quality:check
           npm audit --omit=dev --audit-level=high
 
-      - name: Verify approved migration package offline before publishing
-        working-directory: backend
+      - name: Verify actual environment protection and exact successful main quality
         env:
+          GH_TOKEN: ${{ github.token }}
           RELEASE_SHA: ${{ inputs.release_sha }}
-          MANIFEST_SHA256: ${{ inputs.migration_manifest_sha256 }}
-          REVIEWED_MANIFEST: ${{ vars.PRODUCTION_MIGRATION_MANIFEST }}
+          EVIDENCE_SHA256: ${{ inputs.schema_evidence_sha256 }}
+          REVIEW_MODE: ${{ vars.PRODUCTION_REVIEW_MODE }}
+          REVIEWED_EVIDENCE: ${{ vars.PRODUCTION_SCHEMA_EVIDENCE }}
         run: |
-          # Approval is an external release artifact created after the commit;
-          # embedding its own commit SHA in a committed JSON creates a cycle.
-          node -e 'const fs = require("node:fs"); const path = require("node:path"); const manifest = JSON.parse(process.env.REVIEWED_MANIFEST || "null"); if (!manifest) process.exit(1); fs.writeFileSync(path.join(process.env.RUNNER_TEMP, "migration-manifest.json"), JSON.stringify(manifest), {flag: "wx", mode: 0o600});'
-          npm run db:production -- verify --manifest "$RUNNER_TEMP/migration-manifest.json" --confirm-manifest "$MANIFEST_SHA256" --project-ref pvbdiftvzoeelibxlxzb --release-sha "$RELEASE_SHA"
+          set -Eeuo pipefail
+          umask 077
+          gh api "repos/$GITHUB_REPOSITORY/environments/production" > "$RUNNER_TEMP/production-environment.json"
+          gh api "repos/$GITHUB_REPOSITORY/environments/production/deployment-branch-policies?per_page=100" > "$RUNNER_TEMP/production-branches.json"
+          gh api "repos/$GITHUB_REPOSITORY/commits/main" > "$RUNNER_TEMP/current-main.json"
+          run_id="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/quality.yml/runs?branch=main&event=push&status=success&head_sha=$RELEASE_SHA&per_page=20" --jq '.workflow_runs[0].id')"
+          [[ "$run_id" =~ ^[0-9]+$ ]]
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id" > "$RUNNER_TEMP/quality-run.json"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/jobs?per_page=100" > "$RUNNER_TEMP/quality-jobs.json"
+          node ops/production-ci-preflight.cjs
 
       - name: Build and publish immutable amd64 API image
         id: image
@@ -103,38 +133,106 @@ jobs:
           digest_ref="$(docker image inspect -f '{{index .RepoDigests 0}}' "$image:$RELEASE_SHA")"
           [[ "$digest_ref" =~ ^ghcr\.io/[a-z0-9][a-z0-9._/-]*@sha256:[a-f0-9]{64}$ ]]
           printf 'digest_ref=%s\n' "$digest_ref" >> "$GITHUB_OUTPUT"
-          printf 'Release `%s` image: `%s`\n\nApproval file must bind this exact digest and migration manifest before the deployment job is approved.\n' "$RELEASE_SHA" "$digest_ref" >> "$GITHUB_STEP_SUMMARY"
+          printf 'Release `%s` image: `%s`\n\nBuild phase NEVER deploys. Review private-bucket evidence and create a NEW approval checksum, then separately dispatch phase=deploy.\n' "$RELEASE_SHA" "$digest_ref" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Package reviewed deployment files
-        id: package
+        env:
+          RELEASE_SHA: ${{ inputs.release_sha }}
+          EVIDENCE_SHA256: ${{ inputs.schema_evidence_sha256 }}
+          IMAGE_DIGEST: ${{ steps.image.outputs.digest_ref }}
         run: |
-          tar -czf production-release.tar.gz docker-compose.prod.yml ops/deploy-prod.sh ops/production-release.sh ops/production-runtime-preflight.cjs
+          tar -czf production-release.tar.gz docker-compose.prod.yml ops/deploy-prod.sh ops/production-release.sh ops/production-runtime-preflight.cjs ops/production-schema-preflight.cjs ops/production-schema.snapshot.json
           checksum="$(sha256sum production-release.tar.gz | cut -d ' ' -f 1)"
-          printf 'checksum=%s\n' "$checksum" >> "$GITHUB_OUTPUT"
+          export PACKAGE_CHECKSUM="$checksum"
+          node -e 'const fs = require("node:fs"); fs.writeFileSync("production-release.json", JSON.stringify({ format: 1, releaseSha: process.env.RELEASE_SHA, buildRunId: process.env.GITHUB_RUN_ID, image: process.env.IMAGE_DIGEST, packageSha256: process.env.PACKAGE_CHECKSUM, evidenceSha256: process.env.EVIDENCE_SHA256 }), {flag: "wx"});'
+          printf 'Build run ID: `%s`; release archive SHA256: `%s`. No SSH/deployment occurred.\n' "$GITHUB_RUN_ID" "$checksum" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload release package
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: production-release
-          path: production-release.tar.gz
+          path: |
+            production-release.tar.gz
+            production-release.json
           retention-days: 30
 
   deploy-backend-prod:
-    needs: build-release
+    if: inputs.phase == 'deploy'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: production
     permissions:
       actions: read
+      contents: read
     steps:
       - name: Require completed go-live gates
         env:
           READY: ${{ vars.PRODUCTION_DEPLOYMENT_READY }}
-        run: test "$READY" = true
+          RELEASE_SHA: ${{ inputs.release_sha }}
+          BUILD_RUN_ID: ${{ inputs.build_run_id }}
+          IMAGE_DIGEST: ${{ inputs.image_digest }}
+          PACKAGE_CHECKSUM: ${{ inputs.release_package_sha256 }}
+          APPROVAL_CHECKSUM: ${{ inputs.deployment_approval_sha256 }}
+        run: |
+          test "$READY" = true
+          test "$GITHUB_ACTOR" = dhanis-alghifari
+          test "$GITHUB_REF" = refs/heads/main
+          test "$GITHUB_SHA" = "$RELEASE_SHA"
+          test "$GITHUB_RUN_ATTEMPT" = 1
+          [[ "$BUILD_RUN_ID" =~ ^[1-9][0-9]*$ ]]
+          [[ "$IMAGE_DIGEST" =~ ^ghcr\.io/dhanis-alghifari/cms-sinegasi-picture/api@sha256:[a-f0-9]{64}$ ]]
+          [[ "$PACKAGE_CHECKSUM" =~ ^[a-f0-9]{64}$ && "$APPROVAL_CHECKSUM" =~ ^[a-f0-9]{64}$ ]]
+
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: ${{ inputs.release_sha }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 22
+
+      - name: Recheck actual production environment before SSH
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ inputs.release_sha }}
+          ENV_FILE_LOADING: disabled
+          EVIDENCE_SHA256: ${{ inputs.schema_evidence_sha256 }}
+          REVIEW_MODE: ${{ vars.PRODUCTION_REVIEW_MODE }}
+          REVIEWED_EVIDENCE: ${{ vars.PRODUCTION_SCHEMA_EVIDENCE }}
+          BUILD_RUN_ID: ${{ inputs.build_run_id }}
+        run: |
+          set -Eeuo pipefail
+          umask 077
+          npm ci --ignore-scripts --prefix backend
+          npm run build --prefix backend
+          gh api "repos/$GITHUB_REPOSITORY/environments/production" > "$RUNNER_TEMP/production-environment.json"
+          gh api "repos/$GITHUB_REPOSITORY/environments/production/deployment-branch-policies?per_page=100" > "$RUNNER_TEMP/production-branches.json"
+          gh api "repos/$GITHUB_REPOSITORY/commits/main" > "$RUNNER_TEMP/current-main.json"
+          run_id="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/quality.yml/runs?branch=main&event=push&status=success&head_sha=$RELEASE_SHA&per_page=20" --jq '.workflow_runs[0].id')"
+          [[ "$run_id" =~ ^[0-9]+$ ]]
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id" > "$RUNNER_TEMP/quality-run.json"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/jobs?per_page=100" > "$RUNNER_TEMP/quality-jobs.json"
+          node ops/production-ci-preflight.cjs
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN_ID" > "$RUNNER_TEMP/production-build-run.json"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN_ID/jobs?per_page=100" > "$RUNNER_TEMP/production-build-jobs.json"
 
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: production-release
+          run-id: ${{ inputs.build_run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Bind downloaded build artifact to separately approved inputs
+        env:
+          RELEASE_SHA: ${{ inputs.release_sha }}
+          EVIDENCE_SHA256: ${{ inputs.schema_evidence_sha256 }}
+          BUILD_RUN_ID: ${{ inputs.build_run_id }}
+          IMAGE_DIGEST: ${{ inputs.image_digest }}
+          PACKAGE_CHECKSUM: ${{ inputs.release_package_sha256 }}
+        run: |
+          node ops/production-artifact-preflight.cjs
+          printf '%s  production-release.tar.gz\n' "$PACKAGE_CHECKSUM" | sha256sum --check --status
 
       - name: Deploy approved release through private pinned SSH
         env:
@@ -143,15 +241,17 @@ jobs:
           VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
           VPS_HOST_PUBLIC_KEY: ${{ secrets.VPS_HOST_PUBLIC_KEY }}
           RELEASE_SHA: ${{ inputs.release_sha }}
-          MANIFEST_SHA256: ${{ inputs.migration_manifest_sha256 }}
-          IMAGE_DIGEST: ${{ needs.build-release.outputs.image }}
-          PACKAGE_CHECKSUM: ${{ needs.build-release.outputs.package_checksum }}
+          EVIDENCE_SHA256: ${{ inputs.schema_evidence_sha256 }}
+          IMAGE_DIGEST: ${{ inputs.image_digest }}
+          PACKAGE_CHECKSUM: ${{ inputs.release_package_sha256 }}
+          APPROVAL_CHECKSUM: ${{ inputs.deployment_approval_sha256 }}
         run: |
           set -Eeuo pipefail
           umask 077
           [[ "$VPS_HOST" =~ ^[A-Za-z0-9.-]+$ && "$VPS_USER" == ubuntu ]]
-          [[ "$RELEASE_SHA" =~ ^[a-f0-9]{40}$ && "$MANIFEST_SHA256" =~ ^[a-f0-9]{64}$ ]]
+          [[ "$RELEASE_SHA" =~ ^[a-f0-9]{40}$ && "$EVIDENCE_SHA256" =~ ^[a-f0-9]{64}$ ]]
           [[ "$PACKAGE_CHECKSUM" =~ ^[a-f0-9]{64}$ ]]
+          [[ "$APPROVAL_CHECKSUM" =~ ^[a-f0-9]{64}$ ]]
           [[ "$IMAGE_DIGEST" =~ ^ghcr\.io/[a-z0-9][a-z0-9._/-]*@sha256:[a-f0-9]{64}$ ]]
           [[ "$VPS_HOST_PUBLIC_KEY" == ssh-ed25519\ * && "$VPS_HOST_PUBLIC_KEY" != *$'\n'* ]]
           printf '%s  production-release.tar.gz\n' "$PACKAGE_CHECKSUM" | sha256sum --check --status
@@ -166,16 +266,17 @@ jobs:
           ssh_options=(-F /dev/null -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UpdateHostKeys=no -o ConnectTimeout=10 -o "UserKnownHostsFile=$ssh_directory/known_hosts" -i "$ssh_directory/id_deploy")
           # Directories, registry pull credentials and private rescue access are
           # provisioned/verified separately; this job never changes firewall.
-          ssh "${ssh_options[@]}" "$VPS_USER@$VPS_HOST" "test -d /opt/sinegasi-prod/incoming && test ! -e /opt/sinegasi-prod/incoming/$RELEASE_SHA.tar.gz && test -f /opt/sinegasi-prod/config/approvals/$RELEASE_SHA.txt"
+          ssh "${ssh_options[@]}" "$VPS_USER@$VPS_HOST" "test -d /opt/sinegasi-prod/incoming && test ! -e /opt/sinegasi-prod/incoming/$RELEASE_SHA.tar.gz && test -f /opt/sinegasi-prod/config/approvals/$RELEASE_SHA.txt && test -f /opt/sinegasi-prod/config/approvals/$RELEASE_SHA.schema.json && test -f /opt/sinegasi-prod/config/schema-gate.json"
           scp "${ssh_options[@]}" production-release.tar.gz "$VPS_USER@$VPS_HOST:/opt/sinegasi-prod/incoming/$RELEASE_SHA.tar.gz"
-          ssh "${ssh_options[@]}" "$VPS_USER@$VPS_HOST" bash -s -- "$RELEASE_SHA" "$IMAGE_DIGEST" "$MANIFEST_SHA256" "$PACKAGE_CHECKSUM" <<'REMOTE'
+          ssh "${ssh_options[@]}" "$VPS_USER@$VPS_HOST" bash -s -- "$RELEASE_SHA" "$IMAGE_DIGEST" "$EVIDENCE_SHA256" "$PACKAGE_CHECKSUM" "$APPROVAL_CHECKSUM" <<'REMOTE'
             set -Eeuo pipefail
             umask 077
             test "$(id -un)" = ubuntu
             test "$(hostname)" = VM-11-154-ubuntu
-            release_sha=$1 image_digest=$2 manifest_sha256=$3 package_checksum=$4
-            [[ "$release_sha" =~ ^[a-f0-9]{40}$ && "$manifest_sha256" =~ ^[a-f0-9]{64}$ && "$package_checksum" =~ ^[a-f0-9]{64}$ ]]
+            release_sha=$1 image_digest=$2 evidence_sha256=$3 package_checksum=$4 approval_checksum=$5
+            [[ "$release_sha" =~ ^[a-f0-9]{40}$ && "$evidence_sha256" =~ ^[a-f0-9]{64}$ && "$package_checksum" =~ ^[a-f0-9]{64}$ ]]
             [[ "$image_digest" =~ ^ghcr\.io/[a-z0-9][a-z0-9._/-]*@sha256:[a-f0-9]{64}$ ]]
+            [[ "$approval_checksum" =~ ^[a-f0-9]{64}$ ]]
             test "$(stat -c '%U:%a' /opt/sinegasi-prod)" = ubuntu:700
             test "$(stat -c '%U:%a' /opt/sinegasi-prod/releases)" = ubuntu:700
             test "$(stat -c '%U:%a' /opt/sinegasi-prod/incoming)" = ubuntu:700
@@ -188,5 +289,5 @@ jobs:
             mkdir -- "$release_path" # Never overwrite an existing release.
             tar -xzf "$package_path" -C "$release_path"
             cd "$release_path"
-            bash ./ops/deploy-prod.sh "$release_sha" "$image_digest" "$manifest_sha256"
+            bash ./ops/deploy-prod.sh "$release_sha" "$image_digest" "$evidence_sha256" "$package_checksum" "$approval_checksum"
           REMOTE

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { privateMediaPathSchema } from '@/shared/api/privateMedia';
 import { decodeDataEnvelope, decodePaginatedResponse, decodeWithSchema } from '@/shared/api/responseValidation';
 import { actorSummarySchema, optionalTextSchema } from '@/shared/api/responseSchemas';
 import { BORROWING_STATUS_VALUES, type BorrowingRecord, type BorrowingSummary, type BorrowedItem, type ReturnAssessmentPreview, type ReturnEvidenceAccessRecord, type ReturnEvidenceUploadReservation, type ReturnReport, type ReturnReportEvidenceAccessRecord } from '../types/borrowing.types';
@@ -100,8 +101,8 @@ const returnEvidenceAccessRecordSchema: z.ZodType<ReturnEvidenceAccessRecord> = 
   mime_type: z.enum(['image/jpeg', 'image/png', 'image/webp']),
   file_size_bytes: z.number().int().positive(),
   created_at: optionalTextSchema,
-  access_url: z.string().url(),
-  expires_in_seconds: z.number().int().positive(),
+  access_url: privateMediaPathSchema,
+  expires_in_seconds: z.literal(0),
 }).loose();
 
 export const decodeReturnEvidenceAccessList = decodeDataEnvelope(z.array(returnEvidenceAccessRecordSchema));
@@ -116,8 +117,8 @@ const returnReportEvidenceSchema: z.ZodType<ReturnReportEvidenceAccessRecord> = 
   mime_type: z.enum(['image/jpeg', 'image/png', 'image/webp']),
   file_size_bytes: z.number().int().positive(),
   created_at: optionalTextSchema,
-  access_url: z.string().url(),
-  expires_in_seconds: z.number().int().positive(),
+  access_url: privateMediaPathSchema,
+  expires_in_seconds: z.literal(0),
   source: z.enum(['student_report', 'teacher_return']).nullable().optional().transform((v) => v ?? undefined),
 }).loose();
 
