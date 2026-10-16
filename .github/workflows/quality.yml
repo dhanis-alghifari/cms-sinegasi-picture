@@ -36,7 +36,11 @@ jobs:
         working-directory: backend
 
       - name: Verify deployment guardrails
-        run: node scripts/verify-guardrails.mjs
+        run: |
+          node scripts/verify-guardrails.mjs
+          bash -n ops/deploy-dev.sh
+          node --test ops/deploy-dev.test.mjs
+          DEV_TRUST_PROXY_ADDRESSES=192.0.2.10 docker compose --env-file /dev/null -f docker-compose.dev.yml config --no-env-resolution --quiet
 
       - name: Verify repository hygiene
         run: node --test scripts/check-repository-hygiene.test.mjs && node scripts/check-repository-hygiene.mjs

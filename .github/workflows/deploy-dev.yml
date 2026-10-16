@@ -19,7 +19,8 @@ on:
 
 jobs:
   quality-check:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     permissions:
       contents: read
     steps:
@@ -35,14 +36,20 @@ jobs:
         run: npm ci
         working-directory: backend
       - name: Verify Guardrails
-        run: node scripts/verify-guardrails.mjs
+        run: |
+          node scripts/verify-guardrails.mjs
+          bash -n ops/deploy-dev.sh
+          node --test ops/deploy-dev.test.mjs
+          DEV_TRUST_PROXY_ADDRESSES=192.0.2.10 docker compose --env-file /dev/null -f docker-compose.dev.yml config --no-env-resolution --quiet
       - name: Run backend quality checks
         run: npm run quality:check
         working-directory: backend
 
   deploy-backend-dev:
     needs: quality-check
-    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     permissions: {}
     steps:
       - name: Deploy to VPS (Development)
@@ -61,17 +68,21 @@ jobs:
           test -n "$VPS_HOST_PUBLIC_KEY"
           printf '%s %s\n' "$VPS_HOST" "$VPS_HOST_PUBLIC_KEY" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
-          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -i ~/.ssh/id_deploy -p 22 "$VPS_USER@$VPS_HOST" << 'EOF'
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -i ~/.ssh/id_deploy -p 22 "$VPS_USER@$VPS_HOST" bash -s -- "$GITHUB_SHA" << 'EOF'
             set -Eeuo pipefail
+            expected_sha="$1"
+            [[ "$expected_sha" =~ ^[a-f0-9]{40}$ ]]
             test "$(id -un)" = "ubuntu"
             test "$(stat -c '%U' /opt/sinegasi)" = "ubuntu"
             cd /opt/sinegasi
             test -z "$(git status --porcelain)"
             git fetch origin develop
+            test "$(git rev-parse origin/develop)" = "$expected_sha"
             git checkout develop
             test "$(git branch --show-current)" = "develop"
             git pull --ff-only origin develop
-            ./ops/deploy-dev.sh
+            test "$(git rev-parse HEAD)" = "$expected_sha"
+            DEV_APPLY_MIGRATIONS=false ./ops/deploy-dev.sh
             echo "✅ Development backend deployed successfully"
           EOF
         env:

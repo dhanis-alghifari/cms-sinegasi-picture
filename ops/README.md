@@ -46,15 +46,31 @@ git pull --ff-only origin develop
 
 The script deliberately does not use `--remove-orphans`. It verifies that
 `caddy-proxy` is running before and after the deploy, takes a lock so deploys
-cannot overlap, builds `api-dev`, runs every pending numbered SQL migration
-through `dist/scripts/applyMigrations.js`, recreates only `api-dev`, and waits
-for `/api/health`. Compose orphan notices are suppressed with
+cannot overlap, resolves the exact IPv4 Caddy peer on `caddy_net`, builds
+`api-dev`, recreates only `api-dev`, and waits for `/api/health`. Proxy trust
+is bounded to that peer and one hop; a missing/invalid address or a changed
+peer during rollout fails closed. No `.env` edits or network/Caddy changes are
+needed. Compose orphan notices are suppressed with
 `COMPOSE_IGNORE_ORPHANS=1`; the script still verifies `caddy-proxy` directly and
 never uses `--remove-orphans`.
 
-The existing **development** deployment remains in `/opt/sinegasi`. Its legacy
-automatic migration behavior is not the production database procedure; do not
-assume a `074` baseline proves that an existing schema is complete.
+The existing **development** deployment remains in `/opt/sinegasi`. Automatic
+deployment pins the tested `develop` SHA and forces `DEV_APPLY_MIGRATIONS=false`:
+it does not run SQL. Manual DEV schema work needs separate review/approval and
+an explicit `DEV_APPLY_MIGRATIONS=true` opt-in; never use that opt-in for an
+application-only hotfix. Do not assume a `074` baseline proves schema completeness.
+Production deployment and its approval requirements are unchanged.
+
+Offline regression checks use mocked Docker/Curl, not credentials or databases:
+
+```bash
+bash -n ops/deploy-dev.sh
+node --test ops/deploy-dev.test.mjs
+DEV_TRUST_PROXY_ADDRESSES=192.0.2.10 docker compose --env-file /dev/null -f docker-compose.dev.yml config --no-env-resolution --quiet
+```
+
+The final command validates the Compose model without resolving service env files
+or printing configuration values; it requires a compatible Docker Compose CLI.
 
 If Caddy is stopped or missing, the deploy fails closed. Restore it separately
 without orphan cleanup:
