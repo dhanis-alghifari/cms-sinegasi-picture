@@ -8,6 +8,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/shared/utils/cn';
 import { Button } from '@/shared/ui/primitives/button';
 import { Separator } from '@/shared/ui/primitives/separator';
+import { AuthenticatedImage } from '@/shared/ui/AuthenticatedImage';
 import { useIsMobile } from '@/shared/hooks/use-mobile';
 import { usePullToRefresh } from '@/shared/hooks/usePullToRefresh';
 import { formatRoleLabel } from '@/shared/utils/formatLabels';
@@ -184,9 +185,14 @@ export function DashboardLayout() {
         <Separator className="bg-sidebar-border" />
         <div className="shrink-0 p-3">
           <div className="mb-1 flex items-center gap-2.5 px-2 py-2">
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sidebar-accent">
-              <span className="text-xs font-medium uppercase text-sidebar-foreground/70">{user?.nama?.charAt(0) ?? '?'}</span>
-            </div>
+            <AuthenticatedImage
+              key={user?.id ?? 'anonymous'}
+              endpoint="/api/auth/me/photo"
+              cacheScope={user?.id ?? ''}
+              alt={`Foto profil ${user?.nama ?? 'pengguna'}`}
+              className="h-7 w-7 shrink-0 rounded-full bg-sidebar-accent"
+              fallback={<span aria-hidden="true" className="flex h-full w-full items-center justify-center text-xs font-medium uppercase text-sidebar-foreground/70">{user?.nama?.charAt(0) || '?'}</span>}
+            />
             <div className="min-w-0 flex-1">
               <p className="truncate text-xs font-medium text-sidebar-foreground">{user?.nama ?? 'Pengguna'}</p>
               <p className="truncate text-xs text-sidebar-foreground/60">{user ? formatRoleLabel(user.role) : ''}</p>

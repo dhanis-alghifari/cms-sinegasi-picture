@@ -46,15 +46,37 @@ git pull --ff-only origin develop
 
 The script deliberately does not use `--remove-orphans`. It verifies that
 `caddy-proxy` is running before and after the deploy, takes a lock so deploys
-cannot overlap, builds `api-dev`, runs every pending numbered SQL migration
-through `dist/scripts/applyMigrations.js`, recreates only `api-dev`, and waits
-for `/api/health`. Compose orphan notices are suppressed with
+cannot overlap, resolves the exact IPv4 Caddy peer on `caddy_net`, builds
+`api-dev`, recreates only `api-dev`, and waits for `/api/health`. Proxy trust
+is bounded to that peer and one hop; a missing/invalid address or a changed
+peer during rollout fails closed. No `.env` edits or network/Caddy changes are
+needed. Compose orphan notices are suppressed with
 `COMPOSE_IGNORE_ORPHANS=1`; the script still verifies `caddy-proxy` directly and
 never uses `--remove-orphans`.
 
-The existing **development** deployment remains in `/opt/sinegasi`. Its legacy
-automatic migration behavior is not the production database procedure; do not
-assume a `074` baseline proves that an existing schema is complete.
+The existing **development** deployment remains in `/opt/sinegasi`. Automatic
+deployment pins the tested `develop` SHA and forces `DEV_APPLY_MIGRATIONS=false`:
+it does not run SQL. Manual DEV schema work needs separate review/approval and
+an explicit `DEV_APPLY_MIGRATIONS=true` opt-in; never use that opt-in for an
+application-only hotfix. Do not assume a `074` baseline proves schema completeness.
+Production deployment and its approval requirements are unchanged.
+DEV background jobs are explicitly disabled too: restarting an application-only
+hotfix must not start overdue/billing database writes. Any DEV worker execution
+is a separate operational decision, not an implicit rollout side effect.
+
+Offline regression checks use mocked Docker/Curl, not credentials or databases:
+
+```bash
+bash -n ops/deploy-dev.sh
+node --test ops/deploy-dev.test.mjs
+node --test ops/verify-dev-compose.test.mjs
+node ops/verify-dev-compose.mjs
+```
+
+The final command replaces only the private env-file reference with `/dev/null`
+in memory, then validates the Compose model with synthetic proxy metadata without
+reading private env files or printing values. It requires a compatible Compose CLI;
+no temporary `.env` is created, and the deployment file itself is unchanged.
 
 If Caddy is stopped or missing, the deploy fails closed. Restore it separately
 without orphan cleanup:

@@ -36,7 +36,12 @@ jobs:
         working-directory: backend
 
       - name: Verify deployment guardrails
-        run: node scripts/verify-guardrails.mjs
+        run: |
+          node scripts/verify-guardrails.mjs
+          bash -n ops/deploy-dev.sh
+          node --test ops/deploy-dev.test.mjs
+          node --test ops/verify-dev-compose.test.mjs
+          node ops/verify-dev-compose.mjs
 
       - name: Verify repository hygiene
         run: node --test scripts/check-repository-hygiene.test.mjs && node scripts/check-repository-hygiene.mjs

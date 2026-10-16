@@ -177,6 +177,19 @@ export class AuthService {
     };
   }
 
+  async getOwnPhoto(user: JwtPayload): Promise<string | null> {
+    if (!this.repository.isConfigured()) {
+      throw new AuthServiceError(503, 'PHOTO_UNAVAILABLE', 'Foto profil belum dapat dimuat. Coba lagi.');
+    }
+    // Resolve ownership from the current account, never from a JWT studentId or caller input.
+    const { data: student, error } = await this.repository.findLinkedStudentPhoto(user.userId);
+    if (error) throw new AuthServiceError(503, 'PHOTO_UNAVAILABLE', 'Foto profil belum dapat dimuat. Coba lagi.');
+    if (student && student.is_active !== true) {
+      throw new AuthServiceError(401, 'ACCOUNT_INACTIVE', 'Akun siswa tidak aktif. Silakan login kembali.');
+    }
+    return student?.foto_url ?? null;
+  }
+
   async changePassword(user: JwtPayload, body: Record<string, unknown>): Promise<AuthPasswordChangeResult> {
     if (!this.repository.isConfigured()) {
       throw new AuthServiceError(503, 'DATABASE_UNAVAILABLE', 'Ganti password membutuhkan koneksi database aktif.');

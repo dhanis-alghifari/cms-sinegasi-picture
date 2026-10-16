@@ -55,6 +55,21 @@ paths:
       responses:
         '200': { description: Current authenticated user }
         '401': { description: Unauthenticated or inactive account }
+  /api/auth/me/photo:
+    get:
+      summary: Read the authenticated account's linked student portrait
+      description: Ownership is resolved by the current user ID, not a supplied student ID. No students.read grant is required. Responses are private and no-store; external image URLs are never fetched or redirected.
+      responses:
+        '200':
+          description: Private portrait bytes
+          content:
+            image/png: { schema: { type: string, format: binary } }
+            image/jpeg: { schema: { type: string, format: binary } }
+            image/webp: { schema: { type: string, format: binary } }
+        '204': { description: No linked student or supported photo }
+        '401': { description: Unauthenticated or inactive account }
+        '403': { description: Password change required }
+        '503': { description: Photo lookup unavailable }
   /api/auth/logout:
     post:
       summary: End the current session

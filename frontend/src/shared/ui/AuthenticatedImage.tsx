@@ -13,6 +13,7 @@ export function AuthenticatedImage({ endpoint, cacheScope, alt, className, fallb
   const imageRef = useRef<HTMLSpanElement>(null);
   const [isNearViewport, setIsNearViewport] = useState(() => typeof IntersectionObserver === 'undefined');
   const { src } = usePrivateImage(endpoint, isNearViewport && Boolean(cacheScope));
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
 
   useEffect(() => {
     const element = imageRef.current;
@@ -31,7 +32,7 @@ export function AuthenticatedImage({ endpoint, cacheScope, alt, className, fallb
 
   return (
     <span ref={imageRef} className={`relative block overflow-hidden ${className ?? ''}`}>
-      {src ? <img src={src} alt={alt} loading="lazy" decoding="async" className="h-full w-full object-cover" /> : fallback}
+      {src && src !== failedSrc ? <img src={src} alt={alt} loading="lazy" decoding="async" onError={() => setFailedSrc(src)} className="h-full w-full object-cover" /> : fallback}
     </span>
   );
 }

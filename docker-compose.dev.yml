@@ -22,7 +22,9 @@ services:
     environment:
       - NODE_ENV=development
       - PUBLIC_DEPLOYMENT=true
+      - BACKGROUND_JOBS_ENABLED=false
       - TRUST_PROXY=1
+      - TRUST_PROXY_ADDRESSES=${DEV_TRUST_PROXY_ADDRESSES:?Run ops/deploy-dev.sh to resolve the exact Caddy peer}
       - NTFY_ENABLED=true
     networks:
       - caddy_net

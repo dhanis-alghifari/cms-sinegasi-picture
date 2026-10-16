@@ -18,11 +18,14 @@ export type LinkedStudent = {
   is_active: boolean;
 };
 
+export type LinkedStudentPhoto = LinkedStudent & { foto_url: string | null };
+
 export interface AuthRepository {
   isConfigured(): boolean;
   findUserForLogin(username: string): Promise<{ data: AuthDatabaseUser | null; error: DatabaseError | null }>;
   findUserById(userId: string): Promise<{ data: AuthDatabaseUser | null; error: DatabaseError | null }>;
   findLinkedStudent(userId: string): Promise<{ data: LinkedStudent | null; error: DatabaseError | null }>;
+  findLinkedStudentPhoto(userId: string): Promise<{ data: LinkedStudentPhoto | null; error: DatabaseError | null }>;
   updatePasswordHash?(userId: string, passwordHash: string): Promise<void>;
   changePasswordAtomic(input: {
     userId: string;
@@ -101,6 +104,20 @@ export function createAuthRepository(client: SupabaseLike): AuthRepository {
         .maybeSingle();
       return {
         data: result.data ? result.data as LinkedStudent : null,
+        error: result.error || null,
+      };
+    },
+
+    async findLinkedStudentPhoto(userId) {
+      if (!client) return { data: null, error: null };
+      const result = await client
+        .from('students')
+        .select('id,is_active,foto_url')
+        .eq('user_id', userId)
+        .abortSignal(AbortSignal.timeout(2_000))
+        .maybeSingle();
+      return {
+        data: result.data ? result.data as LinkedStudentPhoto : null,
         error: result.error || null,
       };
     },
