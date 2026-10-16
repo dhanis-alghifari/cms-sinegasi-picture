@@ -10,6 +10,7 @@ function createRepository(overrides: Partial<AuthRepository> = {}): AuthReposito
     findUserForLogin: async () => ({ data: null, error: null }),
     findUserById: async () => ({ data: null, error: null }),
     findLinkedStudent: async () => ({ data: null, error: null }),
+    findLinkedStudentPhoto: async () => ({ data: null, error: null }),
     changePasswordAtomic: async () => ({ data: null, error: null }),
     ...overrides,
   };
