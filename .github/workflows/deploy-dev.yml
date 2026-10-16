@@ -40,7 +40,8 @@ jobs:
           node scripts/verify-guardrails.mjs
           bash -n ops/deploy-dev.sh
           node --test ops/deploy-dev.test.mjs
-          DEV_TRUST_PROXY_ADDRESSES=192.0.2.10 docker compose --env-file /dev/null -f docker-compose.dev.yml config --no-env-resolution --quiet
+          node --test ops/verify-dev-compose.test.mjs
+          node ops/verify-dev-compose.mjs
       - name: Run backend quality checks
         run: npm run quality:check
         working-directory: backend

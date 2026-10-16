@@ -66,11 +66,14 @@ Offline regression checks use mocked Docker/Curl, not credentials or databases:
 ```bash
 bash -n ops/deploy-dev.sh
 node --test ops/deploy-dev.test.mjs
-DEV_TRUST_PROXY_ADDRESSES=192.0.2.10 docker compose --env-file /dev/null -f docker-compose.dev.yml config --no-env-resolution --quiet
+node --test ops/verify-dev-compose.test.mjs
+node ops/verify-dev-compose.mjs
 ```
 
-The final command validates the Compose model without resolving service env files
-or printing configuration values; it requires a compatible Docker Compose CLI.
+The final command replaces only the private env-file reference with `/dev/null`
+in memory, then validates the Compose model with synthetic proxy metadata without
+reading private env files or printing values. It requires a compatible Compose CLI;
+no temporary `.env` is created, and the deployment file itself is unchanged.
 
 If Caddy is stopped or missing, the deploy fails closed. Restore it separately
 without orphan cleanup:
