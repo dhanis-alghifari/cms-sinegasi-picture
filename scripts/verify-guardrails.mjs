@@ -160,6 +160,8 @@ const prodCompose = readFile('docker-compose.prod.yml');
 const caddyCompose = readFile('docker-compose.caddy.yml');
 assert(devCompose.includes('TRUST_PROXY_ADDRESSES=${DEV_TRUST_PROXY_ADDRESSES:?'),
   '[GUARDRAIL VIOLATION] DEV proxy trust requires the observed exact Caddy peer.');
+assert(devCompose.includes('BACKGROUND_JOBS_ENABLED=false'),
+  '[GUARDRAIL VIOLATION] DEV application-only rollouts must not start database-writing workers.');
 
 // Rule 2.1: Loopback port isolation (never expose raw API ports to 0.0.0.0)
 assert(

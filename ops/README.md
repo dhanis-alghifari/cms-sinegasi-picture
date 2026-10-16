@@ -60,6 +60,9 @@ it does not run SQL. Manual DEV schema work needs separate review/approval and
 an explicit `DEV_APPLY_MIGRATIONS=true` opt-in; never use that opt-in for an
 application-only hotfix. Do not assume a `074` baseline proves schema completeness.
 Production deployment and its approval requirements are unchanged.
+DEV background jobs are explicitly disabled too: restarting an application-only
+hotfix must not start overdue/billing database writes. Any DEV worker execution
+is a separate operational decision, not an implicit rollout side effect.
 
 Offline regression checks use mocked Docker/Curl, not credentials or databases:
 

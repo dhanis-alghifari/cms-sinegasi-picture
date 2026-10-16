@@ -8,6 +8,7 @@ test('Compose CI adapter changes only the private env-file reference, not runtim
   const result = createValidationInput(source);
   assert.equal(result.replace('      - /dev/null', '      - ./backend/.env.development'), source);
   assert.match(result, /TRUST_PROXY=1/);
+  assert.match(result, /BACKGROUND_JOBS_ENABLED=false/);
   assert.ok(result.includes('TRUST_PROXY_ADDRESSES=${DEV_TRUST_PROXY_ADDRESSES:?'));
 });
 
