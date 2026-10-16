@@ -1,4 +1,5 @@
 import type { Plugin } from 'vite';
+import { PRODUCTION_HEADERS } from './productionHeaders.ts';
 
 const PRODUCTION_API = 'https://api.sinegasi.pictures';
 
@@ -30,12 +31,17 @@ export function validateProductionBuild(environment: Readonly<Record<string, str
 }
 
 export function productionBuildGate(): Plugin {
+  let launchBuild = false;
   return {
     name: 'sinegasi-production-build-gate',
     configResolved(config) {
-      if (config.command === 'build' && config.mode === 'production-launch') {
+      launchBuild = config.command === 'build' && config.mode === 'production-launch';
+      if (launchBuild) {
         validateProductionBuild(config.env);
       }
+    },
+    generateBundle() {
+      if (launchBuild) this.emitFile({ type: 'asset', fileName: '_headers', source: PRODUCTION_HEADERS });
     },
   };
 }
