@@ -198,9 +198,14 @@ The script checks ownership/permissions and approval binding, takes the same
 VPS lock as dev, pre-pulls the previous/new digests, checks OCI revision labels,
 and imports only the image's runtime config in a one-off container (no DB calls
 or workers). Both image preflights must pass before it recreates **only**
-`api-prod` on `127.0.0.1:3002`, with workers/NTFY/dev-auth disabled, exact production
+`api-prod` on `127.0.0.1:3002`, with workers/dev-auth disabled, exact production
 Supabase URL/CORS origin, and explicitly approved proxy hops. The existing dev
 and Caddy container IDs/running state must remain unchanged.
+
+The candidate release explicitly enables only generic ntfy alerts on the public
+`sinegasi-notif` topic; it does not change the currently deployed container until
+a separate approved rollout. See the [production ntfy runbook](../docs/security/production-ntfy.md)
+for the opt-in policy, Android subscription, limitations and rollback.
 
 Health is bounded to at most 30 checks (each Docker health inspection and HTTP
 check ≤3 seconds, with ≤2

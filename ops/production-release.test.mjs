@@ -341,3 +341,59 @@ test('runtime preflight binds disabled trust to none, never an implicit or stale
     assert.equal(status, addresses === 'none' ? 0 : 1);
   }
 });
+
+test('runtime preflight permits only the approved public generic ntfy configuration', () => {
+  const code = fs.readFileSync(path.join(root, 'ops/production-runtime-preflight.cjs'), 'utf8');
+  const safe = {
+    environment: 'production', publicDeployment: true, allowDevelopmentAuth: false, backgroundJobsEnabled: false,
+    supabaseUrl: 'https://pvbdiftvzoeelibxlxzb.supabase.co', corsOrigins: ['https://sinegasi.pictures'],
+    trustProxy: 1, trustedProxyAddresses: ['192.0.2.1'], port: 5001, host: '0.0.0.0',
+    r2AccountId: 'a'.repeat(32), r2BucketName: 'fixture-prod', r2AccessKeyId: 'fixture', r2SecretAccessKey: 'fixture', r2PublicDomain: '',
+    ntfyEnabled: true, ntfyPublicGenericEnabled: true, ntfyServerUrl: 'https://ntfy.sh', ntfyTopic: 'sinegasi-notif',
+    ntfyCashReviewTopic: 'sinegasi-notif', ntfyFrontendUrl: 'https://sinegasi.pictures', ntfyAccessToken: '',
+  };
+  function preflight(overrides = {}) {
+    let status = 0;
+    let stderr = '';
+    vm.runInNewContext(code, {
+      require: () => ({ runtimeConfig: { ...safe, ...overrides } }),
+      process: {
+        env: { PRODUCTION_TRUST_PROXY: '1', PRODUCTION_TRUST_PROXY_ADDRESSES: '192.0.2.1',
+          PRODUCTION_R2_ACCOUNT_ID: 'a'.repeat(32), PRODUCTION_R2_BUCKET: 'fixture-prod' },
+        stderr: { write: value => { stderr += value; } }, exit: value => { status = value; },
+      },
+    });
+    assert.doesNotMatch(stderr, /PRIVATE_|unapproved|fixture/);
+    return status;
+  }
+  assert.equal(preflight(), 0);
+  assert.equal(preflight({ ntfyCashReviewTopic: '' }), 0);
+  assert.equal(preflight({ ntfyEnabled: false }), 0);
+  for (const overrides of [
+    { ntfyEnabled: undefined }, { ntfyEnabled: 'true' },
+    { ntfyPublicGenericEnabled: false }, { ntfyPublicGenericEnabled: undefined }, { ntfyPublicGenericEnabled: 'true' },
+    { ntfyAccessToken: 'PRIVATE_TOKEN' }, { ntfyAccessToken: undefined },
+    { ntfyServerUrl: 'http://ntfy.sh' }, { ntfyServerUrl: 'https://ntfy.sh.unapproved.invalid' },
+    { ntfyServerUrl: 'https://fixture:fixture@ntfy.sh' }, { ntfyServerUrl: 'https://ntfy.sh/unapproved' },
+    { ntfyServerUrl: 'https://ntfy.sh?token=PRIVATE_TOKEN' }, { ntfyServerUrl: 'https://ntfy.sh#fixture' },
+    { ntfyServerUrl: 'https://ntfy.sh:444' }, { ntfyTopic: '' }, { ntfyTopic: 'sinegasi-dev-notif' },
+    { ntfyCashReviewTopic: 'unapproved' }, { ntfyCashReviewTopic: undefined },
+    { ntfyFrontendUrl: '' }, { ntfyFrontendUrl: 'https://unapproved.invalid' },
+    { ntfyFrontendUrl: 'https://sinegasi.pictures?token=PRIVATE_TOKEN' },
+    { backgroundJobsEnabled: true }, { allowDevelopmentAuth: true }, { publicDeployment: false },
+  ]) assert.equal(preflight(overrides), 1);
+});
+
+test('candidate Compose pins generic production push without changing DEV or workers', () => {
+  const production = fs.readFileSync(path.join(root, 'docker-compose.prod.yml'), 'utf8');
+  for (const line of [
+    'NTFY_PUBLIC_GENERIC_ENABLED=true', 'NTFY_SERVER_URL=https://ntfy.sh',
+    'NTFY_TOPIC=sinegasi-notif', 'NTFY_CASH_REVIEW_TOPIC=sinegasi-notif',
+    'NTFY_FRONTEND_URL=https://sinegasi.pictures', 'NTFY_ACCESS_TOKEN=', 'BACKGROUND_JOBS_ENABLED=false',
+  ]) assert.ok(production.split('\n').some(value => value.trim() === `- ${line}`), line);
+  assert.equal(production.split('\n').filter(value => /^- NTFY_ENABLED=(true|false)$/.test(value.trim())).length, 1);
+  assert.equal(production.includes('sinegasi-dev-notif'), false);
+  const development = fs.readFileSync(path.join(root, 'docker-compose.dev.yml'), 'utf8');
+  assert.equal(development.includes('NTFY_ENABLED=true'), true);
+  assert.equal(development.includes('NTFY_PUBLIC_GENERIC_ENABLED'), false);
+});
