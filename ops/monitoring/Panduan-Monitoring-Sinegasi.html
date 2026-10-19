@@ -1,0 +1,823 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data: file:; base-uri 'none'; form-action 'none'">
+  <title>Panduan Monitoring Sinegasi — Mulai dari Nol</title>
+  <style>
+    :root {
+      --paper: #fff; --page: #f1f4f7; --ink: #192a3b; --muted: #4a5c6c;
+      --line: #ccd6df; --blue: #164f86; --soft: #edf3f8;
+      --good: #1b603d; --good-bg: #eef7f0;
+      --warn: #765000; --warn-bg: #fff6de; --bad: #922e2e; --bad-bg: #fff0ee;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--ink); background: var(--page); color-scheme: light;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; line-height: 1.75; overflow-x: clip; }
+    main { max-width: 960px; margin: 0 auto; background: var(--paper); padding: 40px 48px 72px; }
+    h1, h2, h3 { line-height: 1.3; text-wrap: balance; }
+    h1 { font-size: clamp(1.9rem, 5vw, 2.75rem); margin: 8px 0 16px; max-width: 22ch; }
+    h2 { font-size: 1.65rem; margin: 0 0 20px; }
+    h3 { font-size: 1.2rem; margin-top: 30px; }
+    p { margin: 12px 0; }
+    a { color: var(--blue); text-underline-offset: 3px; overflow-wrap: anywhere; }
+    a:focus-visible { outline: 3px solid var(--blue); outline-offset: 4px; }
+    .eyebrow, .meta, figcaption, .source { color: var(--muted); font-size: .9rem; }
+    .eyebrow { font-weight: 700; letter-spacing: .05em; }
+    .lead { font-size: 1.14rem; max-width: 62ch; }
+    section { border-top: 1px solid var(--line); padding-top: 36px; margin-top: 40px; scroll-margin-top: 20px; }
+    .callout { border-left: 4px solid var(--blue); background: var(--soft); padding: 14px 18px; margin: 20px 0; }
+    .good { border-color: var(--good); background: var(--good-bg); }
+    .warning { border-color: var(--warn); background: var(--warn-bg); }
+    .danger { border-color: var(--bad); background: var(--bad-bg); }
+    .callout > :first-child { margin-top: 0; } .callout > :last-child { margin-bottom: 0; }
+    nav ol { padding-left: 24px; }
+    nav a { display: block; padding: 8px 0; min-height: 44px; }
+    .step { margin: 22px 0; padding-left: 18px; border-left: 2px solid var(--line); }
+    .step h3 { margin: 0 0 8px; }
+    .label { font-weight: 700; margin: 14px 0 5px; }
+    .command-label { color: var(--blue); font-weight: 700; margin-bottom: 4px; }
+    .example-label { color: var(--muted); font-weight: 700; margin-bottom: 4px; }
+    pre { margin: 0 0 14px; border: 1px solid var(--line); background: var(--soft); padding: 14px 16px; border-radius: 6px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: .91rem; line-height: 1.65; }
+    pre.output { background: #f7f8f9; border-left: 4px solid #738396; }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
+    ul, ol { padding-left: 25px; } li { margin: 8px 0; padding-left: 3px; }
+    table { border-collapse: collapse; width: 100%; font-size: .95rem; table-layout: fixed; margin: 18px 0; }
+    th, td { padding: 12px; text-align: left; vertical-align: top; border: 1px solid var(--line); overflow-wrap: anywhere; }
+    th { background: var(--soft); }
+    figure { margin: 20px 0; } img { display: block; width: 100%; height: auto; border: 1px solid var(--line); }
+    figcaption { margin-top: 8px; }
+    .back { display: inline-block; min-height: 44px; padding: 10px 0; font-size: .9rem; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { padding-left: 25px; position: relative; }
+    .checklist li::before { content: "□"; position: absolute; left: 0; }
+    .quick { border: 2px solid var(--blue); padding: 20px; margin-top: 24px; }
+    .quick h3 { margin-top: 0; } .source { margin-top: 16px; }
+    footer { border-top: 1px solid var(--line); margin-top: 40px; padding-top: 20px; }
+    @media (max-width: 600px) {
+      main { padding: 24px 18px 48px; } h2 { font-size: 1.4rem; }
+      th, td { padding: 8px; font-size: .87rem; }
+      .callout { padding: 12px; } .step { padding-left: 12px; }
+    }
+    @media print {
+      :root { background: white; } body { font-size: 10pt; line-height: 1.55; }
+      main { max-width: none; padding: 0; }
+      h1 { font-size: 27pt; } h2 { font-size: 18pt; } h3 { font-size: 13pt; }
+      section { break-before: page; border: 0; margin: 0; padding: 0; }
+      h2, h3, .label, .command-label, .example-label { break-after: avoid; }
+      tr, pre, figure, .callout { break-inside: avoid; }
+      thead { display: table-header-group; } pre { font-size: 8.5pt; }
+      a { color: inherit; } .back { display: none; }
+      img { max-height: 160mm; object-fit: contain; }
+      @page { size: A4; margin: 16mm; }
+    }
+  </style>
+</head>
+<body>
+<main id="atas">
+  <header>
+    <p class="eyebrow">BUKU PEGANGAN PEMILIK APLIKASI · VERSI PEMULA</p>
+    <h1>Monitoring Sinegasi, mulai dari nol</h1>
+    <p class="lead">Tujuan Anda bukan menghafal istilah server. Cukup bisa menjawab:
+      <strong>aplikasi bisa dipakai, ada masalah yang perlu ditangani, dan backup terakhir berhasil atau tidak?</strong></p>
+    <p class="meta">Disusun 19 Oktober 2026 · Bahasa Indonesia · Untuk Mac dan VPS Sinegasi</p>
+    <p><strong>Jika yang terlihat justru kode HTML di editor:</strong> buka Finder → folder proyek →
+      ops → monitoring. Klik kanan <strong>Panduan-Monitoring-Sinegasi.html</strong> →
+      <strong>Open With → Safari / Google Chrome</strong>. Setelah tampil seperti halaman buku, mulai latihan di bawah.</p>
+    <div class="callout">
+      <p><strong>Cara memakai buku ini:</strong> buka panduan di satu jendela, lalu praktik di jendela lain.
+        Ikuti satu langkah sampai selesai. Jangan membaca semua bab sekaligus.</p>
+      <p>Hari pertama: <a href="#persiapan">Bab 1</a> → <a href="#vps">Bab 2</a> →
+        <a href="#backup">Bab 5</a>. Setelah itu, pelajari grafik Cloudflare pada Bab 3–4.
+        Untuk pemeriksaan berikutnya, langsung buka <a href="#rutinitas">kartu pemeriksaan harian</a>.</p>
+    </div>
+    <p><strong>Panduan ini bukan dashboard live.</strong> Angka contoh tidak ikut berubah.
+      Perintah dan halaman dashboard di dalamnya digunakan untuk melihat kondisi terbaru.</p>
+  </header>
+
+  <nav aria-label="Daftar isi" id="daftar-isi">
+    <h2>Anda ingin mengecek apa?</h2>
+    <ol>
+      <li><a href="#persiapan">Mulai: buka apa, ketik di mana, dan password yang mana?</a></li>
+      <li><a href="#vps">Cek keadaan aplikasi/server dan baca laporan terminal</a></li>
+      <li><a href="#trafik">Baca screenshot Cloudflare dan lihat trafik pengunjung</a></li>
+      <li><a href="#keamanan">Lihat permintaan mencurigakan atau yang diblokir</a></li>
+      <li><a href="#backup">Cek cron backup: jam, bukti sukses, lokasi file, dan kegagalan</a></li>
+      <li><a href="#realtime">Pantau saat masalah sedang terjadi: seberapa real-time?</a></li>
+      <li><a href="#masalah">Jika bermasalah atau diduga kebobolan, lakukan apa?</a></li>
+      <li><a href="#database">Cari error database di Supabase</a></li>
+      <li><a href="#notifikasi">Cek jalur koneksi dan pemberitahuan email Cloudflare</a></li>
+      <li><a href="#uji">Tes monitoring dengan aman; bedanya dengan pentest</a></li>
+      <li><a href="#bantuan">Kamus, kendala umum, dan format laporan ke programmer</a></li>
+      <li><a href="#rutinitas">Kartu ringkas pemeriksaan harian dan simpan PDF di Mac</a></li>
+    </ol>
+  </nav>
+
+  <section id="persiapan" aria-labelledby="judul-persiapan">
+    <p class="eyebrow">BAB 1 · PERSIAPAN PERTAMA</p>
+    <h2 id="judul-persiapan">Mulai dari tiga tempat saja</h2>
+    <p>Bayangkan aplikasi seperti toko. Cloudflare mencatat pengunjung di pintu;
+      VPS menjalankan pekerjaan toko; Supabase menyimpan data. Catatan satu tempat
+      tidak otomatis mencakup semua tempat lainnya.</p>
+    <table>
+      <thead><tr><th>Tempat</th><th>Anda membuka apa?</th><th>Untuk melihat apa?</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Cloudflare</strong></td><td>Website Cloudflare di Chrome/Safari.</td><td>Trafik domain, pemblokiran web, koneksi Tunnel.</td></tr>
+        <tr><td><strong>VPS</strong></td><td>Terminal Mac, lalu masuk ke server.</td><td>Keadaan layanan, error API yang tercatat, SSH, dan backup.</td></tr>
+        <tr><td><strong>Supabase</strong></td><td>Website Supabase di Chrome/Safari.</td><td>Masalah database, bila perlu ditelusuri lebih jauh.</td></tr>
+      </tbody>
+    </table>
+    <p><strong>Tidak perlu membeli alat baru.</strong> Latihan ini menggunakan sistem yang sudah ada.
+      Langganan domain bukan otomatis langganan semua fitur keamanan Cloudflare.
+      Bila muncul tombol Upgrade, jangan membayar untuk mengikuti panduan ini.</p>
+
+    <h3>Aturan membaca kotak pada panduan</h3>
+    <p class="command-label">KETIK — kotak seperti ini berisi perintah yang boleh disalin.</p>
+    <pre><code>uname -s</code></pre>
+    <p class="example-label">CONTOH HASIL — ini untuk dibaca, jangan diketik.</p>
+    <pre class="output"><samp>Darwin</samp></pre>
+    <p><code>Darwin</code> berarti Anda masih berada di Mac. Setelah terhubung ke VPS,
+      hasil perintah yang sama adalah <code>Linux</code>.</p>
+    <p>Salin hanya isi kotak <strong>KETIK</strong>, lalu tekan <strong>Enter</strong> satu kali.
+      Jangan ikut menyalin <code>ubuntu@…$</code>, kata “CONTOH”, maupun hasil laporan.
+      Jika ada teks <code>phase=COMPLETE</code>, itu catatan proses, bukan perintah.</p>
+
+    <h3>Password yang mana?</h3>
+    <table>
+      <thead><tr><th>Yang muncul di layar</th><th>Yang Anda masukkan</th></tr></thead>
+      <tbody>
+        <tr><td>Dialog macOS/Keychain meminta izin atau membuka kunci.</td><td>Password login Mac/Keychain sesuai dialog, <strong>bukan</strong> password backup.</td></tr>
+        <tr><td><code>Enter passphrase for key…</code></td><td>Passphrase kunci SSH Anda, jika kunci itu dilindungi passphrase.</td></tr>
+        <tr><td><code>[sudo] password for ubuntu:</code></td><td>Password akun <strong>ubuntu pada VPS</strong>.</td></tr>
+        <tr><td>Permintaan password database atau key R2 saat hanya menjalankan laporan.</td><td>Tidak diharapkan. Berhenti dan periksa perintah; jangan memasukkan rahasia lain.</td></tr>
+      </tbody>
+    </table>
+    <p>Saat mengetik password di Terminal, huruf/bintang biasanya tidak terlihat.
+      Itu normal. Ketik atau tempel password yang benar, lalu Enter. Jangan kirim password ke chat.</p>
+    <div class="callout warning"><p><strong>Pemeriksaan bukan perbaikan otomatis.</strong>
+      Jangan klik Reset VPS, Change OS, Restart, mengubah DNS/WAF, atau mematikan keamanan
+      hanya karena ingin melihat log. Tindakan tersebut berbeda dari monitoring.</p></div>
+    <a class="back" href="#daftar-isi">Kembali ke daftar isi</a>
+  </section>
+
+  <section id="vps" aria-labelledby="judul-vps">
+    <p class="eyebrow">BAB 2 · LATIHAN PERTAMA</p>
+    <h2 id="judul-vps">Lihat laporan aplikasi melalui Terminal Mac</h2>
+    <p><strong>Hasil akhir latihan:</strong> Anda dapat menemukan waktu pemeriksaan,
+      keadaan API, error yang tercatat, dan ringkasan backup. Langkah ini tidak menjalankan backup atau restart.</p>
+
+    <div class="step">
+      <h3>Langkah 1 — buka Terminal di Mac</h3>
+      <p>Tekan <strong>⌘ + Space</strong>, ketik <strong>Terminal</strong>, lalu Enter.
+        Biarkan jendela panduan tetap terbuka.</p>
+    </div>
+    <div class="step">
+      <h3>Langkah 2 — masuk ke VPS</h3>
+      <p><strong>Sebelum mencoba:</strong> Mac ini harus sudah memiliki akses kunci SSH dan identitas
+        server yang diverifikasi operator. Perintah berikut bukan pemasang akses baru.
+        Jika memakai Mac baru atau belum pernah berhasil masuk, minta operator menyiapkannya;
+        jangan menghapus pemeriksaan keamanan agar koneksi dipaksa berhasil.</p>
+      <p class="command-label">KETIK DI TERMINAL MAC</p>
+      <pre><code>ssh -o StrictHostKeyChecking=yes -o ServerAliveInterval=30 ubuntu@43.157.242.8</code></pre>
+      <p class="label">Yang Anda tunggu</p>
+      <p>Bagian awal baris terminal menjadi <code>ubuntu@VM-11-154-ubuntu</code>.
+        Ini tanda perintah berikutnya akan dijalankan di VPS, bukan Mac.</p>
+      <p class="label">Jika berbeda</p>
+      <p><code>Permission denied (publickey)</code> berarti akses kunci SSH perlu diperiksa.
+        Jika ada peringatan host key berubah atau belum dikenal, berhenti dan minta verifikasi
+        identitas server. Jangan mengganti pemeriksaan host menjadi <code>no</code>.</p>
+    </div>
+    <div class="step">
+      <h3>Langkah 3 — tampilkan laporan</h3>
+      <p class="command-label">KETIK DI VPS, SETELAH BERHASIL MASUK</p>
+      <pre><code>sudo /usr/local/sbin/sinegasi-monitor report</code></pre>
+      <p>Bila diminta <code>[sudo] password for ubuntu</code>, gunakan password VPS.
+        Tunggu sampai laporan selesai dan baris perintah muncul kembali.</p>
+    </div>
+
+    <h3>Contoh cara membaca — bukan hasil live saat ini</h3>
+    <p>Potongan berikut adalah <strong>contoh buatan yang disederhanakan</strong>.
+      Laporan Anda lebih panjang. Cari label yang sama; angka dan waktunya bisa berbeda.</p>
+    <pre class="output"><samp>Waktu pemeriksaan : 19-10-2026 15:20:00 WIB
+Container API          : running
+Health container       : healthy (liveness, bukan tes DB)
+Restart / OOM          : 0 / TIDAK
+RAM terpakai           : 45.0%
+Disk root terpakai     : 38.0%
+Collector terakhir: 19-10-2026 15:18:00 WIB
+Collector segar   : YA (≤15 menit)
+API error tercatat: 0 status 5xx; 2 status 401; 0 status 403; 0 status 429
+Login terstruktur : BELUM ADA EVENT (bukan berarti tidak ada percobaan).
+Backup terakhir        : usia 3.00 jam; terlambat=TIDAK; jadwal=AKTIF</samp></pre>
+    <table>
+      <thead><tr><th>Cari baris ini</th><th>Artinya</th><th>Yang Anda lakukan</th></tr></thead>
+      <tbody>
+        <tr><td>Waktu pemeriksaan</td><td>Jam laporan dibuat, dalam WIB.</td><td>Pastikan ini waktu yang baru, bukan screenshot laporan lama.</td></tr>
+        <tr><td>Layanan <code>AKTIF</code>; API <code>running</code></td><td>Proses sedang berjalan.</td><td>Jika tidak aktif/restarting/exited, catat layanan dan jamnya; lanjut Bab 7.</td></tr>
+        <tr><td><code>healthy</code></td><td>Proses API menjawab pemeriksaan dasar.</td><td>Tetap cek satu halaman data; ini belum menguji seluruh database/fungsi aplikasi.</td></tr>
+        <tr><td>Restart / OOM</td><td>Jumlah restart tercatat; OOM berarti proses kehabisan memori.</td><td>Bandingkan laporan berikutnya. Restart bertambah berulang atau OOM=YA perlu ditelusuri.</td></tr>
+        <tr><td>RAM / Disk</td><td>Persentase ruang memori/penyimpanan yang digunakan.</td><td>Jika mendekati penuh dan terus naik, laporkan. Jangan menghapus log/backup sembarang.</td></tr>
+        <tr><td>Collector segar</td><td>Percobaan pengumpulan terakhir belum lebih dari 15 menit; percobaan itu bisa gagal.</td><td>Baca juga Peringatan histori. YA bukan jaminan log berhasil terbaca; jika TIDAK, periksa jadwal di bawah.</td></tr>
+        <tr><td>API error tercatat</td><td>Jumlah status dari sebagian request API yang tersimpan dalam 24 jam.</td><td>5xx baru/bertambah dan pengguna terganggu: periksa Error terbaru. 401 saja bukan bukti dibobol.</td></tr>
+        <tr><td>Backup terakhir</td><td>Usia unggahan sukses terakhir dan keadaan jadwal.</td><td>Jika terlambat=YA atau jadwal belum terkonfirmasi, buka laporan backup pada Bab 5.</td></tr>
+      </tbody>
+    </table>
+    <p><strong>CPU beban rata-rata 1m</strong> bukan persen. Misalnya angka 0,5 pada 2 CPU
+      tidak berarti CPU 50%. Angka yang terus tinggi bersama aplikasi lambat perlu ditelusuri;
+      satu angka sesaat belum cukup untuk memutuskan upgrade.</p>
+    <p><strong>Patokan awal, bukan alarm otomatis:</strong> disk 90% atau lebih berarti ruang tersisa makin sempit,
+      sehingga perlu ditinjau sebelum penuh. RAM tinggi yang berulang, OOM=YA, atau restart bertambah
+      bersama keluhan aplikasi juga perlu ditelusuri. Jangan menyimpulkan serangan hanya dari persentase resource.</p>
+
+    <h3>Tiga hasil yang harus dibedakan</h3>
+    <ul>
+      <li><strong>Normal menurut pemeriksaan terbatas:</strong> layanan berjalan, percobaan collector masih baru,
+        tidak ada peringatan histori/kegagalan baca atau peringatan lain, backup tidak terlambat, dan satu fungsi baca bekerja.</li>
+      <li><strong>Perlu diperiksa:</strong> layanan mati, error meningkat, backup gagal, atau
+        fungsi yang biasanya berjalan sekarang tidak bisa dipakai.</li>
+      <li><strong>Belum diketahui:</strong> muncul BELUM TERKONFIRMASI, gap/batas histori,
+        atau log belum ada. Ini bukan hasil sehat maupun hasil pasti diretas.</li>
+    </ul>
+    <p><strong>“Peringatan histori: ada gap/batas/kegagalan”</strong> berarti ada bagian catatan yang
+      tidak lengkap. Walaupun Collector segar=YA, angka error bisa kehilangan kejadian.
+      Catat peringatannya; jangan menafsirkan nol sebagai bukti aman.</p>
+
+    <h3>Jika ada “Error terbaru”, baca satu baris seperti ini</h3>
+    <p class="example-label">CONTOH BUATAN — BUKAN ERROR LIVE, JANGAN DIKETIK</p>
+    <pre class="output"><samp>19-10-2026 15:21:00 WIB | HTTP_5XX | GET /api/users | HTTP 500 | request=00000000-0000-4000-8000-000000000001</samp></pre>
+    <p>Bacanya: “Pukul 15.21 WIB, permintaan membaca daftar pengguna mendapat error server 500.”
+      Simpan waktu, fitur/rute, kode, dan request ID untuk programmer. <code>/api/users</code> adalah rute API,
+      <strong>bukan nama file source yang rusak</strong>. Programmer menentukan file/baris kode dari penelusuran ID dan sumber log yang sesuai.</p>
+    <p>Jika bagian ini kosong, artinya tidak ada error yang tersimpan dalam cakupan laporan tersebut.
+      Itu belum membuktikan seluruh aplikasi bebas error.</p>
+    <p class="callout warning"><strong>Belum ada event login bukan berarti tidak ada login.</strong>
+      Pada catatan penerapan 19 Oktober 2026 pukul 14.21 WIB, pencatatan login/aktivitas
+      dan error browser baru belum dirilis ke aplikasi produksi. Panduan ini tidak mengklaim
+      sudah mengecek ulang rilis live. Daftar nama pengguna online secara real-time belum tersedia dari laporan ini.</p>
+
+    <h3>Jika collector tidak segar: cek apakah jadwal pengumpulan aktif</h3>
+    <p class="command-label">KETIK DI VPS</p>
+    <pre><code>sudo bash /usr/local/lib/sinegasi-monitor-v1/control-vps.sh status</code></pre>
+    <p class="example-label">CONTOH HASIL YANG DIHARAPKAN — JANGAN DIKETIK</p>
+    <pre class="output"><samp>MONITOR_CRON_ENABLED — tiap 5 menit pada 03,08,...,58.</samp></pre>
+    <p>Ini membuktikan konfigurasi jadwal sesuai, <strong>bukan setiap pengumpulan berhasil</strong>.
+      Tunggu lewat waktu terjadwal berikutnya, jalankan <code>report</code> lagi, dan cocokkan
+      “Collector terakhir”. Bila masih tidak maju, laporkan; jangan memasang cron kedua.</p>
+    <p><strong>Selesai latihan:</strong> Anda bisa menunjuk waktu laporan, keadaan API, dan usia catatan aplikasi.
+      Untuk keluar dari VPS, ketik perintah ini:</p>
+    <p class="command-label">KETIK DI VPS BILA SUDAH SELESAI</p>
+    <pre><code>exit</code></pre>
+    <p>Terminal kembali ke Mac. Menutup SSH tidak mematikan cron atau aplikasi di VPS.</p>
+    <a class="back" href="#daftar-isi">Kembali ke daftar isi</a>
+  </section>
+
+  <section id="trafik" aria-labelledby="judul-trafik">
+    <p class="eyebrow">BAB 3 · PENGUNJUNG DAN TRAFIK</p>
+    <h2 id="judul-trafik">Apa arti grafik pada screenshot Anda?</h2>
+    <p><strong>Trafik</strong> artinya permintaan yang datang ke website. Satu kunjungan dapat
+      meminta banyak file: halaman, gambar, JavaScript, dan data API.</p>
+    <figure>
+      <a href="assets/cloudflare-overview-2026-10-19.png"><img src="assets/cloudflare-overview-2026-10-19.png" width="2772" height="1736" alt="Screenshot Cloudflare Overview domain sinegasi.pictures: pilihan 24 Hours, Unique Visitors 77, Total Requests 1.28k, Percent Cached 60.16 persen." loading="lazy"></a>
+      <figcaption>Screenshot asli Anda, 19 Oktober 2026. Ini gambar historis, bukan dashboard yang memperbarui data.
+        Klik gambar di HTML untuk membuka ukuran penuh; kembali dengan tombol Back browser.</figcaption>
+    </figure>
+    <table>
+      <thead><tr><th>Di screenshot</th><th>Bacanya seperti ini</th></tr></thead>
+      <tbody>
+        <tr><td><strong>24 Hours · 18–19 October</strong></td><td>Angka di bawah merangkum periode tersebut, bukan satu menit sekarang.</td></tr>
+        <tr><td><strong>Unique Visitors: 77</strong></td><td>Hitungan berbasis alamat IP yang dapat mencakup bot. Bukan 77 akun atau 77 orang sedang online.</td></tr>
+        <tr><td><strong>Total Requests: 1.28k</strong></td><td>Sekitar 1.280 permintaan; bukan 1.280 manusia.</td></tr>
+        <tr><td><strong>Percent Cached: 60.16%</strong></td><td>Bagian permintaan yang dilayani dari salinan sementara Cloudflare. Bukan nilai keamanan.</td></tr>
+        <tr><td><strong>Total Data Served: 6 MB</strong></td><td>Ukuran data yang dikirim dalam periode itu. Bukan ukuran backup maupun bukti data dicuri.</td></tr>
+        <tr><td><strong>Data Cached: 3 MB</strong></td><td>Data yang disajikan dari cache. Angka pembulatan tidak harus cocok persis dengan persentase permintaan.</td></tr>
+      </tbody>
+    </table>
+    <p>Garis naik berarti trafik bertambah, <strong>belum tentu serangan</strong>.
+      Garis nol bukan bukti server mati. <strong>Pada dashboard Cloudflare yang sudah dibuka, bukan gambar di atas,</strong>
+      arahkan kursor ke satu titik untuk melihat
+      nilai/jam, lalu cek zona waktu dashboard. <code>4 PM</code> berarti pukul 16.00
+      pada zona waktu grafik, tidak otomatis WIB.</p>
+    <p class="source">Rujukan: <a href="https://developers.cloudflare.com/analytics/faq/about-analytics/">cara Cloudflare menghitung pengunjung</a>.</p>
+
+    <div class="step">
+      <h3>Latihan — lihat trafik yang lebih dekat dengan waktu kejadian</h3>
+      <ol>
+        <li>Buka <a href="https://dash.cloudflare.com/">Cloudflare Dashboard</a> dan login seperti biasa.</li>
+        <li>Pilih website/domain <strong>sinegasi.pictures</strong>. Anda berada pada Overview seperti screenshot.</li>
+        <li>Gulir ke bawah grafik, cari <strong>View more analytics</strong> di <strong>kiri bawah</strong>.
+          Klik itu, bukan Download data di kanan.</li>
+        <li>Di Analytics pilih <strong>Traffic / HTTP Traffic</strong>, jika tab itu muncul.</li>
+        <li>Pilih rentang <strong>1 jam terakhir</strong> bila tersedia. Jika tidak, gunakan rentang
+          terpendek yang tersedia dan tulis rentangnya pada catatan Anda.</li>
+        <li>Jika ada <strong>Add filter</strong>, pilih <strong>Host / Hostname</strong>,
+          operator <strong>is / equals</strong>, nilai <code>api.sinegasi.pictures</code>, lalu Apply.
+          Jika filter tidak tersedia pada tampilan/paket Anda, lewati; jangan upgrade.</li>
+      </ol>
+      <p class="label">Yang Anda lihat</p>
+      <p>Grafik periode yang dipilih. Bila filter hostname diterapkan, trafik yang terlihat khusus hostname API.</p>
+      <p class="label">Cara mengambil kesimpulan</p>
+      <p>Tulis “Ada N permintaan pada rentang X untuk hostname Y”, bukan “Ada N pengguna online”.
+        Bandingkan periode yang sama panjang dan hostname yang sama.</p>
+      <p class="label">Jika halaman berbeda</p>
+      <p>Cari menu <strong>Analytics</strong> setelah domain dipilih. Menu lama bisa bernama
+        Analytics &amp; Logs. Bila masih tidak cocok, simpan screenshot menu, judul, dan pilihan waktu;
+        minta bantuan navigasi. Jangan membuat Worker agar grafik muncul.</p>
+    </div>
+    <figure>
+      <a href="assets/cloudflare-overview-lanjutan-2026-10-19.png"><img src="assets/cloudflare-overview-lanjutan-2026-10-19.png" width="2720" height="1590" alt="Bagian bawah screenshot Overview: View more analytics di kiri bawah grafik, Download data di kanan, dan Quick Actions di kolom kanan." loading="lazy"></a>
+      <figcaption>Petunjuk lokasi klik dari screenshot Anda: lihat bagian kiri bawah grafik.
+        Sakelar Quick Actions di kolom kanan bukan tombol monitoring live.</figcaption>
+    </figure>
+    <div class="callout warning"><p><strong>Jangan nyalakan Development Mode atau Under Attack Mode untuk membaca grafik.</strong>
+      Development Mode berkaitan dengan cache; Under Attack Mode mengubah pemeriksaan pengunjung.
+      “No Workers connected” juga tidak berarti aplikasi mati.</p></div>
+    <p class="source">Penjelasan cache: <a href="https://developers.cloudflare.com/cache/reference/development-mode/">Development Mode</a>.
+      Untuk monitoring pada panduan ini, tidak ada sakelar Quick Actions yang perlu Anda ubah.</p>
+    <p class="source">Rujukan navigasi: <a href="https://developers.cloudflare.com/analytics/account-and-zone-analytics/zone-analytics/">Zone Analytics</a>.
+      Tampilan dan filter dapat berbeda menurut paket. Pembacaan screenshot di atas bukan audit serangan.</p>
+    <a class="back" href="#daftar-isi">Kembali ke daftar isi</a>
+  </section>
+
+  <section id="keamanan" aria-labelledby="judul-keamanan">
+    <p class="eyebrow">BAB 4 · BOT DAN PERMINTAAN YANG DITOLAK</p>
+    <h2 id="judul-keamanan">Ada percobaan masuk atau serangan?</h2>
+    <p>Mulai dengan pertanyaan kecil: <strong>“Apakah ada permintaan yang ditindak Cloudflare?”</strong>
+      Itu berbeda dari “Apakah seseorang berhasil membobol aplikasi?”.</p>
+    <div class="step">
+      <h3>Latihan — buka satu kejadian keamanan</h3>
+      <ol>
+        <li>Di Cloudflare, tetap pilih domain <strong>sinegasi.pictures</strong>.</li>
+        <li>Di <strong>Analytics</strong>, cari bagian keamanan dan tab <strong>Events</strong>.
+          Navigasi lama dapat memakai <strong>Security → Events / Security Events</strong>.</li>
+        <li>Atur waktu sekitar kejadian, misalnya 1 jam terakhir bila tersedia.
+          Jika ada filter Hostname, pilih <code>api.sinegasi.pictures</code> untuk fokus API.</li>
+        <li>Klik satu baris kejadian. Baca <strong>waktu, hostname, path, action,
+          sumber/rule, dan Ray ID</strong>. Path berarti alamat bagian website yang diminta.</li>
+      </ol>
+      <p class="label">Jika tidak ada baris</p>
+      <p>Periksa waktu dan filter. Paket Free menggunakan sampel pada Events;
+        kosong bukan bukti tidak ada serangan. Jangan membuat serangan sendiri untuk mengisi tabel.</p>
+    </div>
+    <table>
+      <thead><tr><th>Action yang terbaca</th><th>Artinya</th><th>Tindakan awal</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Block</strong></td><td>Permintaan itu ditolak oleh Cloudflare.</td><td>Catat pola/jamnya. Jangan menyimpulkan hacker berhasil masuk.</td></tr>
+        <tr><td><strong>Managed Challenge</strong></td><td>Permintaan diberi pemeriksaan tambahan.</td><td>Periksa hasil/detail; ini bukan catatan login aplikasi berhasil.</td></tr>
+        <tr><td><strong>Skip / Allow / Log</strong>, jika ada</td><td>Baca detail aturan: melewati kontrol tertentu atau dicatat tidak sama dengan izin login aplikasi.</td><td>Cocokkan dengan error/aktivitas aplikasi, bukan menilai dari action saja.</td></tr>
+      </tbody>
+    </table>
+    <p>Events berisi kejadian dari produk keamanan, bukan daftar semua kunjungan atau semua login.
+      Satu request bisa menghasilkan lebih dari satu event.
+      <a href="https://developers.cloudflare.com/security/analytics/">Rujukan: Cloudflare Security Analytics</a>;
+      detail kejadian: <a href="https://developers.cloudflare.com/waf/analytics/security-events/">Security Events</a>.</p>
+    <h3>Contoh pola dan cara merespons</h3>
+    <ul>
+      <li><strong>Banyak permintaan ke alamat yang tidak ada</strong> dapat berasal dari pemindai bot.
+        Catat apakah diblokir dan apakah aplikasi terganggu. Jangan menganggap semua bot berhasil masuk.</li>
+      <li><strong>Login sah ikut ditolak</strong> memerlukan pemeriksaan rule dan limiter.
+        Jangan mematikan semua WAF atau mengizinkan seluruh negara/IP untuk mencoba.</li>
+      <li><strong>Lonjakan trafik + error 5xx + aplikasi lambat</strong> perlu ditelusuri segera,
+        tetapi penyebabnya bisa beban, bug, database, atau serangan.</li>
+    </ul>
+    <p><strong>Untuk serangan SSH:</strong> baca bagian SSH pada laporan VPS Bab 2.
+      SSH adalah pintu administrasi server, bukan login pengguna aplikasi.
+      WAF website Cloudflare tidak melindungi akses SSH langsung ke IP VPS.</p>
+    <p>Login SSH sukses dengan key bisa milik Anda atau otomatisasi. Cocokkan waktu kegiatan operator.
+      Jika ada sukses yang tidak dikenali, perlakukan sebagai dugaan insiden dan ikuti Bab 7.</p>
+    <a class="back" href="#daftar-isi">Kembali ke daftar isi</a>
+  </section>
+
+  <section id="backup" aria-labelledby="judul-backup">
+    <p class="eyebrow">BAB 5 · BACKUP DAN CRON</p>
+    <h2 id="judul-backup">Backup berhasil kapan, dan filenya di mana?</h2>
+    <p><strong>Cron</strong> adalah penjadwal otomatis. Memasang jadwal belum membuktikan pekerjaan selesai.
+      Anda perlu membedakan <strong>jadwal aktif → proses dimulai → backup selesai dan upload diverifikasi</strong>.</p>
+    <div class="callout">
+      <p><strong>Dua jadwal berbeda:</strong> backup database dijadwalkan <strong>setiap hari, Senin–Minggu, pukul 02.17 WIB</strong>.
+        Pengumpulan catatan monitor dijadwalkan <strong>setiap 5 menit</strong>, pada menit 03, 08, 13, …, 58.</p>
+      <p>Ini jadwal dari konfigurasi terdokumentasi, bukan klaim eksekusi terbaru sudah dicek pada saat Anda membaca.
+        Buka laporan berikut untuk memastikannya.</p>
+    </div>
+    <div class="step">
+      <h3>Langkah 1 — buka laporan backup</h3>
+      <p>Masuk VPS seperti Bab 2, lalu jalankan:</p>
+      <p class="command-label">KETIK DI VPS</p>
+      <pre><code>sudo /usr/local/sbin/sinegasi-backup report</code></pre>
+      <p>Perintah ini membaca bukti lokal; tidak menjalankan backup/restore baru atau membuka isi database.</p>
+      <p><strong>Jika laporan lengkap tidak muncul</strong> dan ada pesan
+        “PERLU DICEK: laporan tidak dapat dibaca lengkap”, jangan menganggap backup sukses maupun gagal total.
+        Jalankan perintah log tersanitasi di bagian bawah bab ini dan hubungi operator dengan pesan tersebut.
+        Jangan membuat atau mengganti file state sendiri.</p>
+    </div>
+    <h3>Langkah 2 — cari tujuh bagian ini</h3>
+    <table>
+      <thead><tr><th>Label di laporan</th><th>Arti dan pemeriksaan Anda</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Jadwal backup</strong></td><td>Harapannya AKTIF, setiap hari 02:17 WIB. Jika belum terkonfirmasi, jangan memasang jadwal duplikat.</td></tr>
+        <tr><td><strong>BACKUP BERHASIL TERAKHIR</strong></td><td>ID backup dan waktu Selesai (log). Pastikan waktunya masuk akal terhadap jadwal.</td></tr>
+        <tr><td><strong>Receipt lokal</strong></td><td>COCOK berarti bukti verifikasi upload/hash saat backup sesuai catatan lokal. Bukan pengecekan R2 langsung saat ini.</td></tr>
+        <tr><td><strong>Lokasi R2 / File</strong></td><td>Menunjukkan folder ID dan nama arsip terkait; gunakan untuk mencari di Cloudflare.</td></tr>
+        <tr><td><strong>Kegagalan terbaru / KEGAGALAN TERAKHIR</strong></td><td>Baca waktu, tahap, kode dan file. Backup lama sukses tidak meniadakan kegagalan yang lebih baru.</td></tr>
+        <tr><td><strong>Mulai via cron</strong></td><td>Bukti penjadwal memulai proses. Cocokkan dengan bukti selesai pada waktu/ID yang relevan.</td></tr>
+        <tr><td><strong>Kesimpulan</strong></td><td>NORMAL menurut bukti lokal, atau PERLU DICEK. Ini bukan jaminan database bisa dipulihkan seluruhnya.</td></tr>
+      </tbody>
+    </table>
+    <p>Jika “Mulai via cron” belum ditemukan, jangan langsung menyebut cron rusak:
+      bisa belum melewati jadwal pertama, jurnal tidak tersedia, atau backup terakhir dijalankan manual.
+      Catatan mulai tanpa selesai juga belum membuktikan sukses.</p>
+
+    <h3>Contoh sukses — temukan ID yang akan dicocokkan</h3>
+    <p class="example-label">CONTOH BUATAN YANG DIPOTONG — BUKAN HASIL SERVER SAAT INI</p>
+    <pre class="output"><samp>Jadwal backup      : AKTIF, setiap hari 02:17 WIB
+BACKUP BERHASIL TERAKHIR
+ID                 : 20261020T191700Z-00000000-0000-4000-8000-000000000001
+Selesai (log)      : 21-10-2026 02:17:50 WIB
+Receipt lokal      : COCOK; upload/hash diverifikasi saat backup
+Lokasi R2          : sinegasi-prod-db-backups/scheduled/v1/20261020T191700Z-00000000-0000-4000-8000-000000000001/</samp></pre>
+    <p>Bagian panjang setelah <code>v1/</code> sama dengan baris <strong>ID</strong>.
+      Pada latihan nyata gunakan ID dari laporan Anda, bukan ID contoh ini.
+      Huruf <code>Z</code> pada ID menandai UTC; jam Selesai (log) sudah ditampilkan dalam WIB.</p>
+
+    <h3>Langkah 3 — lihat file yang sama di Cloudflare R2</h3>
+    <ol>
+      <li>Di Cloudflare kembali ke tingkat akun, bukan hanya halaman domain.</li>
+      <li>Buka <strong>R2 / R2 Object Storage</strong> dari menu atau pencarian dashboard.</li>
+      <li>Pilih bucket <strong>sinegasi-prod-db-backups</strong>.</li>
+      <li>Buka prefix/folder <strong>scheduled → v1 → ID backup</strong> yang sama dengan laporan.</li>
+      <li>Cocokkan keberadaan nama berikut. Cukup lihat; jangan hapus, unduh, atau menampilkan key untuk latihan ini.</li>
+    </ol>
+    <p>Dengan contoh di atas, folder terakhir harus bernama
+      <code>20261020T191700Z-00000000-0000-4000-8000-000000000001</code>.
+      Jika ID berbeda, Anda sedang melihat backup lain; kembali dan cocokkan lagi.</p>
+    <table>
+      <thead><tr><th>Nama file</th><th>Isinya secara umum</th></tr></thead>
+      <tbody>
+        <tr><td><code>database.dump.age</code></td><td>Arsip database terenkripsi.</td></tr>
+        <tr><td><code>catalog.json.age</code></td><td>Katalog pendamping terenkripsi.</td></tr>
+        <tr><td><code>receipt.json</code></td><td>Catatan verifikasi ID/hash; bukan isi database.</td></tr>
+      </tbody>
+    </table>
+    <p>Jika ID tidak terlihat, periksa akun, bucket, prefix, filter pencarian dan izin Anda.
+      Bukti file terlihat sekarang + receipt lokal lebih informatif daripada mengandalkan satu tulisan “aktif”.
+      Keberadaan file tetap bukan bukti uji restore.</p>
+
+    <h3>Kalau gagal, cara membaca jam dan file yang terkait</h3>
+    <p class="example-label">CONTOH KEGAGALAN BUATAN — BUKAN KEJADIAN PADA SERVER ANDA</p>
+    <pre class="output"><samp>KEGAGALAN TERAKHIR (maksimum 5)
+Waktu              : 20-10-2026 02:18:10 WIB
+Tahap              : upload/verifikasi R2
+Kode               : UPLOAD_FAILED
+File terkait       : database.dump.age</samp></pre>
+    <p>Bacanya: “Pada 20 Oktober pukul 02.18.10 WIB, tahap upload arsip database gagal.”
+      <strong>File terkait bukan berarti file sumber pasti rusak.</strong> Bisa karena jaringan,
+      kredensial, izin, atau penyimpanan. Jika log lama tidak mencatat file, laporan akan menyebutnya tidak tercatat;
+      jangan menebak nama file atau membuat bukti historis baru.</p>
+    <p>Jika perlu rincian log yang telah disanitasi, gunakan:</p>
+    <p class="command-label">KETIK DI VPS</p>
+    <pre><code>sudo bash /usr/local/lib/sinegasi-scheduled-backup-v1/control-vps.sh logs</code></pre>
+    <p>Catat baris waktu/tahap/kode yang gagal. <code>phase=COMPLETE</code> adalah catatan selesai;
+      <code>phase=VERIFY_LOGIN status=OK</code> hanya berarti tahap login sukses, belum seluruh backup selesai.</p>
+    <div class="callout warning">
+      <p><strong>Backup ini bukan salinan seluruh aplikasi.</strong> Dump database tidak menyertakan isi file foto/video
+        di object storage, konfigurasi semua provider, atau seluruh VPS. Metadata Storage dalam DB berbeda dari isi berkasnya.</p>
+      <p><strong>Upload terverifikasi ≠ restore teruji.</strong> Uji pemulihan dilakukan terpisah dan terisolasi,
+        bukan dengan menimpa database produksi. Jangan menjalankan restore hanya untuk mengecek monitor.</p>
+    </div>
+    <p>Panduan backup lebih khusus: <a href="../scheduled-backup/Panduan-Cek-Cron-Backup-Sinegasi.html">buka panduan cek cron backup</a>.
+      Pengingat rotasi token: 18 September, 11 Oktober, dan 17 Oktober 2027; token pada screenshot kedaluwarsa 18 Oktober 2027.
+      Verifikasi lagi tanggal di dashboard ketika melakukan rotasi.</p>
+    <a class="back" href="#daftar-isi">Kembali ke daftar isi</a>
+  </section>
+
+  <section id="realtime" aria-labelledby="judul-realtime">
+    <p class="eyebrow">BAB 6 · SAAT MASALAH SEDANG TERJADI</p>
+    <h2 id="judul-realtime">“Real-time” itu yang mana?</h2>
+    <p>Anda belum memiliki satu layar yang menjamin seluruh error dan semua pengguna terlihat seketika.
+      Ada catatan yang langsung diperiksa, ada yang dikumpulkan berkala, dan ada yang belum tersedia.</p>
+    <table>
+      <thead><tr><th>Yang diperiksa</th><th>Kapan datanya dibaca?</th><th>Batas yang harus diingat</th></tr></thead>
+      <tbody>
+        <tr><td>Layanan, container, RAM/disk pada <code>report</code></td><td>Saat perintah laporan dijalankan.</td><td>Keadaan sesaat, bukan jaminan semua fitur bekerja.</td></tr>
+        <tr><td>Error/aktivitas aplikasi pada <code>report</code></td><td>Dari catatan tersimpan; collector dijadwalkan tiap 5 menit.</td><td>Collector terakhir adalah waktu percobaan. Baca peringatan gap/gagal juga; YA tidak menjamin seluruh catatan terbaca.</td></tr>
+        <tr><td>Grafik Cloudflare</td><td>Agregat periode terpilih, dapat tertunda/tersampel.</td><td>Bukan daftar orang online atau salinan semua request detik ini.</td></tr>
+        <tr><td>Network pada browser Anda</td><td>Saat browser Anda mengirim request.</td><td>Hanya aktivitas browser Anda, bukan seluruh pengguna.</td></tr>
+        <tr><td>Logs Supabase, live mode jika tersedia</td><td>Event layanan Supabase yang masuk.</td><td>Bukan seluruh error frontend/backend. Retensi mengikuti paket.</td></tr>
+      </tbody>
+    </table>
+    <h3>Prosedur sederhana ketika seseorang melapor error sekarang</h3>
+    <ol>
+      <li><strong>Tulis jam WIB dan gejala.</strong> Misalnya “15.20 WIB, halaman daftar gagal dimuat”.</li>
+      <li><strong>Jalankan laporan VPS sekali.</strong> Lihat layanan, API, RAM/disk dan waktu collector.</li>
+      <li><strong>Buka aplikasi sekali secara normal.</strong> Gunakan akun Anda yang sah dan halaman baca;
+        jangan mengulang simpan/hapus/transaksi yang hasilnya belum jelas.</li>
+      <li><strong>Baca status request di browser</strong> dengan langkah di bawah bila perlu.</li>
+      <li><strong>Sesudah satu waktu collector berikutnya</strong>, jalankan laporan lagi.
+        Bandingkan waktu dan error yang tercatat; jangan menunggu bila ada dugaan kebocoran nyata.</li>
+      <li><strong>Kirim bukti minimum ke programmer secara privat</strong> memakai format pada Bab 11.</li>
+    </ol>
+    <p>Membuka <code>report</code> setiap detik tidak membuat catatan aplikasi bertambah setiap detik.
+      Jika collector berhenti, mengulang laporan hanya menampilkan data lama lagi.</p>
+
+    <h3>Latihan opsional — melihat error Anda sendiri langsung di Chrome</h3>
+    <ol>
+      <li>Buka aplikasi Sinegasi di <strong>Chrome</strong>, bukan dashboard akun provider.</li>
+      <li>Tekan <strong>⌘ + ⌥ + I</strong>. Panel Developer Tools muncul.</li>
+      <li>Klik tab <strong>Network</strong>. Jika tersembunyi, cari pada tombol <strong>»</strong>.</li>
+      <li>Pilih filter <strong>Fetch/XHR</strong>. Buka satu halaman daftar/baca secara normal.</li>
+      <li>Klik request yang gagal. Pada <strong>Headers → General</strong>, baca <strong>Status Code</strong>.
+        URL penuh, header lain, dan Response bisa memuat data rahasia; jangan menyalin semuanya.</li>
+      <li>Catat hanya waktu, kode status, nama fitur, dan request ID aman bila tersedia.
+        Tutup panel dengan ⌘ + ⌥ + I setelah selesai.</li>
+    </ol>
+    <p>Jika tabel kosong, panel mungkin baru dibuka setelah request terjadi atau filter tidak cocok.
+      Navigasi baca sekali lagi; jangan mencoba login gagal berkali-kali.
+      Tidak ada status HTTP bila koneksi tidak memperoleh respons.</p>
+    <p class="callout danger"><strong>Jangan unggah HAR, “Copy as cURL”, token, cookie, Authorization header,
+      isi formulir, atau respons berisi data siswa.</strong> Bukti yang perlu dibagikan harus dipilih dan disamarkan dahulu.</p>
+    <p class="source">Rujukan: <a href="https://developer.chrome.com/docs/devtools/network/">Chrome DevTools Network</a>.</p>
+    <a class="back" href="#daftar-isi">Kembali ke daftar isi</a>
+  </section>
+
+  <section id="masalah" aria-labelledby="judul-masalah">
+    <p class="eyebrow">BAB 7 · MENENTUKAN TINDAKAN</p>
+    <h2 id="judul-masalah">Error biasa, percobaan ditolak, atau dugaan kebobolan?</h2>
+    <p><strong>HTTP status</strong> adalah kode jawaban atas satu permintaan.
+      Kode ini petunjuk, bukan kesimpulan keamanan seluruh aplikasi.</p>
+    <table>
+      <thead><tr><th>Kode</th><th>Bahasa sederhananya</th><th>Tindakan awal Anda</th></tr></thead>
+      <tbody>
+        <tr><td><strong>2xx</strong>, misalnya 200</td><td>Permintaan mendapat jawaban sukses menurut layanan.</td><td>Cek hasilnya sesuai hak akses; 200 tidak menjamin orang yang mengakses berhak.</td></tr>
+        <tr><td><strong>401</strong></td><td>Autentikasi tidak diterima; bisa sesi kedaluwarsa.</td><td>Login ulang secara normal bila perlu. Jangan menebak password berulang.</td></tr>
+        <tr><td><strong>403</strong></td><td>Akses ditolak oleh aplikasi atau lapisan keamanan.</td><td>Catat dari lapisan mana. Penolakan bisa benar, atau pengguna sah ikut terblokir.</td></tr>
+        <tr><td><strong>404</strong></td><td>Alamat/data tidak ditemukan atau sengaja tidak ditampilkan.</td><td>Cek rute yang sah; request bot ke rute asing belum berarti kebobolan.</td></tr>
+        <tr><td><strong>429</strong></td><td>Terlalu banyak percobaan; pembatas bekerja.</td><td>Hentikan pengulangan, ikuti waktu tunggu jika ada. Jangan pindah IP untuk melewati batas.</td></tr>
+        <tr><td><strong>500 / 502 / 503 / 504</strong></td><td>Error server, penghubung, layanan tidak tersedia, atau timeout.</td><td>Catat waktu + ID; cek laporan VPS, Tunnel, lalu database sesuai gejala.</td></tr>
+      </tbody>
+    </table>
+    <p><strong>Request ID API</strong> membantu programmer mencari satu request di aplikasi.
+      <strong>Ray ID Cloudflare</strong> membantu mencari kejadian di Cloudflare. Keduanya bukan ID yang sama.</p>
+
+    <h3>Pilih gejala Anda, lalu buka tempat yang tepat</h3>
+    <table>
+      <thead><tr><th>Gejala yang terlihat</th><th>Buka terlebih dahulu</th><th>Bagian yang mungkin perlu diperbaiki programmer</th></tr></thead>
+      <tbody>
+        <tr><td>Halaman kosong/putih, tombol tidak bekerja.</td><td>Browser Network; status deployment Cloudflare Pages.</td><td>Frontend/berkas rilis/koneksi API. Server running saja belum cukup.</td></tr>
+        <tr><td>502/503/504 atau API tak menjawab.</td><td>Laporan VPS dan Tunnel (Bab 9).</td><td>Container API, koneksi Tunnel, resource atau dependensi.</td></tr>
+        <tr><td>Daftar gagal dimuat atau simpan gagal.</td><td>Status request, waktu/ID, lalu Supabase Logs (Bab 8).</td><td>Validasi API, izin database, query atau dependensi. Tidak otomatis semuanya masalah DB.</td></tr>
+        <tr><td>Backup gagal/terlambat.</td><td>Laporan backup (Bab 5).</td><td>Penjadwal, koneksi DB/R2, izin atau kredensial backup.</td></tr>
+        <tr><td>Block/Challenge meningkat.</td><td>Cloudflare Events (Bab 4).</td><td>Rule/limiter yang relevan, hanya jika ada dampak atau salah blok.</td></tr>
+        <tr><td>Data privat terlihat oleh akun yang tidak berhak.</td><td>Catat bukti minimum; hentikan penelusuran.</td><td>Otorisasi/ownership backend dan aturan DB yang sesuai. Prioritaskan sebagai insiden.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Contoh “kebobolan” — hipotetis, bukan temuan pada Sinegasi</h3>
+    <ul>
+      <li>Akun biasa bisa membaca data privat akun lain yang seharusnya tidak dibagikan.</li>
+      <li>Ada akun admin/perubahan peran yang tidak dibuat operator sah.</li>
+      <li>Login SSH sukses atau perubahan deployment/DNS yang tidak dikenali setelah dikonfirmasi ke operator.</li>
+      <li>Kredensial rahasia dipublikasikan. Ini perlu ditangani walaupun belum ada bukti dipakai penyerang.</li>
+    </ul>
+    <p>IP asing, satu grafik tinggi, satu error 500, atau banyak Block <strong>belum cukup</strong> untuk menyatakan kebobolan.</p>
+    <div class="callout danger">
+      <h3>Jika dugaan akses tak sah kuat: urutan aman</h3>
+      <ol>
+        <li>Berhenti mencoba endpoint atau membuka data lain. Jangan mengunduh seluruh data untuk “memastikan”.</li>
+        <li>Catat waktu WIB, akun/peran yang digunakan, fitur, harapan vs hasil, request ID/Ray ID bila ada.
+          Simpan bukti minimum secara privat.</li>
+        <li>Hubungi programmer/operator dari perangkat yang dipercaya. Cocokkan kegiatan sah dan tentukan cakupan terdampak.</li>
+        <li>Bersama operator, batasi hanya akses/sesi/kredensial yang terdampak dengan jalur pemulihan tetap tersedia.
+          Mekanisme pencabutan sesi harus sesuai autentikasi aplikasi; logout saja belum tentu mencabut semua token.</li>
+        <li>Jangan Reset VPS, Change OS, menghapus log, atau restore produksi spontan.
+          Tindakan itu dapat menghilangkan bukti atau menambah kehilangan data.</li>
+        <li>Perbaiki akar masalah, uji di lingkungan terpisah, rilis terkontrol, lalu periksa ulang.
+          Mengganti password saja tidak membuktikan server bersih.</li>
+      </ol>
+    </div>
+    <a class="back" href="#daftar-isi">Kembali ke daftar isi</a>
+  </section>
+
+  <section id="database" aria-labelledby="judul-database">
+    <p class="eyebrow">BAB 8 · OPSIONAL: MENELUSURI DATABASE</p>
+    <h2 id="judul-database">Lihat error Supabase tanpa mengetik SQL</h2>
+    <p><strong>Database</strong> adalah penyimpanan data terstruktur aplikasi.
+      Buka bab ini bila masalah fitur perlu ditelusuri, bukan karena semua baris log harus Anda pahami sendiri.</p>
+    <div class="step">
+      <h3>Latihan — cari catatan sekitar jam masalah</h3>
+      <ol>
+        <li>Buka <a href="https://supabase.com/dashboard">Supabase Dashboard</a> dan login.</li>
+        <li>Pilih <strong>CMS Sinegasi Picture</strong>.
+          Cocokkan project ref <code>pvbdiftvzoeelibxlxzb</code>, agar tidak membaca project yang salah.</li>
+        <li>Klik <strong>Logs</strong>. Pilih <strong>Time Range</strong> sekitar kejadian;
+          mulai dari 15–60 menit. Cocokkan zona waktu. Jika tertulis UTC, WIB adalah UTC +7 jam.</li>
+        <li>Pilih <strong>Log Type → Postgres</strong> untuk masalah database.
+          Mulai dengan <strong>Level → Error</strong> bila tersedia. Jangan mengisi User dahulu.</li>
+        <li>Jika perlu, lihat <strong>PostgREST</strong> atau <strong>API Gateway</strong> untuk jalur API database;
+          keduanya jenis log berbeda. Tampilan lama dapat menyediakan koleksi terpisah pada sidebar.</li>
+        <li>Klik satu baris, buka <strong>Overview</strong>. Catat waktu dan kode error/SQLSTATE jika ada.
+          Baca detail secara privat; query/pesan dapat mengandung data siswa atau nilai sensitif.</li>
+        <li>Bila tersedia, <strong>live mode</strong> menampilkan event baru pada jenis log itu.
+          Matikan atau tinggalkan halaman setelah penelusuran; jangan memasang polling sendiri.</li>
+      </ol>
+      <p class="label">Jika kosong</p>
+      <p>Periksa rentang waktu, project, jenis log dan filter. Hapus filter tambahan satu per satu.
+        Kosong berarti tidak ada hasil pada pencarian itu, bukan jaminan semua sehat.
+        Tidak semua operasi sukses dicatat sebagai audit lengkap.</p>
+    </div>
+    <p><strong>Jangan menjalankan SQL perbaikan otomatis.</strong> Bila memakai Advisors/Security Advisor,
+      simpan nama temuan untuk review programmer. Jangan mengubah role, grants atau RLS secara massal.</p>
+    <p>Login aplikasi kustom tidak otomatis menjadi Supabase Auth log; berkas R2 juga tidak otomatis masuk log Supabase Storage.
+      Retensi dan kemampuan log bergantung paket.</p>
+    <p class="source">Navigasi diverifikasi melalui <a href="https://supabase.com/docs/guides/observability/logs">dokumentasi resmi Supabase Logs</a>
+      pada 19 Oktober 2026, bukan melalui pembukaan data produksi pada sesi penulisan ini.</p>
+    <a class="back" href="#daftar-isi">Kembali ke daftar isi</a>
+  </section>
+
+  <section id="notifikasi" aria-labelledby="judul-notifikasi">
+    <p class="eyebrow">BAB 9 · KONEKSI DAN EMAIL</p>
+    <h2 id="judul-notifikasi">Apakah jalur ke VPS sehat, dan ada pemberitahuan?</h2>
+    <p><strong>Tunnel</strong> adalah jalur penghubung Cloudflare ke layanan VPS.
+      Ini bukan database dan bukan halaman aplikasi itu sendiri.</p>
+    <h3>A. Cek Tunnel</h3>
+    <ol>
+      <li>Buka Cloudflare pada tingkat akun, bukan hanya Overview domain.</li>
+      <li>Pilih <strong>Networking → Tunnels</strong>, lalu <strong>sinegasi-prod-api</strong>.
+        Jika navigasi berbeda, gunakan pencarian dashboard untuk Cloudflare Tunnel.
+        Jangan memilih WAN/GRE/IPsec.</li>
+      <li>Baca status: <strong>Healthy</strong> berarti konektor terhubung;
+        <strong>Degraded</strong> berarti koneksi terganggu sebagian; <strong>Down</strong> berarti tidak terhubung.</li>
+      <li>Jika Degraded/Down, catat waktu dan cocokkan layanan Tunnel dalam laporan VPS.
+        Jangan hapus atau buat ulang Tunnel untuk latihan.</li>
+    </ol>
+    <p>Tunnel Healthy belum membuktikan API atau database sehat.
+      <a href="https://developers.cloudflare.com/tunnel/observability/">Rujukan: Tunnel observability</a>.</p>
+
+    <h3>B. Periksa alert yang sudah disiapkan</h3>
+    <p>Pada catatan 19 Oktober 2026, alert berikut pernah dikonfirmasi enabled;
+      penerimaan email belum dikonfirmasi. Periksa keadaan saat ini di dashboard Anda:</p>
+    <ol>
+      <li>Di tingkat akun pilih <strong>Alerts → Overview</strong>.
+        Navigasi lama dapat bernama Notifications.</li>
+      <li>Cari <strong>Sinegasi PROD - Tunnel Health</strong> dan <strong>Sinegasi - HTTP DDoS</strong>.</li>
+      <li>Periksa Enabled dan tujuan email yang Anda kenali. Tunnel alert seharusnya mengarah ke Tunnel produksi;
+        alert DDoS yang disiapkan berlaku tingkat akun.</li>
+      <li><strong>Opsional:</strong> menu <strong>⋯ → Test</strong> mengirim email uji berisi contoh,
+        bukan membuat serangan. Periksa Inbox/Spam email tujuan dan catat jam penerimaannya.</li>
+      <li>Jika tidak diterima, periksa tujuan, status/mute dan history alert. Jangan matikan server untuk mengetesnya.</li>
+    </ol>
+    <p class="source">Rujukan: <a href="https://developers.cloudflare.com/notifications/get-started/">Cloudflare Alerts dan Test</a>.</p>
+    <div class="callout warning"><p><strong>Tidak semua masalah otomatis mengirim email.</strong>
+      Alert DDoS bukan pemberitahuan setiap bot. Collector lokal tidak dapat memberi tahu ketika VPS yang sama mati total.
+      Belum ada janji semua error aplikasi/backup masuk email. Karena itu pemeriksaan harian tetap diperlukan.</p></div>
+    <a class="back" href="#daftar-isi">Kembali ke daftar isi</a>
+  </section>
+
+  <section id="uji" aria-labelledby="judul-uji">
+    <p class="eyebrow">BAB 10 · LATIHAN AMAN</p>
+    <h2 id="judul-uji">Menguji monitoring tidak perlu menyerang aplikasi</h2>
+    <h3>Latihan yang dapat dilakukan dari panduan ini</h3>
+    <ol>
+      <li>Catat waktu WIB dan “Collector terakhir” pada laporan VPS.</li>
+      <li>Buka satu halaman baca yang biasa Anda gunakan dengan akun sah. Jangan mengubah data.</li>
+      <li>Di Network browser, perhatikan satu respons berhasil atau error yang memang terjadi.</li>
+      <li>Sesudah jadwal collector berikutnya, tampilkan laporan VPS lagi.
+        Periksa apakah waktunya maju. Angka request adalah subset 24 jam, jadi jangan menuntut bertambah tepat satu.</li>
+      <li>Jika event tidak terlihat, periksa cakupan, gap dan versi aplikasi; jangan sengaja membuat error 500 atau brute force.</li>
+    </ol>
+    <p><strong>Berhasil membaca monitor</strong> berarti Anda bisa menemukan waktu, cakupan dan bukti,
+      bukan membuktikan aplikasi kebal serangan.</p>
+    <h3>Bedanya dengan pentest</h3>
+    <p><strong>Pentest</strong> adalah pengujian keamanan yang sengaja mencoba kelemahan.
+      Itu pekerjaan terpisah yang memerlukan target, akun/data uji, waktu, batas permintaan,
+      izin provider yang relevan, dan aturan berhenti yang disepakati.</p>
+    <p>Untuk pemula pada aplikasi live, jangan menjalankan SQLMap, scanner otomatis, fuzzing,
+      tebak password, flood/DoS, mengubah role, atau mencoba ID data siswa lain.
+      Pengujian aktif dimulai di staging terisolasi dengan data sintetis dan kredensial terpisah,
+      bukan menyalin data produksi.</p>
+    <p>Kepemilikan domain tidak otomatis memberi izin menguji infrastruktur bersama provider.
+      Kebijakan: <a href="https://developers.cloudflare.com/fundamentals/reference/scans-penetration/">Cloudflare</a> ·
+      <a href="https://supabase.com/docs/guides/security/security-testing">Supabase</a>.
+      Izin pentest Sumopod untuk skenario Anda perlu diverifikasi; panduan ini bukan penggantinya.</p>
+    <p><strong>Tidak ada pentest produksi dijalankan saat panduan ini ditulis.</strong></p>
+    <a class="back" href="#daftar-isi">Kembali ke daftar isi</a>
+  </section>
+
+  <section id="bantuan" aria-labelledby="judul-bantuan">
+    <p class="eyebrow">BAB 11 · SAAT BINGUNG</p>
+    <h2 id="judul-bantuan">Kendala umum dan cara meminta bantuan</h2>
+    <table>
+      <thead><tr><th>Yang terjadi</th><th>Lakukan ini</th></tr></thead>
+      <tbody>
+        <tr><td><code>No such file</code> untuk perintah VPS saat prompt masih nama Mac.</td><td>Anda belum berada di VPS. Masuk SSH dahulu; jangan memasang script server ke Mac.</td></tr>
+        <tr><td><code>Broken pipe / Connection reset</code>.</td><td>Sesi SSH terputus. Masuk lagi dari Mac. Ini sendiri tidak membuktikan cron berhenti.</td></tr>
+        <tr><td>Perintah tidak ditemukan padahal sudah di VPS.</td><td>Pastikan host benar dan salinan perintah utuh. Laporkan pesan; jangan mengunduh installer acak.</td></tr>
+        <tr><td>Terlihat <code>&gt;</code> atau prompt belum kembali.</td><td>Bisa ada kutip/perintah tempelan belum lengkap. Untuk perintah cek interaktif ini, tekan Control+C satu kali, lalu salin satu perintah utuh. Jangan memutus proses backup/restore yang sengaja sedang berjalan.</td></tr>
+        <tr><td>Laporan menyebut collector sibuk.</td><td>Tunggu sebentar, coba satu kali lagi. Jika berulang, laporkan; jangan menghapus file lock/state.</td></tr>
+        <tr><td>Cloudflare/Supabase menampilkan Upgrade atau Access denied.</td><td>Jangan beli atau menambah izin sendiri. Gunakan tampilan yang tersedia dan minta pemeriksaan akses kepada pemilik akun.</td></tr>
+        <tr><td>Cloudflare banyak request, VPS lebih sedikit.</td><td>Cache/blok di Cloudflare, hostname berbeda, health yang dikecualikan, serta subset log dapat membuat angka berbeda. Samakan waktu dan cakupan dahulu.</td></tr>
+        <tr><td>Tidak ada nama orang online.</td><td>Grafik IP bukan akun. Aktivitas ID ≤10 menit juga bukan bukti sedang online; pencatatan baru harus sudah dirilis agar event tersedia.</td></tr>
+        <tr><td>CI/Checks GitHub hijau.</td><td>Tes kode lulus; bukan bukti kode sudah dirilis atau produksi sehat. Monitoring harian tidak membutuhkan klik Merge/Deploy.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Kamus singkat</h3>
+    <p><strong>API:</strong> layanan yang menjawab permintaan data aplikasi.
+      <strong>Log:</strong> catatan kejadian. <strong>Collector:</strong> program yang mengumpulkan sebagian catatan.
+      <strong>Container:</strong> wadah proses aplikasi di VPS. <strong>Hostname:</strong> nama alamat, misalnya api.sinegasi.pictures.
+      <strong>WAF:</strong> penyaring permintaan web. <strong>Bot:</strong> program otomatis, tidak selalu jahat.
+      <strong>Deploy/rilis:</strong> memasang versi aplikasi. <strong>Restore:</strong> memulihkan data dari backup.</p>
+
+    <h3>Salin template ini ke catatan privat saat ada masalah</h3>
+    <p class="example-label">TEMPLATE CATATAN — BUKAN PERINTAH TERMINAL</p>
+    <pre class="output"><samp>Waktu kejadian (tanggal + WIB):
+Fitur/halaman yang dibuka:
+Yang seharusnya terjadi:
+Yang benar-benar terjadi:
+Status HTTP (jika ada):
+Request ID API / Ray ID Cloudflare (beri label):
+Container API dan Collector terakhir:
+Backup terakhir / kode gagal (jika terkait):
+Apakah operator lain sedang rilis/perawatan:
+Tindakan yang sudah dicoba (sekali, tanpa rahasia):</samp></pre>
+    <p>Kirim melalui saluran privat yang disepakati. Repositori GitHub ini publik:
+      jangan menempelkan bukti berisi IP pengunjung, identitas siswa, respons data, token, atau log mentah di issue/PR publik.
+      Request/akun ID juga tetap perlu diperlakukan sebagai data privat operasional.</p>
+    <p>Monitor sengaja tidak menampilkan password, token, nama pengguna, IP mentah, body formulir,
+      atau stack trace lengkap. Jadi laporan ini <strong>bukan tempat semua rincian error dikumpulkan</strong>.
+      Programmer menelusuri sumber yang sesuai dengan waktu dan ID, dengan akses terbatas.</p>
+    <a class="back" href="#daftar-isi">Kembali ke daftar isi</a>
+  </section>
+
+  <section id="rutinitas" aria-labelledby="judul-rutinitas">
+    <p class="eyebrow">BAB 12 · HALAMAN YANG DIPAKAI SETIAP HARI</p>
+    <h2 id="judul-rutinitas">Kartu pemeriksaan harian</h2>
+    <p>Setelah latihan pertama, gunakan urutan singkat ini. Tidak perlu membuka semua dashboard
+      setiap menit. Jika ada keluhan/alert, langsung gunakan Bab 6–7.</p>
+    <ol class="checklist">
+      <li><strong>Buka satu halaman aplikasi secara normal.</strong> Pastikan satu halaman data yang boleh Anda baca berhasil dimuat.</li>
+      <li><strong>Laporan VPS:</strong> baca waktu, layanan/API, collector segar, peringatan/error baru, dan RAM/disk.</li>
+      <li><strong>Laporan backup:</strong> cari sukses terbaru, jadwal aktif, kegagalan sesudah sukses, serta kesimpulan.
+        Setelah 02.17 WIB, beri waktu proses selesai; periksa jam selesai, bukan hanya jam mulai.</li>
+      <li><strong>Cloudflare Events dan alert:</strong> cek periode yang sama, tindakan dan pola yang berdampak.
+        Angka trafik tinggi sendirian bukan alasan mengubah keamanan.</li>
+      <li><strong>Catat hasil:</strong> normal menurut pemeriksaan terbatas / perlu diperiksa / belum diketahui,
+        beserta waktu. Jika bermasalah, kirim bukti minimum, bukan semua log.</li>
+    </ol>
+    <div class="quick">
+      <h3>Tiga perintah yang paling sering dipakai</h3>
+      <p class="command-label">1. DI MAC — MASUK VPS</p>
+      <pre><code>ssh -o StrictHostKeyChecking=yes -o ServerAliveInterval=30 ubuntu@43.157.242.8</code></pre>
+      <p class="command-label">2. DI VPS — LAPORAN APLIKASI/SERVER</p>
+      <pre><code>sudo /usr/local/sbin/sinegasi-monitor report</code></pre>
+      <p class="command-label">3. DI VPS — LAPORAN BUKTI BACKUP</p>
+      <pre><code>sudo /usr/local/sbin/sinegasi-backup report</code></pre>
+      <p>Jalankan satu per satu, bukan sekaligus. Selesai? Ketik <code>exit</code> untuk kembali ke Mac.</p>
+    </div>
+    <h3>Pemeriksaan berkala di luar rutinitas harian</h3>
+    <ul>
+      <li><strong>Mingguan:</strong> tinjau tren resource/error dan siapa saja operator sah; cocokkan penerimaan alert uji bila belum pernah diuji.</li>
+      <li><strong>Bulanan:</strong> tinjau uji restore terisolasi dengan operator, kapasitas/retensi, dan perubahan izin/rilis.
+        Jangan menganggap receipt menggantikan uji restore.</li>
+      <li><strong>Sebelum token kedaluwarsa:</strong> ikuti pengingat Google Calendar, rotasi terkontrol,
+        verifikasi backup dengan kredensial baru, lalu cabut yang lama sesuai prosedur.</li>
+    </ul>
+
+    <h3>Buka dan simpan di Mac</h3>
+    <ol>
+      <li>Di Finder buka folder proyek → <strong>ops → monitoring</strong>.</li>
+      <li>Klik kanan <strong>Panduan-Monitoring-Sinegasi.html</strong> → <strong>Open With → Safari / Google Chrome</strong>.
+        Jangan membaca source HTML di editor sebagai panduan.</li>
+      <li>Untuk mencari topik, tekan <strong>⌘F</strong>, ketik misalnya “backup”, “401”, atau “password”.
+        Atau gunakan daftar isi di awal.</li>
+      <li>Untuk PDF, tekan <strong>⌘P</strong>. Di Chrome pilih Destination → Save as PDF;
+        di Safari pilih menu PDF → Save as PDF. Pilih folder Documents atau lokasi privat yang Anda inginkan.</li>
+      <li>Jika memindahkan HTML, sertakan folder <strong>assets</strong> di sebelahnya agar screenshot tetap tampil.
+        PDF hasil cetak menyertakan gambar dan lebih mudah dipindahkan sebagai satu file.</li>
+    </ol>
+    <p>HTML ini tidak memakai script, pelacak, font eksternal, atau koneksi dashboard otomatis.
+      Membukanya tidak mengakses server. Link dashboard/sumber baru terbuka ketika Anda klik.</p>
+    <div class="callout good"><p><strong>Titik mulai Anda sekarang:</strong> praktikkan Bab 2 sampai laporan muncul,
+      lalu Bab 5 sampai bisa menyebutkan kapan backup sukses terakhir dan apakah ada kegagalan lebih baru.
+      Anda tidak perlu menghafal seluruh buku untuk mulai monitoring.</p></div>
+    <a class="back" href="#daftar-isi">Kembali ke daftar isi</a>
+  </section>
+
+  <footer>
+    <h2>Batas dokumen dan rujukan teknis</h2>
+    <p>Dokumen ini ditulis ulang untuk pemula berdasarkan source monitor/backup dan screenshot Anda.
+      Status penerapan yang disebut adalah catatan bertanggal, bukan pemeriksaan live baru.
+      Tidak ada deployment, perubahan pengaturan produksi, pembelian paket, atau pentest dilakukan untuk penulisan ini.</p>
+    <p>Catatan lokal monitor dibatasi retensi/kapasitas; kejadian lama, jeda pengumpulan,
+      rotasi log atau kegagalan membaca dapat membuat histori tidak lengkap.
+      Tidak ada baris error tersimpan bukan bukti aplikasi bebas error atau serangan.</p>
+    <p>Untuk programmer/operator: <a href="README.md">README teknis monitoring</a> ·
+      <a href="../scheduled-backup/README.md">README teknis backup</a>.
+      Menu provider dapat berubah; bila tidak cocok, hentikan di halaman yang berbeda dan minta bantuan navigasi,
+      tanpa mengubah keamanan atau membagikan data sensitif.</p>
+    <p class="meta">Versi panduan: 19 Oktober 2026 · Gunakan hanya untuk sistem Sinegasi yang Anda kelola.</p>
+  </footer>
+</main>
+</body>
+</html>

@@ -6,6 +6,7 @@ import { authenticatedRouteSchema } from '../../shared/http/schemas/core.schema.
 import { sendPrivateImageReference } from '../../shared/http/sendPrivateImageReference.js';
 import { AuthService, AuthServiceError } from './auth.service.js';
 import { getLoginRateLimitKeys, LOGIN_RATE_LIMIT_WINDOW_SECONDS, type LoginRateLimiter } from './loginRateLimiter.js';
+import { markVerifiedMonitoringActor } from '../../shared/monitoring/requestMonitoring.js';
 
 export interface AuthRoutesOptions {
   authService: AuthService;
@@ -77,6 +78,7 @@ const authRoutes: FastifyPluginAsync<AuthRoutesOptions> = async (fastify, option
         return sendLoginLimiterUnavailable(reply);
       }
       const token = fastify.jwt.sign(result.payload, { expiresIn: '8h' });
+      markVerifiedMonitoringActor(request, result.payload);
       return reply.send({ success: true, token, user: result.user });
     } catch (error) {
       if (error instanceof AuthServiceError && error.errorCode === 'INVALID_CREDENTIALS') {

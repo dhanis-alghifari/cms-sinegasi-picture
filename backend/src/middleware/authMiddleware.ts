@@ -3,6 +3,7 @@ import { CAPABILITY_VALUES, getCapabilities, hasCapability, setRoleCapabilities,
 import { supabase } from '../services/supabaseClient.js';
 import { runtimeConfig } from '../config/env.js';
 import type { JwtPayload, UserRole } from '../shared/auth/auth.types.js';
+import { markVerifiedMonitoringActor } from '../shared/monitoring/requestMonitoring.js';
 import {
   clearAuthStateCache,
   getAuthoritativeUser,
@@ -148,6 +149,7 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
         message: 'Anda wajib mengganti password default sebelum dapat menggunakan aplikasi.',
       });
     }
+    markVerifiedMonitoringActor(request, currentUser);
   } catch (err) {
     if (err instanceof AuthStateUnavailableError) {
       reply.header('Retry-After', 5);

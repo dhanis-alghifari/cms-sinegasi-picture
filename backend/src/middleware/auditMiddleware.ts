@@ -21,13 +21,12 @@ export async function auditMiddleware(request: FastifyRequest) {
   if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)) return;
 
   const requestWithContext = request as RequestWithAuditContext;
-  const requestId = crypto.randomUUID();
   // Fastify resolves request.ip according to its trusted-proxy setting. Never
   // trust a caller-controlled X-Forwarded-For header directly.
   const ipAddress = request.ip;
 
   requestWithContext.auditContext = {
-    requestId,
+    requestId: request.id,
     operationId: crypto.randomUUID(),
     action: request.method,
     ipAddress,

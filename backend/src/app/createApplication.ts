@@ -1,4 +1,5 @@
-import Fastify, { type FastifyInstance } from 'fastify';
+import Fastify, { LogController, type FastifyInstance } from 'fastify';
+import { randomUUID } from 'node:crypto';
 import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
 import { runtimeConfig } from '../config/env.js';
@@ -21,6 +22,9 @@ export interface ApplicationRuntime {
  */
 export async function createApplication(): Promise<ApplicationRuntime> {
   const app = Fastify({
+    logController: new LogController({ disableRequestLogging: true }),
+    requestIdHeader: false,
+    genReqId: () => randomUUID(),
     logger: {
       redact: {
         paths: ['req.headers.authorization', 'req.headers.cookie', 'res.headers["set-cookie"]', 'password', 'password_hash', 'temporary_password', 'token'],
@@ -51,6 +55,7 @@ export async function createApplication(): Promise<ApplicationRuntime> {
       'Content-Type', 'Authorization', 'X-Change-Reason', 'X-Idempotency-Key',
       'x-change-reason', 'x-idempotency-key',
     ],
+    exposedHeaders: ['X-Request-Id'],
     credentials: true,
   });
   await app.register(jwt, { secret: runtimeConfig.jwtSecret });
