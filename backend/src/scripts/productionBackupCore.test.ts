@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import childProcess, { type SpawnOptions } from 'node:child_process';
-import { BACKUP_HOST, BACKUP_PROJECT, BackupError, privateCommandBytes, privateDirectory, quoteIdentifier, readGithubMainSha, readGithubQualityMetadata, validateBackupCa, validateBackupTarget } from './productionBackupCore.js';
+import { BACKUP_HOST, BACKUP_PROJECT, BackupError, listBackupArchive, privateCommandBytes, privateDirectory, quoteIdentifier, readGithubMainSha, readGithubQualityMetadata, validateBackupCa, validateBackupTarget } from './productionBackupCore.js';
 
 const uri = `postgresql://postgres.${BACKUP_PROJECT}:test-secret@${BACKUP_HOST}:5432/postgres`;
 
@@ -96,6 +96,27 @@ test('a broken stdin pipe with nonempty input remains a sanitized failure', asyn
   await assert.rejects(privateCommandBytes(process.execPath, ['-e',
     'require("node:fs").closeSync(0);setTimeout(() => {}, 100)'], Buffer.alloc(8 * 1024 * 1024, 120)),
   (error: unknown) => error instanceof BackupError && error.message === 'PRIVATE_COMMAND_FAILED');
+});
+
+test('only the fixed pg_restore TOC reader permits EPIPE after successful header-only consumption', async t => {
+  const archive = Buffer.alloc(8 * 1024 * 1024, 120); archive.write('PGDMP');
+  const original = childProcess.spawn;
+  let outcome = 'ok';
+  const spy = t.mock.method(childProcess, 'spawn', (command: string, args: string[], options: SpawnOptions) => {
+    assert.equal(command, '/opt/homebrew/opt/libpq@17/bin/pg_restore');
+    assert.deepEqual(args, ['--list']);
+    const behavior = outcome === 'bad-exit' ? 'process.exitCode=1;' : outcome === 'warning' ? 'process.stderr.write("synthetic warning");' : '';
+    return original(process.execPath, ['-e', 'require("node:fs").closeSync(0);' + behavior
+      + 'process.stdout.write("SYNTHETIC_TOC_ONLY");setTimeout(()=>{},50)'], options);
+  });
+  assert.equal((await listBackupArchive(archive)).toString(), 'SYNTHETIC_TOC_ONLY');
+  for (const value of ['bad-exit', 'warning']) {
+    outcome = value;
+    await assert.rejects(listBackupArchive(archive), BackupError);
+  }
+  const calls = spy.mock.callCount();
+  await assert.rejects(listBackupArchive(Buffer.from('invalid')), /INVALID_POSTGRES_ARCHIVE/);
+  assert.equal(spy.mock.callCount(), calls);
 });
 
 test('refuse repository, traversal and arbitrary backup directories before access', async () => {

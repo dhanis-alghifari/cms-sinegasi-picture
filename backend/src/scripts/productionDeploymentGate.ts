@@ -8,6 +8,8 @@ import { requireWriterQualityRun } from './reconciliationWriterPolicy.js';
 import { deploymentReviewPolicy, type DeploymentReviewPolicy } from './productionDeploymentReview.js';
 import { privateMediaEvidence, type PrivateMediaEvidence } from './productionMediaGate.js';
 import { DeploymentGateError } from './productionDeploymentError.js';
+import { readStudentPhotoSql, requireStudentPhotoFunction, validateStudentPhotoReceipt,
+  withoutStudentPhotoSession, type StudentPhotoReceipt } from './studentPhotoProductionPolicy.js';
 export { DeploymentGateError } from './productionDeploymentError.js';
 
 export const DEPLOYMENT_PROJECT = 'pvbdiftvzoeelibxlxzb';
@@ -50,7 +52,7 @@ function observation(value: unknown): DeploymentObservation {
     && item.schemaSecuritySha256 === item.targetCatalogSha256, 'RECONCILED_SCHEMA_POSTCONDITION_REQUIRED');
   return item as unknown as DeploymentObservation;
 }
-export interface DeploymentEvidence {
+export interface LegacyDeploymentEvidence {
   format: 2;
   mode: 'reconciled-no-sql';
   project: typeof DEPLOYMENT_PROJECT;
@@ -66,6 +68,11 @@ export interface DeploymentEvidence {
   reviewPolicy: DeploymentReviewPolicy;
   media: PrivateMediaEvidence;
 }
+export type DeploymentEvidence = LegacyDeploymentEvidence | (Omit<LegacyDeploymentEvidence, 'format' | 'mode'> & {
+  format: 3;
+  mode: 'reconciled-student-photo-v1';
+  studentPhotoChange: StudentPhotoReceipt;
+});
 export interface DeploymentGateContext {
   releaseSha: string;
   evidenceSha256: string;
@@ -80,10 +87,13 @@ export function validateDeploymentEvidence(raw: string, context: DeploymentGateC
   requireGate(raw.length <= 256 * 1024 && RELEASE.test(context.releaseSha) && HASH.test(context.evidenceSha256)
     && HASH.test(context.snapshotSha256) && HASH.test(context.packageSha256) && Number.isFinite(context.now)
     && deploymentHash(raw) === context.evidenceSha256, 'DEPLOYMENT_EVIDENCE_CHECKSUM_OR_CONTEXT_MISMATCH');
-  const e = exact(JSON.parse(raw) as unknown, ['format', 'mode', 'project', 'releaseSha', 'snapshotSha256', 'observedAt',
-    'observation', 'backup', 'restore', 'copy', 'independentKeyRecovery', 'rehearsal', 'reviewPolicy', 'media']);
+  const parsed = record(JSON.parse(raw) as unknown);
+  const incremental = parsed.format === 3 && parsed.mode === 'reconciled-student-photo-v1';
+  const e = exact(parsed, ['format', 'mode', 'project', 'releaseSha', 'snapshotSha256', 'observedAt',
+    'observation', 'backup', 'restore', 'copy', 'independentKeyRecovery', 'rehearsal', 'reviewPolicy', 'media',
+    ...(incremental ? ['studentPhotoChange'] : [])]);
   requireGate(JSON.stringify(e) === raw, 'CANONICAL_DEPLOYMENT_EVIDENCE_REQUIRED');
-  requireGate(e.format === 2 && e.mode === 'reconciled-no-sql' && e.project === DEPLOYMENT_PROJECT
+  requireGate((incremental || e.format === 2 && e.mode === 'reconciled-no-sql') && e.project === DEPLOYMENT_PROJECT
     && e.releaseSha === context.releaseSha && e.snapshotSha256 === context.snapshotSha256, 'DEPLOYMENT_SCOPE_OR_RELEASE_MISMATCH');
   const observed = fresh(e.observedAt, context.now, 30 * 60_000);
   deploymentReviewPolicy(e.reviewPolicy);
@@ -128,6 +138,7 @@ export function validateDeploymentEvidence(raw: string, context: DeploymentGateC
     && rehearsal.packageSha256 === context.packageSha256 && rehearsal.rollbackPassed === true && rehearsal.runtimePreflightPassed === true
     && rehearsal.productionChanged === false && rehearsal.devDatabaseChanged === false, 'EXACT_RELEASE_DEPLOYMENT_REHEARSAL_REQUIRED');
   fresh(rehearsal.verifiedAt, context.now, 2 * 60 * 60_000);
+  if (incremental) validateStudentPhotoReceipt(e.studentPhotoChange, baseline.targetCatalogSha256, String(e.observedAt));
   return e as unknown as DeploymentEvidence;
 }
 
@@ -171,7 +182,8 @@ export function requireDeploymentQuality(run: unknown, jobs: unknown, releaseSha
 
 /** Existing schema/reference verifier; only row counts are normalized. Business
  * data and login are NOT accepted here. No DDL/history writes or auth RPCs. */
-export async function inspectDeploymentSchema(db: WriterSession, bundle: WriterPackage): Promise<DeploymentObservation> {
+export async function inspectDeploymentSchema(db: WriterSession, bundle: WriterPackage,
+  change?: StudentPhotoReceipt): Promise<DeploymentObservation> {
   await db.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
   try {
     await db.query("SET LOCAL statement_timeout='8s'; SET LOCAL lock_timeout='2s'; SET LOCAL idle_in_transaction_session_timeout='30s'; SET LOCAL search_path=pg_catalog,public,extensions");
@@ -179,6 +191,13 @@ export async function inspectDeploymentSchema(db: WriterSession, bundle: WriterP
       current_setting('transaction_read_only') AS "readOnly",current_setting('server_version_num') AS version`)).rows[0];
     requireGate(identity?.database === 'postgres' && identity.actor === 'postgres' && identity.readOnly === 'on'
       && /^17[0-9]{4}$/.test(String(identity.version)), 'DEPLOYMENT_READ_ONLY_SESSION_REQUIRED');
+    return await readDeploymentCatalog(db, bundle, change);
+  } finally { await db.query('ROLLBACK'); }
+}
+
+/** Caller owns the transaction. A writable caller is ONLY the separately approved additive runner. */
+export async function readDeploymentCatalog(db: WriterSession, bundle: WriterPackage,
+  change?: StudentPhotoReceipt): Promise<DeploymentObservation> {
     const checkpoint = await requireCompletedBootstrapCheckpoint(db, bundle);
     const managedRows = (await db.query(`SELECT (SELECT count(*)::text FROM auth.users) AS accounts,
       (SELECT count(*)::text FROM storage.objects) AS objects`)).rows[0];
@@ -186,10 +205,21 @@ export async function inspectDeploymentSchema(db: WriterSession, bundle: WriterP
     const managed = await readManagedTrigram(db), catalog = await readWriterCatalog(db);
     const inventory = { ...catalog.inventory, tables: catalog.inventory.tables.map(table => ({ ...table,
       rows: String(bundle.reference.tables.find(reference => reference.name === table.name)?.rows.length ?? 0) })) };
-    const verified = await verifyWriterTarget({ query: db.query.bind(db), inventory: async () => inventory }, bundle.snapshot, bundle.reference, managed.sha256);
+    const normalized: WriterSession = { query: db.query.bind(db), inventory: async () => inventory };
+    if (change) {
+      validateStudentPhotoReceipt(change, change.afterCatalogSha256, new Date().toISOString());
+      await requireStudentPhotoFunction(db, await readStudentPhotoSql());
+      const baseline = await verifyWriterTarget(withoutStudentPhotoSession(normalized), bundle.snapshot, bundle.reference, managed.sha256);
+      requireGate(writerCatalogHash(baseline) === checkpoint.targetCatalogSha256
+        && change.beforeCatalogSha256 === checkpoint.targetCatalogSha256
+        && writerCatalogHash({ inventory, security: catalog.security }) === change.afterCatalogSha256,
+      'PHOTO_MIGRATION_BASELINE_OR_POSTCONDITION_DRIFT');
+      return { packageSha256: bundle.packageSha256, ...checkpoint, targetCatalogSha256: change.afterCatalogSha256,
+        managedExtensionSha256: managed.sha256, schemaSecuritySha256: change.afterCatalogSha256 };
+    }
+    const verified = await verifyWriterTarget(normalized, bundle.snapshot, bundle.reference, managed.sha256);
     const result = { packageSha256: bundle.packageSha256, ...checkpoint, managedExtensionSha256: managed.sha256,
       schemaSecuritySha256: writerCatalogHash(verified) };
     observation(result); // Must equal the complete checkpoint, not merely its table count.
     return result;
-  } finally { await db.query('ROLLBACK'); }
 }
