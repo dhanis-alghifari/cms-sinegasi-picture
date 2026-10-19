@@ -60,7 +60,8 @@
     <a href="#insiden">8. Contoh kebobolan dan lokasi perbaikan</a>
     <a href="#pentest">9. Cara dan batas pengujian produksi</a>
     <a href="#ci">10. Klik PR/CI dan tahap rilis</a>
-    <a href="#simpan">11. Simpan di Mac</a>
+    <a href="#dependency">11. Catatan dependency yang perlu ditinjau</a>
+    <a href="#simpan">12. Simpan di Mac</a>
   </nav>
   <h2 id="harian">1. Cek harian: dua perintah</h2>
   <p>Buka <strong>Terminal di Mac</strong>, lalu masuk ke VPS:</p>
@@ -372,7 +373,21 @@ curl --proto '=https' --connect-timeout 5 --max-time 10 --max-filesize 65536 --s
     Perbaikan tambahan ini belum otomatis dipasang ke VPS; upgrade collector
     terpisah dari rilis aplikasi dan tidak perlu mengubah cron backup.</p>
 
-  <h2 id="simpan">11. Simpan di Mac</h2>
+  <h2 id="dependency">11. Catatan nyata dari audit dependency, bukan bukti kebobolan</h2>
+  <p>Pemeriksaan lockfile pada 19 Oktober 2026: backend 0 temuan; frontend
+    melaporkan <strong>7 entry paket high</strong> pada rantai shadcn/ts-morph/braces,
+    berasal dari <a href="https://github.com/advisories/GHSA-vfj7-8cjw-p6xm">satu advisory braces</a>.
+    Ini bukan tujuh insiden atau bukti hacker sudah masuk. Lockfile frontend sama
+    dengan sebelum PR monitoring; tidak ada dependency baru ditambahkan.</p>
+  <p>Programmer perlu meninjau <code>frontend/package.json</code> dan lockfile,
+    jalur build/CLI versus browser, lalu memilih remediasi dan menguji ulang build.
+    Import yang terlihat di source adalah CSS shadcn, tetapi itu belum membuktikan
+    seluruh jalur berisiko tidak terjangkau. Advisory belum mencantumkan versi
+    patched braces saat diperiksa; jangan menjalankan <code>npm audit fix --force</code>
+    atau mengganti versi asal-asalan. Rilis produksi tetap perlu keputusan keamanan
+    tersendiri meskipun tes fungsi/CI hijau.</p>
+
+  <h2 id="simpan">12. Simpan di Mac</h2>
   <p>File ini sudah berada di <code>ops/monitoring/Panduan-Monitoring-Sinegasi.html</code>.
     Buka dengan Safari/Chrome. Untuk PDF: tekan <strong>⌘P → Save as PDF</strong>,
     pilih folder di Mac. Tidak perlu mengunggah panduan ke layanan konversi.</p>

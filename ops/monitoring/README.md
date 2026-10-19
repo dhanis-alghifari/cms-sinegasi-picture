@@ -173,8 +173,25 @@ konfigurasi autentikasi sebelumnya; jangan dilakukan hanya karena ada log bot.
 Verifikasi lokal 19 Oktober 2026: **24 tes backend + 7 frontend + 31 collector
 = 62 tes terarah lulus**, typecheck backend/frontend, dan sintaks shell lulus.
 Ini bukan pengganti full quality/CI, production build, dan acceptance sesudah
-rilis. Test collector juga ditambahkan ke workflow Code Quality; perubahan
-workflow masih lokal, belum berjalan di GitHub.
+rilis. Test collector juga ditambahkan ke workflow Code Quality; lihat Checks
+pada PR untuk status CI commit terbaru, bukan menyimpulkannya dari angka tes lokal.
+
+### Temuan dependency yang perlu tindak lanjut sebelum persetujuan produksi
+
+Audit lockfile pada 19 Oktober 2026: backend 0 temuan; frontend melaporkan 7
+entry paket terdampak berlevel high dalam rantai shadcn/ts-morph/braces, berakar
+pada [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm).
+Lockfile frontend identik dengan base PR, sehingga bukan dependency baru dari
+monitoring. Review source menemukan import CSS shadcn, bukan import JavaScript
+CLI di frontend/src; ini **belum membuktikan seluruh jalur build/CLI tidak
+terjangkau**. Tidak ada eksploit/pentest produksi dilakukan untuk memeriksanya.
+Tidak menandai risiko ini selesai atau sebagai bukti aplikasi telah dibobol.
+
+Remediasi perlu review dependency/toolchain dan regression build terpisah pada
+`frontend/package.json` serta lockfile. Jangan menjalankan `npm audit fix --force`
+secara buta: advisory saat diperiksa belum mencantumkan patched version braces,
+meskipun npm melaporkan alternatif perubahan dependency tersedia. CI hijau
+bukan pengganti keputusan keamanan sebelum release.
 
 ```sh
 python3 -m unittest discover -s ops/monitoring -p 'test_*.py' -v
