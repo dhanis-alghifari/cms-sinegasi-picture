@@ -148,7 +148,7 @@ export interface StudentRepository {
   linkAccountToExistingProfile?(input: StudentExistingProfileLinkInput): Promise<{ data: StudentAccountLinkResult; error?: never } | { data?: never; error: DatabaseError }>;
   provisionAccount?(input: { id: string; username: string; phoneNumber: string; passwordHash: string; actorId: string; requestFingerprint: string } & StudentAccountOperationContext): Promise<{ data: StudentAccountOperationResult; error?: never } | { data?: never; error: DatabaseError }>;
   updateStatus?(input: { id: string; isActive: boolean; actorId: string | null }): Promise<{ data: StudentRecord | null; error?: never } | { data?: never; error: DatabaseError }>;
-  updateProfile?(input: { id: string; changes: StudentUpdateInput; actorId: string | null }): Promise<{ data: StudentRecord | null; error?: never } | { data?: never; error: DatabaseError }>;
+  updateProfile?(input: { id: string; changes: StudentUpdateInput; actorId: string | null; changeReason: string }): Promise<{ data: StudentRecord | null; error?: never } | { data?: never; error: DatabaseError }>;
   purge?(input: { id: string; actorId: string; changeReason: string }): Promise<{ data: StudentPurgeResult; error?: never } | { data?: never; error: DatabaseError }>;
 }
 import type { DatabaseError } from '../../shared/database/database.types.js';

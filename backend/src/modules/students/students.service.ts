@@ -100,7 +100,7 @@ function mapRepositoryError(error: unknown, fallbackStatus = 500, fallbackMessag
     return new StudentServiceError(409, 'STUDENT_LINK_TARGET_NOT_ELIGIBLE', 'Akun atau profil siswa tidak tersedia untuk ditautkan. Pastikan keduanya aktif dan belum memiliki tautan akun.');
   }
   if (candidate?.code === 'STUDENT_ACTOR_FORBIDDEN' || candidate?.message?.includes('STUDENT_ACTOR_FORBIDDEN')) {
-    return new StudentServiceError(403, 'STUDENT_ACTOR_FORBIDDEN', 'Hanya akun operasional yang berwenang dapat menautkan akun siswa.');
+    return new StudentServiceError(403, 'STUDENT_ACTOR_FORBIDDEN', 'Akun tidak memiliki izin untuk mengelola siswa.');
   }
   if (candidate?.code === 'STUDENT_PURGE_ACTIVE' || candidate?.message?.includes('STUDENT_PURGE_ACTIVE')) {
     return new StudentServiceError(409, 'STUDENT_PURGE_ACTIVE', 'Siswa masih aktif. Nonaktifkan sebagai alumni terlebih dahulu sebelum menghapus data permanen.');
@@ -112,7 +112,7 @@ function mapRepositoryError(error: unknown, fallbackStatus = 500, fallbackMessag
     return new StudentServiceError(
       503,
       'STUDENTS_SCHEMA_UNAVAILABLE',
-      'Skema siswa atau fungsi akun belum tersedia. Jalankan migration siswa berurutan hingga 088_student_account_onboarding.sql.',
+      'Skema siswa atau fungsi akun belum tersedia. Minta pengelola memeriksa migrasi database siswa terbaru.',
     );
   }
   return new StudentServiceError(fallbackStatus, 'STUDENT_OPERATION_FAILED', safeStudentErrorMessage(error, fallbackMessage));
@@ -327,17 +327,19 @@ export class StudentService {
     }
     if (!hasProfile) throw new StudentServiceError(422, 'EMPTY_UPDATE', 'Tidak ada perubahan profil siswa.');
     const changes: StudentUpdateInput = {
+      // The profile RPC replaces these columns; omitted fields must keep their values.
+      nama: previous.nama,
+      kelas: previous.kelas,
+      peminatan: previous.peminatan,
+      no_telepon: previous.no_telepon,
+      foto_url: previous.foto_url,
       ...(input.nama !== undefined ? { nama: text(input.nama, 'Nama siswa', 2, 120) } : {}),
       ...(input.kelas !== undefined ? { kelas: text(input.kelas, 'Kelas', 1, 80) } : {}),
       ...(input.peminatan !== undefined ? { peminatan: normalizePeminatan(input.peminatan) } : {}),
       ...(input.no_telepon !== undefined ? { no_telepon: optionalText(input.no_telepon, 'Nomor telepon', 40) } : {}),
       ...(input.foto_url !== undefined ? { foto_url: normalizePhotoUrl(input.foto_url) } : {}),
     };
-    if (changes.nama === undefined && changes.kelas === undefined) {
-      changes.nama = previous.nama;
-      changes.kelas = previous.kelas;
-    }
-    const result = await fullRepository(this.repository).updateProfile({ id: previous.id, changes, actorId });
+    const result = await fullRepository(this.repository).updateProfile({ id: previous.id, changes, actorId, changeReason: changeReason.trim() });
     if ('error' in result) throw mapRepositoryError(result.error, 400, 'Gagal memperbarui profil siswa.');
     if (!result.data) throw new StudentNotFoundError();
     return { data: result.data, previous };
