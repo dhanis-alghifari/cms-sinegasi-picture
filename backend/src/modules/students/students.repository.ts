@@ -388,7 +388,7 @@ export function createStudentRepository(client: SupabaseLike, state: StudentsMem
         };
         return { data: { ...state.students[index] } };
       }
-      const { data, error } = await client.rpc('update_student_profile_atomic', {
+      const { data, error } = await client.rpc('update_student_profile_audited_atomic', {
         p_student_id: input.id,
         p_nama: input.changes.nama,
         p_kelas: input.changes.kelas,
@@ -396,6 +396,7 @@ export function createStudentRepository(client: SupabaseLike, state: StudentsMem
         p_no_telepon: input.changes.no_telepon || null,
         p_foto_url: input.changes.foto_url || null,
         p_updated_by: input.actorId,
+        p_change_reason: input.changeReason,
       });
       if (error) return { error };
       return { data: mapStudentRpcResult(data) };
