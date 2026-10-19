@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
+import { reportClientError } from '@/shared/monitoring/reportClientError';
 import { AppErrorFallback } from './AppErrorFallback';
 
 interface RootErrorBoundaryProps {
@@ -18,6 +19,7 @@ export class RootErrorBoundary extends Component<
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    reportClientError({ kind: 'render', code: 'RENDER_ERROR' });
     if (import.meta.env.DEV) {
       console.error('Unhandled application error', error, errorInfo);
     }

@@ -8,6 +8,35 @@ servers:
 security:
   - bearerAuth: []
 paths:
+  /api/monitoring/client-errors:
+    post:
+      summary: Accept a bounded first-party browser diagnostic report
+      description: Requires the existing verified application session and preserves first-login restrictions. Best-effort category logging only, not a durable audit trail or verified root cause. No message, stack, URL, query, form content or arbitrary metadata is accepted. Maximum body size is 1024 bytes; at most 5 accepted reports per account and 60 per process per minute, in addition to existing API limits. Do not retry automatically. Release labels are not retained in server logs; only UUID-shaped client request IDs are retained for correlation.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [kind, code]
+              properties:
+                kind: { type: string, enum: [render, runtime, unhandled_rejection, api] }
+                code: { type: string, enum: [RENDER_ERROR, RUNTIME_ERROR, UNHANDLED_REJECTION, API_ERROR, NETWORK_ERROR] }
+                release: { type: string, pattern: '^[A-Za-z0-9._-]{1,64}$' }
+                requestId: { type: string, pattern: '^[A-Za-z0-9_-]{1,80}$' }
+                statusCode: { type: integer, minimum: 400, maximum: 599 }
+      responses:
+        '204': { description: Diagnostic category accepted; no response body }
+        '400': { description: Invalid or unsupported diagnostic fields }
+        '401': { description: Missing, expired or revoked application session }
+        '403': { description: First-login password change required or access denied }
+        '413': { description: Diagnostic body exceeds the size limit }
+        '429':
+          description: Existing API or diagnostic budget exceeded; do not retry automatically
+          headers:
+            Retry-After: { schema: { type: integer }, description: Remaining window in seconds }
+        '503': { description: Session verification dependency unavailable }
   /api/private-media/{kind}/{parentId}/{id}:
     get:
       summary: Read an authorized attached image through the private R2 proxy

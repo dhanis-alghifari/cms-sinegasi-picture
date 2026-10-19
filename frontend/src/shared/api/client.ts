@@ -2,6 +2,8 @@
 // PRD: every mutating request must send x-change-reason header
 
 import { env } from '@/shared/config/env';
+import { responseRequestId } from '@/shared/monitoring/clientErrors';
+import { reportClientError } from '@/shared/monitoring/reportClientError';
 import { mediaSession } from './privateMedia';
 import { requestPrivateImage, type PrivateImageResult } from './privateImageResponse';
 import {
@@ -58,13 +60,21 @@ async function fetchResponse(endpoint: string, options: RequestOptions = {}): Pr
     headers.set('x-idempotency-key', idempotencyKey);
   }
 
-  const response = await fetch(`${env.apiUrl}${endpoint}`, {
-    ...rest,
-    // Authenticated application data must never be served from the browser HTTP cache.
-    // React Query owns the client cache and mutations explicitly invalidate it.
-    cache: 'no-store',
-    headers,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${env.apiUrl}${endpoint}`, {
+      ...rest,
+      // Authenticated application data must never be served from the browser HTTP cache.
+      // React Query owns the client cache and mutations explicitly invalidate it.
+      cache: 'no-store',
+      headers,
+    });
+  } catch (error: unknown) {
+    if (!rest.signal?.aborted && endpoint !== '/api/monitoring/client-errors') {
+      reportClientError({ kind: 'api', code: 'NETWORK_ERROR' });
+    }
+    throw error;
+  }
 
   if (!response.ok) {
     let errorBody: { message?: string; errors?: Record<string, string[]>; error_code?: string; error?: string; request_id?: string; details?: unknown } = {};
@@ -77,18 +87,22 @@ async function fetchResponse(endpoint: string, options: RequestOptions = {}): Pr
 
     const message = errorBody.message ?? response.statusText;
     const errorCode = errorBody.error_code ?? errorBody.error;
+    const requestId = responseRequestId(response, errorBody.request_id);
+    if (response.status >= 500 && endpoint !== '/api/monitoring/client-errors') {
+      reportClientError({ kind: 'api', code: 'API_ERROR', requestId, statusCode: response.status });
+    }
 
     switch (response.status) {
       case 401:
-        throw new UnauthorizedError(message, errorCode, errorBody.request_id);
+        throw new UnauthorizedError(message, errorCode, requestId);
       case 403:
-        throw new ForbiddenError(message, errorCode, errorBody.request_id);
+        throw new ForbiddenError(message, errorCode, requestId);
       case 404:
-        throw new NotFoundError(message, errorCode, errorBody.request_id);
+        throw new NotFoundError(message, errorCode, requestId);
       case 422:
-        throw new ValidationError(message, errorBody.errors, errorCode, errorBody.request_id);
+        throw new ValidationError(message, errorBody.errors, errorCode, requestId);
       default:
-        throw new ApiError(message, response.status, errorBody.errors, errorCode, errorBody.request_id, errorBody.details);
+        throw new ApiError(message, response.status, errorBody.errors, errorCode, requestId, errorBody.details);
     }
   }
 

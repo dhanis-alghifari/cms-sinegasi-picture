@@ -4,7 +4,8 @@ import { fileURLToPath } from 'node:url';
 
 const sourceRoot = fileURLToPath(new URL('../src/modules/', import.meta.url));
 const openApiPath = fileURLToPath(new URL('../docs/openapi.yaml', import.meta.url));
-const routePattern = /fastify\.(get|post|put|patch|delete)\(\s*['"]([^'"]+)['"]/g;
+// Include simple typed route calls such as post<{ Body: DiagnosticReport }>(...).
+const routePattern = /fastify\.(get|post|put|patch|delete)(?:<[^<>]*>)?\(\s*['"]([^'"]+)['"]/g;
 const methodNames = new Set(['get', 'post', 'put', 'patch', 'delete']);
 
 function normalizePath(path) {

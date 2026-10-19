@@ -9,6 +9,7 @@ test('createApplication composes every feature route without starting workers', 
     await runtime.app.ready();
     assert.equal(runtime.app.hasRoute({ method: 'GET', url: '/api/health' }), true);
     assert.equal(runtime.app.hasRoute({ method: 'POST', url: '/api/auth/login' }), true);
+    assert.equal(runtime.app.hasRoute({ method: 'POST', url: '/api/monitoring/client-errors' }), true);
     assert.equal(runtime.app.hasRoute({ method: 'GET', url: '/api/cash/summary' }), true);
     assert.equal(runtime.app.hasRoute({ method: 'GET', url: '/api/borrowing' }), true);
     const health = await runtime.app.inject({ method: 'GET', url: '/api/health' });
@@ -17,6 +18,8 @@ test('createApplication composes every feature route without starting workers', 
     assert.equal(health.headers['x-frame-options'], 'DENY');
     assert.equal(health.headers['content-security-policy'], "frame-ancestors 'none'");
     assert.equal(health.headers['permissions-policy'], 'camera=(), geolocation=(), microphone=(), payment=()');
+    assert.match(String(health.headers['x-request-id']), /^[0-9a-f-]{36}$/);
+    assert.equal(health.headers['access-control-expose-headers'], 'X-Request-Id');
   } finally {
     await runtime.app.close();
   }

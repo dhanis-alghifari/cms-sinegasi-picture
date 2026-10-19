@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyReply } from 'fastify';
 import { auditMiddleware } from '../middleware/auditMiddleware.js';
 import { registerAuthorizedIdempotencyHook, saveIdempotencyResponse } from '../middleware/idempotencyMiddleware.js';
 import { createApiRateLimitStore } from '../middleware/apiRateLimit.js';
@@ -9,6 +9,7 @@ import { authenticate } from '../middleware/authMiddleware.js';
 import { supabase } from '../services/supabaseClient.js';
 import { ActorDirectory } from '../shared/actors/actors.repository.js';
 import { collectActorIds, enrichActorReferences } from '../shared/actors/actors.enrichment.js';
+import { registerMonitoringHooks } from '../shared/monitoring/requestMonitoring.js';
 
 type ErrorWithStatus = { statusCode?: number; name?: string };
 type ValidationIssue = { keyword?: string; params?: { missingProperty?: string } };
@@ -72,9 +73,8 @@ const actorDirectory = new ActorDirectory(supabase);
 export function registerAppHooks(fastify: FastifyInstance): void {
   fastify.setErrorHandler((error: unknown, request, reply) => {
     const statusCode = Number((error as ErrorWithStatus | null)?.statusCode) || 500;
-    // Provider error messages can contain SQL values or signed URLs. Keep the
-    // request identifier/status for correlation, not raw error payloads.
-    request.log.error({ requestId: request.id, statusCode }, 'Unhandled request error');
+    // The response hook records a fixed error category, not provider messages
+    // containing SQL values, credentials, or signed URLs.
     reply.header('X-Request-Id', request.id);
     reply.status(statusCode).send({
       success: false,
@@ -85,6 +85,7 @@ export function registerAppHooks(fastify: FastifyInstance): void {
     });
   });
 
+  registerMonitoringHooks(fastify);
   registerApiRateLimitHooks(fastify, {
     store: createApiRateLimitStore({
       shared: supabase ? createSupabaseApiRateLimitStore(supabase) : null,
@@ -93,22 +94,6 @@ export function registerAppHooks(fastify: FastifyInstance): void {
     authenticate,
   });
   fastify.addHook('onRequest', auditMiddleware);
-  fastify.addHook('onRequest', async (request) => {
-    (request as FastifyRequest & { startedAtNs?: bigint }).startedAtNs = process.hrtime.bigint();
-  });
-  fastify.addHook('onResponse', async (request, reply) => {
-    const startedAtNs = (request as FastifyRequest & { startedAtNs?: bigint }).startedAtNs;
-    const durationMs = startedAtNs
-      ? Number(process.hrtime.bigint() - startedAtNs) / 1_000_000
-      : undefined;
-    request.log.info({
-      requestId: request.id,
-      method: request.method,
-      route: request.routeOptions.url,
-      statusCode: reply.statusCode,
-      durationMs: durationMs === undefined ? undefined : Math.round(durationMs * 100) / 100,
-    }, 'request completed');
-  });
   registerAuthorizedIdempotencyHook(fastify, authenticate);
   fastify.addHook('preSerialization', async (request, _reply, payload) => {
     const config = request.routeOptions.config as RouteConfig | undefined;

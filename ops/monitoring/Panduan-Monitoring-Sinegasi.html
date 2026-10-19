@@ -1,0 +1,388 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Panduan Monitoring Sinegasi</title>
+  <style>
+    :root { --fg: #182333; --muted: #4d5e71; --bg: #f4f6f8; --surface: #fff; --border: #d9e0e8; --soft: #edf2f8; --accent: #124d9b; --warning: #a86600; --warning-bg: #fff7e6; --success: #24744c; --success-bg: #eff8f3; color-scheme: light; font-family: system-ui, sans-serif; color: var(--fg); background: var(--bg); }
+    body { max-width: 900px; margin: 0 auto; padding: 32px 20px 64px; line-height: 1.6; }
+    main { background: var(--surface); padding: 32px; border: 1px solid var(--border); border-radius: 12px; }
+    h1, h2, h3 { line-height: 1.25; }
+    h1 { margin-top: 0; }
+    h2 { margin-top: 32px; }
+    a { color: var(--accent); }
+    a:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+    nav a { display: block; padding: 10px 0; min-height: 24px; }
+    code { font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
+    pre { background: var(--soft); border: 1px solid var(--border); border-radius: 6px; padding: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .note { border-left: 4px solid var(--warning); background: var(--warning-bg); padding: 12px 16px; }
+    .status { border-left: 4px solid var(--success); background: var(--success-bg); padding: 12px 16px; }
+    table { width: 100%; border-collapse: collapse; font-size: .94rem; }
+    th, td { text-align: left; vertical-align: top; padding: 10px; border: 1px solid var(--border); overflow-wrap: anywhere; }
+    th { background: var(--soft); }
+    li { margin: 7px 0; }
+    small { color: var(--muted); }
+    @media (max-width: 560px) { main { padding: 18px; } th, td { padding: 7px; } }
+    @media print {
+      :root { background: white; }
+      body { padding: 0; max-width: none; font-size: 10pt; }
+      main { border: 0; padding: 0; }
+      h2, h3 { break-after: avoid; }
+      pre, tr, .note, .status { break-inside: avoid; }
+      a { color: inherit; }
+      @page { margin: 16mm; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Panduan Monitoring Sinegasi</h1>
+  <p><small>Status diverifikasi 19 Oktober 2026, sekitar 14.21 WIB. Dokumen lokal;
+    tidak memuat password, token, log mentah, atau data siswa. Tidak memuat skrip maupun sumber eksternal.</small></p>
+
+  <div class="status">
+    <strong>Sudah aktif:</strong> SSH key-only tanpa login root/password, alert Cloudflare
+    Tunnel/DDoS, laporan privat VPS, dan collector otomatis setiap 5 menit.
+    Cron collector terbukti berjalan pukul <strong>14.18.01 WIB</strong> dari waktu state
+    dan jurnal cron. Cron backup tidak diubah.
+  </div>
+  <p class="note"><strong>Belum live:</strong> pencatatan login/aktivitas/error API baru
+    dan pengiriman error browser. Kodenya telah dibuat serta diuji lokal, tetapi
+    menunggu rilis melalui gate dan persetujuan produksi. “Belum ada event” tidak
+    berarti tidak ada percobaan login. Penerimaan email alert Cloudflare belum diuji.</p>
+
+  <nav aria-label="Daftar isi">
+    <a href="#harian">1. Cek harian dari Mac</a>
+    <a href="#cloudflare">4. Klik Cloudflare: hit, bot, alert</a>
+    <a href="#supabase">7. Klik Supabase: error database</a>
+    <a href="#insiden">8. Contoh kebobolan dan lokasi perbaikan</a>
+    <a href="#pentest">9. Cara dan batas pengujian produksi</a>
+    <a href="#ci">10. Klik PR/CI dan tahap rilis</a>
+    <a href="#simpan">11. Simpan di Mac</a>
+  </nav>
+  <h2 id="harian">1. Cek harian: dua perintah</h2>
+  <p>Buka <strong>Terminal di Mac</strong>, lalu masuk ke VPS:</p>
+  <pre><code>ssh -o StrictHostKeyChecking=yes -o ServerAliveInterval=30 ubuntu@43.157.242.8</code></pre>
+  <p>Tunggu sampai prompt menjadi <code>ubuntu@VM-11-154-ubuntu</code>, lalu jalankan:</p>
+  <pre><code>sudo /usr/local/sbin/sinegasi-monitor report</code></pre>
+  <p>SSH sekarang memakai key. Jika muncul <code>Enter passphrase for key</code>,
+    gunakan passphrase SSH key jika Anda memasangnya. Dialog macOS Keychain meminta
+    password login Mac. Prompt <code>[sudo] password for ubuntu</code> meminta password
+    akun VPS, <strong>bukan</strong> password backup/database/R2. Jangan mengirim password
+    ke chat. Jika host key berubah, berhenti dan verifikasi.</p>
+
+  <h2>2. Cara membaca laporannya</h2>
+  <table>
+    <thead><tr><th>Bagian</th><th>Yang perlu dilihat</th></tr></thead>
+    <tbody>
+      <tr><td>Layanan</td><td><code>AKTIF</code> untuk Docker, cron, SSH, dan Tunnel. Container
+        <code>healthy</code> hanya membuktikan proses merespons, bukan seluruh fungsi/DB sehat.</td></tr>
+      <tr><td>Sumber daya</td><td>Perhatikan kenaikan RAM/disk/restart. Beban CPU 1 menit
+        bukan persen CPU. Disk &gt;80% layak diperiksa; jangan langsung menghapus data.</td></tr>
+      <tr><td>Collector</td><td>Waktu terbaru seharusnya terus maju; segar ≤15 menit.
+        <code>BELUM TERKONFIRMASI</code>, batas tercapai, atau gap bukan kondisi sehat/nol.</td></tr>
+      <tr><td>API dan error</td><td>Hit non-health terpisah dari health check. 401: sesi/login
+        tidak valid; 403: akses ditolak; 429: dibatasi; 5xx: masalah server/dependensi.
+        Satu kejadian tidak membuktikan serangan.</td></tr>
+      <tr><td>Aktivitas akun</td><td>Sesudah rilis aplikasi baru: UUID akun terverifikasi
+        dengan aktivitas ≤10 menit, <strong>bukan</strong> daftar orang pasti online.</td></tr>
+      <tr><td>SSH</td><td>Gagal password/invalid user merupakan kejadian jurnal, bukan orang unik.
+        Histori 24 jam bisa memuat kejadian sebelum hardening. Cocokkan waktu login sukses
+        dengan aktivitas admin; angka nol bukan jaminan tidak ada serangan.</td></tr>
+      <tr><td>Backup</td><td>Cari jadwal aktif, tidak terlambat, upload terverifikasi.
+        Bukti upload bukan bukti restore berhasil. Lihat laporan khusus backup untuk rincian.</td></tr>
+    </tbody>
+  </table>
+  <p>Semua waktu ringkasan adalah WIB. Exit 0 pada perintah laporan berarti laporan
+    berhasil ditampilkan, <strong>bukan</strong> sertifikat seluruh aplikasi aman.</p>
+  <h3>Contoh dummy — bukan hasil pemeriksaan live</h3>
+  <pre><code>Collector terakhir : 20-10-2026 09:03:01 WIB
+API error tercatat : 3 status 5xx; 8 status 401; 2 status 429
+Error terbaru      : 20-10-2026 09:01:12 WIB | /api/grades/* | HTTP_5XX</code></pre>
+  <p>Mulai pemeriksaan modul nilai sekitar 09.01 WIB: tiga respons server error
+    bukan tiga orang menyerang. 401/429 dapat berasal dari sesi kedaluwarsa atau
+    limiter. Format aktual dapat berbeda; jangan mengetik baris laporan sebagai perintah.</p>
+
+  <h2>3. Bukti jadwal dan lokasi data</h2>
+  <pre><code>sudo bash /usr/local/lib/sinegasi-monitor-v1/control-vps.sh status</code></pre>
+  <p>Harapkan <code>MONITOR_CRON_ENABLED</code>, lalu cocokkan waktu collector pada
+    laporan. Monitor berjalan <strong>semua hari, tiap 5 menit</strong>: menit 03, 08,
+    13, 18, 23, 28, 33, 38, 43, 48, 53, 58. Jadwal ini berbeda dari backup database.</p>
+  <ul>
+    <li>Jadwal monitor: <code>/etc/cron.d/sinegasi-monitor</code>.</li>
+    <li>State ringkasan privat: <code>/var/lib/sinegasi-monitor/state.json</code>, hanya root.
+      Gunakan perintah laporan; tidak perlu membuka JSON mentah.</li>
+    <li>Retensi maksimal 14 hari, 20.000 event, 15 MiB; batas kapasitas dapat membuang
+      data lebih cepat. Ini subset, bukan arsip bukti lengkap.</li>
+    <li>Setiap koleksi maksimal satu jam ke belakang/5.000 baris Docker. SSH maksimal
+      10.000 baris jurnal/24 jam. Rotasi, trafik tinggi, atau jeda dapat membuat celah.</li>
+  </ul>
+  <p>Untuk rincian keberhasilan, waktu/tahap kegagalan dan objek backup yang tercatat:</p>
+  <pre><code>sudo /usr/local/sbin/sinegasi-backup report</code></pre>
+  <p>Panduan backup terpisah yang sebelumnya dibuat berada di Mac, bila tersedia:
+    <code>ops/scheduled-backup/Panduan-Cek-Cron-Backup-Sinegasi.pdf</code>.</p>
+
+  <h2 id="cloudflare">4. Cloudflare: hit, bot, dan alert</h2>
+  <ol>
+    <li>Buka <a href="https://dash.cloudflare.com/">Cloudflare Dashboard</a> → domain
+      <strong>sinegasi.pictures</strong> → Analytics/Traffic. Pisahkan hostname frontend
+      dan <code>api.sinegasi.pictures</code>; bandingkan satu jam dengan 24 jam.</li>
+    <li>Pilih <strong>Last 1 hour</strong> untuk insiden baru, atau <strong>Last 24 hours</strong>
+      untuk harian. Tambahkan filter <strong>Hostname → equals/is → api.sinegasi.pictures → Apply</strong>.
+      Jika label berbeda, cari Security Analytics pada pencarian dashboard.</li>
+    <li>Buka Security/Analytics → <strong>Events</strong>. Filter <strong>Action = Block</strong>,
+      lalu periksa Managed Challenge secara terpisah bila UI tidak mendukung beberapa nilai.
+      Klik satu baris: baca waktu, hostname/path, action, rule/service dan Ray ID.
+      Jangan menyebarkan ekspor mentah.</li>
+    <li>Di tingkat akun → <strong>Alerts → Overview</strong> (label lama: Notifications), cari <strong>Sinegasi PROD - Tunnel Health</strong>
+      dan <strong>Sinegasi - HTTP DDoS</strong>. Keduanya enabled dan memakai email admin
+      budget alert yang sudah terdaftar. Alert Tunnel difilter ke tunnel produksi;
+      DDoS berlaku tingkat akun.</li>
+    <li>Pada tiap alert klik <strong>⋯ → Test</strong> bila tersedia, lalu periksa
+      Inbox/Spam pada email tujuan yang sudah terdaftar. Catat jam dan apakah
+      diterima; jangan mengirim alamat email/token ke chat. Test memakai contoh
+      alert: jangan mematikan Tunnel atau membuat DDoS untuk mencoba.</li>
+    <li>Tingkat akun → <strong>Networking → Tunnels → sinegasi-prod-api</strong>:
+      periksa Healthy/Degraded/Down. Jangan tertukar dengan Cloudflare WAN/GRE/IPsec.
+      Tunnel healthy belum membuktikan API/database sehat.</li>
+  </ol>
+  <p>Request yang diblokir di Cloudflare tidak mencapai VPS. Hit bukan jumlah orang;
+    data Events pada paket Free berupa sampel. DDoS alert mempunyai ambang, bukan
+    pemberitahuan semua bot. Pembayaran domain berbeda dari paket keamanan website;
+    zone saat diperiksa memakai Free Website. Tidak ada paket baru yang dibeli.</p>
+  <p><small>Navigasi merujuk dokumentasi resmi
+    <a href="https://developers.cloudflare.com/notifications/get-started/">Alerts</a> dan
+    <a href="https://developers.cloudflare.com/tunnel/observability/">Tunnel observability</a>;
+    UI akun dapat berbeda, bukan klaim seluruh langkah sudah diklik pada sesi ini.</small></p>
+
+  <h2>5. Saat aplikasi bermasalah</h2>
+  <table>
+    <thead><tr><th>Gejala</th><th>Periksa</th></tr></thead>
+    <tbody>
+      <tr><td>502/503/504, API tidak bisa diakses</td><td>Laporan VPS, Tunnel Cloudflare,
+        status container dan resource. Tunnel sehat tidak menjamin API/DB sehat.</td></tr>
+      <tr><td>Halaman putih/error browser</td><td>Deployment Pages dan Console/Network browser.
+        Reporter baru belum live; bahkan setelah live, gagal memuat JS/offline bisa tidak terkirim.</td></tr>
+      <tr><td>Gagal simpan/login</td><td>Status/request ID API dan waktu kejadian.
+        Supabase Dashboard → project CMS Sinegasi Picture → Logs → Postgres/PostgREST.
+        Login aplikasi bukan otomatis Supabase Auth audit log.</td></tr>
+      <tr><td>Banyak bot/login SSH</td><td>Cloudflare Events untuk web; laporan/jurnal SSH untuk
+        akses langsung VPS. WAF web tidak melindungi SSH.</td></tr>
+      <tr><td>Backup terlambat</td><td><code>sinegasi-backup report</code> untuk kronologi dan bukti.
+        Jangan menafsirkan seluruh aplikasi pasti mati.</td></tr>
+    </tbody>
+  </table>
+  <p>Catat jam WIB, gejala, hostname, status HTTP, request ID API/Ray ID Cloudflare.
+    Dua ID itu berbeda. Jangan restart/reset VPS, menghapus log, atau menutup SSH
+    tanpa diagnosis dan jalur pemulihan.</p>
+
+  <h2>6. Batas privasi dan tindak lanjut</h2>
+  <p>Monitor tidak menambah port, database, kredensial Cloudflare, atau SaaS baru.
+    State hanya menyimpan field allowlist. Tidak menyimpan nama, IP, username,
+    password, token, isi formulir, URL/query, exception mentah, atau stack trace.
+    UUID akun tetap data pengenal; akses dibatasi operator sudo.</p>
+  <p>Monitor di VPS yang sama tidak dapat mengirim alert ketika VPS mati total.
+    Tidak ada janji semua error otomatis masuk email. Notifikasi Cloudflare
+    melengkapi laporan lokal, bukan menggantikan pemeriksaan aplikasi/backup.</p>
+  <p><strong>Tahap berikutnya:</strong> review kode dan hasil tes, lewati quality/CI,
+    siapkan SHA serta image immutable, minta persetujuan rilis produksi, deploy
+    backend/frontend melalui alur resmi, lalu validasi event dengan aktivitas
+    operator yang sah. Tidak ada rilis aplikasi atau persetujuan yang dibuat atas nama pemilik.</p>
+
+  <h2 id="supabase">7. Supabase: klik untuk mencari masalah database</h2>
+  <ol>
+    <li>Buka <a href="https://supabase.com/dashboard">Supabase Dashboard</a> → pilih
+      <strong>CMS Sinegasi Picture</strong>, cocokkan ref <code>pvbdiftvzoeelibxlxzb</code>.</li>
+    <li>Klik <strong>Logs → Time Range</strong>: mulai 15–60 menit sekitar kejadian.
+      Cocokkan zona waktu yang ditampilkan dengan WIB pada laporan VPS.</li>
+    <li>Pilih <strong>Log Type: Postgres</strong> untuk DB; <strong>PostgREST/API Gateway</strong>
+      untuk akses API DB. Saring Level error/warning atau status 5xx sesuai jenis log.</li>
+    <li>Klik satu baris, catat waktu, SQLSTATE/status dan operasi yang aman.
+      Detail query dapat memuat data privat; jangan menyalin semua log ke chat/PR publik.</li>
+    <li>Jika kosong, periksa jenis log, waktu dan filter. <strong>User filter tidak
+      berlaku pada Postgres</strong> dan dapat menyembunyikan hasil. Kosong bukan jaminan sehat.</li>
+    <li>Buka <strong>Advisors → Security Advisor</strong>, baca setiap temuan dan
+      remediation. Jangan menjalankan seluruh SQL saran atau mengubah grants/RLS tanpa review.</li>
+  </ol>
+  <p>Login aplikasi kustom bukan otomatis Supabase Auth login; berkas R2 bukan
+    Supabase Storage. Kuota/retensi mengikuti paket, jangan mengekspor semua log
+    atau memasang polling tanpa batas.</p>
+  <p><small>Rujukan: <a href="https://supabase.com/docs/guides/observability/logs">Logs</a> ·
+    <a href="https://supabase.com/docs/guides/observability/advisors">Advisors</a>.</small></p>
+
+  <h2 id="insiden">8. Contoh kebobolan dan bagian yang diperbaiki</h2>
+  <p>Contoh berikut <strong>hipotetis</strong>, bukan temuan Sinegasi telah dibobol.</p>
+  <table>
+    <thead><tr><th>Gejala</th><th>Interpretasi</th><th>Periksa/perbaiki di mana</th></tr></thead>
+    <tbody>
+      <tr><td>Block/Challenge, 401/403/429 meningkat</td><td>Penolakan/pembatasan,
+        bukan bukti berhasil masuk.</td><td>Rule/action Cloudflare, auth/limiter backend;
+        periksa pengguna sah yang ikut terblokir. Jangan mematikan seluruh WAF/limiter.</td></tr>
+      <tr><td>5xx, restart, RAM/disk tinggi</td><td>Gangguan/beban/dependensi,
+        belum tentu serangan.</td><td>Request ID + modul backend, resource VPS dan log Supabase/R2 pada waktu sama.</td></tr>
+      <tr><td>Akun uji B membaca dummy A yang seharusnya privat</td><td>Bukti minimal
+        kemungkinan cacat otorisasi.</td><td>Guard kapabilitas/ownership backend;
+        RLS/grants DB sebagai lapisan tambahan. Role backend berprivilege bisa melewati RLS.</td></tr>
+      <tr><td>Login SSH sukses tak dikenal</td><td>Dugaan akses tak sah; cocokkan
+        operator/otomasi dahulu. Key yang dicuri juga bisa dipakai masuk.</td><td>Jurnal SSH privat,
+        akses operator/key dan jalur pemulihan; jangan menutup semua SSH spontan.</td></tr>
+      <tr><td>Admin/role, DNS, WAF atau deployment berubah tanpa izin</td><td>Insiden
+        potensial, perlu investigasi segera.</td><td>Audit perubahan akun/provider,
+        izin dan riwayat rilis dari perangkat bersih.</td></tr>
+      <tr><td>Halaman putih/script asing</td><td>Bisa bug rilis atau perubahan tak sah;
+        screenshot saja belum memastikan sebab.</td><td>Pages dan frontend; Chrome
+        <strong>⌘⌥I → Console/Network</strong>. Respons API/JS gagal, bukan hanya status VPS.</td></tr>
+    </tbody>
+  </table>
+  <p>Untuk programmer: mulai dari <code>backend/src/modules/&lt;modul&gt;</code>,
+    <code>backend/src/middleware/authMiddleware.ts</code>,
+    <code>frontend/src/features/&lt;fitur&gt;</code> atau <code>ops/monitoring</code>
+    sesuai gejala. Ini peta review, bukan daftar celah terkonfirmasi.</p>
+  <h3>Urutan jika ada dugaan kebobolan</h3>
+  <ol>
+    <li><strong>Hentikan pengujian.</strong> Catat jam WIB, gejala, hostname,
+      request ID/Ray ID dan tindakan yang tidak dikenali; kedua ID berbeda.</li>
+    <li>Simpan bukti minimum secara privat. HAR/Copy-as-cURL, Console/Network dan
+      log mentah bisa berisi JWT, cookie, nama, URL privat atau request body; jangan unggah ke issue/chat publik.</li>
+    <li>Dari perangkat bersih, cocokkan seluruh operator/otomasi dan tentukan cakupan
+      akun/endpoint/kredensial terdampak; gunakan Web Console untuk jalur pemulihan bila perlu.</li>
+    <li>Containment sempit bersama operator: cabut akses/sesi terdampak dan rotasi
+      rahasia yang diduga bocor setelah jalur akses aman. Logout UI saja bukan
+      jaminan token lama dicabut; ikuti mekanisme autentikasi kustom aplikasi.</li>
+    <li>Jangan reset/reboot VPS, hapus log atau restore DB produksi spontan.
+      Pertahankan backup baik. Snapshot/forensik tambahan perlu tinjau dampak/biaya dahulu.</li>
+    <li>Perbaiki akar sebab lewat PR + tes regresi, deploy terkontrol dan retest.
+      Ganti password saja tidak membuktikan server sudah bersih.</li>
+  </ol>
+
+  <h2 id="pentest">9. Pengujian keamanan aplikasi yang sudah live</h2>
+  <p class="note"><strong>Pentest aktif produksi belum dijalankan.</strong> Guide
+    bukan izin scanner otomatis. Kepemilikan domain tidak memberi izin menguji
+    infrastruktur bersama provider. Tidak ada alat baru dipasang atau paket dibeli.</p>
+  <h3>A. Pemeriksaan ringan di Terminal Mac, bukan pentest lengkap</h3>
+  <p>Jalankan satu per satu, sekali saja, tanpa password/token/loop. Ini petunjuk
+    operator, bukan hasil pemeriksaan live pada sesi ini:</p>
+  <pre><code>curl --proto '=https' --connect-timeout 5 --max-time 10 --max-filesize 65536 --silent --show-error --output /dev/null --write-out 'Health HTTP=%{http_code}\n' https://api.sinegasi.pictures/api/health
+
+curl --proto '=https' --connect-timeout 5 --max-time 10 --max-filesize 65536 --silent --show-error --output /dev/null --write-out 'Tanpa sesi HTTP=%{http_code}\n' https://api.sinegasi.pictures/api/auth/me</code></pre>
+  <p>Health biasanya 200 (liveness). Endpoint privat tanpa sesi biasanya menolak
+    401 dari API. Jika Cloudflare menolak 403, backend belum teruji. Jika mendapat
+    200 pada endpoint privat, berhenti dan minta programmer memeriksa kontrak/respons
+    secara privat; status saja belum membuktikan kebocoran. Jangan menambah
+    <code>-k</code>, mengikuti redirect asing atau mencoba ulang saat 429/5xx.</p>
+  <p>Untuk melihat header frontend tanpa menampilkan cookie:</p>
+  <pre><code>curl --proto '=https' --head --connect-timeout 5 --max-time 10 --silent --show-error https://sinegasi.pictures/ |
+  awk 'tolower($0) ~ /^(http\/|content-security-policy:|strict-transport-security:|x-content-type-options:|x-frame-options:|referrer-policy:)/ { print }'</code></pre>
+  <p>Header hilang adalah bahan review, bukan otomatis celah. Misalnya CSP
+    <code>frame-ancestors</code> dapat melindungi framing tanpa X-Frame-Options.
+    Pemeriksaan ringan ini tidak menemukan seluruh SQL injection/IDOR/XSS.</p>
+  <h3>B. Akun uji A/B: hanya skenario yang disepakati</h3>
+  <ol>
+    <li>Siapkan dua akun uji milik Anda dan data sintetis tanpa siswa asli, lewat
+      alur admin sah setelah izin dan rencana cleanup; pembuatan akun/data bukan read-only.</li>
+    <li>Gunakan dua profil Chrome, atau jendela biasa + Incognito. <strong>Dua
+      jendela Incognito berbagi sesi</strong>, bukan dua akun terisolasi.</li>
+    <li>Login A, buka satu data dummy yang memang privat milik A. Catat rute dan
+      request ID aman, bukan token. Data yang dibagi ke semua anggota bukan sasaran ownership yang tepat.</li>
+    <li>Login B, lakukan satu akses baca yang disepakati ke dummy A. Tidak boleh
+      menerima field/berkas privat A. Detail dapat menolak 403/404; daftar dapat
+      benar bila hasilnya terfilter kosong. Jangan mencoba ID acak milik siswa.</li>
+    <li>Periksa respons API, bukan hanya menu tersembunyi. Rute SPA mengembalikan
+      HTML 200 bukan otomatis kebocoran. Write/delete, ubah role, dan IDOR luas harus di staging.</li>
+    <li>Jika dummy privat muncul, berhenti pada bukti minimum. Simpan waktu,
+      peran A/B, rute, harapan dan hasil aktual secara privat; jangan mengunduh tabel lain.</li>
+  </ol>
+  <p>Setelah monitoring baru dirilis, satu login/aktivitas sah bisa memeriksa event.
+    Jangan sengaja membuat crash, 500 atau brute force untuk menampilkan log.</p>
+  <h3>C. Pentest aktif: staging terisolasi dahulu</h3>
+  <p>SQL injection, XSS, fuzzing, write/delete/IDOR luas dan uji limiter dilakukan
+    pada salinan kode dengan DB/bucket dummy terpisah, tanpa credential/koneksi
+    produksi atau worker/email nyata. DEV yang masih memakai data produksi bukan
+    staging aman. Jangan membuat branch Supabase berbayar atau menyalin data siswa untuk tes ini.</p>
+  <table>
+    <thead><tr><th>Alat</th><th>Batas aman dalam rencana ini</th></tr></thead>
+    <tbody>
+      <tr><td>DevTools</td><td>Pilihan awal tanpa alat baru: navigasi biasa, status dan header.
+        Jangan unggah HAR atau Copy-as-cURL mentah.</td></tr>
+      <tr><td>ZAP lokal (opsional)</td><td>Open-source, bukan SaaS wajib. Pilih <strong>Safe Mode</strong>
+        dan eksplorasi manual data dummy; jangan klik Automated Scan/Attack/Active Scan
+        untuk produksi. Proxy dapat merekam rahasia; jangan memasang CA global atau mem-proxy akun pribadi/dashboard provider.</td></tr>
+      <tr><td>ZAP Baseline</td><td>Tetap melakukan spider/crawling, bukan tanpa request.
+        Belum disetujui untuk live. Full/API Scan berbeda dan melakukan pengujian aktif.</td></tr>
+      <tr><td>SQLMap/Nikto/fuzzer</td><td>Tidak dijalankan di live. Pada staging perlu
+        parameter, skenario dummy dan budget request/waktu. Tidak perlu dump password/DB,
+        OS shell, stealth atau bypass WAF untuk membuktikan kontrol aplikasi.</td></tr>
+      <tr><td>Brute force/DoS/flood</td><td>Di luar cakupan; bisa mengunci akun,
+        mengganggu layanan dan melanggar kebijakan provider.</td></tr>
+    </tbody>
+  </table>
+  <p>Hasil scanner adalah kandidat, bukan vonis. WAF memblokir satu request bukan
+    bukti semua backend aman; CI/unit test hijau bukan sertifikat pentest.</p>
+  <h3>D. Daftar persetujuan sebelum pentest produksi</h3>
+  <ul>
+    <li>Host/rute yang boleh dan yang dikecualikan, akun/data dummy, operator,
+      jam mulai–akhir WIB dan kontak penghentian tes.</li>
+    <li>Laju/jumlah request total disepakati. Usulan awal manual: satu request
+      tiap ≥2 detik, satu proses, total kecil yang disetujui; bukan izin provider
+      atau jaminan bebas gangguan. Tidak menjalankan tes bersamaan deployment.</li>
+    <li>Monitor, backup terbaru, pemahaman uji restore dan recovery siap.</li>
+    <li>Stop pada lockout, 429, 5xx/timeout baru, resource melonjak, data non-dummy,
+      perubahan tak diharapkan atau permintaan provider. Jangan pindah IP untuk melewati blok.</li>
+  </ul>
+  <p><strong>Cloudflare:</strong> target harus aset sendiri, laju dibatasi; scan
+    mendeteksi tanpa eksploitasi. Pentest mempunyai prasyarat WAF tertentu yang
+    belum tentu tersedia di Free; konfirmasi kesiapan, jangan mematikan proxy/WAF
+    atau membeli paket otomatis. <a href="https://developers.cloudflare.com/fundamentals/reference/scans-penetration/">Kebijakan resmi</a>.</p>
+  <p><strong>Supabase:</strong> hanya komponen project sendiri yang diizinkan;
+    DoS, flooding dan serangan project pihak lain dilarang.
+    <a href="https://supabase.com/docs/guides/security/security-testing">Kebijakan resmi</a>.</p>
+  <p><strong>Sumopod:</strong> izin pentest publik untuk VPS ini <strong>belum
+    terverifikasi</strong>; periksa Terms/AUP dan minta konfirmasi jika tidak jelas.
+    Pemeriksaan laporan lokal tetap dapat dilakukan sambil menunggu izin tes aktif.</p>
+  <p><small>Metodologi: <a href="https://owasp.org/www-project-web-security-testing-guide/">OWASP WSTG</a> ·
+    <a href="https://www.zaproxy.org/docs/desktop/start/features/modes/">ZAP Modes</a> ·
+    <a href="https://www.zaproxy.org/docs/docker/baseline-scan/">ZAP Baseline</a>.</small></p>
+
+  <h2 id="ci">10. PR/CI: klik mana dan kapan produksi berubah?</h2>
+  <ol>
+    <li>Buka <a href="https://github.com/dhanis-alghifari/cms-sinegasi-picture/pulls">repository → Pull requests</a>
+      → pilih PR monitoring → <strong>Files changed</strong>. Review perubahan,
+      jangan menempelkan password atau bukti insiden privat pada PR publik.</li>
+    <li>Klik <strong>Checks → Code Quality → backend-quality/frontend-quality</strong>.
+      Hijau berarti job lulus, bukan produksi sudah berubah; kuning/abu-abu masih berjalan/menunggu.</li>
+    <li>Alternatif <strong>Actions → Code Quality → run branch/SHA PR terbaru →
+      Jobs → langkah gagal</strong>. Catat nama test/file dan error aman. Jangan
+      menekan Re-run terus-menerus tanpa diagnosis.</li>
+    <li>Perbaiki source + tes regresi, push commit baru, lalu cocokkan Checks
+      dengan SHA terbaru. Jangan membaca hasil commit lama sebagai hasil terbaru.</li>
+    <li><strong>Merge bukan langkah monitoring harian.</strong> Perlu persetujuan
+      terpisah; jangan bypass branch protection, mengubah secret atau menyalakan auto-deploy.</li>
+    <li>Backend resmi memakai <strong>Build or Deploy Approved Production Backend</strong>:
+      build dan deploy terpisah, mengikat SHA main, evidence, image immutable dan
+      approval baru. Jangan mengisi checksum sembarang atau memakai approval lama;
+      persiapannya dilakukan operator rilis.</li>
+    <li>Frontend Pages juga harus mengikuti persetujuan rilisnya. Reporter browser
+      memerlukan frontend dan endpoint backend yang cocok sudah terdeploy.</li>
+    <li>Setelah rilis: satu aktivitas akun uji sah → tunggu collector → lihat event,
+      cek fungsi penting/error/resource; rollback terkontrol jika regresi kritis.</li>
+  </ol>
+  <p>PR juga memperbaiki cursor collector setelah gagal baca serta bucket route.
+    Perbaikan tambahan ini belum otomatis dipasang ke VPS; upgrade collector
+    terpisah dari rilis aplikasi dan tidak perlu mengubah cron backup.</p>
+
+  <h2 id="simpan">11. Simpan di Mac</h2>
+  <p>File ini sudah berada di <code>ops/monitoring/Panduan-Monitoring-Sinegasi.html</code>.
+    Buka dengan Safari/Chrome. Untuk PDF: tekan <strong>⌘P → Save as PDF</strong>,
+    pilih folder di Mac. Tidak perlu mengunggah panduan ke layanan konversi.</p>
+  <p><small>Rujukan resmi:
+    <a href="https://developers.cloudflare.com/security/analytics/">Security Analytics</a> ·
+    <a href="https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/monitor-tunnels/notifications/">Tunnel alerts</a> ·
+    <a href="https://developers.cloudflare.com/notifications/notification-available/">Ketersediaan notifikasi</a> ·
+    <a href="https://supabase.com/docs/guides/observability/logs">Supabase Logs</a> ·
+    <a href="https://ubuntu.com/server/docs/how-to/security/openssh-server/">OpenSSH Ubuntu</a>.
+    Paket/kuota dan navigasi dapat berubah.</small></p>
+</main>
+</body>
+</html>

@@ -46,6 +46,14 @@ jobs:
       - name: Verify repository hygiene
         run: node --test scripts/check-repository-hygiene.test.mjs && node scripts/check-repository-hygiene.mjs
 
+      - name: Verify private VPS monitoring offline
+        run: |
+          python3 -I -B -m unittest discover -s ops/monitoring -p 'test_*.py' -v
+          bash -n ops/monitoring/install-vps.sh
+          bash -n ops/monitoring/control-vps.sh
+          bash -n ops/monitoring/apply-ssh-hardening.sh
+          bash -n ops/monitoring/rollback-ssh-hardening.sh
+
       - name: Run backend quality checks
         run: npm run quality:check
         working-directory: backend
