@@ -106,6 +106,48 @@ test('student photos preserve optional empty values and canonical PNG support', 
   assert.equal(withPhoto.data.student.foto_url, foto_url);
 });
 
+test('linked student photo-only update preserves profile and forwards the normalized audit reason', async () => {
+  const state = createStudentsMemoryState();
+  const photo = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jD1sAAAAASUVORK5CYII=';
+  const previous = {
+    id: '11111111-1111-4111-8111-111111111111', user_id: '22222222-2222-4222-8222-222222222222',
+    nis: 'TEST-001', nama: 'Siswa Uji', kelas: 'X Uji', peminatan: 'naskah',
+    no_telepon: '+6281234567890', is_active: true, created_at: '2026-01-01T00:00:00Z',
+  };
+  state.students.push(previous);
+  const base = createStudentRepository(null, state);
+  const calls: Array<Parameters<NonNullable<StudentRepository['updateProfile']>>[0]> = [];
+  const repository: StudentRepository = {
+    ...base, isConfigured: () => true,
+    async updateProfile(input) { calls.push(input); return base.updateProfile!(input); },
+  };
+  const service = new StudentService(repository);
+  const actorId = '33333333-3333-4333-8333-333333333333';
+  const result = await service.update(previous.id, { foto_url: photo }, actorId, '  Ubah foto pengujian  ', false);
+  assert.deepEqual(calls, [{
+    id: previous.id, actorId, changeReason: 'Ubah foto pengujian',
+    changes: { nama: previous.nama, kelas: previous.kelas, peminatan: previous.peminatan, no_telepon: previous.no_telepon, foto_url: photo },
+  }]);
+  assert.equal(result.data.user_id, previous.user_id);
+  assert.equal(result.data.foto_url, photo);
+  assert.equal(result.data.no_telepon, previous.no_telepon);
+
+  await service.update(previous.id, { nama: 'Nama Uji Baru' }, actorId, 'Koreksi nama pengujian', false);
+  assert.equal(calls[1].changes.kelas, previous.kelas);
+  assert.equal(calls[1].changes.foto_url, photo);
+  await service.update(previous.id, { foto_url: '' }, actorId, 'Hapus foto pengujian', false);
+  assert.equal(calls[2].changes.foto_url, undefined);
+  assert.equal(calls[2].changes.no_telepon, previous.no_telepon);
+
+  for (const reason of ['', 'a'.repeat(501)]) {
+    await assert.rejects(service.update(previous.id, { foto_url: photo }, actorId, reason, false),
+      (error: unknown) => error instanceof StudentServiceError && error.errorCode === 'INVALID_CHANGE_REASON');
+  }
+  await assert.rejects(service.update(previous.id, { foto_url: photo }, null, 'Ubah foto pengujian', false),
+    (error: unknown) => error instanceof StudentServiceError && error.errorCode === 'DATABASE_IDENTITY_UNAVAILABLE');
+  assert.equal(calls.length, 3, 'invalid audit context must not reach the mutation');
+});
+
 test('student account creation normalizes manual usernames and requires an Indonesian WhatsApp number', async () => {
   const state = createStudentsMemoryState();
   const service = new StudentService(createStudentRepository(null, state));

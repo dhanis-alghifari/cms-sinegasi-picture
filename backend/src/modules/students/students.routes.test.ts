@@ -7,6 +7,7 @@ import { createStudentRepository } from './students.repository.js';
 import { StudentService } from './students.service.js';
 import studentRoutes from './students.routes.js';
 import { getCapabilities, setRoleCapabilities } from '../../middleware/capabilities.js';
+import type { StudentRepository } from './students.types.js';
 
 let accountOperationSequence = 0;
 
@@ -128,6 +129,46 @@ test('student photo is served only through an authenticated capability-checked n
 
   const denied = await app.inject({ method: 'GET', url: `/api/students/${studentId}/photo`, headers: { authorization: `Bearer ${member}` } });
   assert.equal(denied.statusCode, 403);
+});
+
+test('live-shaped profile photo request forwards actor and header reason, while invalid requests never mutate', async (t) => {
+  const state = createStudentsMemoryState();
+  const id = '66666666-6666-4666-8666-666666666666';
+  const actorId = '77777777-7777-4777-8777-777777777777';
+  const photo = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jD1sAAAAASUVORK5CYII=';
+  state.students.push({ id, user_id: '88888888-8888-4888-8888-888888888888', nis: 'TEST-001', nama: 'Siswa Uji', kelas: 'X Uji', is_active: true, created_at: '2026-01-01T00:00:00Z' });
+  const base = createStudentRepository(null, state);
+  const calls: Array<Parameters<NonNullable<StudentRepository['updateProfile']>>[0]> = [];
+  const repository: StudentRepository = {
+    ...base,
+    async updateProfile(input) { calls.push(input); return base.updateProfile!(input); },
+  };
+  const app = Fastify();
+  t.after(() => app.close());
+  await app.register(jwt, { secret: 'test-secret-that-is-long-enough' });
+  await app.register(studentRoutes, {
+    studentsService: new StudentService(repository, () => state.students),
+    persistAuditLog: async () => undefined,
+  });
+  const token = app.jwt.sign({ userId: actorId, username: 'operator.fixture', role: 'secretary', isFirstLogin: false });
+  const headers = { authorization: `Bearer ${token}`, 'x-change-reason': 'Ubah foto pengujian' };
+  const payload = { name: 'Siswa Uji', class_name: 'X Uji', specialization: 'screenwriting', photo_url: photo };
+  const response = await app.inject({ method: 'PUT', url: `/api/students/${id}`, headers, payload });
+  assert.equal(response.statusCode, 200);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].actorId, actorId);
+  assert.equal(calls[0].changeReason, 'Ubah foto pengujian');
+  assert.equal(calls[0].changes.foto_url, photo);
+  assert.equal(calls[0].changes.peminatan, 'naskah');
+
+  const noReason = await app.inject({ method: 'PUT', url: `/api/students/${id}`, headers: { authorization: headers.authorization }, payload });
+  assert.equal(noReason.statusCode, 422);
+  const badPhoto = await app.inject({ method: 'PUT', url: `/api/students/${id}`, headers, payload: { ...payload, photo_url: 'data:image/png;base64,AAAA' } });
+  assert.equal(badPhoto.statusCode, 422);
+  const member = app.jwt.sign({ userId: 'member-fixture', username: 'member.fixture', role: 'member', isFirstLogin: false });
+  const denied = await app.inject({ method: 'PUT', url: `/api/students/${id}`, headers: { ...headers, authorization: `Bearer ${member}` }, payload });
+  assert.equal(denied.statusCode, 403);
+  assert.equal(calls.length, 1, 'missing reason, invalid photo and unauthorized role must not mutate');
 });
 
 test('configured student list selects and returns profile metadata without photo data', async () => {

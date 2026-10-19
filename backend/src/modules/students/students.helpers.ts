@@ -99,6 +99,7 @@ export function isMissingStudentsSchemaError(error: unknown): boolean {
     || candidate.message?.toLowerCase().includes('provision_student_account_v2')
     || candidate.message?.toLowerCase().includes('set_student_account_status_atomic')
     || candidate.message?.toLowerCase().includes('update_student_profile_atomic')
+    || candidate.message?.toLowerCase().includes('update_student_profile_audited_atomic')
     || candidate.message?.toLowerCase().includes('purge_student_history_atomic')
   ));
 }
