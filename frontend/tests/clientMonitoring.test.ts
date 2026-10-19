@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { resolve } from 'node:path';
 import { build } from 'vite';
+import { installGlobalClientErrorMonitoring, reportClientError } from '../src/shared/monitoring/reportClientError';
 import {
   createClientErrorReporter,
   installClientErrorListeners,
@@ -10,6 +11,11 @@ import {
 } from '../src/shared/monitoring/clientErrors';
 
 const tick = () => new Promise<void>((done) => setImmediate(done));
+
+test('monitoring imports and stays inert outside the Vite browser runtime', () => {
+  assert.doesNotThrow(() => reportClientError({ kind: 'render', code: 'RENDER_ERROR' }));
+  assert.doesNotThrow(() => installGlobalClientErrorMonitoring()());
+});
 
 test('telemetry sends only closed metadata to the production first-party collector', async () => {
   const calls: Array<{ input: RequestInfo | URL; options?: RequestInit }> = [];
