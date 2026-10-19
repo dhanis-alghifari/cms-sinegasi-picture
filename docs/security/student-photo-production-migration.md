@@ -78,8 +78,14 @@ Receipt rehearsal privat harus canonical JSON (tanpa newline/field tambahan):
 Receipt ini attestation operator berdasarkan bukti; checksum bukan tanda tangan
 dan tidak membuktikan tes telah dijalankan. Hasil unit test sintetis bukan receipt
 provider/restore/rehearsal production yang boleh disalin menjadi approval.
-Unit test runner memodelkan transaksi; belum menggantikan rehearsal end-to-end
-runner pada database disposable lengkap sebelum aktivasi production.
+Unit test runner memodelkan transaksi; tidak menggantikan rehearsal end-to-end
+runner pada database disposable lengkap untuk exact release sebelum aktivasi.
+
+Pemeriksaan security catalog historis memakai tipe PostgreSQL `name`, sehingga
+signature panjang terpotong ke 63 byte. Adapter mempertahankan hash checkpoint
+lama dan hanya memisahkan satu entry exact milik RPC baru setelah seluruh
+metadata/body/ACL-nya diverifikasi. Entry hilang atau collision ganda ditolak;
+nama fungsi lain dan checkpoint tidak diubah.
 
 ### 3. Approval migrasi terpisah
 
@@ -183,5 +189,12 @@ kedaluwarsa, reviewer/policy salah, fungsi sudah ada, drift objek lain, pencabut
 readiness/window sebelum commit, dan COMMIT ambigu. Metadata fungsi DEV nyata
 diperiksa read-only melalui validator yang sama. Tidak ada bukti ini yang
 menyatakan migration runner sudah dieksekusi di production.
+
+Rehearsal runner juga telah dijalankan pada PostgreSQL 17.11 disposable dengan
+baseline lengkap dan authorization **sintetis khusus tes**: commit/metadata nyata,
+rollback DDL saat readiness dicabut, data bisnis tidak berubah, gate lama menolak
+addition, apply ulang ditolak, drift ACL lain ditolak, dan balasan COMMIT hilang
+tidak diretry. Container dibersihkan; production/DEV/Caddy tetap sama. Hasil tes
+ini bukan approval atau receipt recovery production.
 
 Rujukan: [Supabase: fungsi database dan privileges](https://supabase.com/docs/guides/database/functions).

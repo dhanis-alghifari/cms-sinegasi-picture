@@ -7,6 +7,10 @@ import type { WriterCatalog, WriterSession } from './reconciliationWriterCatalog
 export const STUDENT_PHOTO_CHANGE = 'add-student-photo-audit-rpc-v1';
 export const STUDENT_PHOTO_SQL_SHA256 = '432bfd1fa8894f7aa554eeabfcab98923563ae30737b26232b5e631d35096613';
 export const STUDENT_PHOTO_SIGNATURE = 'update_student_profile_audited_atomic(uuid,text,text,text,text,text,uuid,text)';
+// The historical security UNION resolves its name column as pg_catalog.name,
+// truncating signatures to 63 ASCII bytes. Preserve that checkpoint contract;
+// never change all catalog hashes or hide multiple colliding rows.
+const LEGACY_SECURITY_NAME = STUDENT_PHOTO_SIGNATURE.slice(0, 63);
 export const studentPhotoHash = (raw: string): string => createHash('sha256').update(raw).digest('hex');
 const HASH = /^[a-f0-9]{64}$/;
 const SHA = /^[a-f0-9]{40}$/;
@@ -105,7 +109,14 @@ export async function requireStudentPhotoFunction(db: WriterSession, sql: string
 export function withoutStudentPhotoCatalog(catalog: WriterCatalog): WriterCatalog {
   return { inventory: { ...catalog.inventory, structure: catalog.inventory.structure.filter(row =>
     !(row.kind === 'function' && row.name === STUDENT_PHOTO_SIGNATURE)) },
-  security: catalog.security.filter(row => !(row.kind === 'function' && row.name === STUDENT_PHOTO_SIGNATURE)) };
+  security: catalog.security.length ? withoutStudentPhotoSecurity(catalog.security) : [] };
+}
+
+function withoutStudentPhotoSecurity(rows: ReadonlyArray<Record<string, unknown>>): Record<string, unknown>[] {
+  const matches = (row: Record<string, unknown>) => row.kind === 'function'
+    && (row.name === STUDENT_PHOTO_SIGNATURE || row.name === LEGACY_SECURITY_NAME);
+  requirePhoto(rows.filter(matches).length === 1, 'PHOTO_MIGRATION_SECURITY_ENTRY_AMBIGUOUS');
+  return rows.filter(row => !matches(row));
 }
 
 /** Internal Adapter: keep the original verifier unchanged, including every other object/ACL. */
@@ -118,7 +129,7 @@ export function withoutStudentPhotoSession(db: WriterSession): WriterSession {
     async query(sql, values) {
       const result = await db.query(sql, values);
       if (sql.includes('SELECT kind,name,metadata')) return {
-        rows: result.rows.filter(row => !(row.kind === 'function' && row.name === STUDENT_PHOTO_SIGNATURE)),
+        rows: withoutStudentPhotoSecurity(result.rows),
       };
       if (sql.includes('p.prosrc AS body')) return { rows: result.rows.filter(row => row.signature !== STUDENT_PHOTO_SIGNATURE) };
       return result;

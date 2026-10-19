@@ -59,6 +59,20 @@ test('receipt is exact, operation/checksum-bound and never accepts future or ext
     assert.throws(() => validateStudentPhotoReceipt({ ...receipt, ...change }, receipt.afterCatalogSha256, now));
   }
 });
+test('historical PostgreSQL name truncation excludes one security entry, never collisions or neighbors', async () => {
+  const legacyName = STUDENT_PHOTO_SIGNATURE.slice(0, 63);
+  assert.equal(Buffer.byteLength(legacyName), 63);
+  const target = { kind: 'function', name: legacyName, metadata: 'pinned separately' };
+  const neighbor = { ...target, name: legacyName.slice(0, -1) + 'x' };
+  const inventory = { tables: [], structure: [], roles: [], extensions: [] };
+  const adapt = (rows: Record<string, unknown>[]) => withoutStudentPhotoSession({
+    inventory: async () => inventory, query: async () => ({ rows }),
+  });
+  assert.deepEqual((await adapt([target, neighbor]).query('SELECT kind,name,metadata')).rows, [neighbor]);
+  for (const rows of [[], [neighbor], [target, target], [target, { ...target, name: STUDENT_PHOTO_SIGNATURE }]]) {
+    await assert.rejects(adapt(rows).query('SELECT kind,name,metadata'), /SECURITY_ENTRY_AMBIGUOUS/);
+  }
+});
 test('plan and malformed CLI never connect to database or create approvals', async t => {
   let connections = 0;
   t.mock.method(pg.Client.prototype, 'connect', async () => { connections++; throw new Error('FORBIDDEN'); });
