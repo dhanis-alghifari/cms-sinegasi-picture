@@ -27,6 +27,13 @@ konfigurasi berikutnya dicatat dalam [panduan kesiapan](../../docs/security/prod
 
 ## Dua tahap approval
 
+Hotfix foto siswa memiliki jalur migrasi additive terpisah yang direview di
+[runbook khusus](../../docs/security/student-photo-production-migration.md).
+Evidence deployment format 3 menerima hanya satu RPC yang body/ACL-nya terpin
+dan receipt-nya cocok; tidak menjalankan SQL pada job deploy atau mengubah
+checkpoint historis. Format 2 tetap ketat dan tidak otomatis menerima addition.
+Pembuatan PR bukan aktivasi flag migrasi/deploy atau approval operasional.
+
 1. Setelah exact patch dipromosikan ke `main` dan CI backend/frontend sukses,
    publisher yang ditinjau menyiapkan bukti schema/recovery/rehearsal baru.
    Workflow manual memeriksa actual environment protection, exact current main,

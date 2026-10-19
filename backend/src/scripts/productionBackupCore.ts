@@ -165,6 +165,25 @@ export async function readGithubMainSha(): Promise<string> {
   }
 }
 
+/** Fixed production protection lookup; never export unrelated variables or secrets. */
+export async function readGithubProductionProtection(): Promise<{
+  environment: unknown; branches: unknown; migrationReady: boolean; reviewMode: unknown;
+}> {
+  const root = 'repos/dhanis-alghifari/cms-sinegasi-picture/environments/production';
+  const read = async (suffix: string): Promise<unknown> => JSON.parse((await runPrivateCommandBytes(
+    '/opt/homebrew/bin/gh', ['api', '--hostname', 'github.com', '--method', 'GET', root + suffix],
+    '', 30_000, 1024 * 1024, GITHUB_QUALITY_ENV,
+  )).toString('utf8')) as unknown;
+  const [environment, branches, value] = await Promise.all([read(''), read('/deployment-branch-policies?per_page=100'), read('/variables?per_page=100')]);
+  const variables = value as { total_count?: unknown; variables?: Array<{ name?: unknown; value?: unknown }> };
+  if (!Array.isArray(variables.variables) || variables.total_count !== variables.variables.length) {
+    throw new BackupError('PRODUCTION_PROTECTION_METADATA_INCOMPLETE');
+  }
+  return { environment, branches,
+    migrationReady: variables.variables.find(v => v.name === 'PRODUCTION_STUDENT_PHOTO_MIGRATION_READY')?.value === 'true',
+    reviewMode: variables.variables.find(v => v.name === 'PRODUCTION_REVIEW_MODE')?.value };
+}
+
 export async function readKeychain(service: string, account: string): Promise<string> {
   return privateCommand('/usr/bin/security', [
     'find-generic-password', '-s', service, '-a', account, '-w', LOGIN_KEYCHAIN,

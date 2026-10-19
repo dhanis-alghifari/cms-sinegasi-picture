@@ -22,7 +22,7 @@ on:
         required: true
         type: string
       schema_evidence_sha256:
-        description: SHA256 of fresh reviewed reconciled-no-sql deployment evidence (not a migration manifest)
+        description: SHA256 of fresh reviewed schema evidence (format 2 baseline or format 3 approved photo RPC; deployment never executes SQL)
         required: true
         type: string
       build_run_id:
