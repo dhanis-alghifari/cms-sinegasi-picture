@@ -11,21 +11,22 @@ const MAX_COLLECTION_ITEMS = 10_000;
 function assertResponseWithinLimits(payload: unknown): void {
   const pending: unknown[] = [payload];
   let remaining = MAX_RESPONSE_NODES;
+  let oversized = false;
 
   while (pending.length > 0) {
     const value = pending.pop();
     remaining -= 1;
-    if (remaining < 0) {
-      throw new ApiError('Respon server terlalu besar untuk diproses.', 502, undefined, 'API_RESPONSE_TOO_LARGE');
-    }
+    if (remaining < 0) { oversized = true; break; }
     if (value === null || typeof value !== 'object') continue;
 
     const children = Array.isArray(value) ? value : Object.values(value);
     if (children.length > MAX_COLLECTION_ITEMS || children.length > remaining - pending.length) {
-      throw new ApiError('Respon server terlalu besar untuk diproses.', 502, undefined, 'API_RESPONSE_TOO_LARGE');
+      oversized = true;
+      break;
     }
     pending.push(...children);
   }
+  if (oversized) throw new ApiError('Respon server terlalu besar untuk diproses.', 502, undefined, 'API_RESPONSE_TOO_LARGE');
 }
 
 /**
