@@ -3,12 +3,38 @@ import { ApiError } from './errors';
 import type { ResponseDecoder } from './client';
 import type { PaginatedResponse } from '@/shared/types/common';
 
+// Bound work before Zod validates untrusted API data. Its size checks cannot
+// protect schemas with no collection limit, even on patched versions.
+const MAX_RESPONSE_NODES = 100_000;
+const MAX_COLLECTION_ITEMS = 10_000;
+
+function assertResponseWithinLimits(payload: unknown): void {
+  const pending: unknown[] = [payload];
+  let remaining = MAX_RESPONSE_NODES;
+
+  while (pending.length > 0) {
+    const value = pending.pop();
+    remaining -= 1;
+    if (remaining < 0) {
+      throw new ApiError('Respon server terlalu besar untuk diproses.', 502, undefined, 'API_RESPONSE_TOO_LARGE');
+    }
+    if (value === null || typeof value !== 'object') continue;
+
+    const children = Array.isArray(value) ? value : Object.values(value);
+    if (children.length > MAX_COLLECTION_ITEMS || children.length > remaining - pending.length) {
+      throw new ApiError('Respon server terlalu besar untuk diproses.', 502, undefined, 'API_RESPONSE_TOO_LARGE');
+    }
+    pending.push(...children);
+  }
+}
+
 /**
  * Parse data received from an HTTP boundary before it enters application code.
  * The server response is untrusted even when its TypeScript type looks known.
  */
 export function decodeWithSchema<T>(schema: z.ZodType<T>): ResponseDecoder<T> {
   return (payload: unknown): T => {
+    assertResponseWithinLimits(payload);
     const parsed = schema.safeParse(payload);
     if (parsed.success) return parsed.data;
 
