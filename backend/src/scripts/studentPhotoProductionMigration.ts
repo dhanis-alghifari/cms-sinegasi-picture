@@ -58,7 +58,7 @@ export function validateStudentPhotoApproval(auth: StudentPhotoAuthorization, no
     && ['maintenanceWindowConfirmed', 'noOtherWriters', 'databaseRollbackCompatible', 'noDeploymentAuthorized']
       .every(key => item[key] === true), 'PHOTO_MIGRATION_EXACT_APPROVAL_REQUIRED');
   const baseline = validateDeploymentEvidence(auth.baselineRaw, { ...auth.context, now });
-  requireMigration(baseline.format === 2, 'PHOTO_MIGRATION_PRECHANGE_BASELINE_REQUIRED');
+  requireMigration(baseline.format === 2 || baseline.format === 4, 'PHOTO_MIGRATION_PRECHANGE_BASELINE_REQUIRED');
   // A local checksum is NOT proof that an independent reviewer approved a run.
   // Do not silently downgrade independent-review to owner attestation.
   requireMigration(baseline.reviewPolicy.mode === 'solo-owner' && item.approvedBy === baseline.reviewPolicy.owner,
@@ -91,6 +91,7 @@ export async function applyStudentPhotoMigration(db: WriterSession, bundle: Writ
   requireMigration(auth.context.packageSha256 === bundle.packageSha256
     && JSON.stringify(createWriterPackage(bundle.snapshot)) === JSON.stringify(bundle), 'PHOTO_MIGRATION_PACKAGE_TAMPERED');
   const validated = validateStudentPhotoApproval(auth, now());
+  const backupRolePolicy = validated.baseline.format === 4 ? validated.baseline.backupRolePolicy : undefined;
   const sql = await readStudentPhotoSql();
   await live.revalidate();
   let committing = false;
@@ -108,7 +109,7 @@ export async function applyStudentPhotoMigration(db: WriterSession, bundle: Writ
     requireMigration(identity?.database === 'postgres' && identity.actor === 'postgres' && identity.readOnly === 'off'
       && /^17[0-9]{4}$/.test(String(identity.version)) && Number.isInteger(identity.pid), 'PHOTO_MIGRATION_SESSION_IDENTITY_REQUIRED');
     await requireStudentPhotoAbsent(db);
-    const before = await readDeploymentCatalog(db, bundle);
+    const before = await readDeploymentCatalog(db, bundle, undefined, backupRolePolicy);
     requireDeploymentObservation(before, validated.baseline.observation);
     validateStudentPhotoApproval(auth, now());
     await db.query(sql);
@@ -121,7 +122,7 @@ export async function applyStudentPhotoMigration(db: WriterSession, bundle: Writ
       baselineEvidenceSha256: auth.context.evidenceSha256, beforeCatalogSha256: before.targetCatalogSha256,
       rehearsalSha256: validated.approval.rehearsalSha256,
       afterCatalogSha256: writerCatalogHash(normalized), appliedAt: new Date(now()).toISOString() };
-    const after = await readDeploymentCatalog(db, bundle, receipt);
+    const after = await readDeploymentCatalog(db, bundle, receipt, backupRolePolicy);
     requireMigration(after.targetCatalogSha256 === receipt.afterCatalogSha256, 'PHOTO_MIGRATION_POSTCONDITION_REQUIRED');
     const lastIdentity = (await db.query(identitySql)).rows[0];
     requireMigration(JSON.stringify(lastIdentity) === JSON.stringify(identity), 'PHOTO_MIGRATION_SESSION_CHANGED');

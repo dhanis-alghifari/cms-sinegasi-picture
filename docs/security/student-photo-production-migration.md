@@ -16,16 +16,39 @@ SQL migration 090 dan mirror Supabase tidak diubah. Checksum SQL tetap:
 Tidak ada replay baseline/history, perubahan tabel/data bisnis, role baru,
 penonaktifan audit/RLS, atau akses fungsi untuk anon/authenticated.
 
+### Delta backup yang telah disetujui
+
+Gate dapat memakai evidence **format 4** (`reconciled-backup-role-v1`) sebelum
+hotfix dan **format 5** (`reconciled-backup-role-student-photo-v1`) sesudahnya,
+dengan `backupRolePolicy=sinegasi-backup-readonly-v1`. Format 2/3 tetap menolak
+delta role; tidak ada fallback otomatis bila hash berbeda.
+
+Policy read-only memverifikasi `sinegasi_backup`: LOGIN, INHERIT, BYPASSRLS,
+connection limit 1, hanya setting `default_transaction_read_only=on`, tanpa
+SUPERUSER/CREATEDB/CREATEROLE/REPLICATION atau setting per-database. Tepat dua
+membership beserta grantor dan opsi ADMIN/INHERIT/SET harus cocok: `pg_read_all_data`
+ke `sinegasi_backup` dari `postgres`, serta administrasi role backup oleh `postgres`
+dari `supabase_admin`. Metadata tambahan, membership lain, atau grantor berbeda
+ditolak. Tidak ada GRANT/REVOKE/ALTER ROLE yang dijalankan gate ini.
+
+Hanya setelah validasi tersebut, satu role dan dua entry security dipisahkan
+untuk pembandingan dengan checkpoint historis. Hash observasi/receipt tetap
+mencakup catalog aktual beserta role backup, bukan hash yang telah dipisahkan.
+Semua objek/ACL lainnya tetap harus cocok byte-exact; checkpoint tidak ditulis
+ulang. Read-only default bukan pencabutan kemampuan `SET`: pembatasan akses baca
+tetap berasal dari privileges role. Akses baca luas/BYPASSRLS adalah risiko role
+backup yang sudah dipilih, bukan permission baru dari hotfix.
+
 ## Urutan operator
 
 | Tahap | Yang dilakukan | Bukti selesai |
 | --- | --- | --- |
 | 1. Review | Review PR, merge lewat required CI, catat exact current main | CI push main backend/frontend sukses |
 | 2. Rehearsal | Uji SQL di PostgreSQL 17 dummy, bukan DEV/production; uji rollback dan guard CI | Receipt rehearsal baru dan cleanup terverifikasi |
-| 3. Pemulihan sebelum migrasi | Backup terenkripsi baru, restore public di tempat terpisah, salinan ciphertext, cek kunci independen | Evidence baseline format 2, maksimal 2 jam; observasi maksimal 30 menit |
+| 3. Pemulihan sebelum migrasi | Backup terenkripsi baru, restore public di tempat terpisah, salinan ciphertext, cek kunci independen | Evidence baseline format 2/4, maksimal 2 jam; observasi maksimal 30 menit |
 | 4. Approval migrasi | Owner/reviewer meninjau exact SQL, release, receipt dan window | Approval migrasi privat baru; checksum byte exact |
 | 5. Migrasi | Jalankan source CLI dari clean exact main pada Mac | Receipt commit privat; belum deploy backend |
-| 6. Pemulihan sesudah migrasi | Backup/restore baru yang sudah mencakup fungsi baru; observasi catalog aktual | Evidence deployment format 3 dengan receipt migrasi |
+| 6. Pemulihan sesudah migrasi | Backup/restore baru yang sudah mencakup fungsi baru; observasi catalog aktual | Evidence deployment format 3/5 dengan receipt migrasi |
 | 7. Rilis backend | Build, review artifact, approval deployment baru, dispatch deploy terpisah | Gate CI/runtime dan health lulus |
 | 8. Penerimaan | Uji upload lewat record/akun dummy yang disetujui, reload dan periksa audit | Foto tersimpan dan tidak ada error baru |
 

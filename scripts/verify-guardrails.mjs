@@ -42,6 +42,12 @@ assert(prodWorkflow.includes('production-ci-preflight.cjs') && prodCiPreflight.i
 const photoPolicy = readFile('backend/src/scripts/studentPhotoProductionPolicy.ts');
 const photoRunner = readFile('backend/src/scripts/studentPhotoProductionMigration.ts');
 const photoCli = readFile('backend/src/scripts/studentPhotoProductionCli.ts');
+const backupRolePolicy = readFile('backend/src/scripts/productionBackupRolePolicy.ts');
+assert(backupRolePolicy.includes("APPROVED_BACKUP_ROLE_POLICY = 'sinegasi-backup-readonly-v1'")
+  && backupRolePolicy.includes('pg_catalog.pg_auth_members') && backupRolePolicy.includes('pg_db_role_setting')
+  && backupRolePolicy.includes('grantor_name') && backupRolePolicy.includes('APPROVED_BACKUP_ROLE_OR_MEMBERSHIP_DRIFT')
+  && !/\b(?:CREATE|ALTER|GRANT|REVOKE|UPDATE|DELETE|INSERT)\s+(?:ROLE|TABLE|SCHEMA|ALL|INTO|FROM)/.test(backupRolePolicy),
+  '[GUARDRAIL VIOLATION] Backup-role delta requires its explicit read-only exact-privilege policy.');
 assert(photoPolicy.includes("STUDENT_PHOTO_SQL_SHA256 = '432bfd1fa8894f7aa554eeabfcab98923563ae30737b26232b5e631d35096613'")
   && photoPolicy.includes('requireStudentPhotoFunction') && photoPolicy.includes('PHOTO_MIGRATION_ALREADY_PRESENT_INSPECT_DO_NOT_RETRY')
   && photoRunner.includes('requireDeploymentObservation') && photoRunner.includes('PHOTO_MIGRATION_FRESH_REAL_REHEARSAL_REQUIRED')

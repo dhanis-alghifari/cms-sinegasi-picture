@@ -8,6 +8,8 @@ import { requireWriterQualityRun } from './reconciliationWriterPolicy.js';
 import { deploymentReviewPolicy, type DeploymentReviewPolicy } from './productionDeploymentReview.js';
 import { privateMediaEvidence, type PrivateMediaEvidence } from './productionMediaGate.js';
 import { DeploymentGateError } from './productionDeploymentError.js';
+import { APPROVED_BACKUP_ROLE_POLICY, requireApprovedBackupRole, withoutApprovedBackupRole,
+  type ApprovedBackupRolePolicy } from './productionBackupRolePolicy.js';
 import { readStudentPhotoSql, requireStudentPhotoFunction, validateStudentPhotoReceipt,
   withoutStudentPhotoSession, type StudentPhotoReceipt } from './studentPhotoProductionPolicy.js';
 export { DeploymentGateError } from './productionDeploymentError.js';
@@ -72,6 +74,11 @@ export type DeploymentEvidence = LegacyDeploymentEvidence | (Omit<LegacyDeployme
   format: 3;
   mode: 'reconciled-student-photo-v1';
   studentPhotoChange: StudentPhotoReceipt;
+}) | (Omit<LegacyDeploymentEvidence, 'format' | 'mode'> & {
+  format: 4; mode: 'reconciled-backup-role-v1'; backupRolePolicy: ApprovedBackupRolePolicy;
+}) | (Omit<LegacyDeploymentEvidence, 'format' | 'mode'> & {
+  format: 5; mode: 'reconciled-backup-role-student-photo-v1'; backupRolePolicy: ApprovedBackupRolePolicy;
+  studentPhotoChange: StudentPhotoReceipt;
 });
 export interface DeploymentGateContext {
   releaseSha: string;
@@ -88,13 +95,17 @@ export function validateDeploymentEvidence(raw: string, context: DeploymentGateC
     && HASH.test(context.snapshotSha256) && HASH.test(context.packageSha256) && Number.isFinite(context.now)
     && deploymentHash(raw) === context.evidenceSha256, 'DEPLOYMENT_EVIDENCE_CHECKSUM_OR_CONTEXT_MISMATCH');
   const parsed = record(JSON.parse(raw) as unknown);
-  const incremental = parsed.format === 3 && parsed.mode === 'reconciled-student-photo-v1';
+  const backupRole = parsed.format === 4 && parsed.mode === 'reconciled-backup-role-v1'
+    || parsed.format === 5 && parsed.mode === 'reconciled-backup-role-student-photo-v1';
+  const incremental = parsed.format === 3 && parsed.mode === 'reconciled-student-photo-v1'
+    || parsed.format === 5 && parsed.mode === 'reconciled-backup-role-student-photo-v1';
   const e = exact(parsed, ['format', 'mode', 'project', 'releaseSha', 'snapshotSha256', 'observedAt',
     'observation', 'backup', 'restore', 'copy', 'independentKeyRecovery', 'rehearsal', 'reviewPolicy', 'media',
-    ...(incremental ? ['studentPhotoChange'] : [])]);
+    ...(incremental ? ['studentPhotoChange'] : []), ...(backupRole ? ['backupRolePolicy'] : [])]);
   requireGate(JSON.stringify(e) === raw, 'CANONICAL_DEPLOYMENT_EVIDENCE_REQUIRED');
-  requireGate((incremental || e.format === 2 && e.mode === 'reconciled-no-sql') && e.project === DEPLOYMENT_PROJECT
+  requireGate((incremental || backupRole || e.format === 2 && e.mode === 'reconciled-no-sql') && e.project === DEPLOYMENT_PROJECT
     && e.releaseSha === context.releaseSha && e.snapshotSha256 === context.snapshotSha256, 'DEPLOYMENT_SCOPE_OR_RELEASE_MISMATCH');
+  if (backupRole) requireGate(e.backupRolePolicy === APPROVED_BACKUP_ROLE_POLICY, 'EXPLICIT_BACKUP_ROLE_POLICY_REQUIRED');
   const observed = fresh(e.observedAt, context.now, 30 * 60_000);
   deploymentReviewPolicy(e.reviewPolicy);
   const media = privateMediaEvidence(e.media, context.now);
@@ -183,7 +194,7 @@ export function requireDeploymentQuality(run: unknown, jobs: unknown, releaseSha
 /** Existing schema/reference verifier; only row counts are normalized. Business
  * data and login are NOT accepted here. No DDL/history writes or auth RPCs. */
 export async function inspectDeploymentSchema(db: WriterSession, bundle: WriterPackage,
-  change?: StudentPhotoReceipt): Promise<DeploymentObservation> {
+  change?: StudentPhotoReceipt, backupRolePolicy?: ApprovedBackupRolePolicy): Promise<DeploymentObservation> {
   await db.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
   try {
     await db.query("SET LOCAL statement_timeout='8s'; SET LOCAL lock_timeout='2s'; SET LOCAL idle_in_transaction_session_timeout='30s'; SET LOCAL search_path=pg_catalog,public,extensions");
@@ -191,13 +202,13 @@ export async function inspectDeploymentSchema(db: WriterSession, bundle: WriterP
       current_setting('transaction_read_only') AS "readOnly",current_setting('server_version_num') AS version`)).rows[0];
     requireGate(identity?.database === 'postgres' && identity.actor === 'postgres' && identity.readOnly === 'on'
       && /^17[0-9]{4}$/.test(String(identity.version)), 'DEPLOYMENT_READ_ONLY_SESSION_REQUIRED');
-    return await readDeploymentCatalog(db, bundle, change);
+    return await readDeploymentCatalog(db, bundle, change, backupRolePolicy);
   } finally { await db.query('ROLLBACK'); }
 }
 
 /** Caller owns the transaction. A writable caller is ONLY the separately approved additive runner. */
 export async function readDeploymentCatalog(db: WriterSession, bundle: WriterPackage,
-  change?: StudentPhotoReceipt): Promise<DeploymentObservation> {
+  change?: StudentPhotoReceipt, backupRolePolicy?: ApprovedBackupRolePolicy): Promise<DeploymentObservation> {
     const checkpoint = await requireCompletedBootstrapCheckpoint(db, bundle);
     const managedRows = (await db.query(`SELECT (SELECT count(*)::text FROM auth.users) AS accounts,
       (SELECT count(*)::text FROM storage.objects) AS objects`)).rows[0];
@@ -206,19 +217,26 @@ export async function readDeploymentCatalog(db: WriterSession, bundle: WriterPac
     const inventory = { ...catalog.inventory, tables: catalog.inventory.tables.map(table => ({ ...table,
       rows: String(bundle.reference.tables.find(reference => reference.name === table.name)?.rows.length ?? 0) })) };
     const normalized: WriterSession = { query: db.query.bind(db), inventory: async () => inventory };
+    if (backupRolePolicy !== undefined) {
+      requireGate(backupRolePolicy === APPROVED_BACKUP_ROLE_POLICY, 'EXPLICIT_BACKUP_ROLE_POLICY_REQUIRED');
+      await requireApprovedBackupRole(db);
+    }
     if (change) {
       validateStudentPhotoReceipt(change, change.afterCatalogSha256, new Date().toISOString());
       await requireStudentPhotoFunction(db, await readStudentPhotoSql());
       const baseline = await verifyWriterTarget(withoutStudentPhotoSession(normalized), bundle.snapshot, bundle.reference, managed.sha256);
-      requireGate(writerCatalogHash(baseline) === checkpoint.targetCatalogSha256
-        && change.beforeCatalogSha256 === checkpoint.targetCatalogSha256
+      requireGate(writerCatalogHash(backupRolePolicy ? withoutApprovedBackupRole(baseline) : baseline) === checkpoint.targetCatalogSha256
+        && change.beforeCatalogSha256 === writerCatalogHash(baseline)
         && writerCatalogHash({ inventory, security: catalog.security }) === change.afterCatalogSha256,
       'PHOTO_MIGRATION_BASELINE_OR_POSTCONDITION_DRIFT');
       return { packageSha256: bundle.packageSha256, ...checkpoint, targetCatalogSha256: change.afterCatalogSha256,
         managedExtensionSha256: managed.sha256, schemaSecuritySha256: change.afterCatalogSha256 };
     }
     const verified = await verifyWriterTarget(normalized, bundle.snapshot, bundle.reference, managed.sha256);
+    requireGate(writerCatalogHash(backupRolePolicy ? withoutApprovedBackupRole(verified) : verified) === checkpoint.targetCatalogSha256,
+      'DEPLOYMENT_SCHEMA_OR_CHECKPOINT_DRIFT');
     const result = { packageSha256: bundle.packageSha256, ...checkpoint, managedExtensionSha256: managed.sha256,
+      targetCatalogSha256: writerCatalogHash(verified),
       schemaSecuritySha256: writerCatalogHash(verified) };
     observation(result); // Must equal the complete checkpoint, not merely its table count.
     return result;

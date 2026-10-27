@@ -16,6 +16,8 @@ import { writerCatalogHash, type WriterSession } from './reconciliationWriterCat
 import { photoMetadata } from './studentPhotoProductionFixtures.js';
 import { readStudentPhotoSql, STUDENT_PHOTO_CHANGE, STUDENT_PHOTO_SIGNATURE, STUDENT_PHOTO_SQL_SHA256 } from './studentPhotoProductionPolicy.js';
 import { applyStudentPhotoMigration, validateStudentPhotoApproval, type StudentPhotoAuthorization } from './studentPhotoProductionMigration.js';
+import { APPROVED_BACKUP_ROLE_POLICY } from './productionBackupRolePolicy.js';
+import { backupRoleFixture, backupMembershipFixture, backupSecurityFixture } from './productionBackupRoleFixtures.js';
 
 const now = Date.parse('2026-10-13T09:00:00.000Z'), release = '1'.repeat(40);
 const hash = (character: string) => character.repeat(64);
@@ -196,7 +198,7 @@ test('separate deploy dispatch requires exact successful build artifact provenan
   assert.throws(() => validateDeploymentReleaseArtifact(raw + '\n', artifact, run, jobs));
 });
 
-async function schemaFixture() {
+async function schemaFixture(withBackupRole = false) {
   const photoSql = await readStudentPhotoSql(), photo = photoMetadata(photoSql);
   const bundle = createWriterPackage(await loadSnapshot(resolve(__dirname, '../../..')));
   const snapshot = bundle.snapshot;
@@ -214,13 +216,18 @@ async function schemaFixture() {
   let stage = 'complete', readOnly = 'on', exposed = false, schemaDrift = false;
   let photoInstalled = false, photoAtBegin: boolean | undefined;
   const photoObject = { kind: 'function', name: STUDENT_PHOTO_SIGNATURE, definition: photoSql };
-  const liveInventory = () => ({ ...inventory, structure: [...(schemaDrift ? inventory.structure.slice(1) : inventory.structure),
+  const liveInventory = () => ({ ...inventory, roles: [...inventory.roles,
+    ...(withBackupRole ? [{ name: 'sinegasi_backup', inherit: true, bypassRls: true }] : [])],
+    structure: [...(schemaDrift ? inventory.structure.slice(1) : inventory.structure),
     ...(photoInstalled ? [photoObject] : [])] });
-  const liveSecurity = () => [...security, ...(photoInstalled ? [photoObject] : [])];
+  const liveSecurity = () => [...security, ...(photoInstalled ? [photoObject] : []), ...(withBackupRole ? backupSecurityFixture() : [])];
   const queries: string[] = [];
   const db: WriterSession = { inventory: async () => liveInventory(),
     async query(sql, values) {
       queries.push(sql);
+      if (sql.includes('rolvaliduntil')) return { rows: withBackupRole ? [backupRoleFixture()] : [] };
+      if (sql.includes('pg_catalog.pg_auth_members')) return { rows: backupMembershipFixture() };
+      if (sql.includes('pg_db_role_setting')) return { rows: [{ count: 0 }] };
       if (sql.startsWith('BEGIN')) { photoAtBegin = photoInstalled; return { rows: [] }; }
       if (sql === 'ROLLBACK') { if (photoAtBegin !== undefined) photoInstalled = photoAtBegin; photoAtBegin = undefined; return { rows: [] }; }
       if (sql === 'COMMIT') { photoAtBegin = undefined; return { rows: [] }; }
@@ -298,10 +305,10 @@ test('quality must be exact successful pushed main backend and frontend, with cu
   assert.throws(() => requireDeploymentQuality(run, { jobs: jobs.jobs.slice(0, 1) }, release, { sha: release }));
 });
 
-async function photoAuthorization(fixture: Awaited<ReturnType<typeof schemaFixture>>): Promise<StudentPhotoAuthorization> {
-  const observed = await inspectDeploymentSchema(fixture.db, fixture.bundle);
+async function photoAuthorization(fixture: Awaited<ReturnType<typeof schemaFixture>>, withBackupRole = false): Promise<StudentPhotoAuthorization> {
+  const observed = await inspectDeploymentSchema(fixture.db, fixture.bundle, undefined, withBackupRole ? APPROVED_BACKUP_ROLE_POLICY : undefined);
   const e = evidence(); e.observation = observed; e.rehearsal.packageSha256 = fixture.bundle.packageSha256;
-  const baselineRaw = JSON.stringify(e);
+  const baselineRaw = JSON.stringify(withBackupRole ? { ...e, format: 4, mode: 'reconciled-backup-role-v1', backupRolePolicy: APPROVED_BACKUP_ROLE_POLICY } : e);
   const rehearsalRaw = JSON.stringify({ status: 'STUDENT_PROFILE_AUDIT_REHEARSAL_OK', releaseSha: release,
     sqlSha256: STUDENT_PHOTO_SQL_SHA256, guardQualityRunId: 123, postgresMajor: 17, verifiedAt: iso(-30_000),
     cleanupVerified: true, productionChanged: false, devDatabaseChanged: false,
@@ -345,6 +352,30 @@ test('additive approval rejects mismatched SQL/release/evidence, scope expansion
   assert.throws(() => validateStudentPhotoApproval({ ...auth, approvalRaw: auth.approvalRaw + '\n' }, now));
   const raw = auth.approvalRaw.replace('"format":1', '"format":0,"format":1');
   assert.throws(() => validateStudentPhotoApproval({ ...auth, approvalRaw: raw, confirmApproval: deploymentHash(raw) }, now));
+});
+test('approved backup delta is opt-in, retains old checkpoint and composes with the photo transaction', async () => {
+  const fixture = await schemaFixture(true);
+  await assert.rejects(inspectDeploymentSchema(fixture.db, fixture.bundle));
+  const auth = await photoAuthorization(fixture, true);
+  assert.equal(validateStudentPhotoApproval(auth, now).baseline.format, 4);
+  const baseline = JSON.parse(auth.baselineRaw);
+  for (const altered of [{ ...baseline, format: 2, mode: 'reconciled-no-sql' },
+    { ...baseline, backupRolePolicy: 'any-backup-role' }, { ...baseline, unexpected: true }]) {
+    const raw = JSON.stringify(altered);
+    assert.throws(() => validateDeploymentEvidence(raw, { ...auth.context, evidenceSha256: deploymentHash(raw), now }));
+  }
+  fixture.mutate('writable');
+  const receipt = await applyStudentPhotoMigration(fixture.db, fixture.bundle, auth, { now: () => now, revalidate: async () => {} });
+  fixture.mutate('normal');
+  await assert.rejects(inspectDeploymentSchema(fixture.db, fixture.bundle, receipt));
+  const observed = await inspectDeploymentSchema(fixture.db, fixture.bundle, receipt, APPROVED_BACKUP_ROLE_POLICY);
+  const raw = JSON.stringify({ ...baseline, format: 5, mode: 'reconciled-backup-role-student-photo-v1',
+    studentPhotoChange: receipt, observation: observed, observedAt: iso(0) });
+  assert.equal(validateDeploymentEvidence(raw, { ...auth.context, evidenceSha256: deploymentHash(raw), now }).format, 5);
+  assert.equal(receipt.beforeCatalogSha256, baseline.observation.targetCatalogSha256);
+  assert.ok(!fixture.queries.some(sql => /^(GRANT|REVOKE|ALTER ROLE|UPDATE sinegasi_ops)/.test(sql)));
+  fixture.mutate('drift');
+  await assert.rejects(inspectDeploymentSchema(fixture.db, fixture.bundle, receipt, APPROVED_BACKUP_ROLE_POLICY));
 });
 test('approved runner applies one fixed SQL transaction; legacy deploy still rejects the changed catalog', async () => {
   const fixture = await schemaFixture(), auth = await photoAuthorization(fixture);

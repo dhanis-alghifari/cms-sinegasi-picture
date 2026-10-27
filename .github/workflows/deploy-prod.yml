@@ -22,7 +22,7 @@ on:
         required: true
         type: string
       schema_evidence_sha256:
-        description: SHA256 of fresh reviewed schema evidence (format 2 baseline or format 3 approved photo RPC; deployment never executes SQL)
+        description: SHA256 of fresh reviewed schema evidence (baseline/photo formats 2/3, explicit backup-role formats 4/5; no SQL on deployment)
         required: true
         type: string
       build_run_id:
