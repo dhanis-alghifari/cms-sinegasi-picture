@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Download, RotateCcw, ZoomIn, ZoomOut } from 'lucide-react';
 import { Button } from '@/shared/ui/primitives/button';
+import { Skeleton } from '@/shared/ui/primitives/skeleton';
 import { usePrivateImage } from '@/shared/hooks/usePrivateImage';
-import { isLocalImagePreview } from '@/shared/api/privateMedia';
+import { isLocalImagePreview, isPrivateImageEndpoint } from '@/shared/api/privateMedia';
 import {
   Dialog,
   DialogClose,
@@ -32,6 +33,44 @@ interface ImagePreviewDialogProps {
   download?: ImagePreviewDownload;
 }
 
+function ImageLoading() {
+  return (
+    <div role="status" className="flex h-full w-full items-center justify-center">
+      <Skeleton className="h-full w-full bg-surface-3" />
+      <span className="sr-only">Memuat foto...</span>
+    </div>
+  );
+}
+
+function ImageFailure({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div role="alert" className="flex flex-col items-center gap-3 text-center text-sm text-ink-subtle">
+      <p>Foto tidak tersedia atau gagal dimuat. Periksa koneksi Anda.</p>
+      <Button type="button" variant="outline" className="min-h-12" onClick={onRetry}>Coba lagi</Button>
+    </div>
+  );
+}
+
+function PreviewImage({ src, alt, zoom, onRetry }: { src: string; alt: string; zoom: number; onRetry: () => void }) {
+  const [status, setStatus] = useState<'loading' | 'loaded' | 'failed'>('loading');
+  if (status === 'failed') return <ImageFailure onRetry={onRetry} />;
+  return (
+    <>
+      {status === 'loading' && <ImageLoading />}
+      <img
+        src={src}
+        alt={alt}
+        referrerPolicy="no-referrer"
+        className={`max-h-full max-w-full select-none object-contain transition-transform duration-150 ${status === 'loading' ? 'absolute opacity-0' : ''}`}
+        style={{ transform: `scale(${zoom})` }}
+        draggable={false}
+        onLoad={() => setStatus('loaded')}
+        onError={() => setStatus('failed')}
+      />
+    </>
+  );
+}
+
 export function ImagePreviewDialog({
   open,
   onOpenChange,
@@ -42,9 +81,12 @@ export function ImagePreviewDialog({
   download,
 }: ImagePreviewDialogProps) {
   const [zoom, setZoom] = useState(1);
+  const [attempt, setAttempt] = useState(0);
   const privateImage = usePrivateImage(src, open);
   // Only local user-selected previews may bypass authenticated API fetching.
   const previewSrc = open && src && isLocalImagePreview(src) ? src : privateImage.src;
+  const canLoad = Boolean(src && (isPrivateImageEndpoint(src) || isLocalImagePreview(src)));
+  const retry = () => { setAttempt((value) => value + 1); privateImage.retry(); };
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (!nextOpen) setZoom(1);
@@ -59,17 +101,15 @@ export function ImagePreviewDialog({
           {description && <DialogDescription className="truncate text-ink-subtle">{description}</DialogDescription>}
         </DialogHeader>
 
-        <div className="flex h-[min(58dvh,32rem)] min-h-48 items-center justify-center overflow-auto rounded-lg border border-hairline bg-surface-2 p-3">
-          {previewSrc ? (
-            <img
-              src={previewSrc}
-              alt={alt}
-              referrerPolicy="no-referrer"
-              className="max-h-full max-w-full select-none object-contain transition-transform duration-150"
-              style={{ transform: `scale(${zoom})` }}
-              draggable={false}
-            />
-          ) : <p role="status" className="text-sm text-ink-subtle">Foto belum tersedia.</p>}
+        <div className="relative flex h-[min(58dvh,32rem)] min-h-48 items-center justify-center overflow-auto rounded-lg border border-hairline bg-surface-2 p-3">
+          {previewSrc && <PreviewImage key={`${previewSrc}:${attempt}`} src={previewSrc} alt={alt} zoom={zoom} onRetry={retry} />}
+          {!previewSrc && privateImage.failed && <ImageFailure onRetry={retry} />}
+          {!previewSrc && !privateImage.failed && canLoad && open && <ImageLoading />}
+          {!previewSrc && !privateImage.failed && (!canLoad || !open) && (
+            <p role="status" className="text-center text-sm text-ink-subtle">
+              Foto belum tersedia.
+            </p>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center justify-center gap-2" aria-label="Kontrol pratinjau foto">

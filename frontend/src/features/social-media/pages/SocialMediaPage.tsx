@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useMemo, useRef, useState } from 'react';
 import { BarChart3, FileText, Image as ImageIcon, Link2, Megaphone, Plus, RefreshCw, Users } from 'lucide-react';
 import { useAuthStore } from '@/features/auth/hooks/useAuthStore';
 import { Link } from 'react-router-dom';
@@ -15,7 +15,6 @@ import { formatNumber } from '@/shared/utils/formatNumber';
 import { useCreateSocialPublicationMutation, useFinalizeSocialInsightMutation, useFinalizeSocialPublicationMutation, useSocialAccountsQuery, useSocialMetricsQuery, useSocialPublicationsQuery, useSocialReportQuery, useUploadInsightEvidenceMutation, useUploadPublicationEvidenceMutation } from '../hooks/useSocialMediaQueries';
 import { SocialAccountManager } from '../components/SocialAccountManager';
 import { SocialGrowthForms } from '../components/SocialGrowthForms';
-import { SocialFollowerTrendChart } from '../components/SocialFollowerTrendChart';
 import { formatSocialSnapshotChange, type SocialFollowerTrendAccount } from '../utils/socialFollowerTrend';
 import { SocialPublicationForm } from '../components/SocialPublicationForm';
 import { SocialReportDialog } from '../components/SocialReportDialog';
@@ -27,6 +26,8 @@ import { SOCIAL_CONTENT_LABELS, SOCIAL_PLATFORM_LABELS } from '../utils/publicat
 import { formatSocialArchiveMonth, getSocialInsightMetricEntries, getSocialInsightSourceLabel } from '../utils/socialInsightMetrics';
 import { printReport } from '@/shared/utils/printReport';
 import type { ReportPrintFormat } from '@/shared/types/report';
+
+const SocialFollowerTrendChart = lazy(() => import('../components/SocialFollowerTrendChart').then((module) => ({ default: module.SocialFollowerTrendChart })));
 
 type SocialTab = 'publications' | 'growth' | 'reports';
 
@@ -88,7 +89,9 @@ function MetricSummary({ accounts, snapshots, insightPeriods, rangeLabel, canRes
       <div className="rounded-xl border border-hairline bg-surface-1 p-4"><p className="text-xs text-ink-subtle">Platform aktif</p><p className="mt-2 text-2xl font-semibold text-ink">{formatNumber(accounts.length)}</p></div>
       <div className="rounded-xl border border-hairline bg-surface-1 p-4"><p className="text-xs text-ink-subtle">Rentang yang dipilih</p><p className="mt-2 text-sm font-semibold text-ink">{rangeLabel}</p></div>
     </div>
-    <SocialFollowerTrendChart accounts={accounts} snapshots={snapshots} periodLabel={rangeLabel} />
+    <Suspense fallback={<DataTableSkeleton />}>
+      <SocialFollowerTrendChart accounts={accounts} snapshots={snapshots} periodLabel={rangeLabel} />
+    </Suspense>
     <div className="space-y-2">
       <h3 className="text-sm font-semibold text-ink">Riwayat pengikut dan grafik</h3>
       {snapshots.length === 0 && insightPeriods.length === 0 ? <EmptyState icon={BarChart3} title="Belum ada data pertumbuhan" description="Catat jumlah pengikut atau unggah grafik insight untuk mulai melihat perkembangan akun." /> : <div className="space-y-2">
