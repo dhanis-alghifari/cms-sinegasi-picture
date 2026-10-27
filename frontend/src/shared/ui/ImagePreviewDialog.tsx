@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Download, RotateCcw, ZoomIn, ZoomOut } from 'lucide-react';
 import { Button } from '@/shared/ui/primitives/button';
 import { usePrivateImage } from '@/shared/hooks/usePrivateImage';
-import { isLocalImagePreview } from '@/shared/api/privateMedia';
+import { isLocalImagePreview, isPrivateImageEndpoint } from '@/shared/api/privateMedia';
 import {
   Dialog,
   DialogClose,
@@ -45,6 +45,12 @@ export function ImagePreviewDialog({
   const privateImage = usePrivateImage(src, open);
   // Only local user-selected previews may bypass authenticated API fetching.
   const previewSrc = open && src && isLocalImagePreview(src) ? src : privateImage.src;
+  let imageStatus = 'Foto belum tersedia.';
+  if (src && isPrivateImageEndpoint(src)) {
+    imageStatus = privateImage.failed
+      ? 'Foto tidak tersedia atau gagal dimuat. Periksa koneksi, lalu tutup dan buka kembali.'
+      : 'Memuat foto...';
+  }
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (!nextOpen) setZoom(1);
@@ -69,7 +75,11 @@ export function ImagePreviewDialog({
               style={{ transform: `scale(${zoom})` }}
               draggable={false}
             />
-          ) : <p role="status" className="text-sm text-ink-subtle">Foto belum tersedia.</p>}
+          ) : (
+            <p role="status" className="text-center text-sm text-ink-subtle">
+              {imageStatus}
+            </p>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center justify-center gap-2" aria-label="Kontrol pratinjau foto">
