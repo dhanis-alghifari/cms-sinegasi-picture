@@ -1,5 +1,13 @@
 import type { PrivateImageResult } from './privateImageResponse';
 
+export interface PrivateImageLeaseState {
+  active: boolean;
+}
+
+export function isCurrentPrivateImageLease(lease: PrivateImageLeaseState, resultAttempt: number, currentAttempt: number): boolean {
+  return lease.active && resultAttempt === currentAttempt;
+}
+
 /** One view owns one lease, including late completion after unmount/logout. */
 export function leasePrivateImage(
   load: (signal: AbortSignal) => Promise<PrivateImageResult>,

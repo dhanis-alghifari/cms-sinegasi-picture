@@ -2,13 +2,21 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { isLocalImagePreview, isPrivateImageEndpoint, mediaSession, privateMediaPathSchema } from '../src/shared/api/privateMedia';
 import { requestPrivateImage } from '../src/shared/api/privateImageResponse';
-import { leasePrivateImage } from '../src/shared/api/privateImageLease';
+import { isCurrentPrivateImageLease, leasePrivateImage } from '../src/shared/api/privateImageLease';
 import { createPrivateImageQueue } from '../src/shared/api/privateImageQueue';
 import { decodeAgendaPhotoAccess } from '../src/features/agenda/api/agenda.responses';
 import { decodeContestEvidenceAccess } from '../src/features/contests/api/contests.responses';
 
 const endpoint = '/api/private-media/agenda/parent-1/photo-1';
 const tick = () => new Promise<void>((resolve) => setImmediate(resolve));
+
+test('closed and retried image leases cannot reuse a stale preview', () => {
+  const lease = { active: true };
+  assert.equal(isCurrentPrivateImageLease(lease, 0, 0), true);
+  assert.equal(isCurrentPrivateImageLease(lease, 0, 1), false);
+  lease.active = false;
+  assert.equal(isCurrentPrivateImageLease(lease, 0, 0), false);
+});
 
 test('only closed resource paths reach authenticated transport; redirects and bearer destinations are refused', async () => {
   for (const path of ['https://account.r2.cloudflarestorage.com/key?X-Amz-Signature=fixture', '//example.test/file', '/api/private-media/agenda/parent-1/photo-1?token=fixture', '/api/private-media/agenda/parent-1/../key', '/api/private-media/unknown/parent-1/photo-1', '/api/private-media/agenda/parent-1/a%2Fb']) {
