@@ -34,6 +34,13 @@ dan receipt-nya cocok; tidak menjalankan SQL pada job deploy atau mengubah
 checkpoint historis. Format 2 tetap ketat dan tidak otomatis menerima addition.
 Pembuatan PR bukan aktivasi flag migrasi/deploy atau approval operasional.
 
+Delta role backup yang sudah disetujui memakai format 4 sebelum hotfix dan
+format 5 sesudah hotfix, dengan policy `sinegasi-backup-readonly-v1` eksplisit.
+Policy memeriksa metadata role, grantor dan tepat dua membership sebelum
+membandingkan seluruh catalog lain dengan checkpoint lama; tidak membuat role,
+menambah hak, menulis checkpoint, atau menerima drift lain. Format 2/3 tidak
+otomatis menerima delta ini. Rincian ada pada runbook khusus di atas.
+
 1. Setelah exact patch dipromosikan ke `main` dan CI backend/frontend sukses,
    publisher yang ditinjau menyiapkan bukti schema/recovery/rehearsal baru.
    Workflow manual memeriksa actual environment protection, exact current main,
