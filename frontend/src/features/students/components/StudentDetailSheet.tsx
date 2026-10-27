@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { KeyRound, Link2, Pencil, Phone, Trash2, UserCheck, UserRound, UserX } from 'lucide-react';
+import { Image, KeyRound, Link2, Pencil, Phone, Trash2, UserCheck, UserRound, UserX } from 'lucide-react';
 import { Button } from '@/shared/ui/primitives/button';
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/shared/ui/primitives/sheet';
 import { StatusBadge } from '@/shared/ui/StatusBadge';
@@ -92,18 +92,19 @@ export function StudentDetailSheet({
 
         <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-5">
           <div className="flex items-center gap-3">
-            <AuthenticatedImage
-              endpoint={photoEndpoint}
-              cacheScope={cacheScope}
-              alt=""
-              className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-hairline bg-surface-2"
-              fallback={<span aria-hidden="true" className="flex h-full w-full items-center justify-center rounded-2xl bg-surface-3 text-2xl font-semibold uppercase text-ink-subtle">{student.nama.charAt(0)}</span>}
-            />
+            <button type="button" aria-label="Lihat foto profil siswa" onClick={() => setPreviewStudentId(student.id)} className="shrink-0 rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+              <AuthenticatedImage
+                endpoint={photoEndpoint}
+                cacheScope={cacheScope}
+                alt=""
+                className="h-16 w-16 overflow-hidden rounded-2xl border border-hairline bg-surface-2"
+                fallback={<span aria-hidden="true" className="flex h-full w-full items-center justify-center rounded-2xl bg-surface-3 text-2xl font-semibold uppercase text-ink-subtle">{student.nama.charAt(0)}</span>}
+              />
+            </button>
             <div className="min-w-0">
               <h3 className="truncate text-base font-semibold text-ink">{student.nama}</h3>
               <p className="font-mono text-sm text-ink-subtle">{student.nis}</p>
               <div className="mt-2"><StatusBadge label={student.is_active ? 'Aktif' : 'Alumni / Nonaktif'} variant={student.is_active ? 'success' : 'neutral'} /></div>
-              <button type="button" onClick={() => setPreviewStudentId(student.id)} className="min-h-11 text-sm font-medium text-primary underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">Lihat foto</button>
             </div>
           </div>
 
@@ -120,17 +121,16 @@ export function StudentDetailSheet({
           </div>
         </div>
 
-        {canManage && (
-          <SheetFooter className="border-t border-hairline bg-surface-1 px-4 pb-[env(safe-area-inset-bottom)]">
+          <SheetFooter className="max-h-[40dvh] shrink-0 overflow-y-auto border-t border-hairline bg-surface-1 px-4 pb-[env(safe-area-inset-bottom)]">
             <div className="grid grid-cols-2 gap-2">
-              <Button type="button" variant="outline" onClick={handleEdit} className={`${showProvisionAccount ? '' : 'col-span-2 '}min-h-11 border-hairline text-ink`}><Pencil size={16} className="mr-2" aria-hidden="true" />Edit</Button>
-              {showProvisionAccount && <Button type="button" onClick={handleProvisionAccount} className="min-h-11"><KeyRound size={16} className="mr-2" aria-hidden="true" />Buat akun</Button>}
-              {canManageStatus && student.is_active && !student.user_id && onLinkLegacyAccount && <Button type="button" variant="outline" onClick={handleLinkLegacyAccount} className="col-span-2 min-h-11 border-hairline text-ink"><Link2 size={16} className="mr-2 text-primary" aria-hidden="true" />Tautkan akun lama</Button>}
-              {canManageStatus && student.user_id && <Button type="button" variant="outline" onClick={handleToggleActive} className="col-span-2 min-h-11 border-hairline text-ink">{student.is_active ? <><UserX size={16} className="mr-2 text-semantic-warning" aria-hidden="true" />Nonaktifkan sebagai alumni</> : <><UserCheck size={16} className="mr-2 text-semantic-success" aria-hidden="true" />Aktifkan kembali</>}</Button>}
-              {canManageStatus && !student.is_active && onDelete && <Button type="button" variant="outline" onClick={handleDelete} className="col-span-2 min-h-11 border-semantic-danger/40 text-semantic-danger hover:bg-semantic-danger/10"><Trash2 size={16} className="mr-2" aria-hidden="true" />Hapus data permanen</Button>}
+              <Button type="button" variant="outline" onClick={() => setPreviewStudentId(student.id)} className={`${canManage ? '' : 'col-span-2 '}min-h-12 min-w-0 border-primary/40 bg-primary/10 text-primary hover:bg-primary/15`}><Image size={16} className="mr-2 shrink-0" aria-hidden="true" />Lihat foto</Button>
+              {canManage && <Button type="button" variant="outline" onClick={handleEdit} className="min-h-12 min-w-0 border-hairline text-ink"><Pencil size={16} className="mr-2 shrink-0" aria-hidden="true" />Edit</Button>}
+              {canManage && showProvisionAccount && <Button type="button" onClick={handleProvisionAccount} className="col-span-2 min-h-11"><KeyRound size={16} className="mr-2" aria-hidden="true" />Buat akun</Button>}
+              {canManage && canManageStatus && student.is_active && !student.user_id && onLinkLegacyAccount && <Button type="button" variant="outline" onClick={handleLinkLegacyAccount} className="col-span-2 min-h-11 border-hairline text-ink"><Link2 size={16} className="mr-2 text-primary" aria-hidden="true" />Tautkan akun lama</Button>}
+              {canManage && canManageStatus && student.user_id && <Button type="button" variant="outline" onClick={handleToggleActive} className="col-span-2 min-h-11 border-hairline text-ink">{student.is_active ? <><UserX size={16} className="mr-2 text-semantic-warning" aria-hidden="true" />Nonaktifkan sebagai alumni</> : <><UserCheck size={16} className="mr-2 text-semantic-success" aria-hidden="true" />Aktifkan kembali</>}</Button>}
+              {canManage && canManageStatus && !student.is_active && onDelete && <Button type="button" variant="outline" onClick={handleDelete} className="col-span-2 min-h-11 border-semantic-danger/40 text-semantic-danger hover:bg-semantic-danger/10"><Trash2 size={16} className="mr-2" aria-hidden="true" />Hapus data permanen</Button>}
             </div>
           </SheetFooter>
-        )}
       </SheetContent>
     </Sheet>
     <ImagePreviewDialog
