@@ -38,7 +38,17 @@ const prodWorkflow = readFile('.github/workflows/deploy-prod.yml');
 const prodCiPreflight = readFile('ops/production-ci-preflight.cjs');
 assert(prodWorkflow.includes('production-ci-preflight.cjs') && prodCiPreflight.includes('--confirm-evidence') && prodCiPreflight.includes('--release-sha')
   && !prodWorkflow.includes('db:production --') && !prodWorkflow.includes('PRODUCTION_MIGRATION_MANIFEST'),
-  '[GUARDRAIL VIOLATION] Production publishing requires exact reconciled-no-sql evidence; never replay/promote legacy SQL.');
+  '[GUARDRAIL VIOLATION] Production publishing requires exact reviewed schema evidence; never replay/promote legacy SQL.');
+const photoPolicy = readFile('backend/src/scripts/studentPhotoProductionPolicy.ts');
+const photoRunner = readFile('backend/src/scripts/studentPhotoProductionMigration.ts');
+const photoCli = readFile('backend/src/scripts/studentPhotoProductionCli.ts');
+assert(photoPolicy.includes("STUDENT_PHOTO_SQL_SHA256 = '432bfd1fa8894f7aa554eeabfcab98923563ae30737b26232b5e631d35096613'")
+  && photoPolicy.includes('requireStudentPhotoFunction') && photoPolicy.includes('PHOTO_MIGRATION_ALREADY_PRESENT_INSPECT_DO_NOT_RETRY')
+  && photoRunner.includes('requireDeploymentObservation') && photoRunner.includes('PHOTO_MIGRATION_FRESH_REAL_REHEARSAL_REQUIRED')
+  && photoRunner.includes('PHOTO_MIGRATION_COMMIT_UNCERTAIN_INSPECT_DO_NOT_RETRY')
+  && photoCli.includes('requireProductionEnvironment') && photoCli.includes('requireDeploymentQuality')
+  && photoCli.includes('current.migrationReady') && !photoCli.includes('applyMigrations'),
+  '[GUARDRAIL VIOLATION] Student-photo SQL requires its separate fixed-SQL, protected, fresh-recovery approval runner.');
 const devDeployScript = readFile('ops/deploy-dev.sh');
 const prodDeployScript = readFile('ops/deploy-prod.sh');
 const prodReleaseScript = readFile('ops/production-release.sh');

@@ -89,7 +89,7 @@ export async function privateCommandBytes(command: string, args: string[], input
 }
 
 async function runPrivateCommandBytes(command: string, args: string[], input: string | Buffer,
-  timeout: number, maxBytes: number, environment: NodeJS.ProcessEnv): Promise<Buffer> {
+  timeout: number, maxBytes: number, environment: NodeJS.ProcessEnv, headerOnlyRestoreList = false): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     // A fast child may close stdin before even an empty write on Linux.
     // Only create a pipe when there is data to deliver; real input errors still fail closed.
@@ -105,14 +105,20 @@ async function runPrivateCommandBytes(command: string, args: string[], input: st
       if (!settled) { settled = true; clearTimeout(timer); reject(new BackupError('PRIVATE_COMMAND_FAILED')); }
     };
     child.on('error', fail);
-    child.stdin?.on('error', fail);
+    child.stdin?.on('error', (error: NodeJS.ErrnoException) => {
+      // pg_restore --list intentionally stops after the TOC, before reading the
+      // archive's data. ONLY that fixed read-only operation may close early;
+      // exit status, stderr, timeout and output limits must still pass.
+      if (!(headerOnlyRestoreList && error.code === 'EPIPE')) fail();
+    });
     child.stdout.on('data', (chunk: Buffer) => {
       bytes += chunk.length;
       if (bytes > maxBytes) { child.kill('SIGKILL'); fail(); }
       else chunks.push(chunk);
     });
     // Drain, but never retain or display diagnostic output that could contain secrets.
-    child.stderr.resume();
+    if (headerOnlyRestoreList) child.stderr.on('data', (chunk: Buffer) => { if (chunk.length) fail(); });
+    else child.stderr.resume();
     child.on('close', (code) => {
       clearTimeout(timer);
       if (code !== 0) { fail(); return; }
@@ -120,6 +126,15 @@ async function runPrivateCommandBytes(command: string, args: string[], input: st
     });
     child.stdin?.end(input);
   });
+}
+
+/** Memory-only TOC inspection; never writes a decrypted archive to disk. */
+export async function listBackupArchive(archive: Buffer): Promise<Buffer> {
+  if (archive.length > MAX_OUTPUT || !archive.subarray(0, 5).equals(Buffer.from('PGDMP'))) {
+    throw new BackupError('INVALID_POSTGRES_ARCHIVE');
+  }
+  return runPrivateCommandBytes('/opt/homebrew/opt/libpq@17/bin/pg_restore', ['--list'],
+    archive, 30_000, 4 * 1024 * 1024, SAFE_ENV, true);
 }
 
 export async function privateCommand(command: string, args: string[], input = '', timeout = 30_000): Promise<string> {
@@ -163,6 +178,25 @@ export async function readGithubMainSha(): Promise<string> {
   } catch {
     throw new BackupError('GITHUB_MAIN_METADATA_UNAVAILABLE');
   }
+}
+
+/** Fixed production protection lookup; never export unrelated variables or secrets. */
+export async function readGithubProductionProtection(): Promise<{
+  environment: unknown; branches: unknown; migrationReady: boolean; reviewMode: unknown;
+}> {
+  const root = 'repos/dhanis-alghifari/cms-sinegasi-picture/environments/production';
+  const read = async (suffix: string): Promise<unknown> => JSON.parse((await runPrivateCommandBytes(
+    '/opt/homebrew/bin/gh', ['api', '--hostname', 'github.com', '--method', 'GET', root + suffix],
+    '', 30_000, 1024 * 1024, GITHUB_QUALITY_ENV,
+  )).toString('utf8')) as unknown;
+  const [environment, branches, value] = await Promise.all([read(''), read('/deployment-branch-policies?per_page=100'), read('/variables?per_page=100')]);
+  const variables = value as { total_count?: unknown; variables?: Array<{ name?: unknown; value?: unknown }> };
+  if (!Array.isArray(variables.variables) || variables.total_count !== variables.variables.length) {
+    throw new BackupError('PRODUCTION_PROTECTION_METADATA_INCOMPLETE');
+  }
+  return { environment, branches,
+    migrationReady: variables.variables.find(v => v.name === 'PRODUCTION_STUDENT_PHOTO_MIGRATION_READY')?.value === 'true',
+    reviewMode: variables.variables.find(v => v.name === 'PRODUCTION_REVIEW_MODE')?.value };
 }
 
 export async function readKeychain(service: string, account: string): Promise<string> {

@@ -4,7 +4,8 @@ import { mkdtemp, writeFile, chmod, symlink, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { deploymentHash, inspectDeploymentSchema, requireDeploymentObservation, requireDeploymentWindow,
-  requireProductionEnvironment, requireDeploymentBindings, requireDeploymentQuality, validateDeploymentEvidence, type DeploymentEvidence } from './productionDeploymentGate.js';
+  requireProductionEnvironment, requireDeploymentBindings, requireDeploymentQuality, validateDeploymentEvidence, type DeploymentEvidence,
+  type LegacyDeploymentEvidence } from './productionDeploymentGate.js';
 import { deploymentReviewPolicy, requireDeploymentDispatch, validateDeploymentReleaseArtifact, type DeploymentReviewPolicy } from './productionDeploymentReview.js';
 import { readGateDocument, runDeploymentGate } from './productionDeploymentGateCli.js';
 import { createWriterPackage } from './reconciliationWriterPolicy.js';
@@ -12,13 +13,16 @@ import { loadSnapshot } from './productionReconciliation.js';
 import type { DatabaseInventory } from './productionBackupCore.js';
 import pg from 'pg';
 import { writerCatalogHash, type WriterSession } from './reconciliationWriterCatalog.js';
+import { photoMetadata } from './studentPhotoProductionFixtures.js';
+import { readStudentPhotoSql, STUDENT_PHOTO_CHANGE, STUDENT_PHOTO_SIGNATURE, STUDENT_PHOTO_SQL_SHA256 } from './studentPhotoProductionPolicy.js';
+import { applyStudentPhotoMigration, validateStudentPhotoApproval, type StudentPhotoAuthorization } from './studentPhotoProductionMigration.js';
 
 const now = Date.parse('2026-10-13T09:00:00.000Z'), release = '1'.repeat(40);
 const hash = (character: string) => character.repeat(64);
 const iso = (offset: number) => new Date(now + offset).toISOString();
 const solo: DeploymentReviewPolicy = { mode: 'solo-owner', owner: 'dhanis-alghifari', soloRiskAccepted: true };
 const mediaFlags = ['--r2-account', 'a'.repeat(32), '--r2-bucket', 'fixture-prod', '--review-mode', 'solo-owner'];
-function evidence(): DeploymentEvidence {
+function evidence(): LegacyDeploymentEvidence {
   const id = iso(-60_000).replace(/[:.]/g, '-');
   const archive = { sha256: hash('a'), bytes: 1024 }, metadata = { sha256: hash('b'), bytes: 512 };
   return { format: 2, mode: 'reconciled-no-sql', project: 'pvbdiftvzoeelibxlxzb', releaseSha: release,
@@ -193,6 +197,7 @@ test('separate deploy dispatch requires exact successful build artifact provenan
 });
 
 async function schemaFixture() {
+  const photoSql = await readStudentPhotoSql(), photo = photoMetadata(photoSql);
   const bundle = createWriterPackage(await loadSnapshot(resolve(__dirname, '../../..')));
   const snapshot = bundle.snapshot;
   const inventory: DatabaseInventory = { tables: snapshot.tables.map(t => ({ schema: 'public', name: t.relname, rows: '999', rls: true, forceRls: false })),
@@ -207,28 +212,40 @@ async function schemaFixture() {
   const security: Record<string, unknown>[] = [];
   const normalized = { ...inventory, tables: inventory.tables.map(t => ({ ...t, rows: String(bundle.reference.tables.find(r => r.name === t.name)?.rows.length ?? 0) })) };
   let stage = 'complete', readOnly = 'on', exposed = false, schemaDrift = false;
+  let photoInstalled = false, photoAtBegin: boolean | undefined;
+  const photoObject = { kind: 'function', name: STUDENT_PHOTO_SIGNATURE, definition: photoSql };
+  const liveInventory = () => ({ ...inventory, structure: [...(schemaDrift ? inventory.structure.slice(1) : inventory.structure),
+    ...(photoInstalled ? [photoObject] : [])] });
+  const liveSecurity = () => [...security, ...(photoInstalled ? [photoObject] : [])];
   const queries: string[] = [];
-  const db: WriterSession = { inventory: async () => schemaDrift ? { ...inventory, structure: inventory.structure.slice(1) } : inventory,
+  const db: WriterSession = { inventory: async () => liveInventory(),
     async query(sql, values) {
       queries.push(sql);
-      if (/^(BEGIN|SET LOCAL|ROLLBACK)/.test(sql)) return { rows: [] };
-      if (sql.includes('current_database()')) return { rows: [{ database: 'postgres', actor: 'postgres', readOnly, version: '170006' }] };
+      if (sql.startsWith('BEGIN')) { photoAtBegin = photoInstalled; return { rows: [] }; }
+      if (sql === 'ROLLBACK') { if (photoAtBegin !== undefined) photoInstalled = photoAtBegin; photoAtBegin = undefined; return { rows: [] }; }
+      if (sql === 'COMMIT') { photoAtBegin = undefined; return { rows: [] }; }
+      if (/^(SET LOCAL|LOCK TABLE)/.test(sql)) return { rows: [] };
+      if (sql.includes('pg_try_advisory_xact_lock')) return { rows: [{ acquired: true }] };
+      if (sql.includes('count(*)::int AS count')) return { rows: [{ count: photoInstalled ? 1 : 0 }] };
+      if (sql === photoSql) { photoInstalled = true; return { rows: [] }; }
+      if (sql.includes('current_database()')) return { rows: [{ database: 'postgres', actor: 'postgres', readOnly, version: '170006', pid: 123 }] };
+      if (sql.includes('pg_catalog.to_regprocedure($1)')) return { rows: photoInstalled ? [photo] : [] };
       if (sql.includes('AS present')) return { rows: [{ present: true }] };
       if (sql.includes('has_schema_privilege') && sql.includes('sinegasi_ops')) return { rows: [{ usage: false, create: false, access: exposed }] };
       if (sql.includes('FROM sinegasi_ops.production_reconciliation_runs')) return { rows: [{ stage, package_sha256: bundle.packageSha256,
         target_catalog_sha256: writerCatalogHash({ inventory: normalized, security }), approval_sha256: hash('f'), completion_authorization: null }] };
       if (sql.includes('FROM auth.users')) return { rows: [{ accounts: '0', objects: '0' }] };
       if (sql.includes('JOIN pg_language')) return { rows: [] };
-      if (sql.includes('SELECT kind,name,metadata')) return { rows: security };
+      if (sql.includes('SELECT kind,name,metadata')) return { rows: liveSecurity() };
       if (sql.includes('co.conindid')) return { rows: snapshot.indexes.map(i => ({ name: i.name, definition: i.definition })) };
       if (sql.includes('FROM pg_policies')) return { rows: snapshot.policies.map(p => ({ ...p })) };
       if (sql.includes('reloptions AS options')) return { rows: snapshot.views.map(v => ({ name: v.name, options: v.options })) };
-      if (sql.includes('p.prosrc AS body')) return { rows: snapshot.functions.map(f => {
+      if (sql.includes('p.prosrc AS body')) return { rows: [...snapshot.functions.map(f => {
         const path = f.config?.find(c => c.startsWith('search_path='))?.slice('search_path='.length);
         const search = !path ? 'pg_catalog, public, pg_temp' : path === '""' ? '""' : path.includes('pg_temp') ? path : path + ', pg_temp';
         return { signature: f.signature, definition: f.definition, body: /AS (\$[A-Za-z_0-9]*\$)([\s\S]*)\1\s*$/.exec(f.definition)?.[2],
           definer: f.securityDefiner, config: [...(f.config ?? []).filter(c => !c.startsWith('search_path=')), 'search_path=' + search] };
-      }) };
+      }), ...(photoInstalled ? [{ ...photo, signature: STUDENT_PHOTO_SIGNATURE, definition: photoSql }] : [])] };
       const reference = bundle.reference.tables.find(t => sql.includes(`FROM public."${t.name}"`));
       if (reference) return { rows: reference.rows.map(row => Object.fromEntries(reference.columns.map((c, i) => [c, row[i]]))) };
       if (sql.includes('AS tables')) return { rows: [{ tables: false, functions: false, create: false }] };
@@ -239,7 +256,7 @@ async function schemaFixture() {
       if (sql.includes('AS missing_rpc')) return { rows: [{ missing_rpc: false, missing_view: false }] };
       throw new Error('UNEXPECTED_FIXTURE_QUERY');
     } };
-  return { bundle, db, queries, mutate(scenario: string) { stage = scenario === 'incomplete' ? 'enums' : 'complete';
+  return { bundle, db, queries, installed: () => photoInstalled, mutate(scenario: string) { stage = scenario === 'incomplete' ? 'enums' : 'complete';
     readOnly = scenario === 'writable' ? 'off' : 'on'; exposed = scenario === 'exposed'; schemaDrift = scenario === 'drift'; } };
 }
 test('read-only adapter validates real verifier semantics without password/counter/SQL-package operations', async () => {
@@ -279,4 +296,111 @@ test('quality must be exact successful pushed main backend and frontend, with cu
     assert.throws(() => requireDeploymentQuality({ ...run, ...change }, jobs, release, { sha: release }));
   }
   assert.throws(() => requireDeploymentQuality(run, { jobs: jobs.jobs.slice(0, 1) }, release, { sha: release }));
+});
+
+async function photoAuthorization(fixture: Awaited<ReturnType<typeof schemaFixture>>): Promise<StudentPhotoAuthorization> {
+  const observed = await inspectDeploymentSchema(fixture.db, fixture.bundle);
+  const e = evidence(); e.observation = observed; e.rehearsal.packageSha256 = fixture.bundle.packageSha256;
+  const baselineRaw = JSON.stringify(e);
+  const rehearsalRaw = JSON.stringify({ status: 'STUDENT_PROFILE_AUDIT_REHEARSAL_OK', releaseSha: release,
+    sqlSha256: STUDENT_PHOTO_SQL_SHA256, guardQualityRunId: 123, postgresMajor: 17, verifiedAt: iso(-30_000),
+    cleanupVerified: true, productionChanged: false, devDatabaseChanged: false,
+    checks: ['legacyFailureReproduced', 'auditedUpdatePassed', 'invalidActorReasonRefused',
+      'auditFailureRollsBack', 'contextRestored', 'publicExecuteDenied'] });
+  const approval = { format: 1, operation: STUDENT_PHOTO_CHANGE, project: e.project, releaseSha: release,
+    sqlSha256: STUDENT_PHOTO_SQL_SHA256, baselineEvidenceSha256: deploymentHash(baselineRaw), qualityRunId: 123,
+    rehearsalSha256: deploymentHash(rehearsalRaw),
+    approvedBy: solo.owner, windowStart: iso(-60_000), windowEnd: iso(5 * 60_000),
+    maintenanceWindowConfirmed: true, noOtherWriters: true, databaseRollbackCompatible: true, noDeploymentAuthorized: true };
+  const approvalRaw = JSON.stringify(approval);
+  return { baselineRaw, approvalRaw, rehearsalRaw, confirmApproval: deploymentHash(approvalRaw),
+    context: { releaseSha: release, evidenceSha256: deploymentHash(baselineRaw), snapshotSha256: hash('c'),
+      packageSha256: fixture.bundle.packageSha256 } };
+}
+test('additive approval rejects mismatched SQL/release/evidence, scope expansion and stale protection receipts', async () => {
+  const fixture = await schemaFixture(), auth = await photoAuthorization(fixture);
+  validateStudentPhotoApproval(auth, now);
+  const original = JSON.parse(auth.approvalRaw);
+  for (const change of [{ operation: 'run-all-migrations' }, { sqlSha256: hash('0') }, { releaseSha: '2'.repeat(40) },
+    { baselineEvidenceSha256: hash('0') }, { approvedBy: 'other' }, { noOtherWriters: false },
+    { noDeploymentAuthorized: false }, { qualityRunId: 0 }, { force: true }, { windowEnd: iso(0) }]) {
+    const approvalRaw = JSON.stringify({ ...original, ...change });
+    assert.throws(() => validateStudentPhotoApproval({ ...auth, approvalRaw, confirmApproval: deploymentHash(approvalRaw) }, now));
+  }
+  const independent = { ...JSON.parse(auth.baselineRaw), reviewPolicy: {
+    mode: 'independent-review', owner: solo.owner, soloRiskAccepted: false,
+  } };
+  const baselineRaw = JSON.stringify(independent);
+  const approvalRaw = JSON.stringify({ ...original, baselineEvidenceSha256: deploymentHash(baselineRaw) });
+  assert.throws(() => validateStudentPhotoApproval({ ...auth, baselineRaw, approvalRaw,
+    confirmApproval: deploymentHash(approvalRaw), context: { ...auth.context, evidenceSha256: deploymentHash(baselineRaw) } }, now),
+  /EXPLICIT_SOLO_OWNER_REQUIRED/);
+  for (const change of [{ postgresMajor: 16 }, { cleanupVerified: false }, { productionChanged: true },
+    { devDatabaseChanged: true }, { checks: [] }, { verifiedAt: iso(-3 * 60 * 60_000) }, { guardQualityRunId: 456 },
+    { releaseSha: '2'.repeat(40) }, { isolatedFixture: true }]) {
+    const rehearsalRaw = JSON.stringify({ ...JSON.parse(auth.rehearsalRaw), ...change });
+    const approvalRaw = JSON.stringify({ ...original, rehearsalSha256: deploymentHash(rehearsalRaw) });
+    assert.throws(() => validateStudentPhotoApproval({ ...auth, rehearsalRaw, approvalRaw, confirmApproval: deploymentHash(approvalRaw) }, now));
+  }
+  assert.throws(() => validateStudentPhotoApproval({ ...auth, approvalRaw: auth.approvalRaw + '\n' }, now));
+  const raw = auth.approvalRaw.replace('"format":1', '"format":0,"format":1');
+  assert.throws(() => validateStudentPhotoApproval({ ...auth, approvalRaw: raw, confirmApproval: deploymentHash(raw) }, now));
+});
+test('approved runner applies one fixed SQL transaction; legacy deploy still rejects the changed catalog', async () => {
+  const fixture = await schemaFixture(), auth = await photoAuthorization(fixture);
+  fixture.mutate('writable'); fixture.queries.length = 0;
+  let liveChecks = 0;
+  const receipt = await applyStudentPhotoMigration(fixture.db, fixture.bundle, auth, {
+    now: () => now, revalidate: async () => { liveChecks++; },
+  });
+  assert.equal(liveChecks, 2); assert.equal(fixture.installed(), true);
+  assert.equal(fixture.queries.filter(sql => sql.startsWith('-- Additive rollout:')).length, 1);
+  assert.equal(fixture.queries.at(-1), 'COMMIT');
+  assert.ok(fixture.queries.some(sql => sql.includes('pg_try_advisory_xact_lock')));
+  assert.ok(fixture.queries.every(sql => !/^(INSERT|UPDATE|DELETE|DROP|ALTER|TRUNCATE)\b/i.test(sql)));
+  fixture.mutate('normal');
+  await assert.rejects(inspectDeploymentSchema(fixture.db, fixture.bundle)); // No implicit legacy allowlist.
+  const observed = await inspectDeploymentSchema(fixture.db, fixture.bundle, receipt);
+  const baseline = JSON.parse(auth.baselineRaw) as LegacyDeploymentEvidence;
+  const e: DeploymentEvidence = { ...baseline, format: 3, mode: 'reconciled-student-photo-v1',
+    studentPhotoChange: receipt, observation: observed, observedAt: iso(0) };
+  assert.equal(validateDeploymentEvidence(JSON.stringify(e), { ...auth.context,
+    evidenceSha256: deploymentHash(JSON.stringify(e)), now }).format, 3);
+  for (const change of [{ format: 2 }, { mode: 'reconciled-no-sql' }, { studentPhotoChange: { ...receipt, sqlSha256: hash('0') } },
+    { independentKeyRecovery: { ...e.independentKeyRecovery, verified: false } }]) assert.throws(() =>
+    validateDeploymentEvidence(JSON.stringify({ ...e, ...change }), { ...auth.context,
+      evidenceSha256: deploymentHash(JSON.stringify({ ...e, ...change })), now }));
+  fixture.mutate('drift');
+  await assert.rejects(inspectDeploymentSchema(fixture.db, fixture.bundle, receipt));
+  fixture.mutate('writable'); fixture.queries.length = 0;
+  await assert.rejects(applyStudentPhotoMigration(fixture.db, fixture.bundle, auth, {
+    now: () => now, revalidate: async () => {},
+  }), /ALREADY_PRESENT_INSPECT_DO_NOT_RETRY/);
+  assert.equal(fixture.queries.filter(sql => sql.startsWith('-- Additive rollout:')).length, 0);
+});
+test('release revocation or expiry after DDL rolls back; lost COMMIT reply is never retried', async () => {
+  for (const scenario of ['revoked', 'expired', 'commit-uncertain']) {
+    const fixture = await schemaFixture(), auth = await photoAuthorization(fixture);
+    fixture.mutate('writable');
+    let checks = 0, clock = now;
+    const live = { now: () => clock, revalidate: async () => {
+      checks++;
+      if (checks === 2 && scenario === 'revoked') throw new Error('SYNTHETIC_REVOKED');
+      if (checks === 2 && scenario === 'expired') clock += 6 * 60_000;
+    } };
+    if (scenario === 'commit-uncertain') {
+      const original = fixture.db.query.bind(fixture.db);
+      fixture.db.query = async (sql, parameters) => {
+        const result = await original(sql, parameters);
+        if (sql === 'COMMIT') throw new Error('SYNTHETIC_COMMIT_REPLY_LOST');
+        return result;
+      };
+    }
+    fixture.queries.length = 0;
+    await assert.rejects(applyStudentPhotoMigration(fixture.db, fixture.bundle, auth, live),
+      scenario === 'commit-uncertain' ? /COMMIT_UNCERTAIN_INSPECT_DO_NOT_RETRY/ : /SYNTHETIC_REVOKED|APPROVED_DEPLOYMENT_WINDOW_REQUIRED/);
+    assert.equal(fixture.queries.at(-1), 'ROLLBACK');
+    assert.equal(fixture.installed(), scenario === 'commit-uncertain');
+    assert.equal(fixture.queries.filter(sql => sql.startsWith('-- Additive rollout:')).length, 1);
+  }
 });

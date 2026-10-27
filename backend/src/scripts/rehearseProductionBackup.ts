@@ -5,7 +5,7 @@ import { resolve } from 'node:path';
 import {
   AGE, AGE_KEYGEN, BACKUP_PROJECT, BACKUP_ROOT, BACKUP_KEY_SERVICE,
   BackupError, type DatabaseInventory, privateCommandBytes, privateCommand,
-  privateDirectory, quoteIdentifier, readKeychain,
+  privateDirectory, quoteIdentifier, readKeychain, listBackupArchive,
 } from './productionBackupCore.js';
 
 const SSH_ARGS = [
@@ -57,7 +57,7 @@ async function main(): Promise<void> {
     || !Array.isArray(metadata.inventory?.structure) || !Array.isArray(metadata.inventory?.roles)
     || !Array.isArray(metadata.inventory?.extensions)) throw new BackupError('INVALID_BACKUP_METADATA');
   if (!archive.subarray(0, 5).equals(Buffer.from('PGDMP'))) throw new BackupError('INVALID_POSTGRES_ARCHIVE');
-  const localList = await privateCommandBytes('/opt/homebrew/opt/libpq@17/bin/pg_restore', ['--list'], archive, 30000, 4 * 1024 * 1024);
+  const localList = await listBackupArchive(archive);
   if (!localList.toString('utf8').includes(' TABLE public users ')) throw new BackupError('APPLICATION_TABLE_MISSING');
   const repository = resolve(process.cwd(), '..');
   const bundle = (await ssh('umask 077; mktemp -d /tmp/sinegasi-backup-restore.XXXXXXXX')).trim();
