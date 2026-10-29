@@ -6,6 +6,7 @@ import { responseRequestId } from '@/shared/monitoring/clientErrors';
 import { reportClientError } from '@/shared/monitoring/reportClientError';
 import { mediaSession } from './privateMedia';
 import { requestPrivateImage, type PrivateImageResult } from './privateImageResponse';
+import { apiCredentials } from './requestCredentials';
 import {
   ApiError,
   ForbiddenError,
@@ -64,6 +65,7 @@ async function fetchResponse(endpoint: string, options: RequestOptions = {}): Pr
   try {
     response = await fetch(`${env.apiUrl}${endpoint}`, {
       ...rest,
+      credentials: rest.credentials ?? apiCredentials(env.apiUrl),
       // Authenticated application data must never be served from the browser HTTP cache.
       // React Query owns the client cache and mutations explicitly invalidate it.
       cache: 'no-store',
