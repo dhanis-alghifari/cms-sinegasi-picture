@@ -6,7 +6,8 @@ import { PEMINATAN_VALUES, type Student, type StudentAccountResponse, type Stude
 const studentSchema: z.ZodType<Student> = z.object({
   id: z.string().min(1),
   user_id: optionalTextSchema,
-  nis: z.string().min(1),
+  nis: z.string().nullable(),
+  username: optionalTextSchema,
   nama: z.string().min(1),
   kelas: z.string().min(1),
   peminatan: z.enum(PEMINATAN_VALUES).nullable().optional().transform((value) => value ?? undefined),
@@ -23,7 +24,7 @@ const studentSchema: z.ZodType<Student> = z.object({
 
 const studentOptionSchema: z.ZodType<StudentOption> = z.object({
   id: z.string().min(1),
-  nis: z.string().min(1),
+  nis: z.string().nullable(),
   nama: z.string().min(1),
   kelas: z.string().min(1),
   label: z.string().min(1),

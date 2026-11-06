@@ -55,6 +55,58 @@ test('student credential issuance explicitly disables response caching without d
   assert.equal(routeCacheConfig.get('/api/students/:id/account-links'), false);
 });
 
+test('NIS can be omitted or cleared, remains unique when set, and is preserved on unrelated updates', async (t) => {
+  const state = createStudentsMemoryState();
+  const app = await createApp(state);
+  t.after(() => app.close());
+  const token = app.jwt.sign({ userId: 'teacher-1', username: 'teacher', role: 'teacher', isFirstLogin: false });
+  const headers = { authorization: `Bearer ${token}`, 'x-change-reason': 'Ubah data siswa' };
+  const first = await app.inject({ method: 'POST', url: '/api/students', headers: accountRequestHeaders(headers), payload: accountPayload({ name: 'Siswa Pertama', class_name: 'XI TKJ 1' }) });
+  const second = await app.inject({ method: 'POST', url: '/api/students', headers: accountRequestHeaders(headers), payload: accountPayload({ student_number: null, name: 'Siswa Kedua', class_name: 'XI TKJ 1' }) });
+  assert.equal(first.statusCode, 201);
+  assert.equal(second.statusCode, 201);
+  assert.equal(first.json().data.nis, null);
+  assert.equal(second.json().data.nis, null);
+  const id = first.json().data.id;
+  const setNumber = await app.inject({ method: 'PUT', url: `/api/students/${id}`, headers, payload: { student_number: ' 00123 ' } });
+  assert.equal(setNumber.statusCode, 200);
+  assert.equal(setNumber.json().nis, '00123');
+  const duplicate = await app.inject({ method: 'PUT', url: `/api/students/${second.json().data.id}`, headers, payload: { student_number: '00123' } });
+  assert.equal(duplicate.statusCode, 409);
+  const updateName = await app.inject({ method: 'PUT', url: `/api/students/${id}`, headers, payload: { name: 'Siswa Diubah' } });
+  assert.equal(updateName.statusCode, 200);
+  assert.equal(updateName.json().nis, '00123');
+  const clearNumber = await app.inject({ method: 'PUT', url: `/api/students/${id}`, headers, payload: { student_number: null } });
+  assert.equal(clearNumber.statusCode, 200);
+  assert.equal(clearNumber.json().nis, null);
+});
+
+test('only a teacher with account-management permission sees the linked username', async (t) => {
+  const state = createStudentsMemoryState();
+  const app = await createApp(state);
+  t.after(() => app.close());
+  const teacherToken = app.jwt.sign({ userId: 'teacher-1', username: 'teacher', role: 'teacher', isFirstLogin: false });
+  const secretaryToken = app.jwt.sign({ userId: 'secretary-1', username: 'secretary', role: 'secretary', isFirstLogin: false });
+  const teacher = { authorization: `Bearer ${teacherToken}` };
+  const secretary = { authorization: `Bearer ${secretaryToken}` };
+  const created = await app.inject({ method: 'POST', url: '/api/students', headers: accountRequestHeaders(teacher), payload: accountPayload({ name: 'Siswa Uji', class_name: 'XI TKJ 1', username: 'akun.siswa' }) });
+  assert.equal(created.statusCode, 201);
+  const id = created.json().data.id;
+  for (const url of ['/api/students', `/api/students/${id}`]) {
+    const teacherResult = await app.inject({ method: 'GET', url, headers: teacher });
+    const secretaryResult = await app.inject({ method: 'GET', url, headers: secretary });
+    const row = (result: typeof teacherResult) => url === '/api/students' ? result.json().data[0] : result.json();
+    assert.equal(row(teacherResult).username, 'akun.siswa');
+    assert.equal('username' in row(secretaryResult), false);
+  }
+  const capabilities = getCapabilities('teacher');
+  t.after(() => setRoleCapabilities('teacher', capabilities));
+  setRoleCapabilities('teacher', capabilities.filter((capability) => capability !== 'users.manage'));
+  const withoutAccountPermission = await app.inject({ method: 'GET', url: `/api/students/${id}`, headers: teacher });
+  assert.equal(withoutAccountPermission.statusCode, 200);
+  assert.equal('username' in withoutAccountPermission.json(), false);
+});
+
 test('student management keeps secretary guard and account response contract', async (t) => {
   const app = await createApp();
   t.after(() => app.close());
@@ -347,6 +399,23 @@ test('teacher can explicitly link an eligible legacy account without changing it
 
   const candidatesAfterLink = await app.inject({ method: 'GET', url: '/api/students/unlinked-accounts', headers });
   assert.deepEqual(candidatesAfterLink.json().data, []);
+});
+
+test('teacher can link an existing eligible account without a student number', async (t) => {
+  const state = createStudentsMemoryState();
+  const accountId = '33333333-3333-4333-a333-333333333333';
+  state.accounts.push({ id: accountId, username: 'akun.lama', nama: 'Siswa Lama', role: 'member', is_active: true, is_first_login: false });
+  const app = await createApp(state);
+  t.after(() => app.close());
+  const token = app.jwt.sign({ userId: 'teacher-1', username: 'teacher', role: 'teacher', isFirstLogin: false });
+  const response = await app.inject({
+    method: 'POST', url: '/api/students/account-links',
+    headers: { authorization: `Bearer ${token}`, 'x-change-reason': 'Tautkan akun siswa lama' },
+    payload: { user_id: accountId, student_number: null, name: 'Siswa Lama', class_name: 'XI AK 1', change_reason: 'Tautkan akun siswa lama' },
+  });
+  assert.equal(response.statusCode, 201);
+  assert.equal(response.json().data.nis, null);
+  assert.equal(response.json().data.user_id, accountId);
 });
 
 test('teacher can attach an eligible account to an existing unlinked student profile', async (t) => {

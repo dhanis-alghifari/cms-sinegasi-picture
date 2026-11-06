@@ -43,6 +43,7 @@ function StudentAvatar({ studentId, nama, cacheScope }: StudentAvatarProps) {
 
 interface StudentTableProps {
   students: Student[];
+  onOpenDetail: (student: Student) => void;
   onEdit: (student: Student) => void;
   onToggleActive: (student: Student) => void;
   onDelete?: (student: Student) => void;
@@ -54,6 +55,7 @@ interface StudentTableProps {
 
 export function StudentTable({
   students,
+  onOpenDetail,
   onEdit,
   onToggleActive,
   onDelete,
@@ -120,7 +122,7 @@ export function StudentTable({
               className="border-hairline hover:bg-surface-2/40"
             >
               <TableCell className="text-ink-muted text-xs font-mono">
-                {student.nis}
+                {student.nis ?? 'Belum diisi'}
               </TableCell>
               <TableCell className="text-ink text-xs font-medium">
                 <div className="flex items-center gap-2.5">
@@ -177,6 +179,9 @@ export function StudentTable({
                       align="end"
                       className="bg-surface-3 border-hairline text-ink"
                     >
+                      <DropdownMenuItem onClick={() => onOpenDetail(student)} className="text-xs cursor-pointer">
+                        Lihat detail
+                      </DropdownMenuItem>
                       <DropdownMenuItem
                         onClick={() => onEdit(student)}
                         className="text-xs cursor-pointer"

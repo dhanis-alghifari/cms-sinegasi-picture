@@ -10,7 +10,8 @@ export type StudentAccountRole = typeof STUDENT_ACCOUNT_ROLE_VALUES[number];
 export type StudentRecord = {
   id: string;
   user_id?: string;
-  nis: string;
+  nis: string | null;
+  username?: string;
   nama: string;
   kelas: string;
   peminatan?: StudentPeminatan | string;
@@ -40,6 +41,7 @@ export type StudentListQuery = {
   isActive?: boolean;
   page?: number;
   pageSize?: number;
+  includeUsername?: boolean;
 };
 
 export type StudentListResult = {
@@ -57,7 +59,7 @@ export type StudentOptionsQuery = {
 };
 
 export type StudentCreateInput = {
-  nis: string;
+  nis?: string | null;
   nama: string;
   kelas: string;
   username: string;
@@ -68,6 +70,7 @@ export type StudentCreateInput = {
 };
 
 export type StudentUpdateInput = {
+  nis?: string | null;
   nama?: string;
   kelas?: string;
   peminatan?: string;
@@ -138,7 +141,7 @@ export type StudentsMemoryState = {
 
 export interface StudentRepository {
   isConfigured(): boolean;
-  findByIdentifier(identifier: string): Promise<{ data: StudentLookupRecord | null; error: DatabaseError | null }>;
+  findByIdentifier(identifier: string, includeUsername?: boolean): Promise<{ data: StudentLookupRecord | null; error: DatabaseError | null }>;
   findPhoto?(id: string): Promise<{ data: { foto_url: string | null } | null; error: DatabaseError | null }>;
   list?(query: StudentListQuery): Promise<{ data: StudentListResult; error?: never } | { data?: never; error: DatabaseError }>;
   listOptions?(query: StudentOptionsQuery): Promise<{ data: { data: StudentOption[]; total: number }; error?: never } | { data?: never; error: DatabaseError }>;

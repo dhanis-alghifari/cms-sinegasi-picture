@@ -56,9 +56,9 @@ export const studentCreateRouteSchema = {
   body: {
     type: 'object',
     additionalProperties: false,
-    required: ['student_number', 'name', 'class_name', 'username', 'phone_number'],
+    required: ['name', 'class_name', 'username', 'phone_number'],
     properties: {
-      student_number: { type: 'string', minLength: 1, maxLength: 40 },
+      student_number: { type: ['string', 'null'], maxLength: 40 },
       name: { type: 'string', minLength: 2, maxLength: 120 },
       class_name: { type: 'string', minLength: 1, maxLength: 80 },
       username: { type: 'string', minLength: 3, maxLength: 30, pattern: '^[a-zA-Z0-9._-]+$' },
@@ -75,10 +75,10 @@ export const studentLinkAccountRouteSchema = {
   body: {
     type: 'object',
     additionalProperties: false,
-    required: ['user_id', 'student_number', 'name', 'class_name', 'change_reason'],
+    required: ['user_id', 'name', 'class_name', 'change_reason'],
     properties: {
       user_id: { type: 'string', pattern: '^[0-9a-fA-F-]{36}$' },
-      student_number: { type: 'string', minLength: 1, maxLength: 40 },
+      student_number: { type: ['string', 'null'], maxLength: 40 },
       name: { type: 'string', minLength: 2, maxLength: 120 },
       class_name: { type: 'string', minLength: 1, maxLength: 80 },
       specialization: { type: 'string', enum: specializations },
@@ -128,6 +128,7 @@ export const studentUpdateRouteSchema = {
     additionalProperties: false,
     minProperties: 1,
     properties: {
+      student_number: { type: ['string', 'null'], maxLength: 40 },
       name: { type: 'string', minLength: 2, maxLength: 120 },
       class_name: { type: 'string', minLength: 1, maxLength: 80 },
       specialization: { type: 'string', enum: specializations },

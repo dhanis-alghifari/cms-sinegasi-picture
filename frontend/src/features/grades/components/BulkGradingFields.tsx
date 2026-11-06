@@ -20,7 +20,7 @@ export interface BulkGradingStudentOption {
   id: string;
   nama: string;
   kelas: string;
-  nis?: string;
+  nis?: string | null;
   peminatan?: string;
 }
 

@@ -19,7 +19,7 @@ import {
 } from '../hooks/useGradeReports';
 import type { GradeReportPeriod, ReportSemester } from '../types/grades.types';
 
-type ReportStudent = { id: string; nis: string; nama: string; kelas: string };
+type ReportStudent = { id: string; nis: string | null; nama: string; kelas: string };
 
 function defaultPeriod(): { academic_year: string; semester: ReportSemester; start_date: string; end_date: string } {
   const year = new Date().getFullYear();
@@ -114,7 +114,7 @@ export function GradeReportPanel({ students = [] }: { students?: ReportStudent[]
             <label className="space-y-1 text-xs font-medium text-ink-subtle md:col-span-2">Siswa
               <Select value={pklDraft.student_id || undefined} onValueChange={(value) => value && setPklDraft((current) => ({ ...current, student_id: value }))}>
                 <SelectTrigger aria-label="Siswa PKL"><SelectValue placeholder="Pilih siswa" /></SelectTrigger>
-                <SelectContent>{students.map((student) => <SelectItem key={student.id} value={student.id}>{student.nama} · {student.nis} · {student.kelas}</SelectItem>)}</SelectContent>
+                <SelectContent>{students.map((student) => <SelectItem key={student.id} value={student.id}>{student.nama} · {student.nis || 'NIS belum tersedia'} · {student.kelas}</SelectItem>)}</SelectContent>
               </Select>
             </label>
             <label className="space-y-1 text-xs font-medium text-ink-subtle">Mulai<Input type="date" value={pklDraft.start_date} onChange={(event) => setPklDraft((current) => ({ ...current, start_date: event.target.value }))} /></label>

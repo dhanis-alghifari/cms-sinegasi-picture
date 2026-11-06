@@ -116,12 +116,12 @@ export function StudentFormDialog({
   useEffect(() => {
     if (student) {
       form.reset({
-        nis: student.nis,
+        nis: student.nis ?? '',
         nama: student.nama,
         kelas: student.kelas,
         peminatan: student.peminatan,
         no_telepon: student.no_telepon ?? '',
-        username: '',
+        username: student.username ?? '',
         whatsapp_confirmed: false,
         foto_url: student.foto_url ?? '',
         role: 'member',
@@ -256,7 +256,7 @@ export function StudentFormDialog({
         }
         values = { ...data, username, no_telepon: phone };
         const fingerprint = JSON.stringify({
-          nis: values.nis, nama: values.nama, kelas: values.kelas, peminatan: values.peminatan ?? null,
+          nis: values.nis || null, nama: values.nama, kelas: values.kelas, peminatan: values.peminatan ?? null,
           username, phone, foto_url: values.foto_url ?? null, role: values.role ?? 'member',
         });
         let operation = accountOperation;

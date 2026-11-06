@@ -2776,7 +2776,8 @@ components:
       properties:
         id: { type: string, maxLength: 128 }
         user_id: { type: string, nullable: true, format: uuid }
-        nis: { type: string, minLength: 1, maxLength: 40 }
+        nis: { type: string, nullable: true, minLength: 1, maxLength: 40 }
+        username: { type: string, description: Included for teachers with users.manage when an account is linked. }
         nama: { type: string, minLength: 2, maxLength: 120 }
         kelas: { type: string, minLength: 1, maxLength: 80 }
         peminatan: { type: string, nullable: true, enum: [kamera, editing, naskah] }
@@ -2794,7 +2795,7 @@ components:
       required: [id, nis, nama, kelas, label, secondaryLabel]
       properties:
         id: { type: string, maxLength: 128 }
-        nis: { type: string, maxLength: 40 }
+        nis: { type: string, nullable: true, maxLength: 40 }
         nama: { type: string, maxLength: 120 }
         kelas: { type: string, maxLength: 80 }
         label: { type: string, maxLength: 120 }
@@ -2813,9 +2814,9 @@ components:
     StudentCreateRequest:
       type: object
       additionalProperties: false
-      required: [student_number, name, class_name, username, phone_number]
+      required: [name, class_name, username, phone_number]
       properties:
-        student_number: { type: string, minLength: 1, maxLength: 40 }
+        student_number: { type: string, nullable: true, maxLength: 40, description: Optional; null or a blank value means not yet assigned. }
         name: { type: string, minLength: 2, maxLength: 120 }
         class_name: { type: string, minLength: 1, maxLength: 80 }
         username: { type: string, minLength: 3, maxLength: 30, pattern: '^[a-zA-Z0-9._-]+$' }
@@ -2830,10 +2831,10 @@ components:
     StudentAccountLinkRequest:
       type: object
       additionalProperties: false
-      required: [user_id, student_number, name, class_name, change_reason]
+      required: [user_id, name, class_name, change_reason]
       properties:
         user_id: { type: string, format: uuid }
-        student_number: { type: string, minLength: 1, maxLength: 40 }
+        student_number: { type: string, nullable: true, maxLength: 40, description: Optional; null or a blank value means not yet assigned. }
         name: { type: string, minLength: 2, maxLength: 120 }
         class_name: { type: string, minLength: 1, maxLength: 80 }
         specialization: { type: string, enum: [camera, editing, screenwriting, kamera, naskah] }
@@ -2852,6 +2853,7 @@ components:
       additionalProperties: false
       minProperties: 1
       properties:
+        student_number: { type: string, nullable: true, maxLength: 40, description: Omit to preserve; null or blank clears the number. }
         name: { type: string, minLength: 2, maxLength: 120 }
         class_name: { type: string, minLength: 1, maxLength: 80 }
         specialization: { type: string, enum: [camera, editing, screenwriting, kamera, naskah] }

@@ -97,14 +97,15 @@ export function StudentFormFields({
           {/* NIS & Nama */}
           <div className="grid grid-cols-1 gap-3">
             <div className="min-w-0 space-y-1">
-              <Label htmlFor="nis" className="text-ink-muted text-xs">NIS *</Label>
+              <Label htmlFor="nis" className="text-ink-muted text-xs">NIS (opsional)</Label>
               <Input
                 id="nis"
                 placeholder="2026xxxx"
-                disabled={isEditing}
+                autoComplete="off"
                 className={cn('w-full min-w-0 bg-surface-2 border-hairline text-ink text-xs font-mono', form.formState.errors.nis && 'border-semantic-danger')}
                 {...form.register('nis')}
               />
+              <p className="text-ink-tertiary text-[10px]">Boleh dikosongkan dan diisi kemudian.</p>
               {form.formState.errors.nis && (
                 <p className="text-semantic-danger text-[10px]">{form.formState.errors.nis.message}</p>
               )}
@@ -207,13 +208,15 @@ export function StudentFormFields({
                 autoCapitalize="none"
                 autoCorrect="off"
                 autoComplete="username"
-                placeholder="contoh: rara"
-                disabled={!requiresAccountCredentials}
+                placeholder={isEditing ? 'Username belum tersedia' : 'contoh: rara'}
+                readOnly={isEditing}
+                disabled={!isEditing && !requiresAccountCredentials}
                 aria-invalid={Boolean(form.formState.errors.username)}
                 className={cn('bg-surface-2 border-hairline text-ink text-xs', form.formState.errors.username && 'border-semantic-danger')}
                 {...form.register('username', { setValueAs: (value) => typeof value === 'string' ? value.trim().toLowerCase() : value })}
               />
               {requiresAccountCredentials && <p className="text-[10px] text-ink-tertiary">Isi manual; gunakan nama panggilan yang mudah diingat (contoh: rara), bukan NIS. Huruf kecil, angka, titik, _ atau -.</p>}
+              {isEditing && <p className="text-[10px] text-ink-tertiary">Username akun terhubung tidak dapat diubah di sini.</p>}
               {form.formState.errors.username && <p className="text-[10px] text-semantic-danger">{form.formState.errors.username.message}</p>}
             </div>
 

@@ -11,7 +11,7 @@ export type CashRepositoryError = {
 
 export type CashStudentSnapshot = {
   id: string;
-  nis?: string;
+  nis?: string | null;
   nama?: string;
   kelas?: string;
 };

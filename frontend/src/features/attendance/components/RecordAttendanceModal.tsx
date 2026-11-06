@@ -224,7 +224,7 @@ export function RecordAttendanceModal({
         <div key={student.student_id} className="flex flex-col items-stretch justify-between gap-2 rounded border border-hairline/60 bg-surface-2/60 p-2.5 sm:flex-row sm:items-center">
           <div className="min-w-0">
             <p className="truncate text-xs font-semibold text-ink">{student.nama}</p>
-                        <p className="text-[10px] text-ink-tertiary">{student.nis} · {student.kelas}</p>
+                        <p className="text-[10px] text-ink-tertiary">{student.nis || 'NIS belum tersedia'} · {student.kelas}</p>
           </div>
           <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
             <Select value={item.status} onValueChange={(value) => handleStudentStatusValueChange(student.student_id, value)}>
