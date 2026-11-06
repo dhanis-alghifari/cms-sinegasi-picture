@@ -11,7 +11,7 @@ export interface ContestRecord {
   nama: string;
   jenis: string;
   level: string;
-  tanggal: string;
+  tanggal: string | null;
   status: ContestStatus;
   status_public?: ContestPublicStatus | null;
   hasil: string | null;
@@ -19,7 +19,7 @@ export interface ContestRecord {
   penyelenggara?: string;
   kota?: string | null;
   tingkat?: string;
-  deadline?: string;
+  deadline?: string | null;
   tahun_event?: number | null;
   website_url?: string | null;
   deskripsi?: string | null;
@@ -76,7 +76,7 @@ export interface ContestCreateInput {
   penyelenggara?: string;
   kota?: string | null;
   tingkat?: string;
-  deadline?: string;
+  deadline?: string | null;
   tahun_event?: number;
   website_url?: string | null;
   deskripsi?: string | null;
@@ -98,7 +98,7 @@ export interface ContestUpdateInput {
   penyelenggara?: string;
   kota?: string | null;
   tingkat?: string;
-  deadline?: string;
+  deadline?: string | null;
   tahun_event?: number;
   website_url?: string | null;
   deskripsi?: string | null;
@@ -136,7 +136,7 @@ export interface ContestCreatePersistenceInput {
   nama: string;
   jenis: string;
   level: string;
-  tanggal: string;
+  tanggal: string | null;
   status: string;
   hasil: string | null;
   namaLomba?: string | null;

@@ -62,7 +62,7 @@ const contestResponseSchema: z.ZodType<Contest> = z.object({
   penyelenggara: optionalText,
   kota: nullableText,
   tingkat: z.enum(CONTEST_SCOPE_VALUES),
-  deadline: z.string().min(10),
+  deadline: z.string().min(10).nullable(),
   status: contestStatusResponseSchema,
   status_public: publicContestStatusSchema,
   tahun_event: z.number().int().nullable().optional(),

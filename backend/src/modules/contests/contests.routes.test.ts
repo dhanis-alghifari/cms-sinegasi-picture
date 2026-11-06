@@ -43,6 +43,21 @@ test('contest routes keep role and capability guards', async (t) => {
   assert.equal(acceptedPublicCreate.statusCode, 201);
   assert.equal(acceptedPublicCreate.json().data.status_public, 'buka');
 
+  const completedWithoutDeadline = await app.inject({
+    method: 'POST', url: '/api/contests',
+    headers: { authorization: `Bearer ${leader}` },
+    payload: { contest_name: 'Festival selesai', scope: 'national', deadline: null, status: 'completed', event_year: 2020 },
+  });
+  assert.equal(completedWithoutDeadline.statusCode, 201);
+  assert.equal(completedWithoutDeadline.json().data.deadline, null);
+
+  const openWithoutDeadline = await app.inject({
+    method: 'POST', url: '/api/contests',
+    headers: { authorization: `Bearer ${leader}` },
+    payload: { contest_name: 'Festival buka', scope: 'national', deadline: null, status: 'open', event_year: 2026 },
+  });
+  assert.equal(openWithoutDeadline.statusCode, 422);
+
   const summary = await app.inject({
     method: 'GET',
     url: '/api/contests/summary',

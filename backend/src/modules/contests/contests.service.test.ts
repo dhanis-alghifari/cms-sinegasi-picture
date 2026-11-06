@@ -81,6 +81,20 @@ test('contest service allows a public event without a city', async () => {
   assert.equal(created.kota, null);
 });
 
+test('public contest deadlines follow the registration status', async () => {
+  const service = new ContestsService(createContestsRepository(null, { contests: [], submissions: [] }));
+  const base = { nama_lomba: 'Festival Arsip', tingkat: 'nasional', tahun_event: 2020 };
+  const finished = await service.create({ ...base, status: 'selesai' }, 'leader-1');
+  assert.equal(finished.deadline, null);
+  const judging = await service.create({ ...base, status: 'proses_penjurian', deadline: '2000-01-01' }, 'leader-1');
+  assert.equal(judging.deadline, '2000-01-01');
+  await assert.rejects(() => service.create({ ...base, status: 'buka' }, 'leader-1'), ContestsServiceError);
+  await assert.rejects(() => service.create({ ...base, status: 'buka', deadline: '2000-01-01' }, 'leader-1'), ContestsServiceError);
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  const open = await service.create({ ...base, status: 'buka', deadline: today }, 'leader-1');
+  assert.equal(open.deadline, today);
+});
+
 test('contest service maps PostgREST missing-column errors to a safe schema-unavailable response', async () => {
   const repository = {
     isConfigured: () => true,
