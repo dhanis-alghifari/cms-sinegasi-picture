@@ -57,6 +57,12 @@ function optionalText(value: unknown, field: string, maxLength: number): string 
   return normalized || undefined;
 }
 
+function normalizeNis(value: unknown): string | null {
+  const nis = optionalText(value, 'NIS', 40);
+  if (nis && !/[a-z0-9]/i.test(nis)) throw new StudentServiceError(422, 'INVALID_NIS', 'NIS harus memiliki minimal satu huruf atau angka.');
+  return nis ?? null;
+}
+
 function normalizePeminatan(value: unknown): string | undefined {
   const normalized = optionalText(value, 'Peminatan', 32);
   if (normalized && !STUDENT_PEMINATAN.has(normalized)) throw new StudentServiceError(422, 'INVALID_PEMINATAN', 'Peminatan siswa tidak valid.');
@@ -162,16 +168,16 @@ function existingProfileLinkRepository(repository: StudentRepository): Required<
 export class StudentService {
   constructor(
     private readonly repository: StudentRepository,
-    private readonly getFallbackStudents: () => ReadonlyArray<{ id: string; nis: string; nama: string } & Partial<StudentRecord>> = () => [],
+    private readonly getFallbackStudents: () => ReadonlyArray<{ id: string; nis: string | null; nama: string } & Partial<StudentRecord>> = () => [],
   ) {}
 
   repositoryIsConfigured(): boolean {
     return this.repository.isConfigured();
   }
 
-  async getByIdentifier(identifier: string): Promise<StudentRecord> {
+  async getByIdentifier(identifier: string, includeUsername = false): Promise<StudentRecord> {
     const normalized = text(identifier, 'id siswa', 1, 128);
-    const { data, error } = await this.repository.findByIdentifier(normalized);
+    const { data, error } = await this.repository.findByIdentifier(normalized, includeUsername);
     if (error) throw mapRepositoryError(error, 500, 'Gagal mengambil data siswa.');
     if (data) return data as StudentRecord;
     if (!this.repository.isConfigured()) {
@@ -218,8 +224,7 @@ export class StudentService {
   }
 
   async create(input: StudentCreateInput, actorId: string | null, context: StudentAccountOperationContext): Promise<{ data: StudentAccountOperationResult; temporaryPassword?: string }> {
-    const nis = text(input.nis, 'NIS', 1, 40);
-    if (!/[a-z0-9]/i.test(nis)) throw new StudentServiceError(422, 'INVALID_NIS', 'NIS harus memiliki minimal satu huruf atau angka.');
+    const nis = normalizeNis(input.nis);
     const nama = text(input.nama, 'Nama siswa', 2, 120);
     const kelas = text(input.kelas, 'Kelas', 1, 80);
     const peminatan = normalizePeminatan(input.peminatan);
@@ -254,8 +259,7 @@ export class StudentService {
     }
     if (actorId === userId) throw new StudentServiceError(409, 'SELF_LINK_FORBIDDEN', 'Akun yang sedang digunakan tidak dapat ditautkan sebagai akun siswa lain.');
     const changeReason = text(input.changeReason, 'Alasan perubahan', 5, 500);
-    const nis = text(input.nis, 'NIS', 1, 40);
-    if (!/[a-z0-9]/i.test(nis)) throw new StudentServiceError(422, 'INVALID_NIS', 'NIS harus memiliki minimal satu huruf atau angka.');
+    const nis = normalizeNis(input.nis);
     const nama = text(input.nama, 'Nama siswa', 2, 120);
     const kelas = text(input.kelas, 'Kelas', 1, 80);
     const peminatan = normalizePeminatan(input.peminatan);
@@ -314,7 +318,7 @@ export class StudentService {
     if (this.repositoryIsConfigured() && !actorId) throw new StudentServiceError(503, 'DATABASE_IDENTITY_UNAVAILABLE', 'Akun login belum terhubung ke users.id database yang valid.');
     const previous = await this.getByIdentifier(studentId);
     const hasStatus = input.is_active !== undefined;
-    const profileKeys = ['nama', 'kelas', 'peminatan', 'no_telepon', 'foto_url'] as const;
+    const profileKeys = ['nis', 'nama', 'kelas', 'peminatan', 'no_telepon', 'foto_url'] as const;
     const hasProfile = profileKeys.some((key) => Object.prototype.hasOwnProperty.call(input, key));
     if (hasStatus && !allowStatus) throw new StudentServiceError(403, 'STATUS_CHANGE_FORBIDDEN', 'Hanya Guru Pembina yang dapat mengubah status aktif/alumni siswa.');
     if (hasStatus && hasProfile) throw new StudentServiceError(422, 'MIXED_STUDENT_UPDATE', 'Perubahan profil dan status aktif dilakukan dalam tindakan terpisah.');
@@ -328,6 +332,7 @@ export class StudentService {
     if (!hasProfile) throw new StudentServiceError(422, 'EMPTY_UPDATE', 'Tidak ada perubahan profil siswa.');
     const changes: StudentUpdateInput = {
       // The profile RPC replaces these columns; omitted fields must keep their values.
+      ...(Object.prototype.hasOwnProperty.call(input, 'nis') ? { nis: normalizeNis(input.nis) } : {}),
       nama: previous.nama,
       kelas: previous.kelas,
       peminatan: previous.peminatan,

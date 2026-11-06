@@ -4,7 +4,10 @@ import { STUDENT_ROLE_VALUES } from '@/shared/types/common';
 import { PEMINATAN_VALUES } from '../types/students.types';
 
 export const studentSchema = z.object({
-  nis: z.string({ error: 'NIS wajib diisi.' }).min(1, 'NIS wajib diisi').trim(),
+  nis: z.string().trim().max(40, 'NIS maksimal 40 karakter').refine(
+    (value) => value === '' || /[a-z0-9]/i.test(value),
+    'NIS harus memiliki minimal satu huruf atau angka.',
+  ),
   nama: z.string({ error: 'Nama siswa wajib diisi.' }).min(2, 'Nama siswa minimal 2 karakter').trim(),
   kelas: z.string({ error: 'Kelas wajib dipilih.' }).min(1, 'Kelas wajib dipilih').trim(),
   username: z.string().optional(),

@@ -42,3 +42,37 @@ test('profile RPC failure is returned without retrying the unaudited legacy RPC'
   assert.equal(result.error, error);
   assert.deepEqual(calls, ['update_student_profile_audited_atomic']);
 });
+
+test('changing or clearing NIS uses the new audited RPC and passes the explicit value', async () => {
+  const calls: Array<{ name: string; args: Record<string, unknown> }> = [];
+  const client = {
+    async rpc(name: string, args: Record<string, unknown>) {
+      calls.push({ name, args });
+      return { data: { id: 'student-1', nis: args.p_nis, nama: 'Siswa Uji', kelas: 'X Uji', is_active: true }, error: null };
+    },
+  } as unknown as SupabaseClient;
+  const repository = createStudentRepository(client, createStudentsMemoryState());
+  for (const nis of ['00123', null]) {
+    const result = await repository.updateProfile!({
+      id: 'student-1', changes: { nis, nama: 'Siswa Uji', kelas: 'X Uji' }, actorId: 'actor-1', changeReason: 'Koreksi NIS siswa',
+    });
+    assert.equal(result.data?.nis, nis);
+    assert.equal(calls.at(-1)?.name, 'update_student_profile_nis_audited_atomic');
+    assert.equal(calls.at(-1)?.args.p_nis, nis);
+  }
+});
+
+test('database student projection maps NULL NIS and the explicitly linked account only', async () => {
+  const selections: string[] = [];
+  const row = { id: 'student-1', user_id: 'user-1', nis: null, nama: 'Siswa Uji', kelas: 'X Uji', is_active: true, account: { username: 'akun.siswa' } };
+  const query = {
+    select(columns: string) { selections.push(columns); return this; },
+    eq() { return this; },
+    async maybeSingle() { return { data: row, error: null }; },
+  };
+  const repository = createStudentRepository({ from: () => query } as never);
+  const result = await repository.findByIdentifier('student-1', true);
+  assert.equal(result.data?.nis, null);
+  assert.equal(result.data?.username, 'akun.siswa');
+  assert.match(selections[0], /account:users!students_user_id_fkey\(username\)/);
+});

@@ -6,7 +6,8 @@ export type Peminatan = typeof PEMINATAN_VALUES[number];
 export interface Student {
   id: string;
   user_id?: string;
-  nis: string;
+  nis: string | null;
+  username?: string;
   nama: string;
   kelas: string;
   peminatan?: Peminatan;
@@ -24,7 +25,7 @@ export interface Student {
 /** Minimal projection used by searchable student pickers. */
 export interface StudentOption {
   id: string;
-  nis: string;
+  nis: string | null;
   nama: string;
   kelas: string;
   label: string;
@@ -57,7 +58,7 @@ export interface StudentFilterParams {
 }
 
 export interface CreateStudentPayload {
-  nis: string;
+  nis?: string | null;
   nama: string;
   kelas: string;
   username: string;

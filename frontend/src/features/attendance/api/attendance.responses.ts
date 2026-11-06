@@ -31,7 +31,7 @@ function normalizeAttendanceRecordPayload(payload: unknown): unknown {
   const student = getStudentRelation(raw.students);
   return {
     ...raw,
-    student_nis: hasText(raw.student_nis) ? raw.student_nis : student.nis,
+    student_nis: hasText(raw.student_nis) ? raw.student_nis : (student.nis ?? ''),
     student_nama: hasText(raw.student_nama) ? raw.student_nama : student.nama,
     kelas: hasText(raw.kelas) ? raw.kelas : student.kelas,
   };
@@ -42,7 +42,7 @@ const attendanceRecordSchema: z.ZodType<AttendanceRecord> = z.preprocess(
   z.object({
   id: z.string().min(1),
   student_id: z.string().min(1),
-  student_nis: z.string().min(1),
+  student_nis: z.string(),
   student_nama: z.string().min(1),
   kelas: z.string().min(1),
   tanggal: z.string().min(1),
@@ -75,7 +75,7 @@ const attendanceBatchRecordSchema: z.ZodType<AttendanceBatchRecord> = z.object({
 
 const attendanceRosterSchema: z.ZodType<AttendanceRosterRecord> = z.object({
   student_id: z.string().min(1),
-  nis: z.string().min(1),
+  nis: z.preprocess((value) => value == null ? '' : value, z.string()),
   nama: z.string().min(1),
   kelas: z.string().min(1),
   status: attendanceStatusSchema.optional(),

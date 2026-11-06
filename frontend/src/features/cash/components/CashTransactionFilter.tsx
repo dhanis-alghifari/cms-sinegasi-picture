@@ -138,7 +138,7 @@ export function CashTransactionFilter({
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-hairline pt-3 text-xs text-ink-subtle" role="status" aria-live="polite">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <span>{transactionCountLabel}</span>
-          {selectedStudent && <span>{selectedStudent.nis} / {selectedStudent.kelas}</span>}
+          {selectedStudent && <span>{selectedStudent.nis || 'NIS belum tersedia'} / {selectedStudent.kelas}</span>}
         </div>
         <div className="flex items-center gap-2">
           <span className="hidden lg:inline">Filter siswa juga berlaku di tab Tunggakan.</span>

@@ -3,6 +3,7 @@ import type { StudentOption, StudentRecord, StudentsMemoryState } from './studen
 
 export const STUDENT_SELECT = 'id,user_id,nis,nama,kelas,peminatan,no_telepon,foto_url,is_active,created_at,updated_at,created_by,updated_by';
 export const STUDENT_LIST_SELECT = 'id,user_id,nis,nama,kelas,peminatan,no_telepon,is_active,created_at,updated_at,created_by,updated_by';
+export const STUDENT_ACCOUNT_SELECT = 'account:users!students_user_id_fkey(username)';
 export const STUDENT_PAGE_SIZE_MAX = 100;
 export const STUDENT_PAGE_MAX = 10_000;
 export const STUDENT_OPTIONS_LIMIT_MAX = 20;
@@ -54,10 +55,14 @@ export function parseStudentOptionsLimit(value?: number): number {
 }
 
 export function mapStudentRow(row: Record<string, unknown>): StudentRecord {
+  const account = row.account && typeof row.account === 'object' && !Array.isArray(row.account)
+    ? row.account as Record<string, unknown>
+    : null;
   return {
     id: String(row.id),
     ...(row.user_id == null ? {} : { user_id: String(row.user_id) }),
-    nis: String(row.nis),
+    nis: row.nis == null ? null : String(row.nis),
+    ...(typeof account?.username === 'string' ? { username: account.username } : {}),
     nama: String(row.nama),
     kelas: String(row.kelas),
     ...(row.peminatan == null ? {} : { peminatan: String(row.peminatan) }),
@@ -81,7 +86,7 @@ export function mapStudentOption(row: StudentRecord | Record<string, unknown>): 
     nama: student.nama,
     kelas: student.kelas,
     label: student.nama,
-    secondaryLabel: `${student.nis} • ${student.kelas}`,
+    secondaryLabel: [student.nis, student.kelas].filter(Boolean).join(' • '),
   };
 }
 

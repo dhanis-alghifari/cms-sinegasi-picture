@@ -236,7 +236,7 @@ export function AttendanceStudentReport({ canReadStudents, isActive = true }: At
                     {selectedStudent?.nama || 'Rekap absensi siswa'}
                   </CardTitle>
                   <CardDescription className="mt-1 text-xs text-ink-subtle">
-                    {selectedStudent?.nis} • {selectedStudent?.kelas} • {periodLabel}
+                    {selectedStudent?.nis || 'NIS belum tersedia'} • {selectedStudent?.kelas} • {periodLabel}
                   </CardDescription>
                 </div>
                 <div className="attendance-report-screen-only flex flex-wrap items-end gap-2">
@@ -298,7 +298,7 @@ export function AttendanceStudentReport({ canReadStudents, isActive = true }: At
                 <section className="attendance-report-page space-y-4">
                   <div>
                     <h2 className="text-base font-semibold text-ink">{selectedStudent?.nama || 'Rekap absensi siswa'}</h2>
-                    <p className="mt-1 text-xs text-ink-subtle">{selectedStudent?.nis} â€¢ {selectedStudent?.kelas} â€¢ {periodLabel}</p>
+                    <p className="mt-1 text-xs text-ink-subtle">{selectedStudent?.nis || 'NIS belum tersedia'} • {selectedStudent?.kelas} • {periodLabel}</p>
                   </div>
                   <AttendanceTable records={records} />
                 </section>

@@ -59,7 +59,7 @@ export function AttendanceTable({
           {records.map((rec) => (
             <TableRow key={rec.id} className="border-hairline hover:bg-surface-2/40">
               <TableCell className="text-ink-subtle text-xs font-medium">{formatDateShort(rec.tanggal)}</TableCell>
-              <TableCell className="text-ink-muted text-xs font-mono">{rec.student_nis ?? '-'}</TableCell>
+              <TableCell className="text-ink-muted text-xs font-mono">{rec.student_nis || 'NIS belum tersedia'}</TableCell>
               <TableCell className="text-ink font-semibold text-xs">{rec.student_nama ?? 'Siswa'}</TableCell>
               <TableCell className="text-ink-muted text-xs">{rec.kelas ?? '-'}</TableCell>
 

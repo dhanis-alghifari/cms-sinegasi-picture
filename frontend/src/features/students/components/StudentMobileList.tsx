@@ -57,7 +57,7 @@ export function StudentMobileList({
               <StudentAvatar student={student} cacheScope={cacheScope} />
               <span className="min-w-0">
                 <span className="block truncate text-sm font-semibold text-ink">{student.nama}</span>
-                <span className="mt-0.5 block truncate font-mono text-xs text-ink-subtle">{student.nis}</span>
+                <span className="mt-0.5 block truncate font-mono text-xs text-ink-subtle">{student.nis ?? 'NIS belum diisi'}</span>
                 <span className="mt-1 block truncate text-xs text-ink-tertiary">{student.kelas} · {student.peminatan ?? 'Peminatan belum diatur'}</span>
               </span>
             </button>
