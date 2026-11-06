@@ -21,6 +21,7 @@ interface StudentDetailSheetProps {
   permissions?: {
     canManage?: boolean;
     canManageStatus?: boolean;
+    canResetPassword?: boolean;
   };
   actions: {
     onEdit: (student: Student) => void;
@@ -28,6 +29,7 @@ interface StudentDetailSheetProps {
     onDelete?: (student: Student) => void;
     onProvisionAccount?: (student: Student) => void;
     onLinkLegacyAccount?: (student: Student) => void;
+    onResetPassword?: (student: Student) => void;
   };
 }
 
@@ -42,11 +44,13 @@ export function StudentDetailSheet({
   const [previewStudentId, setPreviewStudentId] = useState<string | null>(null);
   const { open, onOpenChange } = dialog;
   const { isMobile } = viewport;
-  const { canManage = true, canManageStatus = false } = permissions ?? {};
-  const { onEdit, onToggleActive, onDelete, onProvisionAccount, onLinkLegacyAccount } = actions;
+  const { canManage = true, canManageStatus = false, canResetPassword = false } = permissions ?? {};
+  const { onEdit, onToggleActive, onDelete, onProvisionAccount, onLinkLegacyAccount, onResetPassword } = actions;
   if (!student) return null;
   const photoEndpoint = `/api/students/${encodeURIComponent(student.id)}/photo`;
   const showProvisionAccount = Boolean(canManageStatus && !student.user_id && onProvisionAccount);
+  let accountUsername = 'Belum dibuat';
+  if (student.user_id) accountUsername = student.username ? `@${student.username}` : 'Tidak tersedia';
 
   const handleSheetOpenChange = (nextOpen: boolean) => {
     if (!nextOpen) setPreviewStudentId(null);
@@ -71,6 +75,11 @@ export function StudentDetailSheet({
   const handleToggleActive = () => {
     handleSheetOpenChange(false);
     onToggleActive(student);
+  };
+
+  const handleResetPassword = () => {
+    handleSheetOpenChange(false);
+    onResetPassword?.(student);
   };
 
   const handleDelete = () => {
@@ -103,7 +112,7 @@ export function StudentDetailSheet({
             </button>
             <div className="min-w-0">
               <h3 className="truncate text-base font-semibold text-ink">{student.nama}</h3>
-              <p className="font-mono text-sm text-ink-subtle">{student.nis}</p>
+              <p className="font-mono text-sm text-ink-subtle">{student.nis ?? 'NIS belum diisi'}</p>
               <div className="mt-2"><StatusBadge label={student.is_active ? 'Aktif' : 'Alumni / Nonaktif'} variant={student.is_active ? 'success' : 'neutral'} /></div>
             </div>
           </div>
@@ -113,6 +122,7 @@ export function StudentDetailSheet({
             <div className="flex items-start justify-between gap-4 px-3 py-3"><dt className="text-xs text-ink-tertiary">Peminatan</dt><dd className="text-right text-sm capitalize text-ink">{student.peminatan ?? 'Belum diatur'}</dd></div>
             <div className="flex items-start justify-between gap-4 px-3 py-3"><dt className="flex items-center gap-2 text-xs text-ink-tertiary"><Phone size={14} aria-hidden="true" /> Telepon</dt><dd className="text-right text-sm text-ink">{student.no_telepon || 'Belum diisi'}</dd></div>
             <div className="flex items-start justify-between gap-4 px-3 py-3"><dt className="text-xs text-ink-tertiary">Akun login</dt><dd className="text-right text-sm text-ink">{student.user_id ? 'Terhubung' : 'Belum dibuat'}</dd></div>
+            {canResetPassword && <div className="flex items-start justify-between gap-4 px-3 py-3"><dt className="text-xs text-ink-tertiary">Username login</dt><dd className="text-right text-sm text-ink">{accountUsername}</dd></div>}
           </dl>
 
           <div className="flex items-center justify-between rounded-xl border border-hairline bg-surface-2 px-3 py-3">
@@ -127,6 +137,7 @@ export function StudentDetailSheet({
               {canManage && <Button type="button" variant="outline" onClick={handleEdit} className="min-h-12 min-w-0 border-hairline text-ink"><Pencil size={16} className="mr-2 shrink-0" aria-hidden="true" />Edit</Button>}
               {canManage && showProvisionAccount && <Button type="button" onClick={handleProvisionAccount} className="col-span-2 min-h-11"><KeyRound size={16} className="mr-2" aria-hidden="true" />Buat akun</Button>}
               {canManage && canManageStatus && student.is_active && !student.user_id && onLinkLegacyAccount && <Button type="button" variant="outline" onClick={handleLinkLegacyAccount} className="col-span-2 min-h-11 border-hairline text-ink"><Link2 size={16} className="mr-2 text-primary" aria-hidden="true" />Tautkan akun lama</Button>}
+              {canResetPassword && student.user_id && student.username && onResetPassword && <Button type="button" variant="outline" onClick={handleResetPassword} className="col-span-2 min-h-11 border-hairline text-ink"><KeyRound size={16} className="mr-2 text-primary" aria-hidden="true" />Reset password</Button>}
               {canManage && canManageStatus && student.user_id && <Button type="button" variant="outline" onClick={handleToggleActive} className="col-span-2 min-h-11 border-hairline text-ink">{student.is_active ? <><UserX size={16} className="mr-2 text-semantic-warning" aria-hidden="true" />Nonaktifkan sebagai alumni</> : <><UserCheck size={16} className="mr-2 text-semantic-success" aria-hidden="true" />Aktifkan kembali</>}</Button>}
               {canManage && canManageStatus && !student.is_active && onDelete && <Button type="button" variant="outline" onClick={handleDelete} className="col-span-2 min-h-11 border-semantic-danger/40 text-semantic-danger hover:bg-semantic-danger/10"><Trash2 size={16} className="mr-2" aria-hidden="true" />Hapus data permanen</Button>}
             </div>

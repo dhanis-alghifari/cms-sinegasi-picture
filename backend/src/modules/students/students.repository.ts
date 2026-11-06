@@ -7,6 +7,7 @@ import {
   parseStudentOptionsLimit,
   parseStudentPagination,
   sanitizeStudentSearch,
+  STUDENT_ACCOUNT_SELECT,
   STUDENT_LIST_SELECT,
   STUDENT_SELECT,
 } from './students.helpers.js';
@@ -70,13 +71,19 @@ export function createStudentRepository(client: SupabaseLike, state: StudentsMem
   return {
     isConfigured: () => client !== null,
 
-    async findByIdentifier(identifier): Promise<{ data: StudentLookupRecord | null; error: DatabaseError | null }> {
-      if (!client) return { data: state.students.find((student) => student.id === identifier || student.nis === identifier) || null, error: null };
-      const query = client.from('students').select(STUDENT_SELECT);
+    async findByIdentifier(identifier, includeUsername = false): Promise<{ data: StudentLookupRecord | null; error: DatabaseError | null }> {
+      if (!client) {
+        const student = state.students.find((item) => item.id === identifier || item.nis === identifier);
+        if (!student) return { data: null, error: null };
+        const { username: _username, ...safeStudent } = student;
+        const account = includeUsername ? state.accounts.find((item) => item.id === student.user_id) : undefined;
+        return { data: { ...safeStudent, ...(account ? { username: account.username } : {}) }, error: null };
+      }
+      const query = client.from('students').select(includeUsername ? `${STUDENT_SELECT},${STUDENT_ACCOUNT_SELECT}` : STUDENT_SELECT);
       const result = isUuid(identifier)
         ? await query.eq('id', identifier).maybeSingle()
         : await query.eq('nis', identifier).maybeSingle();
-      return { data: result.data ? mapStudentRow(result.data as Record<string, unknown>) : null, error: result.error || null };
+      return { data: result.data ? mapStudentRow(result.data as unknown as Record<string, unknown>) : null, error: result.error || null };
     },
 
     async findPhoto(id): Promise<{ data: { foto_url: string | null } | null; error: DatabaseError | null }> {
@@ -96,7 +103,7 @@ export function createStudentRepository(client: SupabaseLike, state: StudentsMem
       const search = sanitizeStudentSearch(query.search).toLowerCase();
       if (!client) {
         let rows = state.students.filter((student) => {
-          const haystack = `${student.nama} ${student.nis} ${student.kelas}`.toLowerCase();
+          const haystack = `${student.nama} ${student.nis ?? ''} ${student.kelas}`.toLowerCase();
           const matchesSearch = !search || haystack.includes(search);
           const classFilter = query.kelas && query.kelas !== 'all' ? query.kelas.toLowerCase() : '';
           const matchesClass = !classFilter || student.kelas.toLowerCase() === classFilter || student.kelas.toLowerCase().startsWith(`${classFilter} `);
@@ -106,17 +113,20 @@ export function createStudentRepository(client: SupabaseLike, state: StudentsMem
         });
         rows = rows.sort((left, right) => right.created_at.localeCompare(left.created_at) || right.id.localeCompare(left.id));
         const total = rows.length;
-        return { data: { data: rows.slice(from, to + 1).map(({ foto_url: _fotoUrl, ...row }) => ({ ...row })), total, page, pageSize, totalPages: Math.ceil(total / pageSize) || 1 } };
+        return { data: { data: rows.slice(from, to + 1).map(({ foto_url: _fotoUrl, username: _username, ...row }) => {
+          const account = query.includeUsername ? state.accounts.find((item) => item.id === row.user_id) : undefined;
+          return { ...row, ...(account ? { username: account.username } : {}) };
+        }), total, page, pageSize, totalPages: Math.ceil(total / pageSize) || 1 } };
       }
 
-      let queryBuilder = client.from('students').select(STUDENT_LIST_SELECT, { count: 'exact' });
+      let queryBuilder = client.from('students').select(query.includeUsername ? `${STUDENT_LIST_SELECT},${STUDENT_ACCOUNT_SELECT}` : STUDENT_LIST_SELECT, { count: 'exact' });
       if (search) queryBuilder = queryBuilder.or(`nama.ilike.%${search}%,nis.ilike.%${search}%,kelas.ilike.%${search}%`);
       if (query.kelas && query.kelas !== 'all') queryBuilder = queryBuilder.or(`kelas.eq.${query.kelas},kelas.ilike.${query.kelas} %`);
       if (query.peminatan && query.peminatan !== 'all') queryBuilder = queryBuilder.eq('peminatan', query.peminatan);
       if (query.isActive !== undefined) queryBuilder = queryBuilder.eq('is_active', query.isActive);
       const result = await queryBuilder.order('created_at', { ascending: false }).order('id', { ascending: false }).range(from, to);
       if (result.error) return { error: result.error };
-      const data = (result.data || []).map((row: Record<string, unknown>) => {
+      const data = ((result.data || []) as unknown as Record<string, unknown>[]).map((row) => {
         const { foto_url: _fotoUrl, ...student } = mapStudentRow(row);
         return student;
       });
@@ -131,7 +141,7 @@ export function createStudentRepository(client: SupabaseLike, state: StudentsMem
       if (!client) {
         const rows = state.students
           .filter((student) => student.is_active === isActive)
-          .filter((student) => !search || `${student.nama} ${student.nis} ${student.kelas}`.toLowerCase().includes(search))
+          .filter((student) => !search || `${student.nama} ${student.nis ?? ''} ${student.kelas}`.toLowerCase().includes(search))
           .sort((left, right) => left.nama.localeCompare(right.nama) || left.id.localeCompare(right.id));
         return { data: { data: rows.slice(0, limit).map(mapStudentOption), total: rows.length } };
       }
@@ -183,14 +193,14 @@ export function createStudentRepository(client: SupabaseLike, state: StudentsMem
           }
           return { data: { ...previousOperation.result, account: { ...previousOperation.result.account, operation_replayed: true } } };
         }
-        if (state.students.some((student) => student.nis.toLowerCase() === input.nis.toLowerCase())) return { error: { code: '23505' } };
+        if (input.nis && state.students.some((student) => student.nis?.toLowerCase() === input.nis?.toLowerCase())) return { error: { code: '23505' } };
         if (state.accounts.some((account) => account.username.trim().toLowerCase() === input.username)) {
           return { error: { code: '23505', message: 'duplicate key value violates unique constraint "uq_users_username_normalized"' } };
         }
         const now = new Date().toISOString();
         const userId = crypto.randomUUID();
         const student: StudentRecord = {
-          id: crypto.randomUUID(), user_id: userId, nis: input.nis, nama: input.nama, kelas: input.kelas,
+          id: crypto.randomUUID(), user_id: userId, nis: input.nis ?? null, nama: input.nama, kelas: input.kelas,
           ...(input.peminatan ? { peminatan: input.peminatan } : {}),
           ...(input.no_telepon ? { no_telepon: input.no_telepon } : {}),
           ...(input.foto_url ? { foto_url: input.foto_url } : {}),
@@ -211,7 +221,7 @@ export function createStudentRepository(client: SupabaseLike, state: StudentsMem
         return { data: operationResult };
       }
       const { data: accountData, error } = await client.rpc('create_student_with_account_v2', {
-        p_nis: input.nis, p_nama: input.nama, p_kelas: input.kelas, p_peminatan: input.peminatan || null,
+        p_nis: input.nis ?? null, p_nama: input.nama, p_kelas: input.kelas, p_peminatan: input.peminatan || null,
         p_no_telepon: input.no_telepon || null, p_foto_url: input.foto_url || null, p_username: input.username,
         p_password_hash: input.passwordHash, p_created_by: input.actorId, p_role: input.role || 'member',
         p_operation_key: input.operationKey, p_request_fingerprint: input.requestFingerprint,
@@ -234,11 +244,11 @@ export function createStudentRepository(client: SupabaseLike, state: StudentsMem
           || state.students.some((student) => student.user_id === account.id)) {
           return { error: { code: 'STUDENT_ACCOUNT_NOT_ELIGIBLE', message: 'STUDENT_ACCOUNT_NOT_ELIGIBLE' } };
         }
-        if (state.students.some((student) => student.nis.toLowerCase() === input.nis.toLowerCase())) return { error: { code: '23505' } };
+        if (input.nis && state.students.some((student) => student.nis?.toLowerCase() === input.nis?.toLowerCase())) return { error: { code: '23505' } };
         const previousAccount = { id: account.id, username: account.username, nama: account.nama, role: account.role };
         const now = new Date().toISOString();
         const student: StudentRecord = {
-          id: crypto.randomUUID(), user_id: account.id, nis: input.nis, nama: input.nama, kelas: input.kelas,
+          id: crypto.randomUUID(), user_id: account.id, nis: input.nis ?? null, nama: input.nama, kelas: input.kelas,
           ...(input.peminatan ? { peminatan: input.peminatan } : {}),
           ...(input.no_telepon ? { no_telepon: input.no_telepon } : {}),
           ...(input.foto_url ? { foto_url: input.foto_url } : {}),
@@ -256,7 +266,7 @@ export function createStudentRepository(client: SupabaseLike, state: StudentsMem
       }
       const { data: rawData, error } = await client.rpc('link_existing_student_account_atomic', {
         p_user_id: input.userId,
-        p_nis: input.nis,
+        p_nis: input.nis ?? null,
         p_nama: input.nama,
         p_kelas: input.kelas,
         p_peminatan: input.peminatan || null,
@@ -380,6 +390,7 @@ export function createStudentRepository(client: SupabaseLike, state: StudentsMem
         const index = state.students.findIndex((student) => student.id === input.id);
         if (index === -1) return { data: null };
         const current = state.students[index];
+        if (input.changes.nis && state.students.some((student) => student.id !== input.id && student.nis?.toLowerCase() === input.changes.nis?.toLowerCase())) return { error: { code: '23505' } };
         state.students[index] = {
           ...current,
           ...input.changes,
@@ -388,8 +399,10 @@ export function createStudentRepository(client: SupabaseLike, state: StudentsMem
         };
         return { data: { ...state.students[index] } };
       }
-      const { data, error } = await client.rpc('update_student_profile_audited_atomic', {
+      const hasNis = Object.prototype.hasOwnProperty.call(input.changes, 'nis');
+      const { data, error } = await client.rpc(hasNis ? 'update_student_profile_nis_audited_atomic' : 'update_student_profile_audited_atomic', {
         p_student_id: input.id,
+        ...(hasNis ? { p_nis: input.changes.nis ?? null } : {}),
         p_nama: input.changes.nama,
         p_kelas: input.changes.kelas,
         p_peminatan: input.changes.peminatan || null,

@@ -32,6 +32,8 @@ import { hasCapability } from '@/shared/auth/capabilities';
 import { getErrorMessage } from '@/shared/api/errors';
 import { toast } from '@/shared/ui/primitives/toast';
 import { studentsService } from '../api/students.service';
+import { usersService } from '@/features/users/api/users.service';
+import { studentResetTarget } from '../utils/studentResetTarget';
 
 const LazyStudentDetailSheet = lazy(() =>
   import('../components/StudentDetailSheet').then(({ StudentDetailSheet }) => ({ default: StudentDetailSheet })),
@@ -56,12 +58,16 @@ const LazyStudentProvisionAccountDialog = lazy(() =>
 const LazyReasonDialog = lazy(() =>
   import('@/shared/ui/ActionDialog').then(({ ReasonDialog }) => ({ default: ReasonDialog })),
 );
+const LazyResetPasswordDialog = lazy(() =>
+  import('@/features/users/components/ResetPasswordDialog').then(({ ResetPasswordDialog }) => ({ default: ResetPasswordDialog })),
+);
 
 export function StudentsPage() {
   const { user } = useAuthStore();
   const isMobile = useIsMobile();
   const canManage = hasCapability(user, 'students.manage');
   const canManageStatus = hasCapability(user, 'users.manage');
+  const canResetPassword = user?.role === 'teacher' && canManageStatus;
 
   // Filter state
   const [search, setSearch] = useState('');
@@ -107,6 +113,9 @@ export function StudentsPage() {
   const [detailStudent, setDetailStudent] = useState<Student | null>(null);
   const [linkTargetStudent, setLinkTargetStudent] = useState<Student | null>(null);
   const [purgeTargetStudent, setPurgeTargetStudent] = useState<Student | null>(null);
+  const [resetTarget, setResetTarget] = useState<ReturnType<typeof studentResetTarget>>(null);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
+  const detailLoadSequence = useRef(0);
 
   const handleAccountIssued = useCallback((response: StudentAccountResponse) => {
     if (response.account.temporary_password || !issuedAccount.current) {
@@ -155,6 +164,27 @@ export function StudentsPage() {
       if (sequence === editLoadSequence.current) {
         toast.add({ type: 'error', title: 'Data siswa gagal dimuat', description: getErrorMessage(error) });
       }
+    }
+  };
+
+  const handleOpenDetail = async (student: Student) => {
+    const sequence = ++detailLoadSequence.current;
+    try {
+      const completeStudent = await studentsService.getStudentById(student.id);
+      if (sequence === detailLoadSequence.current) setDetailStudent(completeStudent);
+    } catch (error) {
+      if (sequence === detailLoadSequence.current) {
+        toast.add({ type: 'error', title: 'Data siswa gagal dimuat', description: getErrorMessage(error) });
+      }
+    }
+  };
+
+  const handleResetPassword = async (userId: string, changeReason: string) => {
+    setIsResettingPassword(true);
+    try {
+      return await usersService.resetPassword(userId, changeReason);
+    } finally {
+      setIsResettingPassword(false);
     }
   };
 
@@ -232,7 +262,7 @@ export function StudentsPage() {
 
   const handleFormSubmit = async (values: StudentFormValues, account: StudentAccountSubmission) => {
     const profilePayload = {
-      nis: values.nis,
+      nis: values.nis || null,
       nama: values.nama,
       kelas: values.kelas,
       peminatan: values.peminatan,
@@ -241,9 +271,11 @@ export function StudentsPage() {
     };
 
     if (selectedStudent) {
+      // An unchanged number must be omitted so a concurrent update is not overwritten.
+      const { nis, ...profileWithoutNis } = profilePayload;
       await updateMutation.mutateAsync({
         id: selectedStudent.id,
-        payload: profilePayload,
+        payload: nis === (selectedStudent.nis ?? null) ? profileWithoutNis : profilePayload,
         changeReason: values.change_reason ?? '',
       });
     } else {
@@ -281,8 +313,8 @@ export function StudentsPage() {
 
     const students = data?.data ?? [];
     const list = isMobile
-      ? <StudentMobileList students={students} onOpenDetail={setDetailStudent} onEdit={handleOpenEdit} onToggleActive={handleOpenStatusDialog} onDelete={handleOpenPurgeDialog} onProvisionAccount={handleOpenProvisionDialog} onLinkLegacyAccount={handleOpenLinkDialog} canManage={canManage} canManageStatus={canManageStatus} />
-      : <StudentTable students={students} onEdit={handleOpenEdit} onToggleActive={handleOpenStatusDialog} onDelete={handleOpenPurgeDialog} onProvisionAccount={handleOpenProvisionDialog} onLinkLegacyAccount={handleOpenLinkDialog} canManage={canManage} canManageStatus={canManageStatus} />;
+      ? <StudentMobileList students={students} onOpenDetail={handleOpenDetail} onEdit={handleOpenEdit} onToggleActive={handleOpenStatusDialog} onDelete={handleOpenPurgeDialog} onProvisionAccount={handleOpenProvisionDialog} onLinkLegacyAccount={handleOpenLinkDialog} canManage={canManage} canManageStatus={canManageStatus} />
+      : <StudentTable students={students} onOpenDetail={handleOpenDetail} onEdit={handleOpenEdit} onToggleActive={handleOpenStatusDialog} onDelete={handleOpenPurgeDialog} onProvisionAccount={handleOpenProvisionDialog} onLinkLegacyAccount={handleOpenLinkDialog} canManage={canManage} canManageStatus={canManageStatus} />;
 
     return (
       <div className="space-y-4">
@@ -340,14 +372,24 @@ export function StudentsPage() {
               }}
               student={detailStudent}
               viewport={{ isMobile }}
-              permissions={{ canManage, canManageStatus }}
+              permissions={{ canManage, canManageStatus, canResetPassword }}
               actions={{
                 onEdit: handleOpenEdit,
                 onToggleActive: handleOpenStatusDialog,
                 onDelete: handleOpenPurgeDialog,
                 onProvisionAccount: handleOpenProvisionDialog,
                 onLinkLegacyAccount: handleOpenLinkDialog,
+                onResetPassword: (student) => setResetTarget(studentResetTarget(student, canResetPassword)),
               }}
+            />
+          )}
+          {resetTarget && canResetPassword && (
+            <LazyResetPasswordDialog
+              open
+              onOpenChange={(open) => { if (!open) setResetTarget(null); }}
+              userAccount={resetTarget}
+              onResetSubmit={handleResetPassword}
+              isLoading={isResettingPassword}
             />
           )}
           {dialogOpen && (

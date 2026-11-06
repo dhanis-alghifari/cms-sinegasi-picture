@@ -5,7 +5,7 @@ import {
   clearAuthStateCache,
   type JwtPayload,
 } from '../../middleware/authMiddleware.js';
-import { requireAnyCapability, requireCapability } from '../../middleware/capabilities.js';
+import { hasCapability, requireAnyCapability, requireCapability } from '../../middleware/capabilities.js';
 import {
   studentCreateRouteSchema,
   studentIdRouteSchema,
@@ -127,6 +127,7 @@ const studentRoutes: FastifyPluginAsync<StudentRoutesOptions> = async (fastify, 
     preHandler: [authenticate, requireCapability('students.read')],
   }, async (request, reply) => {
     try {
+      const user = request.user as JwtPayload;
       const query = studentInput(request.query as Record<string, unknown>) as {
         search?: string; kelas?: string; peminatan?: string; is_active?: string; page?: string; pageSize?: string;
       };
@@ -139,6 +140,7 @@ const studentRoutes: FastifyPluginAsync<StudentRoutesOptions> = async (fastify, 
           isActive: query.is_active && query.is_active !== 'all' ? query.is_active === 'true' : undefined,
           page: Number(query.page || 1),
           pageSize: Number(query.pageSize || 50),
+          includeUsername: user.role === 'teacher' && hasCapability(user.role, 'users.manage'),
         })),
       });
     } catch (error) {
@@ -164,7 +166,11 @@ const studentRoutes: FastifyPluginAsync<StudentRoutesOptions> = async (fastify, 
     preHandler: [authenticate, requireCapability('students.read')],
   }, async (request, reply) => {
     try {
-      return reply.send(await options.studentsService.getByIdentifier((request.params as { id: string }).id));
+      const user = request.user as JwtPayload;
+      return reply.send(await options.studentsService.getByIdentifier(
+        (request.params as { id: string }).id,
+        user.role === 'teacher' && hasCapability(user.role, 'users.manage'),
+      ));
     } catch (error) {
       if (error instanceof StudentNotFoundError) return reply.status(error.statusCode).send({ statusCode: error.statusCode, message: error.message });
       return sendServiceError(error, reply);
@@ -207,7 +213,7 @@ const studentRoutes: FastifyPluginAsync<StudentRoutesOptions> = async (fastify, 
       const changeReason = reasonFrom(request, body, 'Menautkan akun lama ke data siswa');
       const result = await options.studentsService.linkExistingAccount({
         userId,
-        nis: body.nis as string,
+        nis: body.nis as string | null | undefined,
         nama: body.nama as string,
         kelas: body.kelas as string,
         peminatan: body.peminatan as string | undefined,

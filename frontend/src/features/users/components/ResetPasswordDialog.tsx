@@ -25,7 +25,7 @@ import type { ResetPasswordResponse, UserAccount } from '../types/users.types';
 interface ResetPasswordDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  userAccount?: UserAccount | null;
+  userAccount?: Pick<UserAccount, 'id' | 'username' | 'nama'> | null;
   onResetSubmit: (userId: string, changeReason: string) => Promise<ResetPasswordResponse | void>;
   isLoading?: boolean;
   error?: unknown;

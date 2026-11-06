@@ -303,7 +303,7 @@ function buildMemoryReport(
     return {
       student_id: studentId,
       student_nama: student?.nama || 'Siswa',
-      nis: student?.nis,
+      nis: student?.nis ?? undefined,
       kelas: student?.kelas,
       total_debt: debt.totalDebt,
       debt_record_count: debt.recordCount,
@@ -354,7 +354,7 @@ function buildMemoryReport(
         note: transaction.keterangan,
         student_id: transaction.student_id,
         student_name: student?.nama,
-        nis: student?.nis,
+        nis: student?.nis ?? undefined,
         kelas: student?.kelas,
         payment_method_code: transaction.payment_method_code || 'cash',
         payment_method_label: formatPaymentMethodLabel(transaction.payment_method_code || 'cash', transaction.payment_method_label),
