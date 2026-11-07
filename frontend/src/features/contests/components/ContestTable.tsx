@@ -101,7 +101,7 @@ export function ContestTable({
 
               {/* Deadline */}
               <TableCell className="text-ink-subtle text-xs font-medium">
-                {formatDateShort(c.deadline)}
+                {c.deadline ? formatDateShort(c.deadline) : '-'}
               </TableCell>
 
               {/* Status Event */}

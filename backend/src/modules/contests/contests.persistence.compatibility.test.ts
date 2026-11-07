@@ -84,3 +84,12 @@ test('contest persistence compatibility maps public fields and merges legacy fil
     'legacy-unique',
   ]);
 });
+
+test('contest rollback preserves a missing registration deadline', () => {
+  const contest = mapContestPersistenceRow({
+    id: 'contest-without-deadline', nama: 'Festival', jenis: 'Festival',
+    level: 'umum', tanggal: null, deadline: null, status: 'selesai',
+  });
+  assert.equal(contest.tanggal, null);
+  assert.equal(contest.deadline, null);
+});

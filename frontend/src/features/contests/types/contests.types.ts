@@ -47,7 +47,7 @@ export interface Contest {
   penyelenggara?: string;
   kota?: string | null;
   tingkat: ContestScope;
-  deadline: string;
+  deadline: string | null;
   status: ContestStatus;
   status_public?: ContestStatus;
   tahun_event?: number | null;

@@ -50,7 +50,7 @@ export function mapContestPersistenceRow(row: DatabaseRow): ContestRecord {
   const nama = String(row.nama ?? row.nama_lomba ?? '');
   const jenis = String(row.jenis ?? row.penyelenggara ?? '');
   const level = String(row.level ?? '');
-  const tanggal = String(row.tanggal ?? row.deadline ?? '');
+  const tanggal = nullableText(row.tanggal ?? row.deadline);
   const status = String(row.status ?? 'progres');
 
   return {

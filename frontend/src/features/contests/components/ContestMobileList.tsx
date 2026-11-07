@@ -53,7 +53,7 @@ export function ContestMobileList({ contests, onEdit, onManageEntries, canManage
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <Badge variant="outline" className={`text-xs ${CONTEST_SCOPE_BADGE_CLASSES[contest.tingkat] ?? ''}`}>{getContestScopeLabel(contest.tingkat)}</Badge>
             <Badge variant="outline" className={`text-xs ${getContestStatusBadgeClass(contest.status_public ?? contest.status)}`}>{getContestStatusLabel(contest.status_public ?? contest.status)}</Badge>
-            <span className="ml-auto text-xs text-ink-tertiary">Deadline {formatDateShort(contest.deadline)}</span>
+            <span className="ml-auto text-xs text-ink-tertiary">Deadline {contest.deadline ? formatDateShort(contest.deadline) : '-'}</span>
           </div>
           <div className="mt-3 rounded-lg bg-surface-2 p-3">
             <p className="text-[10px] uppercase tracking-wide text-ink-tertiary">Karya terkirim</p>

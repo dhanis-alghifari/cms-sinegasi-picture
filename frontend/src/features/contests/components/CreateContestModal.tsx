@@ -87,7 +87,7 @@ export function CreateContestModal({
         nama_lomba: contest.nama_lomba,
         kota: contest.kota ?? '',
         tingkat: normalizeContestScope(contest.tingkat) ?? 'nasional',
-        deadline: contest.deadline,
+        deadline: contest.deadline ?? '',
         status: contest.status_public ?? (contest.status === 'selesai' ? 'selesai' : 'proses_penjurian'),
         tahun_event: contest.tahun_event ?? new Date().getFullYear(),
         website_url: contest.website_url ?? '',
