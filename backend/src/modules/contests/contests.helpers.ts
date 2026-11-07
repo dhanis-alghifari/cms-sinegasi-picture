@@ -140,7 +140,7 @@ export function contestErrorMessage(error: unknown, fallback: string): string {
     return 'Tingkat lomba tidak valid.';
   }
   if (databaseError?.message === 'CONTEST_DEADLINE_MUST_BE_FUTURE' || (databaseError?.code === '22023' && /DEADLINE/i.test(databaseError.message || ''))) {
-    return 'Deadline pendaftaran harus besok atau tanggal setelahnya.';
+    return 'Deadline pendaftaran harus hari ini atau setelahnya.';
   }
   if (databaseError?.code === '42P01' || databaseError?.code === '42703' || databaseError?.code === 'PGRST204' || databaseError?.code === 'PGRST205') return 'Skema lomba belum terpasang atau belum dimuat ulang. Jalankan migration contest terlebih dahulu, lalu restart backend.';
   if (databaseError?.message?.trim() && !/[{}]/.test(databaseError.message)) return databaseError.message.trim();

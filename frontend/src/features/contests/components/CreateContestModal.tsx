@@ -21,9 +21,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { cn } from '@/shared/utils/cn';
 import { getErrorMessage } from '@/shared/api/errors';
 
-import { contestEditSchema, contestSchema, type ContestFormValues } from '../schemas/contestSchema';
+import { contestBusinessToday, contestEditSchema, contestSchema, type ContestFormValues } from '../schemas/contestSchema';
 import type { Contest } from '../types/contests.types';
-import { getFutureDateInputValue } from '@/shared/utils/formatDate';
 import {
   CONTEST_SCOPE_OPTIONS,
   CONTEST_STATUS_OPTIONS,
@@ -57,7 +56,7 @@ export function CreateContestModal({
       nama_lomba: '',
       kota: '',
       tingkat: 'nasional',
-      deadline: getFutureDateInputValue(1),
+      deadline: '',
       status: 'buka',
       tahun_event: new Date().getFullYear(),
       website_url: '',
@@ -87,7 +86,7 @@ export function CreateContestModal({
         nama_lomba: contest.nama_lomba,
         kota: contest.kota ?? '',
         tingkat: normalizeContestScope(contest.tingkat) ?? 'nasional',
-        deadline: contest.deadline,
+        deadline: contest.deadline ?? '',
         status: contest.status_public ?? (contest.status === 'selesai' ? 'selesai' : 'proses_penjurian'),
         tahun_event: contest.tahun_event ?? new Date().getFullYear(),
         website_url: contest.website_url ?? '',
@@ -99,7 +98,7 @@ export function CreateContestModal({
         nama_lomba: '',
         kota: '',
         tingkat: 'nasional',
-        deadline: getFutureDateInputValue(1),
+        deadline: '',
         status: 'buka',
         tahun_event: new Date().getFullYear(),
         website_url: '',
@@ -210,20 +209,20 @@ export function CreateContestModal({
           <section className="w-full min-w-0 shrink-0 space-y-3 rounded-lg border border-hairline bg-surface-2/40 p-3 sm:p-4">
             <div>
               <p className="text-xs font-semibold text-ink">Pendaftaran</p>
-              <p className="mt-0.5 text-[11px] text-ink-tertiary">Deadline tidak boleh hari ini atau tanggal yang sudah lewat.</p>
+              {selectedContestStatus === 'buka' && <p className="mt-0.5 text-[11px] text-ink-tertiary">Deadline pendaftaran minimal hari ini.</p>}
             </div>
             <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="space-y-1">
-              <Label htmlFor="deadline" className="text-xs text-ink-muted">Batas Waktu Pendaftaran <span className="text-semantic-danger" aria-hidden="true">*</span></Label>
+            {selectedContestStatus !== 'selesai' && <div className="space-y-1">
+              <Label htmlFor="deadline" className="text-xs text-ink-muted">Batas Waktu Pendaftaran {selectedContestStatus === 'buka' ? <span className="text-semantic-danger" aria-hidden="true">*</span> : <span className="text-ink-tertiary">(Opsional)</span>}</Label>
               <Input
                 id="deadline"
                 type="date"
-                min={getFutureDateInputValue(1)}
+                min={selectedContestStatus === 'buka' ? contestBusinessToday() : undefined}
                 className="bg-surface-2 border-hairline text-ink text-xs"
                 {...form.register('deadline')}
               />
               {form.formState.errors.deadline && <p className="text-semantic-danger text-[10px]">{form.formState.errors.deadline.message}</p>}
-            </div>
+            </div>}
 
             <div className="space-y-1">
               <Label htmlFor="website_url" className="text-ink-muted text-xs">Link Website / Form Pendaftaran (Opsional)</Label>
