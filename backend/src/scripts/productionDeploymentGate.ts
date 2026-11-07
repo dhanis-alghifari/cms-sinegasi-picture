@@ -12,6 +12,8 @@ import { APPROVED_BACKUP_ROLE_POLICY, requireApprovedBackupRole, withoutApproved
   type ApprovedBackupRolePolicy } from './productionBackupRolePolicy.js';
 import { readStudentPhotoSql, requireStudentPhotoFunction, validateStudentPhotoReceipt,
   withoutStudentPhotoSession, type StudentPhotoReceipt } from './studentPhotoProductionPolicy.js';
+import { OPTIONAL_FIELDS_POLICY, optionalFieldsBaseline, optionalFieldsBaselineSession,
+  requireOptionalFieldsProductionHistory } from './optionalFieldsProductionPolicy.js';
 export { DeploymentGateError } from './productionDeploymentError.js';
 
 export const DEPLOYMENT_PROJECT = 'pvbdiftvzoeelibxlxzb';
@@ -79,6 +81,9 @@ export type DeploymentEvidence = LegacyDeploymentEvidence | (Omit<LegacyDeployme
 }) | (Omit<LegacyDeploymentEvidence, 'format' | 'mode'> & {
   format: 5; mode: 'reconciled-backup-role-student-photo-v1'; backupRolePolicy: ApprovedBackupRolePolicy;
   studentPhotoChange: StudentPhotoReceipt;
+}) | (Omit<LegacyDeploymentEvidence, 'format' | 'mode'> & {
+  format: 6; mode: 'reconciled-optional-fields-v1'; backupRolePolicy: ApprovedBackupRolePolicy;
+  studentPhotoChange: StudentPhotoReceipt; optionalFieldsPolicy: typeof OPTIONAL_FIELDS_POLICY;
 });
 export interface DeploymentGateContext {
   releaseSha: string;
@@ -95,17 +100,20 @@ export function validateDeploymentEvidence(raw: string, context: DeploymentGateC
     && HASH.test(context.snapshotSha256) && HASH.test(context.packageSha256) && Number.isFinite(context.now)
     && deploymentHash(raw) === context.evidenceSha256, 'DEPLOYMENT_EVIDENCE_CHECKSUM_OR_CONTEXT_MISMATCH');
   const parsed = record(JSON.parse(raw) as unknown);
-  const backupRole = parsed.format === 4 && parsed.mode === 'reconciled-backup-role-v1'
+  const optionalFields = parsed.format === 6 && parsed.mode === 'reconciled-optional-fields-v1';
+  const backupRole = optionalFields || parsed.format === 4 && parsed.mode === 'reconciled-backup-role-v1'
     || parsed.format === 5 && parsed.mode === 'reconciled-backup-role-student-photo-v1';
-  const incremental = parsed.format === 3 && parsed.mode === 'reconciled-student-photo-v1'
+  const incremental = optionalFields || parsed.format === 3 && parsed.mode === 'reconciled-student-photo-v1'
     || parsed.format === 5 && parsed.mode === 'reconciled-backup-role-student-photo-v1';
   const e = exact(parsed, ['format', 'mode', 'project', 'releaseSha', 'snapshotSha256', 'observedAt',
     'observation', 'backup', 'restore', 'copy', 'independentKeyRecovery', 'rehearsal', 'reviewPolicy', 'media',
-    ...(incremental ? ['studentPhotoChange'] : []), ...(backupRole ? ['backupRolePolicy'] : [])]);
+    ...(incremental ? ['studentPhotoChange'] : []), ...(backupRole ? ['backupRolePolicy'] : []),
+    ...(optionalFields ? ['optionalFieldsPolicy'] : [])]);
   requireGate(JSON.stringify(e) === raw, 'CANONICAL_DEPLOYMENT_EVIDENCE_REQUIRED');
   requireGate((incremental || backupRole || e.format === 2 && e.mode === 'reconciled-no-sql') && e.project === DEPLOYMENT_PROJECT
     && e.releaseSha === context.releaseSha && e.snapshotSha256 === context.snapshotSha256, 'DEPLOYMENT_SCOPE_OR_RELEASE_MISMATCH');
   if (backupRole) requireGate(e.backupRolePolicy === APPROVED_BACKUP_ROLE_POLICY, 'EXPLICIT_BACKUP_ROLE_POLICY_REQUIRED');
+  if (optionalFields) requireGate(e.optionalFieldsPolicy === OPTIONAL_FIELDS_POLICY, 'EXPLICIT_OPTIONAL_FIELDS_POLICY_REQUIRED');
   const observed = fresh(e.observedAt, context.now, 30 * 60_000);
   deploymentReviewPolicy(e.reviewPolicy);
   const media = privateMediaEvidence(e.media, context.now);
@@ -149,7 +157,8 @@ export function validateDeploymentEvidence(raw: string, context: DeploymentGateC
     && rehearsal.packageSha256 === context.packageSha256 && rehearsal.rollbackPassed === true && rehearsal.runtimePreflightPassed === true
     && rehearsal.productionChanged === false && rehearsal.devDatabaseChanged === false, 'EXACT_RELEASE_DEPLOYMENT_REHEARSAL_REQUIRED');
   fresh(rehearsal.verifiedAt, context.now, 2 * 60 * 60_000);
-  if (incremental) validateStudentPhotoReceipt(e.studentPhotoChange, baseline.targetCatalogSha256, String(e.observedAt));
+  if (incremental) validateStudentPhotoReceipt(e.studentPhotoChange, optionalFields
+    ? String(record(e.studentPhotoChange).afterCatalogSha256) : baseline.targetCatalogSha256, String(e.observedAt));
   return e as unknown as DeploymentEvidence;
 }
 
@@ -194,7 +203,8 @@ export function requireDeploymentQuality(run: unknown, jobs: unknown, releaseSha
 /** Existing schema/reference verifier; only row counts are normalized. Business
  * data and login are NOT accepted here. No DDL/history writes or auth RPCs. */
 export async function inspectDeploymentSchema(db: WriterSession, bundle: WriterPackage,
-  change?: StudentPhotoReceipt, backupRolePolicy?: ApprovedBackupRolePolicy): Promise<DeploymentObservation> {
+  change?: StudentPhotoReceipt, backupRolePolicy?: ApprovedBackupRolePolicy,
+  optionalFieldsPolicy?: typeof OPTIONAL_FIELDS_POLICY): Promise<DeploymentObservation> {
   await db.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
   try {
     await db.query("SET LOCAL statement_timeout='8s'; SET LOCAL lock_timeout='2s'; SET LOCAL idle_in_transaction_session_timeout='30s'; SET LOCAL search_path=pg_catalog,public,extensions");
@@ -202,13 +212,17 @@ export async function inspectDeploymentSchema(db: WriterSession, bundle: WriterP
       current_setting('transaction_read_only') AS "readOnly",current_setting('server_version_num') AS version`)).rows[0];
     requireGate(identity?.database === 'postgres' && identity.actor === 'postgres' && identity.readOnly === 'on'
       && /^17[0-9]{4}$/.test(String(identity.version)), 'DEPLOYMENT_READ_ONLY_SESSION_REQUIRED');
-    return await readDeploymentCatalog(db, bundle, change, backupRolePolicy);
+    return await readDeploymentCatalog(db, bundle, change, backupRolePolicy, optionalFieldsPolicy);
   } finally { await db.query('ROLLBACK'); }
 }
 
 /** Caller owns the transaction. A writable caller is ONLY the separately approved additive runner. */
 export async function readDeploymentCatalog(db: WriterSession, bundle: WriterPackage,
-  change?: StudentPhotoReceipt, backupRolePolicy?: ApprovedBackupRolePolicy): Promise<DeploymentObservation> {
+  change?: StudentPhotoReceipt, backupRolePolicy?: ApprovedBackupRolePolicy,
+  optionalFieldsPolicy?: typeof OPTIONAL_FIELDS_POLICY): Promise<DeploymentObservation> {
+    if (optionalFieldsPolicy !== undefined) requireGate(change !== undefined
+      && optionalFieldsPolicy === OPTIONAL_FIELDS_POLICY && backupRolePolicy === APPROVED_BACKUP_ROLE_POLICY,
+    'EXPLICIT_OPTIONAL_FIELDS_POLICY_REQUIRED');
     const checkpoint = await requireCompletedBootstrapCheckpoint(db, bundle);
     const managedRows = (await db.query(`SELECT (SELECT count(*)::text FROM auth.users) AS accounts,
       (SELECT count(*)::text FROM storage.objects) AS objects`)).rows[0];
@@ -224,13 +238,23 @@ export async function readDeploymentCatalog(db: WriterSession, bundle: WriterPac
     if (change) {
       validateStudentPhotoReceipt(change, change.afterCatalogSha256, new Date().toISOString());
       await requireStudentPhotoFunction(db, await readStudentPhotoSql());
-      const baseline = await verifyWriterTarget(withoutStudentPhotoSession(normalized), bundle.snapshot, bundle.reference, managed.sha256);
+      let photoSession = normalized;
+      if (optionalFieldsPolicy !== undefined) {
+        requireGate(optionalFieldsPolicy === OPTIONAL_FIELDS_POLICY && backupRolePolicy === APPROVED_BACKUP_ROLE_POLICY,
+          'EXPLICIT_OPTIONAL_FIELDS_POLICY_REQUIRED');
+        await requireOptionalFieldsProductionHistory(db);
+        const beforeOptional = optionalFieldsBaseline({ inventory, security: catalog.security }, bundle.snapshot);
+        requireGate(writerCatalogHash(beforeOptional) === change.afterCatalogSha256, 'OPTIONAL_FIELDS_PRIOR_CATALOG_DRIFT');
+        photoSession = optionalFieldsBaselineSession(normalized, beforeOptional, bundle.snapshot);
+      }
+      const baseline = await verifyWriterTarget(withoutStudentPhotoSession(photoSession), bundle.snapshot, bundle.reference, managed.sha256);
       requireGate(writerCatalogHash(backupRolePolicy ? withoutApprovedBackupRole(baseline) : baseline) === checkpoint.targetCatalogSha256
         && change.beforeCatalogSha256 === writerCatalogHash(baseline)
-        && writerCatalogHash({ inventory, security: catalog.security }) === change.afterCatalogSha256,
+        && (optionalFieldsPolicy !== undefined || writerCatalogHash({ inventory, security: catalog.security }) === change.afterCatalogSha256),
       'PHOTO_MIGRATION_BASELINE_OR_POSTCONDITION_DRIFT');
-      return { packageSha256: bundle.packageSha256, ...checkpoint, targetCatalogSha256: change.afterCatalogSha256,
-        managedExtensionSha256: managed.sha256, schemaSecuritySha256: change.afterCatalogSha256 };
+      const target = optionalFieldsPolicy !== undefined ? writerCatalogHash({ inventory, security: catalog.security }) : change.afterCatalogSha256;
+      return { packageSha256: bundle.packageSha256, ...checkpoint, targetCatalogSha256: target,
+        managedExtensionSha256: managed.sha256, schemaSecuritySha256: target };
     }
     const verified = await verifyWriterTarget(normalized, bundle.snapshot, bundle.reference, managed.sha256);
     requireGate(writerCatalogHash(backupRolePolicy ? withoutApprovedBackupRole(verified) : verified) === checkpoint.targetCatalogSha256,
