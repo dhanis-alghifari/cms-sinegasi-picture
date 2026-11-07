@@ -1,0 +1,35 @@
+name: Build Contest-Compatible Rollback Image
+
+on:
+  push:
+    branches: [hotfix/contest-compatible-rollback-20261107]
+
+permissions: {}
+
+jobs:
+  build-rollback:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - name: Build and publish rollback image only
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+          GHCR_USER: ${{ github.actor }}
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          set -Eeuo pipefail
+          [[ "$SOURCE_SHA" =~ ^[a-f0-9]{40}$ ]]
+          image="ghcr.io/${GITHUB_REPOSITORY,,}/api"
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+          trap 'docker logout ghcr.io >/dev/null' EXIT
+          docker build --platform linux/amd64 --label "org.opencontainers.image.revision=$SOURCE_SHA" --tag "$image:rollback-$SOURCE_SHA" ./backend
+          docker push "$image:rollback-$SOURCE_SHA"
+          digest_ref="$(docker image inspect -f '{{index .RepoDigests 0}}' "$image:rollback-$SOURCE_SHA")"
+          [[ "$digest_ref" =~ ^ghcr\.io/[a-z0-9][a-z0-9._/-]*@sha256:[a-f0-9]{64}$ ]]
+          printf 'Rollback image: `%s`\n\nSource: `%s`\n\nNo production deployment was performed.\n' "$digest_ref" "$SOURCE_SHA" >> "$GITHUB_STEP_SUMMARY"
