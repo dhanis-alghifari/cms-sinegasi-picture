@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createContestsRepository } from './contests.repository.js';
+import { contestErrorMessage } from './contests.helpers.js';
 import { ContestsService, ContestsServiceError } from './contests.service.js';
 import type { ContestRepository } from './contests.types.js';
 
@@ -93,6 +94,13 @@ test('public contest deadlines follow the registration status', async () => {
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
   const open = await service.create({ ...base, status: 'buka', deadline: today }, 'leader-1');
   assert.equal(open.deadline, today);
+});
+
+test('database deadline errors describe the current minimum date', () => {
+  for (const message of ['CONTEST_DEADLINE_MUST_BE_FUTURE', 'CONTEST_DEADLINE_MUST_BE_TODAY_OR_LATER']) {
+    assert.equal(contestErrorMessage({ code: '22023', message }, 'fallback'),
+      'Deadline pendaftaran harus hari ini atau setelahnya.');
+  }
 });
 
 test('contest service maps PostgREST missing-column errors to a safe schema-unavailable response', async () => {
