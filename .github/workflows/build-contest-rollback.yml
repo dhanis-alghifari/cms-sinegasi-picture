@@ -29,6 +29,11 @@ jobs:
           printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
           trap 'docker logout ghcr.io >/dev/null' EXIT
           docker build --platform linux/amd64 --label "org.opencontainers.image.revision=$SOURCE_SHA" --tag "$image:rollback-$SOURCE_SHA" ./backend
+          docker run --rm --network none --read-only --cap-drop ALL --entrypoint node "$image:rollback-$SOURCE_SHA" -e '
+            const { mapContestPersistenceRow } = require("./dist/modules/contests/contests.persistence.compatibility.js");
+            const contest = mapContestPersistenceRow({ id: "test", nama: "Test", jenis: "Test", level: "umum", tanggal: null, deadline: null, status: "selesai" });
+            if (contest.deadline !== null || contest.tanggal !== null) process.exit(1);
+          '
           docker push "$image:rollback-$SOURCE_SHA"
           digest_ref="$(docker image inspect -f '{{index .RepoDigests 0}}' "$image:rollback-$SOURCE_SHA")"
           [[ "$digest_ref" =~ ^ghcr\.io/[a-z0-9][a-z0-9._/-]*@sha256:[a-f0-9]{64}$ ]]
