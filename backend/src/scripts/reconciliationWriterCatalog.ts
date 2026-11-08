@@ -3,6 +3,7 @@ import { canonicalConstraintDefinition, sha256, type SchemaSnapshot } from './pr
 import { verifyReferenceRows, type ReferenceDatabase, type ReferenceDataPlan } from './productionReferenceData.js';
 import { WriterError } from './reconciliationWriterPolicy.js';
 import { readManagedTrigram } from './reconciliationWriterExtensions.js';
+import { PAYMENT_METHODS_POLICY, reviewedPaymentReference } from './optionalFieldsProductionPolicy.js';
 
 export interface WriterSession extends ReferenceDatabase {
   inventory(): Promise<DatabaseInventory>;
@@ -35,7 +36,8 @@ const requireEqual = (actual: readonly unknown[], expected: readonly unknown[], 
 
 /** Exact postcondition, including bodies/constraints/permissions; not just table counts. */
 export async function verifyWriterTarget(db: WriterSession, snapshot: SchemaSnapshot, reference: ReferenceDataPlan,
-  managedExtensionSha256?: string): Promise<WriterCatalog> {
+  managedExtensionSha256?: string, paymentMethodsPolicy?: typeof PAYMENT_METHODS_POLICY): Promise<WriterCatalog> {
+  if (paymentMethodsPolicy !== undefined && paymentMethodsPolicy !== PAYMENT_METHODS_POLICY) throw new WriterError('PAYMENT_REFERENCE_POLICY_INVALID');
   const managed = await readManagedTrigram(db);
   if (managed.signatures.length && managed.sha256 !== managedExtensionSha256) throw new WriterError('MANAGED_EXTENSION_REVIEW_OR_PARITY_REQUIRED');
   const catalog = await readWriterCatalog(db), inventory = catalog.inventory;
@@ -88,7 +90,7 @@ export async function verifyWriterTarget(db: WriterSession, snapshot: SchemaSnap
       throw new WriterError('TARGET_FUNCTION_SEMANTICS_MISMATCH');
     }
   }
-  await verifyReferenceRows(db, reference);
+  await verifyReferenceRows(db, paymentMethodsPolicy === PAYMENT_METHODS_POLICY ? reviewedPaymentReference(reference) : reference);
   for (const role of ['anon', 'authenticated']) {
     const result = (await db.query(`SELECT
       EXISTS(SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind IN ('r','v')

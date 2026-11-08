@@ -69,7 +69,9 @@ export async function runDeploymentGate(args: readonly string[]): Promise<void> 
     const actual = await inspectDeploymentSchema({ query: (sql, values) => client.query(sql, values ? [...values] : undefined),
       inventory: () => databaseInventory(client) }, bundle,
     'studentPhotoChange' in evidence ? evidence.studentPhotoChange : undefined,
-    'backupRolePolicy' in evidence ? evidence.backupRolePolicy : undefined);
+    'backupRolePolicy' in evidence ? evidence.backupRolePolicy : undefined,
+    'optionalFieldsPolicy' in evidence ? evidence.optionalFieldsPolicy : undefined,
+    'paymentMethodsPolicy' in evidence ? evidence.paymentMethodsPolicy : undefined);
     requireDeploymentObservation(actual, evidence.observation);
     // Recheck freshness/window after metadata reads, not only before connecting.
     requireDeploymentWindow(flags['--window-start'], flags['--window-end'], Date.now());
