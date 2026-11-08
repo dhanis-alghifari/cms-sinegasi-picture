@@ -2,8 +2,10 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { optionalFieldsBaseline, optionalFieldsBaselineSession, requireOptionalFieldsProductionHistory } from './optionalFieldsProductionPolicy.js';
+import { optionalFieldsBaseline, optionalFieldsBaselineSession, requireOptionalFieldsProductionHistory,
+  reviewedPaymentReference } from './optionalFieldsProductionPolicy.js';
 import { loadSnapshot } from './productionReconciliation.js';
+import { createWriterPackage } from './reconciliationWriterPolicy.js';
 import { writerCatalogHash, type WriterCatalog, type WriterSession } from './reconciliationWriterCatalog.js';
 
 const fixturePath = resolve(__dirname, 'fixtures/optional-fields-catalog.json');
@@ -13,6 +15,22 @@ async function fixture(): Promise<WriterCatalog> {
   const value = JSON.parse(await readFile(fixturePath, 'utf8')) as Pick<WriterCatalog, 'security'> & { structure: Record<string, unknown>[] };
   return { inventory: { tables: [], structure: value.structure, roles: [], extensions: [] }, security: value.security };
 }
+
+test('reviewed payment view refuses changed bootstrap data and does not mutate its receipt-bound plan', async () => {
+  const reference = createWriterPackage(await loadSnapshot(repository)).reference;
+  const before = JSON.stringify(reference), reviewed = reviewedPaymentReference(reference);
+  assert.equal(JSON.stringify(reference), before);
+  assert.equal(reviewed.checksum, reference.checksum);
+  assert.equal(reviewed.tables.find(table => table.name === 'cash_payment_methods')?.rows.length, 3);
+  for (const mutate of [
+    (plan: typeof reference) => { plan.tables = plan.tables.filter(table => table.name !== 'cash_payment_methods'); },
+    (plan: typeof reference) => { plan.tables.push(structuredClone(plan.tables.find(table => table.name === 'cash_payment_methods')!)); },
+    (plan: typeof reference) => { plan.tables.find(table => table.name === 'cash_payment_methods')!.rows[0][1] = 'changed'; },
+    (plan: typeof reference) => { plan.tables.find(table => table.name === 'cash_payment_methods')!.columns.reverse(); },
+  ]) {
+    const changed = structuredClone(reference); mutate(changed); assert.throws(() => reviewedPaymentReference(changed));
+  }
+});
 
 test('optional-fields baseline removes exactly the reviewed deltas', async () => {
   const catalog = await fixture(), snapshot = await loadSnapshot(repository);

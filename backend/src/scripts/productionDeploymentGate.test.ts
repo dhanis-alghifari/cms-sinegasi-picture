@@ -18,7 +18,7 @@ import { readStudentPhotoSql, STUDENT_PHOTO_CHANGE, STUDENT_PHOTO_SIGNATURE, STU
 import { applyStudentPhotoMigration, validateStudentPhotoApproval, type StudentPhotoAuthorization } from './studentPhotoProductionMigration.js';
 import { APPROVED_BACKUP_ROLE_POLICY } from './productionBackupRolePolicy.js';
 import { backupRoleFixture, backupMembershipFixture, backupSecurityFixture } from './productionBackupRoleFixtures.js';
-import { OPTIONAL_FIELDS_POLICY, optionalFieldsBaseline } from './optionalFieldsProductionPolicy.js';
+import { OPTIONAL_FIELDS_POLICY, PAYMENT_METHODS_POLICY, optionalFieldsBaseline } from './optionalFieldsProductionPolicy.js';
 
 const now = Date.parse('2026-10-13T09:00:00.000Z'), release = '1'.repeat(40);
 const hash = (character: string) => character.repeat(64);
@@ -222,6 +222,7 @@ async function schemaFixture(withBackupRole = false) {
   const security: Record<string, unknown>[] = [];
   const normalized = { ...inventory, tables: inventory.tables.map(t => ({ ...t, rows: String(bundle.reference.tables.find(r => r.name === t.name)?.rows.length ?? 0) })) };
   let stage = 'complete', readOnly = 'on', exposed = false, schemaDrift = false, referenceDrift = false;
+  let paymentRows: Record<string, unknown>[] | undefined, otherReferenceDrift = false;
   let photoInstalled = false, photoAtBegin: boolean | undefined, optionalInstalled = false;
   const photoObject = { kind: 'function', name: STUDENT_PHOTO_SIGNATURE, definition: photoSql };
   const liveInventory = () => ({ ...inventory, roles: [...inventory.roles,
@@ -269,7 +270,9 @@ async function schemaFixture(withBackupRole = false) {
           definer: f.securityDefiner, config: [...(f.config ?? []).filter(c => !c.startsWith('search_path=')), 'search_path=' + search] };
       }), ...(photoInstalled ? [{ ...photo, signature: STUDENT_PHOTO_SIGNATURE, definition: photoSql }] : [])] };
       const reference = bundle.reference.tables.find(t => sql.includes(`FROM public."${t.name}"`));
-      if (reference) return { rows: [...reference.rows.map(row => Object.fromEntries(reference.columns.map((c, i) => [c, row[i]]))),
+      if (reference) return { rows: [...(reference.name === 'cash_payment_methods' && paymentRows ? paymentRows
+        : reference.rows.map(row => Object.fromEntries(reference.columns.map((c, i) => [c, row[i]])))),
+        ...(otherReferenceDrift && reference.name === 'work_types' ? [{ code: 'unexpected' }] : []),
         ...(referenceDrift && reference.name === 'cash_payment_methods' ? [{ code: 'unreviewed' }] : [])] };
       if (sql.includes('AS tables')) return { rows: [{ tables: false, functions: false, create: false }] };
       if (sql.includes('AS read')) {
@@ -279,7 +282,9 @@ async function schemaFixture(withBackupRole = false) {
       if (sql.includes('AS missing_rpc')) return { rows: [{ missing_rpc: false, missing_view: false }] };
       throw new Error('UNEXPECTED_FIXTURE_QUERY');
     } };
-  return { bundle, db, queries, installed: () => photoInstalled, installOptional: () => { optionalInstalled = true; }, mutate(scenario: string) { stage = scenario === 'incomplete' ? 'enums' : 'complete';
+  return { bundle, db, queries, installed: () => photoInstalled, installOptional: () => { optionalInstalled = true; },
+    paymentRows: (rows: Record<string, unknown>[] | undefined) => { paymentRows = rows; },
+    otherReferenceDrift: (value: boolean) => { otherReferenceDrift = value; }, mutate(scenario: string) { stage = scenario === 'incomplete' ? 'enums' : 'complete';
     readOnly = scenario === 'writable' ? 'off' : 'on'; exposed = scenario === 'exposed'; schemaDrift = scenario === 'drift';
     referenceDrift = scenario === 'reference-drift'; } };
 }
@@ -404,10 +409,41 @@ test('optional fields evidence is explicit and retains photo and backup bindings
     optionalFieldsPolicy: OPTIONAL_FIELDS_POLICY, studentPhotoChange: receipt, observation: observed, observedAt: iso(0) };
   const run = (value: object) => { const raw = JSON.stringify(value); return validateDeploymentEvidence(raw, { ...auth.context, evidenceSha256: deploymentHash(raw), now }); };
   assert.equal(run(evidence6).format, 6);
+  const evidence7 = { ...evidence6, format: 7, mode: 'reconciled-optional-fields-payment-v1', paymentMethodsPolicy: PAYMENT_METHODS_POLICY };
+  assert.equal(run(evidence7).format, 7);
+  for (const changes of [{ paymentMethodsPolicy: 'override' }, { paymentMethodsPolicy: undefined },
+    { optionalFieldsPolicy: 'override' }, { format: 6 }, { mode: 'reconciled-optional-fields-v1' }]) {
+    assert.throws(() => run({ ...evidence7, ...changes }));
+  }
   for (const changes of [{ optionalFieldsPolicy: 'override' }, { backupRolePolicy: 'other' },
     { studentPhotoChange: { ...receipt, sqlSha256: hash('0') } }, { studentPhotoChange: null },
     { mode: 'reconciled-no-sql' }, { unexpected: true }]) assert.throws(() => run({ ...evidence6, ...changes }));
   await assert.rejects(inspectDeploymentSchema(fixture.db, fixture.bundle, undefined, APPROVED_BACKUP_ROLE_POLICY, OPTIONAL_FIELDS_POLICY));
+});
+test('reviewed payment policy verifies exactly three six-column methods and preserves all other checks', async () => {
+  const fixture = await schemaFixture(true), auth = await photoAuthorization(fixture, true);
+  fixture.mutate('writable');
+  const receipt = await applyStudentPhotoMigration(fixture.db, fixture.bundle, auth, { now: () => now, revalidate: async () => {} });
+  fixture.mutate('normal'); fixture.installOptional();
+  const cash = { code: 'cash', label: 'Cash', is_active: true, sort_order: 10, created_by: null, updated_by: null };
+  const dana = { ...cash, code: 'qris_dana', label: 'QRIS DANA', sort_order: 20 };
+  const gopay = { ...cash, code: 'qris_gopay', label: 'QRIS GoPay', sort_order: 30 };
+  const inspect = (policy?: typeof PAYMENT_METHODS_POLICY) => inspectDeploymentSchema(fixture.db, fixture.bundle, receipt,
+    APPROVED_BACKUP_ROLE_POLICY, OPTIONAL_FIELDS_POLICY, policy);
+  fixture.paymentRows([gopay, cash, dana]);
+  await assert.rejects(inspect());
+  const observed = await inspect(PAYMENT_METHODS_POLICY);
+  assert.equal(observed.schemaSecuritySha256, observed.targetCatalogSha256);
+  for (const rows of [[cash, dana], [cash, dana, gopay, cash], [cash, dana, { ...gopay, label: 'changed' }],
+    [cash, { ...dana, is_active: false }, gopay], [cash, { ...dana, sort_order: 21 }, gopay],
+    [cash, { ...dana, created_by: 'unknown' }, gopay], [cash, dana, { ...gopay, updated_by: 'unknown' }],
+    [cash, dana, { ...gopay, code: 'other' }]]) {
+    fixture.paymentRows(rows); await assert.rejects(inspect(PAYMENT_METHODS_POLICY));
+  }
+  fixture.paymentRows([cash, dana, gopay]); fixture.otherReferenceDrift(true);
+  await assert.rejects(inspect(PAYMENT_METHODS_POLICY));
+  await assert.rejects(inspectDeploymentSchema(fixture.db, fixture.bundle, receipt, APPROVED_BACKUP_ROLE_POLICY, undefined, PAYMENT_METHODS_POLICY));
+  assert.equal(fixture.queries.at(-1), 'ROLLBACK');
 });
 test('optional-fields adapter preserves all old gate checks, including reference-data drift', async () => {
   const fixture = await schemaFixture(true), auth = await photoAuthorization(fixture, true);

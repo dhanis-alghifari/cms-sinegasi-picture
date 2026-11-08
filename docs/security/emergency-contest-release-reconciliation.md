@@ -19,9 +19,11 @@ bukan izin deploy atau prosedur cutover yang telah diuji.
   `20261107034531`; nama dan timestamp ini tidak sama dengan file SQL di repo.
   Jangan replay migration atau mengubah history tanpa pembuktian tersendiri.
 - Gate data acuan lama mengharapkan hanya Cash; saat pemeriksaan production juga
-  memiliki QRIS DANA dan QRIS GoPay aktif. Asal perubahan tersebut belum
-  terbukti dari audit yang diperiksa. Gate tetap menolak perbedaan ini; jangan
-  hapus atau ubah metode pembayaran untuk memaksa gate lulus.
+  memiliki QRIS DANA dan QRIS GoPay aktif. Pemilik mengonfirmasi ketiga metode
+  ini pada 8 November 2026, bukan asal perubahan historisnya. Policy draft format 7
+  memeriksa tepat keenam kolom referensi untuk ketiga metode tanpa mengubah
+  checksum bootstrap. ID dan timestamp tidak tercakup. Gate production belum
+  diaktifkan dengan policy ini; jangan ubah data untuk memaksa gate lulus.
 - Izin GitHub Packages belum tercantum pada status autentikasi saat diperiksa;
   image aktif belum berhasil disimpan sebagai referensi registry permanen.
 - Kondisi di atas adalah observasi saat pemeriksaan, bukan jaminan kondisi saat

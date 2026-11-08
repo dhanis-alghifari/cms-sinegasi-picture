@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { SchemaSnapshot } from './productionReconciliation.js';
 import type { WriterCatalog, WriterSession } from './reconciliationWriterCatalog.js';
+import type { ReferenceDataPlan } from './productionReferenceData.js';
 import { DeploymentGateError } from './productionDeploymentError.js';
 
 /** Exact, previously observed PostgreSQL definitions; no whitespace normalization. */
@@ -14,8 +15,26 @@ const NEW_RPC = 'update_student_profile_nis_audited_atomic(uuid,text,text,text,t
 const NEW_SECURITY_NAME = NEW_RPC.slice(0, 63);
 const COLUMNS = ['contests.tanggal_lomba', 'students.nis'];
 export const OPTIONAL_FIELDS_POLICY = 'student-nis-contest-deadline-reviewed-v1';
+export const PAYMENT_METHODS_POLICY = 'cash-qris-dana-qris-gopay-reviewed-v1';
 const hash = (s: string): string => createHash('sha256').update(s).digest('hex');
 const fail = (): never => { throw new DeploymentGateError('OPTIONAL_FIELDS_SCHEMA_OR_SECURITY_DRIFT'); };
+
+/** Approved current production rows; the original bootstrap plan/checksum stays intact. */
+export function reviewedPaymentReference(reference: ReferenceDataPlan): ReferenceDataPlan {
+  const matches = reference.tables.filter(table => table.name === 'cash_payment_methods');
+  if (matches.length !== 1 || JSON.stringify(matches[0].columns) !== JSON.stringify([
+    'code', 'label', 'is_active', 'sort_order', 'created_by', 'updated_by',
+  ]) || JSON.stringify(matches[0].rows) !== JSON.stringify([['cash', 'Cash', true, 10, null, null]])) {
+    throw new DeploymentGateError('PAYMENT_REFERENCE_BASELINE_MISMATCH');
+  }
+  return { ...reference, tables: reference.tables.map(table => table.name !== 'cash_payment_methods' ? table : {
+    ...table, rows: [
+      ['cash', 'Cash', true, 10, null, null],
+      ['qris_dana', 'QRIS DANA', true, 20, null, null],
+      ['qris_gopay', 'QRIS GoPay', true, 30, null, null],
+    ],
+  }) };
+}
 
 /** Production's reviewed history differs from DEV; never repair either ledger. */
 export async function requireOptionalFieldsProductionHistory(db: WriterSession): Promise<void> {
