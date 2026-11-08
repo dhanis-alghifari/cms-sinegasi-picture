@@ -9,7 +9,6 @@ import { ContestsService } from '../../backend/src/modules/contests/contests.ser
 import { createContestsRepository } from '../../backend/src/modules/contests/contests.repository';
 import { decodeContestListResponse } from '../src/features/contests/api/contests.responses';
 import { contestEditSchema } from '../src/features/contests/schemas/contestSchema';
-import { rollbackDeadlinePatch } from '../src/features/contests/utils/rollbackDeadline';
 
 test('hotfix null deadline can be read and edited by rollback without changing the deadline', async (t) => {
   const hotfixRoot = process.env.ROLLBACK_HOTFIX_DIR;
@@ -43,8 +42,39 @@ test('hotfix null deadline can be read and edited by rollback without changing t
   }).success, true);
   const updated = await rollback.inject({ method: 'PUT', url: `/api/contests/${event.id}`,
     headers: { ...headers, 'x-change-reason': 'Uji rollback sintetis' },
-    payload: { city: 'Kota Uji', ...rollbackDeadlinePatch('', event.deadline) },
+    payload: { city: 'Kota Uji' },
   });
   assert.equal(updated.statusCode, 200, updated.body);
   assert.equal(updated.json().data.deadline, null);
+  const createdByRollback = await rollback.inject({ method: 'POST', url: '/api/contests', headers, payload: {
+    contest_name: 'Festival Rollback', scope: 'national', deadline: null, status: 'completed', event_year: 2020,
+  } });
+  assert.equal(createdByRollback.statusCode, 201, createdByRollback.body);
+  assert.equal(createdByRollback.json().data.deadline, null);
+  const member = rollback.jwt.sign({ userId: 'member-test', username: 'member', role: 'member', isFirstLogin: false });
+  const forbidden = await rollback.inject({ method: 'PUT', url: `/api/contests/${event.id}`,
+    headers: { authorization: `Bearer ${member}`, 'x-change-reason': 'Uji rollback sintetis' },
+    payload: { deadline: null, status: 'judging' },
+  });
+  assert.equal(forbidden.statusCode, 403, forbidden.body);
+  const future = '2099-12-01';
+  const addDate = await rollback.inject({ method: 'PUT', url: `/api/contests/${event.id}`,
+    headers: { ...headers, 'x-change-reason': 'Uji rollback sintetis' }, payload: { deadline: future, status: 'judging' },
+  });
+  assert.equal(addDate.statusCode, 200, addDate.body);
+  const clear = await rollback.inject({ method: 'PUT', url: `/api/contests/${event.id}`,
+    headers: { ...headers, 'x-change-reason': 'Uji rollback sintetis' }, payload: { deadline: null, status: 'judging' },
+  });
+  assert.equal(clear.statusCode, 200, clear.body);
+  assert.equal(clear.json().data.deadline, null);
+  const invalid = await rollback.inject({ method: 'POST', url: '/api/contests', headers, payload: {
+    contest_name: 'Event Terbuka Sintetis', scope: 'national', deadline: null, status: 'open', event_year: 2099,
+  } });
+  assert.equal(invalid.statusCode, 422, invalid.body);
+  for (const payload of [{ deadline: null }, { deadline: null, status: 'open' }]) {
+    const denied = await rollback.inject({ method: 'PUT', url: `/api/contests/${event.id}`,
+      headers: { ...headers, 'x-change-reason': 'Uji rollback sintetis' }, payload,
+    });
+    assert.equal(denied.statusCode, 422, denied.body);
+  }
 });

@@ -1,6 +1,5 @@
 
 import { z } from 'zod';
-import { getFutureDateInputValue } from '@/shared/utils/formatDate';
 import {
   AWARD_STATUS_VALUES,
   CONTEST_ENTRY_STATUS_VALUES,
@@ -12,6 +11,14 @@ import {
 export const contestLevelEnum = z.enum(CONTEST_SCOPE_VALUES, { error: 'Tingkat lomba wajib dipilih.' });
 export const contestStatusEnum = z.enum(CONTEST_STATUS_VALUES, { error: 'Status lomba wajib dipilih.' });
 export const awardStatusEnum = z.enum(AWARD_STATUS_VALUES, { error: 'Status penghargaan wajib dipilih.' });
+
+export function contestBusinessToday(): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(new Date());
+  const value = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${value.year}-${value.month}-${value.day}`;
+}
 
 const calendarDate = z.string({ error: 'Tanggal wajib diisi.' })
   .regex(/^\d{4}-\d{2}-\d{2}$/, 'Tanggal harus berformat YYYY-MM-DD')
@@ -31,18 +38,19 @@ const contestFields = {
   change_reason: z.string().optional(),
 };
 
-export const contestSchema = z.object({
-  ...contestFields,
-  deadline: calendarDate.refine((value) => value >= getFutureDateInputValue(1), 'Deadline harus besok atau setelahnya'),
-});
-
-/** Rollback can edit an existing event with no deadline, but an open event still needs one. */
-export const contestEditSchema = z.object({ ...contestFields, deadline: calendarDate.or(z.literal('')) })
-  .superRefine((value, ctx) => {
-    if (value.status === 'buka' && !value.deadline) {
+function contestFormSchema(isEditing: boolean) {
+  return z.object({ ...contestFields, deadline: calendarDate.or(z.literal('')) }).superRefine((value, ctx) => {
+    if (value.status !== 'buka') return;
+    if (!value.deadline) {
       ctx.addIssue({ code: 'custom', path: ['deadline'], message: 'Deadline pendaftaran wajib diisi.' });
+    } else if (!isEditing && value.deadline < contestBusinessToday()) {
+      ctx.addIssue({ code: 'custom', path: ['deadline'], message: 'Deadline minimal hari ini.' });
     }
   });
+}
+
+export const contestSchema = contestFormSchema(false);
+export const contestEditSchema = contestFormSchema(true);
 
 export type ContestFormValues = z.infer<typeof contestSchema>;
 

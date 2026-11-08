@@ -27,7 +27,6 @@ import { ContestMobileList } from '../components/ContestMobileList';
 import type { Contest } from '../types/contests.types';
 import type { ContestFormValues } from '../schemas/contestSchema';
 import { isContestScope, isContestStatus } from '../utils/contestLabels';
-import { rollbackDeadlinePatch } from '../utils/rollbackDeadline';
 
 const ContestAchievementsPanel = lazy(() => import('../components/ContestAchievementsPanel').then((module) => ({ default: module.ContestAchievementsPanel })));
 const CreateContestModal = lazy(() => import('../components/CreateContestModal').then((module) => ({ default: module.CreateContestModal })));
@@ -134,7 +133,7 @@ export function ContestsPage() {
           nama_lomba: contestFormPayload.nama_lomba,
           kota: contestFormPayload.kota || null,
           tingkat: contestFormPayload.tingkat,
-          ...rollbackDeadlinePatch(contestFormPayload.deadline, selectedContest.deadline),
+          ...(contestFormPayload.status !== 'selesai' && (contestFormPayload.deadline || null) !== selectedContest.deadline ? { deadline: contestFormPayload.deadline || null } : {}),
           status: contestFormPayload.status,
           tahun_event: contestFormPayload.tahun_event,
           website_url: contestFormPayload.website_url || undefined,
@@ -148,7 +147,7 @@ export function ContestsPage() {
           nama_lomba: contestFormPayload.nama_lomba,
           kota: contestFormPayload.kota || null,
           tingkat: contestFormPayload.tingkat,
-          deadline: contestFormPayload.deadline,
+          deadline: contestFormPayload.status === 'selesai' ? null : contestFormPayload.deadline || null,
           status: contestFormPayload.status,
           tahun_event: contestFormPayload.tahun_event,
           website_url: contestFormPayload.website_url || undefined,

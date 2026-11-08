@@ -49,8 +49,8 @@ function validDate(value: string, mustBeFuture = false): string {
   if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== value) {
     throw new ContestsServiceError(422, 'INVALID_DATE', 'tanggal harus berupa tanggal kalender yang valid.');
   }
-  if (mustBeFuture && value <= getBusinessTodayDate()) {
-    throw new ContestsServiceError(422, 'INVALID_DEADLINE', 'Deadline pendaftaran harus besok atau tanggal setelahnya.');
+  if (mustBeFuture && value < getBusinessTodayDate()) {
+    throw new ContestsServiceError(422, 'INVALID_DEADLINE', 'Deadline pendaftaran harus hari ini atau setelahnya.');
   }
   return value;
 }
@@ -191,10 +191,13 @@ export class ContestsService {
     if (isPublicContract && !scope) {
       throw new ContestsServiceError(422, 'INVALID_CONTEST_SCOPE', 'tingkat lomba tidak valid.');
     }
-    const tanggal = validDate(requiredText(input.tanggal ?? input.deadline, isPublicContract ? 'deadline' : 'tanggal', 10), isPublicContract);
     const status = normalizeContestStatus(input.status) || 'progres';
     const hasil = cleanText(input.hasil, 500);
     const statusPublic = isPublicContract ? toPublicContestStatus(input.status) : null;
+    const dateInput = cleanText(input.tanggal ?? input.deadline, 10);
+    const tanggal = dateInput ? validDate(dateInput, isPublicContract && statusPublic === 'buka')
+      : isPublicContract && statusPublic !== 'buka' ? null
+        : validDate(requiredText(dateInput, isPublicContract ? 'deadline' : 'tanggal', 10));
     const kota = cleanText(input.kota, 120);
     const tahunEvent = getEventYear(input, isPublicContract);
     if (!actorId && this.repositoryIsConfigured()) {
@@ -258,7 +261,13 @@ export class ContestsService {
       }
     }
     if (input.tanggal !== undefined || input.deadline !== undefined) {
-      const value = validDate(requiredText(input.tanggal ?? input.deadline, input.deadline !== undefined ? 'deadline' : 'tanggal', 10), input.deadline !== undefined);
+      const dateInput = cleanText(input.tanggal ?? input.deadline, 10);
+      if (!dateInput && input.deadline !== undefined && !['selesai', 'proses_penjurian'].includes(input.status ?? '')) {
+        throw new ContestsServiceError(422, 'INVALID_DEADLINE', 'Untuk mengosongkan deadline, pilih status selesai atau proses penjurian.');
+      }
+      const value = dateInput ? validDate(dateInput, input.deadline !== undefined && (input.status === 'buka' || input.status === undefined))
+        : input.deadline !== undefined ? null
+          : validDate(requiredText(dateInput, 'tanggal', 10));
       changes.tanggal = value;
       if (input.deadline !== undefined) changes.deadline = value;
     }

@@ -84,7 +84,7 @@ export interface CreateContestPayload {
   nama_lomba: string;
   kota?: string | null;
   tingkat: ContestScope;
-  deadline: string;
+  deadline: string | null;
   status: ContestStatus;
   tahun_event: number;
   website_url?: string;
