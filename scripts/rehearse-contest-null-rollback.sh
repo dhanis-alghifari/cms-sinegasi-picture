@@ -56,6 +56,14 @@ DO $$ BEGIN
     RAISE EXCEPTION 'Expected deadline error, but update was accepted';
   EXCEPTION WHEN SQLSTATE '22023' THEN NULL; END;
   BEGIN
+    UPDATE public.contests SET tanggal_lomba=NULL, tanggal=NULL, deadline=NULL WHERE id='open-today';
+    RAISE EXCEPTION 'Expected deadline clearing error for an open contest';
+  EXCEPTION WHEN SQLSTATE '22023' THEN NULL; END;
+  UPDATE public.contests SET tanggal_lomba=NULL, tanggal=NULL, deadline=NULL WHERE id='existing';
+  IF EXISTS (SELECT 1 FROM public.contests WHERE id='existing' AND (tanggal_lomba IS NOT NULL OR tanggal IS NOT NULL OR deadline IS NOT NULL)) THEN
+    RAISE EXCEPTION 'Expected deadline to be cleared for completed contest';
+  END IF;
+  BEGIN
     ALTER TABLE public.contests ALTER COLUMN tanggal_lomba SET NOT NULL;
     RAISE EXCEPTION 'Expected null rollback failure, but alter was accepted';
   EXCEPTION WHEN not_null_violation THEN NULL; END;

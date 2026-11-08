@@ -37,7 +37,7 @@ jobs:
       - name: Checkout pinned compatible rollback candidate
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
-          ref: e08bd9633fdaff881bbc89071ad625a66916d910
+          ref: bbad6c3ad219c5f30a4302df8801c1d59c048211
           path: rollback-src
           persist-credentials: false
 
