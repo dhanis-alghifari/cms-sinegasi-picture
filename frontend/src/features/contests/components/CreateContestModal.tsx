@@ -114,6 +114,10 @@ export function CreateContestModal({
       form.setError('change_reason', { message: 'Alasan perubahan wajib diisi (minimal 5 karakter)' });
       return;
     }
+    if (contest?.deadline && !formValues.deadline) {
+      form.setError('deadline', { message: 'Deadline yang sudah ada tidak dapat dikosongkan pada versi ini.' });
+      return;
+    }
     await onSubmit(formValues);
     onOpenChange(false);
   });
@@ -210,11 +214,11 @@ export function CreateContestModal({
           <section className="w-full min-w-0 shrink-0 space-y-3 rounded-lg border border-hairline bg-surface-2/40 p-3 sm:p-4">
             <div>
               <p className="text-xs font-semibold text-ink">Pendaftaran</p>
-              <p className="mt-0.5 text-[11px] text-ink-tertiary">Deadline tidak boleh hari ini atau tanggal yang sudah lewat.</p>
+              <p className="mt-0.5 text-[11px] text-ink-tertiary">{isEditingContest ? 'Deadline baru harus setelah hari ini.' : 'Deadline tidak boleh hari ini atau tanggal yang sudah lewat.'}</p>
             </div>
             <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1">
-              <Label htmlFor="deadline" className="text-xs text-ink-muted">Batas Waktu Pendaftaran <span className="text-semantic-danger" aria-hidden="true">*</span></Label>
+              <Label htmlFor="deadline" className="text-xs text-ink-muted">Batas Waktu Pendaftaran {isEditingContest && !contest?.deadline && selectedContestStatus !== 'buka' ? <span className="text-ink-tertiary">(Opsional)</span> : <span className="text-semantic-danger" aria-hidden="true">*</span>}</Label>
               <Input
                 id="deadline"
                 type="date"

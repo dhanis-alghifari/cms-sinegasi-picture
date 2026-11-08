@@ -36,8 +36,13 @@ export const contestSchema = z.object({
   deadline: calendarDate.refine((value) => value >= getFutureDateInputValue(1), 'Deadline harus besok atau setelahnya'),
 });
 
-/** Edit permits an unchanged historical deadline; the API enforces future-only dates when it changes. */
-export const contestEditSchema = z.object({ ...contestFields, deadline: calendarDate });
+/** Rollback can edit an existing event with no deadline, but an open event still needs one. */
+export const contestEditSchema = z.object({ ...contestFields, deadline: calendarDate.or(z.literal('')) })
+  .superRefine((value, ctx) => {
+    if (value.status === 'buka' && !value.deadline) {
+      ctx.addIssue({ code: 'custom', path: ['deadline'], message: 'Deadline pendaftaran wajib diisi.' });
+    }
+  });
 
 export type ContestFormValues = z.infer<typeof contestSchema>;
 
