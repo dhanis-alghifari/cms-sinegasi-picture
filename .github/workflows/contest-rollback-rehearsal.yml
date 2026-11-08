@@ -33,3 +33,38 @@ jobs:
 
       - name: Test synthetic schema and rollback mapper
         run: bash scripts/rehearse-contest-null-rollback.sh
+
+      - name: Smoke test rollback API without network or production configuration
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          container_id=""
+          cleanup() {
+            if [[ -n "$container_id" ]]; then
+              docker stop -t 2 "$container_id" >/dev/null
+            fi
+          }
+          trap cleanup EXIT
+          container_id=$(docker run -d --rm --pull never --network none --restart no \
+            --memory 256m --memory-swap 256m --cpus 0.5 --pids-limit 64 \
+            --read-only --cap-drop ALL --security-opt no-new-privileges \
+            -e ENV_FILE_LOADING=disabled -e NODE_ENV=development \
+            -e BACKGROUND_JOBS_ENABLED=false -e ALLOW_DEV_AUTH=false \
+            ghcr.io/dhanis-alghifari/cms-sinegasi-picture/api@sha256:d6b998602feefc66d74d484bf5863d415a12721bbca534d7d2fa169e8326e3f4)
+          docker exec "$container_id" node -e '
+            (async () => {
+              for (let attempt = 0; attempt < 30; attempt++) {
+                try {
+                  const health = await fetch("http://127.0.0.1:5001/api/health");
+                  const protectedRoute = await fetch("http://127.0.0.1:5001/api/contests");
+                  if (health.status !== 200 || protectedRoute.status !== 401) {
+                    throw new Error(`Unexpected status: health=${health.status} protected=${protectedRoute.status}`);
+                  }
+                  console.log("ROLLBACK_API_LIVENESS_AND_UNAUTHENTICATED_DENIAL_OK");
+                  return;
+                } catch (error) {
+                  if (attempt === 29) throw error;
+                  await new Promise(resolve => setTimeout(resolve, 500));
+                }
+              }
+            })().catch(error => { console.error(error.message); process.exit(1); });'
