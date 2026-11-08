@@ -1,0 +1,35 @@
+name: Synthetic Contest Rollback Rehearsal
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/contest-rollback-rehearsal.yml'
+      - 'scripts/rehearse-contest-null-rollback.sh'
+      - 'supabase/migrations/20261106145108_contest_optional_deadline.sql'
+
+permissions: {}
+
+concurrency:
+  group: contest-rollback-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  synthetic-rollback:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout reviewed pull request
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+
+      - name: Cache exact public test images
+        run: |
+          docker pull postgres@sha256:3645570cccdfa447589da9f57dd740faa29b30938e861289a5574b6ca6b03826
+          docker pull ghcr.io/dhanis-alghifari/cms-sinegasi-picture/api@sha256:d6b998602feefc66d74d484bf5863d415a12721bbca534d7d2fa169e8326e3f4
+
+      - name: Test synthetic schema and rollback mapper
+        run: bash scripts/rehearse-contest-null-rollback.sh
