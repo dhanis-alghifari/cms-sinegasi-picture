@@ -125,3 +125,34 @@ jobs:
             docker stop -t 2 "$container_id" >/dev/null
             container_id=""
           done
+
+      - name: Archive tested candidate image and checksum
+        run: |
+          set -Eeuo pipefail
+          mkdir -p candidate-image
+          docker image inspect --format '{{.Id}}' local/contest-rollback-candidate:bbad6c3 > candidate-image/image-id.txt
+          printf '%s\n' 'bbad6c3ad219c5f30a4302df8801c1d59c048211' > candidate-image/source-commit.txt
+          docker save local/contest-rollback-candidate:bbad6c3 | gzip -n > candidate-image/contest-rollback-candidate.tar.gz
+          (cd candidate-image && sha256sum contest-rollback-candidate.tar.gz > SHA256SUMS)
+
+      - name: Verify archived image can be reloaded
+        run: |
+          set -Eeuo pipefail
+          (cd candidate-image && sha256sum --check SHA256SUMS)
+          docker image rm local/contest-rollback-candidate:bbad6c3
+          gzip -dc candidate-image/contest-rollback-candidate.tar.gz | docker load
+          test "$(docker image inspect --format '{{.Id}}' local/contest-rollback-candidate:bbad6c3)" = "$(< candidate-image/image-id.txt)"
+          docker run --rm -i --pull never --network none --restart no \
+            --memory 256m --memory-swap 256m --cpus 0.5 --pids-limit 64 \
+            --read-only --cap-drop ALL --security-opt no-new-privileges \
+            -e ENV_FILE_LOADING=disabled -e NODE_ENV=development \
+            -e BACKGROUND_JOBS_ENABLED=false -e ALLOW_DEV_AUTH=false \
+            --entrypoint node local/contest-rollback-candidate:bbad6c3 - < scripts/rehearse-contest-candidate-image.cjs
+
+      - name: Retain tested candidate image for 90 days
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: contest-rollback-candidate-bbad6c3-${{ github.run_id }}
+          path: candidate-image/
+          if-no-files-found: error
+          retention-days: 90
