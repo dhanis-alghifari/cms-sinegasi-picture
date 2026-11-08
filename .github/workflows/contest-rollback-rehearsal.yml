@@ -34,6 +34,43 @@ jobs:
       - name: Test synthetic schema and rollback mapper
         run: bash scripts/rehearse-contest-null-rollback.sh
 
+      - name: Checkout pinned compatible rollback candidate
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: e08bd9633fdaff881bbc89071ad625a66916d910
+          path: rollback-src
+          persist-credentials: false
+
+      - name: Checkout pinned hotfix source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: 8d477ea51c7f63283068ed130c855f736810e8a7
+          path: hotfix-src
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 22
+
+      - name: Install isolated test dependencies
+        run: |
+          set -Eeuo pipefail
+          cmp rollback-src/backend/package-lock.json hotfix-src/backend/package-lock.json
+          npm ci --prefix rollback-src/backend
+          npm ci --prefix rollback-src/frontend
+          ln -s "$GITHUB_WORKSPACE/rollback-src/backend/node_modules" hotfix-src/backend/node_modules
+
+      - name: Test rollback frontend and synthetic API integration
+        working-directory: rollback-src
+        env:
+          ENV_FILE_LOADING: disabled
+          ROLLBACK_HOTFIX_DIR: ${{ github.workspace }}/hotfix-src
+        run: |
+          node --import ./frontend/scripts/register-frontend-tsconfig.mjs --import ./backend/node_modules/tsx/dist/loader.mjs --test \
+            frontend/tests/rollbackDeadlineCompatibility.test.ts frontend/tests/rollbackContestIntegration.test.ts
+          npm run build --prefix frontend
+
       - name: Smoke test rollback API without network or production configuration
         shell: bash
         run: |
