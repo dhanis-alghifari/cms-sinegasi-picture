@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/contest-rollback-rehearsal.yml'
       - 'scripts/rehearse-contest-null-rollback.sh'
+      - 'scripts/rehearse-contest-candidate-image.cjs'
       - 'supabase/migrations/20261106145108_contest_optional_deadline.sql'
 
 permissions: {}
@@ -71,6 +72,20 @@ jobs:
             frontend/tests/rollbackDeadlineCompatibility.test.ts frontend/tests/rollbackContestIntegration.test.ts
           npm run build --prefix frontend
 
+      - name: Build candidate image on disposable runner only
+        run: |
+          docker build --label org.opencontainers.image.revision=bbad6c3ad219c5f30a4302df8801c1d59c048211 \
+            --tag local/contest-rollback-candidate:bbad6c3 rollback-src/backend
+
+      - name: Test built candidate image with synthetic data
+        run: |
+          docker run --rm -i --pull never --network none --restart no \
+            --memory 256m --memory-swap 256m --cpus 0.5 --pids-limit 64 \
+            --read-only --cap-drop ALL --security-opt no-new-privileges \
+            -e ENV_FILE_LOADING=disabled -e NODE_ENV=development \
+            -e BACKGROUND_JOBS_ENABLED=false -e ALLOW_DEV_AUTH=false \
+            --entrypoint node local/contest-rollback-candidate:bbad6c3 - < scripts/rehearse-contest-candidate-image.cjs
+
       - name: Smoke test rollback API without network or production configuration
         shell: bash
         run: |
@@ -82,13 +97,15 @@ jobs:
             fi
           }
           trap cleanup EXIT
-          container_id=$(docker run -d --rm --pull never --network none --restart no \
-            --memory 256m --memory-swap 256m --cpus 0.5 --pids-limit 64 \
-            --read-only --cap-drop ALL --security-opt no-new-privileges \
-            -e ENV_FILE_LOADING=disabled -e NODE_ENV=development \
-            -e BACKGROUND_JOBS_ENABLED=false -e ALLOW_DEV_AUTH=false \
-            ghcr.io/dhanis-alghifari/cms-sinegasi-picture/api@sha256:d6b998602feefc66d74d484bf5863d415a12721bbca534d7d2fa169e8326e3f4)
-          docker exec "$container_id" node -e '
+          for test_image in \
+            ghcr.io/dhanis-alghifari/cms-sinegasi-picture/api@sha256:d6b998602feefc66d74d484bf5863d415a12721bbca534d7d2fa169e8326e3f4 \
+            local/contest-rollback-candidate:bbad6c3; do
+            container_id=$(docker run -d --rm --pull never --network none --restart no \
+              --memory 256m --memory-swap 256m --cpus 0.5 --pids-limit 64 \
+              --read-only --cap-drop ALL --security-opt no-new-privileges \
+              -e ENV_FILE_LOADING=disabled -e NODE_ENV=development \
+              -e BACKGROUND_JOBS_ENABLED=false -e ALLOW_DEV_AUTH=false "$test_image")
+            docker exec "$container_id" node -e '
             (async () => {
               for (let attempt = 0; attempt < 30; attempt++) {
                 try {
@@ -105,3 +122,6 @@ jobs:
                 }
               }
             })().catch(error => { console.error(error.message); process.exit(1); });'
+            docker stop -t 2 "$container_id" >/dev/null
+            container_id=""
+          done
